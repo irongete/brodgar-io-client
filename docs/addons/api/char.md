@@ -154,13 +154,19 @@ character's sheet is up.
 | Method | Returns | Description |
 |---|---|---|
 | `food:fep()` | `Fep` \| nil | the FEP bar: `:cap()`, `:total()` and `:entry()` |
-| `food:fep():entry()` | collection | the food events, each answering `:res()`, `:name()` and `:amount()` |
+| `food:fep():entry()` | collection | the food events, each answering `:res()`, `:name()`, `:amount()` and `:info()` |
+| `food:fep():info()` | table \| nil | a plain-table **snapshot** of the bar — the `fep` half of [`Food`](types/character.md#food), entries included |
 | `food:hunger()` | `Hunger` \| nil | the hunger meter: `:level()`, `:label()` and `:efficacy()` |
 | `food:hunger():level()` | number \| nil | how full it is |
 | `food:hunger():label()` | string \| nil | the client's own word for that level |
 | `food:hunger():efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
+| `food:hunger():info()` | table \| nil | a plain-table **snapshot** of the meter — the `hunger` half of [`Food`](types/character.md#food) |
 | `food:exists()` | boolean | whether this is still that character's live sheet |
-| `food:info()` | [`Food`](types/character.md#food) \| nil | a plain-table **snapshot** |
+| `food:info()` | [`Food`](types/character.md#food) \| nil | a plain-table **snapshot**, the two halves in one table |
+
+Each half snapshots on its own as well as inside `food:info()`, and an entry's own `:info()` is one row of
+the `entries` array — the same tables, addressed at whichever level you are holding. Each is `nil` when
+its meter is not up.
 
 Subscribe to [`FepChanged`](event/bus/character.md#character-and-status), whose payload is the `Food` object
 itself.

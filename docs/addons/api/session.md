@@ -103,6 +103,12 @@ the object in `:list()` is the same one `:get` and `:current()` hand back, and `
 a table key. So are the things that hang off one: hold the `Session` and `s:world()`, `s:player()` and every
 [Gob](gob.md#identity) you read through it keep their identity for as long as you do.
 
+**They are not discarded when the login ends**, and they do not go stale either: every verb on them
+re-resolves what it reads, so the whole bundle answers `nil` for a session that is over and answers again
+for one that comes back under the same account. They live exactly as long as your own reference to the
+`Session` does, which is why a table keyed by the `SessionRemoved` payload holds them: drop the key when
+you are done with that account, and the bundle goes with it.
+
 > **`:current()` changes under you.** It answers whichever session holds the screen at the moment you
 > ask, so take it inside your handler rather than keeping one from load time. What you may keep is a
 > Session itself: it names one account and never becomes another.
@@ -197,7 +203,8 @@ the same act — it logs nobody in and logs nobody out; what happens on it is th
 Two spellings, one act and one key: `hafen.session():remove(s)` ends a login from the collection, which is
 where every other collection in this API keeps the verb that destroys a member, and `s:close()` ends it
 from the login itself. Both need the `session.close` permission, and the permission is checked before
-either looks at what you handed it.
+either looks at what you handed it. The refusal names the door you wrote rather than the key's own
+spelling, so the line you read is about the call you made.
 
 ### `hafen.session():remove(s)`
 

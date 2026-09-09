@@ -31,6 +31,13 @@ and returns `nil`, a later one returns the handle. A draw callback that re-asks 
 intended shape, and it costs nothing once the picture is there — the same `(grid, level)` hands back the
 *same* handle, never a new render.
 
+**A render that fails answers `nil` for good.** If it threw, or found nothing to draw, that `(grid,
+level)` is remembered as failed and every later call answers `nil` too — re-trying it each frame would
+be a render loop nobody could see. So `nil` is two answers wearing one word, *not yet* and *never*, and
+the way to tell them apart is to ask what the grid has: [`grid:exists()`](grids.md) and
+[`grid:mask()`](grids.md) say whether there was anything to draw. A `nil` that has not turned into a
+handle after a few frames is the second kind.
+
 ## A level is a scale, not a size
 
 **Every drawing is 100×100 pixels, at every level.** What the level changes is how much ground fits in

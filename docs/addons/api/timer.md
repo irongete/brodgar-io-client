@@ -20,14 +20,24 @@ tick:cancel()
 | `hafen.timer():after(seconds, fn)` | [handle](#the-timer-handle) | run `fn()` once, `seconds` from now |
 | `hafen.timer():every(seconds, fn)` | [handle](#the-timer-handle) | run `fn()` every `seconds`, starting `seconds` from now |
 
-Both raise an error unless they get a number and a function. A negative delay counts as `0`, which runs
-the function on the next tick. Timing is tick-resolution, not exact: a callback fires on the first tick
-at or after its due time, so treat the interval as a floor rather than a promise. A repeating timer's
-next run is due one interval after the *previous due time*, not after the callback finished, so a slow
-callback does not push the schedule out; it also fires at most once per tick, so a stall is not made up
-for afterwards. An interval of `0` is due again the moment it has run, so it fires once a tick — the
-most often anything can, and you pay for its body every frame. It keeps running until you cancel it or
-the addon goes away.
+Both raise an error unless they get a number and a function. A negative delay counts as `0`. Timing is
+tick-resolution, not exact: a callback fires on the first tick at or after its due time, so treat the
+interval as a floor rather than a promise. A repeating timer's next run is due one interval after the
+*previous due time*, not after the callback finished, so a slow callback does not push the schedule
+out; it also fires at most once per tick, so a stall is not made up for afterwards. An interval of `0`
+is due again the moment it has run, so it fires once a tick — the most often anything can, and you pay
+for its body every frame. It keeps running until you cancel it or the addon goes away.
+
+A delay of `0` is due on the tick it was made on, and where in that tick it runs depends on where you
+scheduled it from. The client fires [`Update`](event/bus/lifecycle.md#lifecycle) — the bus's, and every
+surface's — before it runs the due timers, so a `0` scheduled from an `Update` handler runs later in
+that same step. One scheduled from a file body, a console line or a handler the client dispatched into
+a widget tree waits for the next step, which is what makes `:after(0, fn)` the way
+[off a held tree](threading.md#getting-onto-the-step-from-a-handler-that-holds-a-tree).
+
+**Timers of yours due on one tick fire in the order you made them.** Between addons there is no order:
+whose timer runs first on a given tick is not a thing to build on, and neither is whether it runs
+before or after another addon's handler for the same moment.
 
 An error inside `fn` is logged and isolated, and it does not cancel the timer — a repeating timer whose
 body throws will throw again on every tick, so cancel it yourself when the failure is permanent. A body that
@@ -41,12 +51,12 @@ What `:after` and `:every` hand back: the timer itself, which answers for its ow
 
 | Method | Description |
 |---|---|
-| `:interval()` | the seconds between runs, and `0` for a one-shot, which has none |
+| `:interval()` | the seconds between runs, and `0` for a one-shot, which has none — so `0` also reads on a repeater made with a period of `0` or less, and `:repeats()` is what tells the two apart |
 | `:repeats()` | `true` for one made with `:every`, `false` for one made with `:after` |
 | `:due()` | seconds until it next runs, `0` when it is due on this tick, `nil` once it is dead |
 | `:alive()` | still scheduled: `false` once cancelled, and once a one-shot has run |
 | `:cancel()` | stop the timer and hand it back; safe to call more than once, and on one that has already fired |
-| `:info()` | a snapshot table carrying `interval`, `repeats`, `due` and `alive` |
+| `:info()` | a snapshot table carrying `interval`, `repeats`, `alive`, and `due` while it is alive |
 
 `tostring(t)` reads `Timer(every 5s)`, `Timer(after 2s, fired)` or `Timer(after 2s, cancelled)`, so a
 log line of your own timers says which is which. A verb the timer has not got raises naming the ones it

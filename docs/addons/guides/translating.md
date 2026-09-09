@@ -31,7 +31,8 @@ file is written from what the client actually offered. Install a catalogue that 
 read back what missed:
 
 ```lua
--- addons/myaddon/main.lua, beside "saved_variables": ["catalogue"] in the manifest
+-- addons/myaddon/main.lua, beside
+-- "saved_variables": [{ "name": "catalogue", "scope": "account" }] in the manifest
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
 
 hafen.console():on("dump", function()
@@ -46,7 +47,10 @@ end)
 
 Open the windows you mean to translate, hover the items, right-click something for its menu, then type
 `:dump`. [`hafen.store`](../api/store.md) has written a JSON object keyed exactly as a catalogue's `text`
-is, with every string doubled: translate the right-hand side of each pair and you have the file.
+is, with every string doubled: translate the right-hand side of each pair and you have the file. The
+variable is declared **account-wide** because the strings the client says are the client's rather than
+one character's, and `:get` hands back the live table — an empty one on the first run — so writing into
+it is what `:flush()` then puts on disk.
 
 `:install()` starts a fresh round, so re-installing between two sweeps tells you what that one sweep
 reached. [`locale:miss()`](../api/locale.md#what-missed) is per addon and holds a bounded set, and a string

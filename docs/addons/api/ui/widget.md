@@ -165,7 +165,7 @@ sub:off()
 | `MouseUp` | `:x()` `:y()` `:button()` `:preventDefault()` | yes | a mouse button is released over it |
 | `MouseMove` | `:x()` `:y()` `:preventDefault()` | yes | the mouse moves over it |
 | `Wheel` | `:x()` `:y()` `:amount()` `:preventDefault()` | yes | the wheel turns over it |
-| `Removed` | — | no | it leaves the tree |
+| `Removed` | — | no | it leaves the tree **on its own** — see below for the descendant case |
 | `Dragged` | `:x()` `:y()` | no | the user finished [dragging it](native.md#knowing-when-one-was-dragged) by a handle you armed |
 | `Resized` | `:x()` `:y()` | no | the user finished [resizing it](native.md#knowing-when-one-was-resized) by a handle you armed |
 
@@ -194,6 +194,10 @@ a borrowed [slider or scrollbar](controls/interactive.md#slider)'s `Changed` can
 label:on("Pressed", fn)
 -- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Removed, Dragged, Resized
 ```
+
+> **`Removed` fires for the widget that was destroyed, not for what was inside it.** A control that dies
+> because the client closed the window around it is retired without firing, so subscribe on the window
+> and take everything under it as gone with it. `w:exists()` answers for any widget at any moment.
 
 Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable, or
 for one widget and everything under it with [`w:revert()`](edit.md#taking-the-whole-edit-back) — even

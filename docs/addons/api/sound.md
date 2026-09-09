@@ -14,7 +14,8 @@ hafen.sound():get("sfx/msg"):play(0.2)       -- the same blip, quietly
 `hafen.sound()` **is** the collection: `:get(name)` hands back a **Sound object** for that resource
 name, and the same name always gives the *same* object, so
 `hafen.sound():get("sfx/msg") == hafen.sound():get("sfx/msg")` and you can stash one or use it as a
-table key. A Sound is just the name, so it has no `:exists()` — a name has no lifetime to go stale. A
+table key. The name is read with its surrounding whitespace trimmed off, so `:get(" sfx/msg ")` is that
+same object and a name of nothing but spaces is refused as the empty name it is. A Sound is just the name, so it has no `:exists()` — a name has no lifetime to go stale. A
 name that does not resolve is simply silent: the client logs a line and Lua never sees an error.
 Resources resolve off the UI thread, so a not-yet-loaded one never throws either.
 

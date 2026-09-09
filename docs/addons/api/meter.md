@@ -106,7 +106,7 @@ walks every entry of either, and the place a segment reports is its place in tha
 | `seg:index()` | number | its 1-based place in `meter:segment():list()`, so `list()[n]:index()` is `n` |
 | `seg:value()` | number \| nil | its fill fraction, `0..1` |
 | `seg:color()` | [colour](shapes.md#colours) \| nil | its colour, `{r=, g=, b=, a=}` |
-| `seg:info()` | table \| nil | a plain-table **snapshot** |
+| `seg:info()` | [`MeterSegment`](types/ui.md#metersegment) \| nil | a plain-table **snapshot**; `nil` once the band is gone |
 
 The bar's fill is `meter:segment():list()[1]:value()`, and it says which segment it is. There was a
 `meter:value()` that read segment one under a whole-bar name: right on every meter the client ships,

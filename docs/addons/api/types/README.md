@@ -1,10 +1,15 @@
 # Data types: the snapshot shapes
 
-Every plain Lua table `:info()` hands back, field by field, grouped by the subsystem it comes out of. A
-read gives you a live object; `:info()` is the one escape hatch that copies it, for logging, serialising
-or diffing. A **snapshot** is a point-in-time copy, so it never updates; a field marked *optional* is
-absent (Lua `nil`) when the underlying data is not available yet or is still resolving, so guard for it.
-See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
+The plain Lua tables listed under [every shape](#every-shape), field by field, grouped by the subsystem
+each comes out of. A read gives you a live object; `:info()` is the one escape hatch that copies it, for
+logging, serialising or diffing. A **snapshot** is a point-in-time copy, so it never updates; a field
+marked *optional* is absent (Lua `nil`) when the underlying data is not available yet or is still
+resolving, so guard for it. See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
+
+This is a catalogue, not a census. Every object in the API answers `:info()`, and a shape that only one
+page ever reads — what a timer, a keybinding or an option row copies — is stated in the row of the verb
+on that page, where its reader already is. A shape lands here when more than one page names it, or when
+it is big enough that a table beats a sentence.
 
 > **A snapshot field keeps the client's own spelling; the live read is the verb.** The API's verbs are
 > camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`) because you write them. A snapshot is the
@@ -17,10 +22,10 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 |---|---|
 | [the session and the world](world.md) | one login, an object in it, the people beside you, the ground, a place, and your own things standing there |
 | [the item and what holds it](items.md) | one item, and what a container states about its inside |
-| [the character sheet](character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
+| [the character sheet](character.md) | attributes, food and its FEP and hunger halves, learning, movement speed, quests, wounds and buffs |
 | [the fight](fight.md) | a maneuver, a card in the deck, and the deck's totals |
 | [the map](map.md) | a pin on the recorded map, and a minimap icon category |
-| [the widget layer](ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
+| [the widget layer](ui.md) | a widget in the tree, a HUD meter and one band of its bar, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
 
 ## Every shape
 
@@ -37,9 +42,12 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `Credo` | [the character sheet](character.md#skill-credo-experience) |
 | `DeckCard` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
 | `Experience` | [the character sheet](character.md#skill-credo-experience) |
+| `Fep` | [the character sheet](character.md#food) |
+| `FepEntry` | [the character sheet](character.md#food) |
 | `FightSummary` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
 | `Food` | [the character sheet](character.md#food) |
 | `GobInfo` | [the session and the world](world.md#gobinfo) |
+| `Hunger` | [the character sheet](character.md#food) |
 | `IconCategory` | [the map](map.md#iconcategory) |
 | `Item` | [the item and what holds it](items.md#item) |
 | `KinEntry` | [the session and the world](world.md#kinentry) |
@@ -47,6 +55,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `Marker` | [the map](map.md#marker) |
 | `Message` | [the widget layer](ui.md#message) |
 | `Meter` | [the widget layer](ui.md#meter) |
+| `MeterSegment` | [the widget layer](ui.md#metersegment) |
 | `Pagina` | [the widget layer](ui.md#pagina) |
 | `PartyMember` | [the session and the world](world.md#partymember) |
 | `Petal` | [the widget layer](ui.md#petal) |
@@ -59,6 +68,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `StudySlot` | [the character sheet](character.md#studyslot-and-studysummary) |
 | `StudySummary` | [the character sheet](character.md#studyslot-and-studysummary) |
 | `Tile` | [the session and the world](world.md#tile) |
+| `Widget` | [the widget layer](ui.md#widget) |
 | `Wound` | [the character sheet](character.md#wound) |
 | `WorldEntity` | [the session and the world](world.md#worldentity) |
 

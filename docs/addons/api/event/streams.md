@@ -120,7 +120,10 @@ to be applied to a widget.
 | `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
 | `ev:rewrite(t)` | apply the update with new arguments, a [Position](../position.md) included, as on `action` above |
 
-`preventDefault` wins over `rewrite` if both are called. Common `msg` names: `set` · `add` · `del`.
+`preventDefault` wins over `rewrite` if both are called. **One update carries one rewrite**, whoever made
+it: the last `ev:rewrite(t)` before the widget applies the update is the one applied, so two addons
+rewriting the same update do not compose and neither is told. `preventDefault` needs no such rule — one
+addon swallowing the update swallows it for everybody. Common `msg` names: `set` · `add` · `del`.
 
 ```lua
 -- freeze the HUD meter bars by swallowing their updates:
@@ -170,10 +173,12 @@ name, whatever anyone else subscribed to.
 
 Two sends the `action` stream does not report, and a wildcard is where you would notice:
 
-- **A message sent from inside an `action` handler.** The stream is not re-entered while it is
-  dispatching, which is what stops a handler recursing on its own traffic — so that send reaches the
-  server without being reported to anyone, your own wildcard included. `ev:resend()` and `ev:send(t)`
-  bypass the stream for the same reason.
+- **A message sent from inside an `action` handler, into the character whose message it is.** The
+  stream is not re-entered while it is dispatching *that* character's traffic, which is what stops a
+  handler recursing on its own — so that send reaches the server without being reported to anyone, your
+  own wildcard included. The guard is one character's and not the client's: a handler that sends into
+  **another** login's widget is reported on that login's stream like any other send, your own handlers
+  included. `ev:resend()` and `ev:send(t)` bypass the stream for the same reason.
 - **A send made from outside a character's UI.** An outbound handler runs where the sending code is,
   inside the tree the message is leaving — which is every player action and every message a widget sends
   while the client is running. A send from anywhere else passes straight through, unreported.

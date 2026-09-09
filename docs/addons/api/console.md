@@ -34,6 +34,12 @@ A command is a subscription like every other `:on` in the API. What you get back
 is the command name and `cmd:off()` stops it, after which typing `:name` reports that no addon handles
 it. Ending it is idempotent, and it is done for you on reload or disable.
 
+**A name you have registered stays the addon layer's for the rest of the client's run.** Ending the
+subscription frees it for another addon to claim, but the console goes on routing it here — so `:name`
+with nobody holding it says that no addon handles it rather than that the command is unknown, and it
+says that until the client is restarted. Nothing is lost by it: a name the client itself owns cannot be
+taken in the first place, so there is no command underneath yours to come back.
+
 Subscribe any time; the file body is fine, and there is nothing to wait for. It is reload-safe: editing
 your file and running `:reload` swaps the handler with no duplicate and no leaked command.
 

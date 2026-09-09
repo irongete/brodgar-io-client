@@ -163,11 +163,17 @@ publishes, each answering `:name()` and `:selector()` — the same string when i
 | `menu` | `MenuGrid`, `FlowerMenu` |
 | `item` | the icon **one item** is drawn as, wherever it is drawn — a container's slot, an equipment slot, and the cursor while the item is carried |
 
-**Some site-key names classify no widget** — `window.title`, `window.frame`, `panel`, `heading`, `tooltip`,
-`inventory.slot`, `world.nick`, `world.speech`. They name a *render site*, not a widget: a window's caption
-and frame are drawn by the window's decoration, an inventory's empty square is paved by the grid rather than
-placed in it, a tooltip is painted rather than placed, and the world sites live over the 3D view. They stay
-valid selectors, because the vocabulary is shared with the sheet, but they match nothing.
+**The table above is every role that matches a widget.** Every other name in the vocabulary is a *site*
+key: `window.title`, `window.frame`, `panel`, `heading`, `tooltip`, `inventory.slot`, `world.nick` and
+`world.speech`, the parts a control is drawn out of (`checkbox`, `checkbox.mark`, `slider`,
+`slider.knob`, `scrollbar`, `scrollbar.knob`, `meter`), the chat's own kinds (`chat.mine`,
+`chat.private`, `chat.system` and the rest) and the HUD's furniture (`hud.belt`, `hud.menu.left`,
+`menu.slot`, `minimap.frame` and theirs). They name a place the client *draws*, not a thing it
+*places*: a window's caption and frame are drawn by the window's decoration, an inventory's empty square
+is paved by the grid rather than placed in it, a tooltip is painted rather than placed, a checkbox's
+mark is part of that checkbox's picture. They stay valid selectors, because the vocabulary is shared
+with the sheet, so `s:ui():match("checkbox")` is accepted and answers nothing — which is why the read
+that tells them apart is `role:selector()`, `nil` for exactly these.
 
 Most widgets have **no** role — layout containers, scroll ports, images. That is the rule working, not a
 gap: an unrecognised widget answers `nil` rather than being guessed into the nearest role. Reach those with
@@ -284,9 +290,12 @@ on any widget in the tree, whoever put it there, so those are the lines you read
 Every lookup walks its whole scope — one character's tree for `s:ui():match` and `:matchAll`, one widget's
 subtree for [the pair on a widget](#inside-one-widget) — and `:match` walks all of it too, since it cannot
 know a match is the only one until it has looked everywhere. Once per event, or once when the hover changes,
-that is nothing; sixty times a second it is a real slice of your frame budget. Because widgets are
-[interned](widget.md), holding the result costs nothing and the objects stay `==`-comparable — so select
-once, keep it, and use `:exists()` when you need to know it is still there.
+that is nothing; sixty times a second it is a real slice of your frame budget. The selector string is
+parsed on every call too, so holding the *string* in a local saves nothing — what there is to hold is
+the widget the lookup answered. Because widgets are [interned](widget.md), holding it costs nothing and
+the objects stay `==`-comparable, so select once, keep it, and use `:exists()` when you need to know it
+is still there. There is no cache underneath any of this: holding the result is the whole of what makes
+a per-frame lookup affordable.
 
 ## Hit-testing
 

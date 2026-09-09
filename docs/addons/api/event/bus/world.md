@@ -48,7 +48,11 @@ The limits below are what keep the world drawable:
 
 - **Only while somebody is listening.** Until an addon subscribes to `GobAdded`, nothing is held and the
   client draws exactly as it would with no addon loaded at all. The cost begins with the first
-  subscription, not with the first object.
+  subscription, not with the first object — and it ends at the next `:reload`, not at `sub:off()`: the
+  seam the subscription armed stays armed, and a hold taken with nobody left to hand the object to is
+  released by the very next frame. The same is true of
+  [`GobOverlayAdded`](#overlays-coming-and-going) and [`GobSdtChanged`](#the-state-changing), which arm
+  seams of their own.
 - **A held object is drawn anyway after a second.** A handler that takes longer than that, or an addon
   disabled mid-flight, costs a late frame and never a missing object.
 - **Only objects the game sends.** A [thing of your own](../../virtual/README.md) — a ghost, a sprite, a

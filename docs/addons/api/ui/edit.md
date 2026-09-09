@@ -127,6 +127,12 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
 so `win:match("@IButton")` is the one control you can reach without knowing what a window is made of.
 
+> **A borrowed control can be rebuilt under you, and nothing tells you.** The client remakes whole
+> columns of its own windows when a setting changes — Options rebuilds its video column on a graphics
+> change — and a control that dies inside one dies as a descendant, which fires no `Removed`. Your
+> takeover then simply stops, on a control that looks the same and is a different object. Re-arm from
+> [`s:ui():on(sel, "Added", fn)`](replace.md) rather than from a handle you kept at load time.
+
 **A grid fires only for the button that selects**: a right-click on a cell opens the client's own menu and
 moves nothing, so it is no selection, and a key that fired for it would let one handler swallow that menu.
 

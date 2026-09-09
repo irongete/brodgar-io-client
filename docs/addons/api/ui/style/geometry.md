@@ -94,6 +94,13 @@ r:anchor{ to = "screen", at = "topleft", offset = {40, 200} }   -- same place, t
 r:position()                                                   --> nil: the anchor holds the slot
 ```
 
+**A chain of anchors is followed eight deep.** One widget anchored to another anchored to a third is an
+ordinary thing to write and the cascade follows it; what the depth is really there for is a **cycle** —
+two widgets anchored to each other, or a longer ring — which is not. A cycle stops at the eighth step
+with the widgets it reached moved and the rest where they were, silently: nothing is refused and
+nothing is logged, because a legitimate chain and a ring look the same going in. If a widget of yours
+will not settle, look for a ring in what you anchored.
+
 **Re-derived on the events that change what it reads**, never per frame and never at the draw: the game
 window is resized, the target moves or resizes, the widget itself changes size. A move made through this
 API — a verb, a rule — has moved everything hanging off it **by the time the call returns**; a move the

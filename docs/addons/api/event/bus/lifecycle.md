@@ -54,6 +54,23 @@ already in the tables; what a screen change writes is
 [the placements the user made](../../store.md#the-one-thing-saved-without-being-declared), and those
 belong to the tree they stand in rather than to the screen.
 
+**The wait for the action menu is bounded at five seconds.** A session whose menu never arrives is
+announced anyway, with a console line saying so, and `s:menugrid():add(id)` refuses in that handler
+because the menu it would add to is not up. Nothing announces the menu's later arrival, so an addon
+whose entries matter that much re-tries on a [timer](../../timer.md).
+
+**The four are not one queue.** `SessionEnteredWorld` is delivered from that character's own step, and
+the other three from your addon's. What that buys is the ordering the event exists for: that session's
+[per-character saved variables](../../store.md) and its held action-bar slots are in place before your
+handler runs, because the same step put them there a line earlier. What it does not buy is a place in
+the queue the other three share — so read each of the four for what it says about its own payload, and
+never as a report of where another has got to.
+
+**A session the client cannot name announces nothing.** The account name is a session's whole identity
+here, so a login the client holds no name for fires neither `SessionAdded` nor `SessionRemoved`, and one
+that ends between reaching the world and being named is logged rather than announced. Nothing is
+recovered afterwards: [`hafen.session():list()`](../../session.md) is what says who is up.
+
 **Taking the screen is not entering the world.** Going between two characters already in the world
 fires `SessionSelected` and nothing else, once per change — whether the player tabbed or an addon
 wrote the screen with [`hafen.session():current(s)`](../../session.md#write-unprotected) — and only on a

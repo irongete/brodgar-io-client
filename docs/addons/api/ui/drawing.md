@@ -30,12 +30,18 @@ end)
 | `g:rect(x, y, w, h)` | a one-pixel outline rectangle |
 | `g:frect(x, y, w, h)` | a filled rectangle |
 | `g:line(x1, y1, x2, y2, width)` | a line; `width` defaults to 1 |
-| `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon of three points or more, in the current colour |
+| `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon of three points or more, in the current colour; the one verb here that is **not clipped** to the widget's box |
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie or progress wedge, `fraction` `0..1` — for cooldowns and meters |
 | `g:image(img, x, y, w, h)` | draw an [image asset](../asset.md) at native size, or scaled into `w × h` |
 | `g:aimage(img, x, y, ax, ay)` | draw an [image asset](../asset.md) anchored, like `g:atext` |
 | `g:color(r, g, b, a)` / `g:color(c)` | set the draw colour, `0..255`; `g:color()` resets to white — see [below](#colour-here-is-also-loose-numbers) |
 | `g:resource(name, x, y, w, h)` | draw an engine `.res` image **by name**, at native size or scaled |
+
+> **`g:poly` paints outside the widget it is called on.** Every other verb above stops at the widget's
+> own box; a polygon does not, so points outside it land on whatever is there — the client's own HUD,
+> another addon's window. That is what makes it the verb for a full-screen overlay, and what makes it
+> the wrong one for decorating a small widget. Keep its points inside the box yourself, or draw the
+> shape somewhere it is meant to cover the screen.
 
 **A coordinate may be fractional, and it is rounded once, on the device.** Every verb scales what it is
 handed and then rounds to the nearest device pixel, so a point you computed — `sx - w / 2`, half a width off

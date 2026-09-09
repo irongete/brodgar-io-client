@@ -1,9 +1,32 @@
 # Data types: the widget layer
 
-The snapshot shapes that come out of the client's own windows: a HUD meter, the recipe one has open, a
-hotbar slot, an entry in the action menu, and a chat channel with the lines in it. Each is what `:info()`
-copies out of a live object, so it never updates — the live reads are verbs on that object. The model, and
-what *optional* means on the tables below, is on [the catalogue](README.md).
+The snapshot shapes that come out of the client's own windows: a widget in the tree, a HUD meter and one
+band of its bar, the recipe one has open, a hotbar slot, an entry in the action menu, and a chat channel
+with the lines in it. Each is what `:info()` copies out of a live object, so it never updates — the live
+reads are verbs on that object. The model, and what *optional* means on the tables below, is on
+[the catalogue](README.md).
+
+## Widget
+
+From [`w:info()`](../ui/widget.md#read), the snapshot escape hatch for one widget of the client's tree;
+`nil` once that widget is stale, because there is nothing left to copy. [`s:ui()`](../ui/widget.md) and
+every selector search hand you live `Widget` objects, not this table.
+
+| Field | Type | Notes |
+|---|---|---|
+| `type` | string | the client's own class name for it, the live `w:type()` — always present |
+| `owned` | bool | whether **your** addon made it, so the write verbs answer on it — always present |
+| `role` | string | the [selector role](../ui/selectors.md) it classifies as; optional (absent when nothing classifies it) |
+| `res` | string | the resource behind it; optional |
+| `id` | number | the number the server knows it by; optional (absent on a client-side widget) |
+| `pos` | `{x, y}` | its top-left in its parent, [design pixels](../ui/pixels.md); optional |
+| `size` | `{w, h}` | its box, design pixels; optional |
+| `visible` | bool | whether it and its parents are showing — always present |
+| `text` | string | the label or content it draws; optional (most widgets carry none) |
+
+The live reads are `w:type()`, `:role()`, `:res()`, `:id()`, `:position()`, `:size()`, `:visible()`,
+`:text()` and `:owned()`. `pos` and `size` are spelled for the snapshot; the verbs that read them one at a
+time are `:position()` and `:size()`.
 
 ## Meter
 
@@ -18,6 +41,17 @@ table.
 | `value` | number | the **first** segment's fill fraction, 0..1; optional |
 | `color` | [colour](../shapes.md#colours) | the **first** segment's colour; optional (content-defined) |
 | `segments` | `{value, color?}[]` | the whole bar, 1-based and gap-free — always present, may be empty |
+
+## MeterSegment
+
+From [`seg:info()`](../meter.md#a-segment), the snapshot escape hatch for one band of a meter's bar;
+`nil` once that band has gone, which is a meter the client shortened or took down.
+
+`{ index = number, value = number, color = colour? }` — `index` is the 1-based place in the bar and
+`value` its fill fraction, 0..1, both always present because both are properties of the band. `color` is
+absent where the content defines none. It is not the same shape as the `segments` entries of the
+[Meter](#meter) above, which carry no `index`: there the place is the array position. The live reads are
+`seg:index()`, `:value()` and `:color()`.
 
 ## Craft and CraftSpec
 
@@ -100,7 +134,8 @@ how it is written down. The other live reads are `msg:text()`, `:kind()`, `:colo
 
 - [the catalogue](README.md) — every snapshot shape, and what a snapshot is
 - [`session:chat`](../chat.md) — the live channels and lines these copy, and saying a line
-- [`session:meter`](../meter.md) — the live meter bars these copy
+- [`session:meter`](../meter.md) — the live meter bars and bands these copy
 - [`session:craft`](../craft.md) — the open recipe window, and its Craft button
 - [`session:actionbar`](../actionbar.md) — the hotbar, and holding a slot for an entry of your own
 - [`session:menugrid`](../menugrid.md) — the action menu, and invoking an entry
+- [`s:ui()`](../ui/widget.md) — the live widget tree these copy, and the verbs that read one

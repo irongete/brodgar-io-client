@@ -1,0 +1,8 @@
+{
+  "id": "R12-pages-hafen.1",
+  "name": "R12 pages: hafen",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for refactor block R12. `:tr12` asserts, through the API itself, the behaviour the block's page lines now state: JSON's empty table, duplicate keys and cycle refusal, the sound key's trim and its empty-name refusal, a repeating timer's clamped period and a dead timer's snapshot, the shared string metatable, the locale install refusal, an undeclared keybinding's absent snapshot, a time verb's arity refusal, and which roles are selectors.",
+  "files": ["main.lua"]
+}

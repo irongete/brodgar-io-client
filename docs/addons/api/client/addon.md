@@ -101,7 +101,7 @@ every time after, so it works as a table key.
 | `default()` | the value | the default you declared; on the four that carry a value |
 | `text()` / `text(s)` | string / the option | a `label` row's line, and the rewrite of it |
 | `on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | on the four that carry a value; see below |
-| `info()` | table | `{name=, type=, label=, tooltip=, value=, default=}`, plus `min`/`max` on a number, `choices` on a choice, `text` on a label |
+| `info()` | table | `{name=, type=, label=}`, plus `tooltip` where you gave one, `value` and `default` on the four that carry a value, `min`/`max` on a number, `choices` on a choice and `text` on a label |
 
 Reading and writing is [arity as the verb](../conventions.md#verbs-arity-is-the-verb), as everywhere else:
 `value()` reads, `value(v)` writes and hands the option back so writes chain. A write is checked against

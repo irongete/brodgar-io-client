@@ -102,6 +102,13 @@ would ever report is a typo that quietly does nothing forever.
 The hold is an owned resource like a hidden window: **a `:reload`, a disable or a logout releases it for
 you**, exactly once. Nothing an addon does can leave an overlay stuck on the screen.
 
+> **A hold needs the side that draws the tag to be up.** `:hold()` on a tag whose side is not there
+> yet — the world before a character has entered it, the map window before it has been opened — takes
+> nothing and says nothing, and `:held()` then reads `false`. So a hold taken from `Load`, before any
+> character is in the world, never happens. Take it from
+> [`SessionEnteredWorld`](../event/bus/lifecycle.md#sessions) instead, and check `:held()` where the
+> side is one the user opens.
+
 ```lua
 local claims = hafen.map():display():get("cplot")
 claims:hold()                                        -- show me the claims while I survey

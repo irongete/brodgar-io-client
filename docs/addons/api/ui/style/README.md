@@ -152,7 +152,10 @@ Each is a setter that returns the rule, and each reads back with no argument.
 A rule also carries `rule:selector()` (the key it was named by), `rule:sheet()` (the sheet it belongs to, so
 a whole sheet can be one expression), `rule:info()` (everything it says, or `nil` when it says nothing) and
 `rule:release()` (it stops saying anything; the handle goes on working, and setting a property says the level
-again).
+again). The snapshot carries its own `selector` beside the properties, on a rule that was named by one —
+so it says which rule it came off, and it is **not** itself one of the per-rule values
+[`sheet:load(rules)`](#a-sheet-from-data) takes: take the key out, or build the load table from
+`rule:selector()` and the rest.
 
 **The properties are independent.** A rule may carry any one alone: a colour-only rule leaves the surface's
 own font exactly as it is, a `border`-only rule leaves its background. A rule carrying none styles nothing.

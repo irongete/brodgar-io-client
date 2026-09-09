@@ -120,6 +120,11 @@ same way.
 > wrong and lists the whole vocabulary. A permission you misspelled fails before your first call rather than
 > at it.
 
+An empty entry is the one exception: `""`, or a string of nothing but spaces, is dropped and the rest of
+the array is read as written. Every entry is read with its surrounding whitespace trimmed off, so
+`" item.take "` is that key. Declaring the same key twice is not an error either — the second is the
+same grant as the first, and the consent dialog prints it once.
+
 ## Declaring it
 
 Two steps, and the second one is not yours:
@@ -209,8 +214,8 @@ likes. So both are behind the key whose line already reads *"send any message th
 control's method, and a client button's method is its own `wdgmsg` — the same wire, one step further in. It
 has its own key rather than `widget.send` because it is a narrower thing to grant: it re-runs the press the
 user already made, and nothing else. **It runs once per event.** A second `ev:resend()` on the same event
-raises: one press is one action, and an event a handler stashed used to be replayable from a timer as often
-as it liked.
+raises: one press is one action, so an event a handler stashed is not a press it may replay from a timer
+as often as it likes.
 
 **Two keys, one act.** `kin.end` and `kin.forget` name two steps the user reads as two — and on the wire
 they are one message, which the server resolves by the entry's own state. So an addon granted only

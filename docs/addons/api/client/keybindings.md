@@ -103,7 +103,7 @@ back as `addon/<your-addon-id>/<name>`.
 | `assigned()` | boolean | whether the current key is the user's choice or the client's default |
 | `down()` | boolean | whether its key is held **right now** |
 | `exists()` | boolean | whether anything has declared this id yet |
-| `info()` | table \| nil | `{id=, key=, default=, assigned=, down=}`, `nil` for an id nothing has declared |
+| `info()` | table \| nil | `{id=, assigned=, down=}`, plus `key` and `default` where each is bound; `nil` for an id nothing has declared |
 
 Writing a key needs the [`client.settings` permission](../../guides/permissions.md), like every other
 setting here, and it persists exactly as the same edit made in Options ▸ Game ▸ Keybindings does — which is

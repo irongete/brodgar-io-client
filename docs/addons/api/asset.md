@@ -149,8 +149,9 @@ file, or one using an unsupported feature, raises a clear error that **names** t
 
 > **Disposing a mesh an object is still standing does not break that object.** The object keeps drawing,
 > textured and unchanged, because it captured its texture samplers when it was built. What you forfeit is
-> the *freeing*: the memory is not reclaimed until that object is destroyed. So remove a mesh only when
-> nothing is standing it; the automatic teardown already gets the order right.
+> the *freeing*: the memory is not reclaimed until that object is destroyed, and the handle is dead, so
+> that mesh can never be stood again — a later `:get(path)` re-reads the file into a new one. So remove
+> a mesh only when nothing is standing it; the automatic teardown already gets the order right.
 
 ### Data
 

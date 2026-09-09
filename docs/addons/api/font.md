@@ -11,8 +11,10 @@ local win = hafen.ui():window():title("Mine"):size(200, 120):font(body)
 win:on("Draw", function(ev) ev:g():text("this text is in my font", 6, 6) end)
 ```
 
-There is **no shared cross-addon registry**: a handle is a value your addon keeps, and another addon cannot
-look it up. No name collisions, no coupling. Everything here is client-side, cosmetic and **unprotected**.
+There is **no shared cross-addon registry of handles**: a handle is a value your addon keeps, and another
+addon cannot look it up. What a `.ttf` load *does* put somewhere shared is its
+[family name](#mix-fonts-on-one-line), and that is the one thing here that outlives you. Everything on
+this page is client-side, cosmetic and **unprotected**.
 
 ## Where a font comes from
 
@@ -39,9 +41,15 @@ or a path raises an error listing the four names and pointing paths at `hafen.as
 A font file your addon ships is an [**asset**](asset.md), loaded through the same door as an image, a model
 or a data file: `hafen.asset():get("fonts/Inter.ttf")`. It is sandboxed — absolute paths and `..` escapes are
 rejected — **interned per path**, so one parse per file however many times you call it, and freed
-automatically on reload or disable. Loading also registers the family into the JVM, so `h:family()` resolves
-in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()` and `:path()`, and
-[`hafen.asset():remove(h)`](asset.md#the-collection) drops it early.
+automatically on reload or disable. Loading also registers the family with the JVM, so `h:family()`
+resolves in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()` and
+`:path()`, and [`hafen.asset():remove(h)`](asset.md#the-collection) drops it early.
+
+> **The family registration is the client's for the rest of its run.** There is no un-register, so a
+> family your file put there stays resolvable in a `$font[…]` tag after your handle is freed, after your
+> addon is disabled, and from any other addon's markup — and the memory the face takes stays with it.
+> Two files claiming one family name is first-come: the tag draws whichever registered first, whoever
+> that was, while each handle goes on drawing its own file. A restart is what clears it.
 
 ### The variant
 
@@ -171,9 +179,9 @@ g:text(("$font[%s,16]{Fancy} normal"):format(h:family()), 6, 6)   -- two fonts, 
 g:text("$col[235,180,80]{$b{bold} orange} plain", 6, 26)          -- $col, $b, $i, $u, $size too
 ```
 
-This works because loading a `.ttf` [asset](asset.md) registers its family into the JVM. Plain text with no
-`$` and no `font=` takes the stock render path; malformed markup falls back to drawing the literal string
-and never throws.
+This works because loading a `.ttf` [asset](asset.md) registers its family with the JVM, which is the one
+shared thing a load leaves behind. Plain text with no `$` and no `font=` takes the stock render path;
+malformed markup falls back to drawing the literal string and never throws.
 
 ## Restyle a client surface
 

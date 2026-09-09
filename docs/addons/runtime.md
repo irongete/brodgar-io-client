@@ -124,6 +124,12 @@ translation: [`hafen.locale`](api/locale.md) says what the client **displays**, 
 scoped to the addon that installed it and dropped with it, and it touches no number, date or sort order at
 all.
 
+> **The string metatable is shared, and the environment does not wall it off.** `getmetatable("")`
+> answers from any addon, and Lua keeps one of them for the whole client rather than one per
+> environment — so an addon that writes to it changes what `("x"):upper()` means for every other addon
+> and for the client's own console. It is the language's state, not the API's, so there is nothing here
+> that can partition it. Read it if you must; never write to it.
+
 Your addon also gets a global `ADDON` table with two fields: `ADDON.id`, its id, and `ADDON.dir`, the
 absolute path of its folder. Both are informational — reading a file is
 [`hafen.asset`](api/asset.md)'s job.
@@ -144,7 +150,10 @@ impossible, and neither one is reachable by ordinary code.
   inside your Lua](api/threading.md), each spend their own, so neither is aborted for what the other did
   and neither is given a fresh one by the other starting. A callback your own callback calls into — a
   handler that fires an event you subscribe to — is an entry too, and hands the budget back on the way
-  out, so the outer call goes on spending what it had left rather than starting over.
+  out, so the outer call goes on spending what it had left rather than starting over. It counts Lua
+  instructions and not time, so a loop over a few hundred `hafen.*` calls — each one cheap in Lua and
+  expensive in the client — burns a frame without coming near it. That shape is the second budget's
+  business, and it is why there are two.
 - **Per tick: about ten milliseconds, sustained.** An addon whose total Lua time within one tick — every
   handler, timer and draw of that tick added up — goes over the budget for thirty **consecutive** ticks is
   auto-disabled, with the reason on its row in the AddOns panel and in the console. One heavy load or a

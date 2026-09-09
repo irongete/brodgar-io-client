@@ -4,7 +4,9 @@ What one character's own HUD reports: the bars and buffs, what it has eaten and 
 and what it has on the hotbar, its wounds, the people it knows, the quests it carries, the pins on its map,
 and the radial menu it has open. Every key here hands your handler the thing it is about and that
 character's [`Session`](../../session.md) last, bar `MarkerChanged`: the recorded map is one database for
-the client rather than one character's, so it carries none. Everything here is part of
+the client rather than one character's, so it carries none. That last argument is `nil` where the
+client cannot name the login the widget stands in — a handler that took the parameter guards it rather
+than being handed a `Session` that answers about nobody. Everything here is part of
 [the catalogue](README.md), so `hafen.event():on(key, fn)` is the door.
 
 ## Character and status

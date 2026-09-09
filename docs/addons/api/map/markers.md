@@ -30,7 +30,7 @@ hafen.map():marker():get(1)
 | Method | Returns | Description |
 |---|---|---|
 | `marker:name()` | string \| nil | the label the map shows. **Read only** — there is no rename; `marker:name(s)` raises rather than swallowing the string |
-| `marker:type()` | string | `"player"` or `"system"` |
+| `marker:type()` | string \| nil | `"player"` or `"system"`; `nil` once the pin is gone, as `:name()` is |
 | `marker:position()` | [Position](../position.md) \| nil | where it is — the form you may **store or send** |
 | `marker:segmentTile()` | `{x, y}` | its segment tile coord — where it really lives in the database |
 | `marker:segment()` | [`Segment`](grids.md#the-segment-object) | the segment it is recorded in |
@@ -89,7 +89,12 @@ dropped it: your other characters in that world see it on their own maps, and it
 session that added it ends.
 
 The [`MarkerChanged`](../event/bus/character.md#roster-quests-markers) event, payload the marker collection,
-fires on any add, remove or edit, including ones the player makes.
+fires on any add, remove or edit, including ones the player makes. **One change is one event**, however
+many of your characters share the map: a login claims the database on its own tick and the first to
+claim it carries the announcement. A change made before any login has claimed it — the beat between the
+client opening the map file and a character's first tick — announces nothing, so read
+`hafen.map():marker():list()` once when you start rather than building your picture from the event
+alone.
 
 ## See also
 

@@ -25,8 +25,12 @@ marker. The live reads are `marker:name()`, `:type()`, `:segmentTile()` and the 
 ## IconCategory
 
 From [`cat:info()`](../map/icons.md#the-iconcat-object), the snapshot escape hatch for a minimap icon
-category. `{ name = string, res = string, show = bool, notify = bool }` — `res` is the identity, `name` the
-icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
+category; `nil` while the registry carries no setting for that resource, which is the same absence
+[`cat:exists()`](../map/icons.md#the-iconcat-object) reads as `false` — the registry grows as the
+character meets new icon types, so a handle can start answering later.
+
+`{ name = string, res = string, show = bool, notify = bool }` — `res` is the identity, `name` the icon
+tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
 `cat:res()`, `:name()`, `:show()` and `:notify()`.
 
 ## See also

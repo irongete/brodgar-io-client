@@ -74,7 +74,7 @@ end
 | `grid:segmentCoord()` | `{x, y}` \| nil | its coord inside its segment |
 | `grid:position()` | [Position](../position.md) \| nil | its upper-left corner |
 | `grid:segment()` | [`Segment`](#the-segment-object) \| nil | the segment it belongs to |
-| `grid:tile(c)` | `{name, prio}` \| nil | the recorded tile at within-grid tile coord `{x, y}`, `0..99` |
+| `grid:tile(c)` | `{name?, prio}` \| nil | the recorded tile at within-grid tile coord `{x, y}`, `0..99`; `name` is absent where the recorded tileset carries none |
 | `grid:height(c)` | number \| nil | the recorded height there |
 | `grid:modified()` | number \| nil | when the client last recorded this grid, in milliseconds |
 | `grid:mask()` | [mask collection](overlays.md#the-recorded-masks) | which claims and provinces covered it |

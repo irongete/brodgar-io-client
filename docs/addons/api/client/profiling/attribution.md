@@ -97,7 +97,7 @@ end
 |---|---|
 | `byType` | one row per widget class, **sorted by self time** |
 | `top` | the heaviest individual widgets, same sort |
-| `total` | the whole tree: `tickMs`, `drawMs`, `ms`, and `count`, the widgets with a live measurement |
+| `total` | the whole tree: `count`, the widgets with a live measurement, and `tickMs`, `drawMs` and `ms` where the root itself has one — a frame the client has not finished measuring carries `count` alone |
 
 A `byType` row:
 
@@ -115,7 +115,10 @@ id and `owner` when an **addon** put it in the tree, that addon's manifest id.
 entire subtree — that is `tickMs` and `drawMs`. Self time is that minus the sum of its children's inclusive
 time. So a container holding one expensive child shows a large `tickMs` and a near-zero `tickSelfMs`, and
 only the child is blamed. Every row's `selfMs` sums to `total.ms`, which is the root widget's inclusive
-tick and draw: the breakdown **reconciles**, it is not indicative.
+tick and draw: the breakdown **reconciles**, it is not indicative. The one thing that breaks the sum is
+a clock that hiccupped mid-frame and timed a child as costing more than its parent — a negative self
+time is not a cost, so it is read as zero, and the rows can then add up to a little more than
+`total.ms`. Read a sum that overshoots as the noise it is, not as a widget you have missed.
 
 **Which frame.** The last one in which each widget was ticked or drawn — the frame in progress, or the one
 just finished. A widget not touched since, a window you closed or a hidden tab, simply **drops out** of the
@@ -207,15 +210,15 @@ figure would be noise at this scale.
 
 | Key | Description |
 |---|---|
-| `totalMs` / `shareOfFrame` | the budget number: ms per frame, and as a fraction of the frame |
-| `budget` / `withinBudget` | the ceiling this surface holds itself to, 5% of frame time, and whether what profiling **spends** is inside it |
+| `totalMs` / `shareOfFrame` | the budget number: ms per frame, and as a fraction of the frame — the share is absent with no `frameMs` to take it against |
+| `budget` / `withinBudget` | the ceiling this surface holds itself to, 5% of frame time, and whether what profiling **spends** is inside it; the verdict is absent with no `frameMs`, since there is nothing yet to be inside |
 | `method` | `"control"` if `totalMs` was measured, `"model"` if calibrated — see below |
 | `aggregatorMs` | the end-of-frame fold, **timed directly**, so exact |
 | `gpuQueryMs` | the GL timestamp queries the named passes insert, timed directly |
 | `probeMs` | the **modelled** probe cost: hits times a per-hit cost calibrated when the switch armed |
 | `measuredMs` / `measuredErrorMs` | the **measured** probe cost and its error bar; absent until enough samples |
 | `measuredSpreadMs` | the comparison's noise floor |
-| `frameMs` | mean frame time, what the share is taken against |
+| `frameMs` | mean frame time, what the share is taken against; absent until a frame has been measured |
 | `armedFrames` / `controlFrames` / `periods` / `periodsNeeded` | how much evidence there is so far |
 | `ringFrames` | how many frames of profile tree the client holds at a time — a cost the measurement cannot see |
 | `tiers` | one row per tier, both keyed by name and ordered as a list |

@@ -30,8 +30,8 @@ import java.util.Map;
  * {@code 024-audio-oop}), the OOP successor of the flat fire-and-forget {@code hafen.sound.play(res)}. Built on
  * exactly the mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021) and
  * {@link LuaPagina} (023) established; <b>the section object IS the collection</b> (uniform grammar §2.1):
- * {@code hafen.sound():get(name)} is one Sound and {@code hafen.sound():list()} is what this addon still has
- * in the air.
+ * {@code hafen.sound():get(name)} is one Sound and {@code hafen.sound():playing(filter)} is what this addon
+ * still has in the air.
  *
  * <p><b>The key is a resource name and nothing else</b> — {@code "sfx/msg"} — and, unlike every prior section,
  * there is <b>no catalogue behind it</b>: sound resources are not enumerable, so a Sound simply <i>exists on
@@ -74,7 +74,7 @@ import java.util.Map;
  * to the same playback state. {@code :stop()} and {@code :playing()} are pure engine surface (no core edit):
  * {@code ActAudio.RootChannel.remove(cs)} stops, {@code mixer().playing(cs)} tests. There is no end-of-clip
  * callback and none is needed — {@code Audio.Mixer.get} drops a drained clip <b>lazily</b>, so asking is also
- * how a Sound prunes its own list. {@code :list()} is that prune across the whole map: the
+ * how a Sound prunes its own list. {@code :playing(filter)} is that prune across the whole map: the
  * addon's still-playing Sounds, and only the addon's — the client's own blips run through the same kind of
  * channel in each session's own tree, and are not ours to enumerate or stop.
  *
@@ -128,7 +128,7 @@ public final class LuaSound {
         /**
          * The addon's <b>playback state</b>, keyed by resource name — the clips in the air plus the plays still
          * resolving. Deliberately here and not on the handle: the handles are weak, so a Sound Lua has dropped
-         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code :list()}
+         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code :playing()}
          * lists in the order the addon started them; entries are dropped as they drain.
          */
         private final Map<String, Live> sounding = new LinkedHashMap<String, Live>();
@@ -180,7 +180,7 @@ public final class LuaSound {
         }
 
         /**
-         * {@code hafen.sound():list()}: the addon's still-playing Sounds, pruning as it goes — so the same
+         * {@code hafen.sound():playing()}: the addon's still-playing Sounds, pruning as it goes — so the same
          * call that counts them is the call that drains the drained ones.
          */
         synchronized List<LuaValue> members() {
@@ -449,7 +449,7 @@ public final class LuaSound {
      * out. With no session at all there is no loader and nothing plays.
      *
      * <p>The resulting clip is <b>registered on the owner's {@link Live} state for this name</b> before it goes
-     * to the mixer, which is what makes {@code :stop()}/{@code :playing()}/{@code :list()} possible at
+     * to the mixer, which is what makes {@code :stop()} and {@code :playing()} possible at
      * all. Because the resolve lands later, the play carries the {@link Live#gen} it started under: a
      * {@code :stop()} in between bumps that stamp and the clip is dropped instead of blipping (024.2).
      */

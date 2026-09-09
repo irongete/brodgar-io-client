@@ -22,7 +22,7 @@ end
 | `locale:load(doc)` | self | replace what it says, **whole** — the [document](#the-document) is below |
 | `locale:install()` | self | make it what the client displays, and start a fresh [miss](#what-missed) round |
 | `locale:release()` | self | give the client its own words back |
-| `locale:info()` | table | `{installed = …, entries = …, patterns = …, surfaces = {…}, misses = …}` |
+| `locale:info()` | table | `{installed = …, entries = …, patterns = …, surfaces = {…}, misses = …}`, where `surfaces` is the surface keys the loaded document names, in the order it names them |
 | `locale:miss()` | collection | the strings that reached a surface with no entry — [below](#what-missed) |
 
 **An addon owns exactly one catalogue**, so the document is the thing you keep and `:install()` is the
@@ -180,12 +180,18 @@ Each member is a miss:
 | Call | Returns | Description |
 |---|---|---|
 | `miss:surface()` | string | the surface key it reached, which is the key an entry for it goes under |
-| `miss:text()` | string | the string the client drew, in the client's own English |
+| `miss:text()` | string | the string the client asked about, in the client's own English — the **source** for a surface that draws marked-up text |
 | `miss:info()` | table | `{surface = …, text = …}` |
 
-It records from the moment you hold one, entries or none — installing an empty catalogue and reading this
-back is how the first file gets written. `:install()` starts a fresh round, and the set holds `512` pairs,
-after which it stops growing.
+Nothing records until `:install()`, entries or none — installing an empty catalogue and reading this back
+is how the first file gets written. Each `:install()` starts a fresh round, and the set holds `512`
+pairs, after which it stops growing.
+
+**A miss carries the string the client asked about, which is what an entry for it has to spell.** For a
+surface whose text is marked up — the chat, and both flavours of tooltip — that is the marked-up source
+and not the words as they were drawn, because a run of one is a fragment nothing could be keyed on. So
+paste `miss:text()` into your document as it came out, markup and all, rather than retyping what you
+read on screen.
 
 ```lua
 hafen.locale():load({}):install()             -- names nothing, records everything
@@ -201,7 +207,10 @@ end)
 ```
 
 A miss is what **your** catalogue did not answer, so another addon's gaps are never reported as yours, and a
-string yours matched is not in the set at all.
+string yours matched is not in the set at all. With two catalogues installed it is narrower still: the
+[stack](#the-catalogue-unprotected) is walked from the top and stops at the first catalogue that answers,
+so a string one above yours named reaches you neither as a translation nor as a miss. Read your misses
+with yours alone installed if what you want is the whole of what a surface says.
 
 ## The model is not translated
 

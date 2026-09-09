@@ -81,8 +81,10 @@ naming the URL. The host that parse produces is the one the approved allowlist i
 client and the server would read differently never reaches the wire. Percent-encode whatever you interpolate
 into a path or a query.
 
-Everything is **asynchronous**: `:send()` returns immediately and the handler runs on the UI thread a frame
-or more later. There is no blocking form — a request on the UI thread would freeze the client.
+Everything is **asynchronous**: `:send()` returns immediately and the handler runs a frame or more later,
+on the [step](threading.md) of the character whose login sent it, holding no widget tree — so it may
+read and write any of them. There is no blocking form: a request waited on where your Lua runs would
+freeze the client.
 
 ## The request object
 
@@ -94,8 +96,8 @@ or more later. There is no blocking form — a request on the UI thread would fr
 | `req:header(name)` | string \| nil | the value this request carries for `name`, matched case-insensitively |
 | `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
 | `req:timeout()` / `req:timeout(ms)` | number / the request | the milliseconds it will wait; **10000** by default, capped at **60000** |
-| `req:on("done", fn)` | [`Sub`](event/README.md#subscribe) | the handler, called once with the [result](#the-result-object) |
-| `req:send()` | the request | **put it on the wire.** Every setter above is refused from here on |
+| `req:on("done", fn)` | [`Sub`](event/README.md#subscribe) | the handler, called once with the [result](#the-result-object); legal before `:send()` and after it |
+| `req:send()` | the request | **put it on the wire.** Every setter above is refused from here on — `req:on` is not one of them, because a request in flight has not come back yet |
 | `req:cancel()` | the request | stop it; the handler never fires |
 
 A table body is encoded with the same serializer as [`hafen.json():encode`](json.md) and sent as
@@ -168,6 +170,12 @@ handler runs, so nothing leaks across a reload.
 finish unheard, so no further hop goes out. A request whose login ends before the reply arrives is ended
 the same way: the handler belongs to that character's tick, and there is no tick left to run it on.
 
+**A request needs a login to run on.** `:send()` from a client holding none — at the login screen, or
+before your first character reaches the world — is accepted and never started: it waits, holding a
+slot, and the reload or disable that ends your addon cancels it, so its handler never fires. Send from
+[`SessionEnteredWorld`](event/bus/lifecycle.md#sessions) or later, and check
+[`hafen.session():list()`](session.md) if you might be earlier.
+
 The handler runs under the same watchdog and error isolation as every other addon callback: an error
 inside it is logged, never propagated.
 
@@ -198,6 +206,10 @@ inside it is logged, never propagated.
 - **The timeout is one deadline over the whole exchange** — connect, redirects and body together — so five
   hops cannot spend it five times and a server sending one byte at a time cannot outlast it. It fails with
   a `timeout` error whenever it runs out.
+- **A response is text.** `res:body()` decodes it with the response charset and there is no byte
+  accessor beside it, so a request for an image or an archive comes back as the text that decoding
+  made of it and is not what the server sent. Ask for what you can read: JSON, plain text, anything
+  the server will encode for you.
 - **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
   timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
   a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming;

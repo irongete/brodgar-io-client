@@ -11,7 +11,7 @@ if hafen.time():night() then hafen.log():write("it's dark out") end
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.time():clock()` | number \| nil | interpolated game-time seconds |
+| `hafen.time():clock()` | number \| nil | interpolated game-time seconds since the world began, running at about **3** game seconds per real one |
 | `hafen.time():dayFraction()` | number \| nil | time of day, `0..1` |
 | `hafen.time():night()` | bool \| nil | whether it is night |
 | `hafen.time():season()` | string \| nil | one of `"spring"`, `"summer"`, `"autumn"`, `"winter"` |
@@ -25,6 +25,21 @@ They answer `nil` when the client holds no session at all, which is the login sc
 
 `clock()` answers as soon as a session is up. The astronomy readers answer `nil` until the first
 astronomy update arrives from the server, which is a beat after entering the world.
+
+> **`clock()` is not a stopwatch.** Each login runs its own copy of the world time forward and steers it
+> towards what the server last said, so two logins are a fraction of a second apart and the number can
+> **go backwards**: a resync, or the client's first word from the server about the time, sets it outright
+> rather than easing it. Two calls a moment apart may read from different logins as well. Use it to
+> label a moment or to ask what time of day it is, never to measure how long something took —
+> [`hafen.timer`](timer.md) and `os.clock()` are what measure.
+
+The four fractions are the server's own numbers passed straight through, and the client neither clamps
+them nor checks them: `0..1` is what they mean, not a range anything enforces. Guard a value you are
+about to index or multiply with.
+
+**These verbs are a part of what the server publishes, not the whole of it.** The astronomy update
+carries more than the day, the night, the season, the moon and the year — where the sun stands among
+them — and the client keeps every field of it. The verbs in the table are what this API names of it.
 
 `season()` names the season rather than numbering it, so `== "winter"` reads exactly as it looks. The
 server publishes one of the four above and nothing else; anything outside them answers `nil` too.

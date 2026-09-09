@@ -41,7 +41,9 @@ until its meter arrives.
 From `:info()` on each. [`session:char`](../char.md) hands out the live objects; these are the snapshots.
 
 - **Skill** — `{ name = string, res = string?, cost = number, known = bool }`, where `known`
-  distinguishes a learnt skill from one that can still be bought.
+  distinguishes a learnt skill from one that can still be bought. `name` is always a string, but while
+  the skill's resource is still loading it is the server's own token for the skill rather than the
+  display name; the token is what `res` resolves from, so the field settles once the resource does.
 - **Credo** — `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus
   `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other.
 - **Experience** — `{ name = string?, res = string, score = number, mtime = number }`, where `mtime` is
@@ -111,7 +113,7 @@ From [`buff:info()`](../buff.md#read), the one snapshot escape hatch. `s:buff():
 |---|---|---|
 | `res`, `name` | string | resource plus display name; optional |
 | `amount` | number | 0..1 fraction; content-defined, often absent |
-| `duration` | number | 0..1 fraction of the buff's run that is left; content-defined, often absent — **not** seconds |
+| `duration` | number | 0..1 fraction of the buff's run that is left, the live `buff:remaining()`; content-defined, often absent — **not** seconds |
 | `number` | number | integer overlay; content-defined, often absent |
 
 ## See also

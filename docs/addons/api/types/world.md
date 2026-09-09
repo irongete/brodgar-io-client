@@ -43,6 +43,11 @@ always fresh. [`session:world`](../world.md) and the `GobAdded`/`GobRemoved` eve
 | `scale` | number | how big it is drawn, read live as [`gob:scale()`](../look.md#size-unprotected); `1` for an object nobody sized — the other half of the same client-local state |
 | `tint` | [colour](../shapes.md#colours) | the colour laid over it, read live as [`gob:tint()`](../look.md#tint-unprotected); optional — absent for an object nobody tinted |
 
+**The whole table is best-effort.** It is built in one pass over an object the world is still resolving, and
+the pass keeps whatever it filled before a piece of that data was not there yet. So every field but `id` can
+be absent, the ones with no *optional* above included: a snapshot taken while the resource behind `name` is
+loading carries `angle` and stops there. Read the field you want, do not count the keys.
+
 > **Other players' display names are not available**, a limit of the client and the protocol. `name` is
 > the body resource. A name resolves only for a character of your own,
 > [`s:character()`](../session.md#read), or for a kin, [`session:kin`](../kin.md).
@@ -101,7 +106,7 @@ rest, each spelled the way its field here is.
 | Field | Type | Notes |
 |---|---|---|
 | `kind` | string | `"ghost"`, `"sprite"`, `"object"`, `"panel"` or `"patch"` |
-| `position` | `{gridId, x, y}` | the [Position snapshot](#position) — the place to store |
+| `position` | `{gridId, x, y}` | the [Position snapshot](#position) — the place to store; optional (absent while the entity's place does not resolve) |
 | `rotate` | number | its own facing, radians |
 | `scale` | number | uniform scale, `1` being original size |
 | `alpha` | number | opacity `0..1` |
@@ -111,7 +116,7 @@ rest, each spelled the way its field here is.
 | `drawn` | bool | in the 3D scene right now |
 | `tint` | [colour](../shapes.md#colours) | optional — absent when nothing is laid over it |
 | `anchor` | number | the gob id it follows; absent for one that stands still |
-| `offset` | `{x, y, z}` | where it sits relative to that gob, world units; present with `anchor` |
+| `offset` | `{x, y, z}` | where it sits relative to that gob, world units; present with `anchor` — `{x, y}` for a patch |
 | `res` | string | ghosts only — the resource it is a picture of |
 | `mesh` | string | objects only |
 | `image` | string | sprites only |
@@ -120,8 +125,10 @@ rest, each spelled the way its field here is.
 | `border` | `{color, width}` | patches only — the line round the shape; optional |
 | `occluded` | bool | patches only — whether the world may hide it |
 
-A patch lies on the ground rather than standing on it, so it has no `facing`; `pieces` is absent while the
-character on screen cannot locate that ground, and empty for a patch holding no pieces.
+A patch lies on the ground rather than standing on it, so it has no `facing` and its `offset` is two numbers
+rather than three — there is no height to sit at. `pieces` is absent while the character on screen cannot
+locate that ground, and empty for a patch holding no pieces; `occluded` is always there, `border` only
+once you have drawn one.
 
 `panel:screen(x, y)` has no field: it projects a point you pass in, so there is no value of it to snapshot.
 

@@ -25,6 +25,13 @@ A ghost is **client-only**: a game object with **no server id**, so it is never 
 server never learns it exists, and it grants no gameplay advantage. It is a visualization, exactly like a
 HUD overlay — see [the section's permission note](README.md).
 
+> **Any resource name is accepted, a body or a critter included.** Nothing here decides which props are
+> reasonable to stand: a ghost of a player body at full opacity and no tint looks like somebody
+> standing there, and it is in none of the reads that answer about the world — it is not a
+> [Gob](../gob.md), so `s:world()` does not list it and `s:party()` and the kin roster know nothing of
+> it. It deceives nobody but the person running your addon, which is why the door is open; say what
+> yours stands, and keep an alpha or a tint on anything a player could mistake for real.
+
 The prop appears a beat after `:add`: the resource resolves on a loader thread, so `:add` returns a working
 ghost immediately while the visual streams in shortly after. Every verb works meanwhile — a `:position`
 before the prop is visible simply sets where it will appear.

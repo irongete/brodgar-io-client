@@ -1,8 +1,10 @@
 # Hotkeys, commands and settings
 
 A key they press, a command they type, a setting they change: the ways a user drives your addon by hand.
-Each is unprotected, each is declared in your file body, and each is cleaned up when your addon reloads.
-The last section goes the other way — a surface of yours doing what one console word already does.
+Declaring one is unprotected, each is declared in your file body, and each is cleaned up when your addon
+reloads. Changing what the **client** has — remapping a key, writing one of its settings — is a
+[protected](permissions.md) write, and each place below says so where it comes up. The last section
+goes the other way: a surface of yours doing what one console word already does.
 
 ## A hotkey
 
@@ -38,6 +40,11 @@ remap a built-in one. A binding is three-valued — on the client's default, ass
 unbound by the user — and `b:key(nil)` is the one that puts it back on the default, which is what makes
 saving and restoring a key safe. The [reference](../api/client/keybindings.md) has the rest of the object,
 the collection verbs and the key-string grammar.
+
+> **Reading a binding is free; writing one is not.** `b:key(k)` and `b:key(nil)` need the
+> `client.settings` [permission](permissions.md), because they change what the user set in Options and
+> the change persists exactly as the user's own edit does. `b:key()`, `b:default()`, `b:assigned()` and
+> `b:down()` need nothing.
 
 `b:down()` is the other half of a key, and it is a **read**: whether that key is held right now. `on` gives
 you the moment it goes down and has no counterpart for it coming up, so anything a key is *held* for — moving
