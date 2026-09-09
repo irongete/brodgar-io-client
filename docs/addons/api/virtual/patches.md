@@ -214,10 +214,12 @@ hafen.virtual():patch():find(function(one) return one:drawn() end)  -- the first
 
 ## Clickability
 
-A patch is **opt-in clickable**: `patch:clickable(true)`. A click inside the ring fires `patch:onClick(fn)`
-and
+A patch is **opt-in clickable**: `patch:clickable(true)`. A click inside **any** of its
+[pieces](pieces.md) fires `patch:onClick(fn)` and
 [`PatchClicked`](../event/bus/world.md#world-ghosts-and-sprites) on the bus, and is **consumed** — the
-character does not walk. A click outside the ring passes straight through to whatever is behind it.
+character does not walk. A click that is inside no piece passes straight through to whatever is behind it,
+and the clear ground between two pieces of one shape is inside no piece: a press there walks the character,
+exactly as a press outside the shape does.
 
 ```lua
 local patch = hafen.virtual():patch():add(ring, here)
@@ -233,15 +235,24 @@ end)
 Both fire on every click, and `PatchClicked` reaches only *your* addon, since a patch is private to the
 addon that laid it.
 
-> **The hit test is the ring, not the picture.** A patch answers a click on the screen area its ring covers
-> whether or not you can see that ground — behind a hill, under a house, on the far side of a wall. The
+**The patch answers, never the piece.** `ev:patch()` is the shape and `ev:x()`, `ev:y()` are the world point
+the click met it at; which piece that point is in is a question you answer from the point, against the rings
+you laid. A piece has no click of its own for the reason it has no place and no look of its own — it is part
+of one shape.
+
+**Where two patches lie over one another, the one in front takes the click — and which is in front is
+decided at the piece the pointer is actually on.** A long shape running away from you therefore wins a press
+at the end nearest you rather than losing it to the distance of its far end.
+
+> **The hit test is the pieces, not the picture.** A patch answers a click on the screen area its pieces
+> cover whether or not you can see that ground — behind a hill, under a house, on the far side of a wall. The
 > test runs inside the click that asked, which is what lets it consume one; asking the drawn image instead
 > would answer a frame later, by which time the character has walked. So a clickable patch you cannot see
 > is still a clickable patch: switch `:clickable(false)` on the ones you are not using.
 
 ## See also
 
-- [pieces](pieces.md) — the convex rings a patch is the union of: what a ring may be, and the edge budget
+- [pieces](pieces.md) — the convex rings a patch is the union of: what a ring may be, the budget, taking one up
 - [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) — the rings a patch takes unchanged
 - [Position](../position.md) — the place every point of a ring is, and the offset verb that builds one

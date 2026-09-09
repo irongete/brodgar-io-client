@@ -205,7 +205,7 @@ public abstract class LuaWorldEntity {
      * The owner-scoped event fired when this entity is clicked: {@code "GhostClicked"} for a ghost,
      * {@code "SpriteClicked"} for a sprite. Paired with {@link #clickKey()}. <b>Every kind answers the click
      * vocabulary</b> (118.3) — the four that are gobs through the engine's own pick pass
-     * ({@link AddonManager#onGhostClick}), a patch through its projected ring ({@link PatchClick}).
+     * ({@link AddonManager#onGhostClick}), a patch through its projected pieces ({@link PatchClick}).
      */
     abstract String clickEvent();
 

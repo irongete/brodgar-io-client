@@ -164,8 +164,9 @@ them. Build the shape out of the pieces you want: laying and taking up a piece e
 
 **Two verbs, and they are the whole of a piece.** It has no ending of its own — it is taken up through the
 collection that holds it, above. Where it is, how big it is, what colour it is, whether it
-is drawn and whether the world may hide it are all the *patch's*: a piece is part of one shape, and a second
-set of the same verbs on the part would be two owners of one look. A verb no piece has raises naming `piece`
+is drawn, whether the world may hide it and [what a click on it means](patches.md#clickability) are all the
+*patch's*: a piece is part of one shape, and a second set of the same verbs on the part would be two owners
+of one look. A verb no piece has raises naming `piece`
 and listing the two it does have; `tostring(piece)` is `Piece`.
 
 ## See also

@@ -77,6 +77,8 @@ already map every seam this feature reads.
 - `src/io/brodgar/addon/PatchOverlay.java` — 1
 - `src/io/brodgar/addon/LuaPatch.java` — 1, 2, 3
 - `src/io/brodgar/addon/PatchClick.java` — 3
+- `src/io/brodgar/addon/Eye.java` — 3 (it is what answers `null` for a point behind the eye, which is
+  the whole of "a piece with a corner behind the eye is dropped")
 - `src/io/brodgar/addon/VirtualApi.java` — 1, 2, 3
 - `docs/addons/api/virtual/patches.md` — 1, 2, 3
 - `docs/addons/api/virtual/pieces.md` — 2, 3 (split out of `patches.md` by 1: the pieces collection,

@@ -1029,7 +1029,7 @@ final class VirtualApi {
      * {@link LuaWorldEntity#drawn()} is a scene slot for a gob and a registered overlay for a patch, and
      * {@link LuaWorldEntity#height()} decides whether an offset is three numbers or two. Everything else is the
      * same code for every kind — the click pair included, since 118.3 hit-tests a patch against its own
-     * projected ring ({@link PatchClick}) where the other four are reached by the engine's pick pass.
+     * projected pieces ({@link PatchClick}) where the other four are reached by the engine's pick pass.
      *
      * <p>The handle table itself is left <b>empty</b> and every name is answered by the metatable, which is what
      * lets a name this API answers for elsewhere throw saying what to write, instead of reading as plain
@@ -1184,7 +1184,7 @@ final class VirtualApi {
             }
         });
         // The click pair, on every kind (118.3). Four of the five are reached by the engine's own pick pass; a
-        // patch is in no pick at all and is hit-tested against its own projected ring (PatchClick), which is
+        // patch is in no pick at all and is hit-tested against its own projected pieces (PatchClick), which is
         // what lets one vocabulary mean one thing across the five rather than be present on some of them.
         m.set("clickable", new VarArgFunction() {   // opt into the client-side pick (never reaches the server)
             public Varargs invoke(Varargs a) {
@@ -3596,8 +3596,8 @@ final class VirtualApi {
      * 118.3: <b>a press on the map view, before it becomes a {@code Click}</b> — the {@code // addon:} branch of
      * {@code MapView.mousedown}. A patch is a ground overlay and renders into no clickmap, so the pick pass that
      * reaches the other four kinds has nothing of it to resolve: it is hit-tested here instead, against its own
-     * ring projected to the screen ({@link PatchClick}), and answers <b>inside</b> the event rather than a frame
-     * later on the readback thread.
+     * pieces projected to the screen ({@link PatchClick}), and answers <b>inside</b> the event rather than a
+     * frame later on the readback thread.
      *
      * <p>Fires the frontmost <b>clickable</b> patch's owner-scoped {@code PatchClicked} and its own
      * {@code onClick(patch, button, x, y)}, then returns {@code true} so the caller consumes the press — no

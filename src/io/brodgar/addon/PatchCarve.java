@@ -298,8 +298,8 @@ public class PatchCarve extends State {
      * <b>Is {@code (x, y)} inside the ring these half-planes are the intersection of?</b> — the fragment's own
      * test ({@link #carve}) in Java, without the smoothstep: the polygon's signed distance is the MINIMUM over
      * the edges, and a point is inside wherever that is not negative. What answers a click is therefore the very
-     * arithmetic that carved what was drawn, run over the ring projected to the screen rather than over the ring
-     * in map space (118.3, {@link PatchClick}).
+     * arithmetic that carved what was drawn, run over one piece's ring projected to the screen rather than over
+     * that ring in map space (118.3, {@link PatchClick}).
      */
     static boolean inside(float[][] e, double x, double y) {
         for(float[] p : e) {

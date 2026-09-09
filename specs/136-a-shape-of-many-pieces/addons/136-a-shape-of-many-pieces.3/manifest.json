@@ -1,0 +1,9 @@
+{
+  "id": "136-a-shape-of-many-pieces.3",
+  "name": "136.3 — a click lands on whichever piece is under it",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 136.3: a patch answers a press inside any of its pieces, the ground between two pieces answers none, and PatchClicked carries the world point the press met the shape at. Run it with :t136-3.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

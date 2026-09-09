@@ -10,8 +10,10 @@ local s = hafen.session():current()
 local pl = s and s:world():placing()                  -- nil when nothing is on the cursor
 if pl then
   hafen.log():write("placing " .. (pl:name() or "not resolved yet"))
+  local box
   for _, ring in ipairs(pl:hitbox() or {}) do
-    hafen.virtual():patch():add(ring, pl:position()):tint{60, 140, 255, 70}
+    if box then box:piece():add(ring)                 -- every further ring, into the one shape
+    else box = hafen.virtual():patch():add(ring, pl:position()):tint{60, 140, 255, 70} end
   end
 end
 ```
@@ -89,7 +91,9 @@ end
 `pl:hitbox()` answers in exactly the shape, units and orientation [`gob:hitbox()`](gob.md#the-ground-it-stands-on)
 does: an array of rings, each an array of [Positions](position.md), turned by the ghost's own facing and
 placed where it currently sits. A ring therefore goes into
-[`hafen.virtual():patch()`](virtual/patches.md) unchanged, the same as a real object's.
+[`hafen.virtual():patch()`](virtual/patches.md) unchanged, the same as a real object's — and a footprint of
+several rings is **one** patch of that many [pieces](virtual/pieces.md), which is one handle to move and one
+shape to look at.
 
 It is the resource's own footprint — what the finished thing will occupy — and **not** its `build` box, the
 clearance the client checks before it will let you put one down. Those are two different questions, and this
@@ -111,7 +115,7 @@ hafen.event():on("Update", function()
   local pl = s and s:world():placing()
   if pl then
     local at = pl:position()
-    -- move the patches you laid to `at`, and turn them by pl:facing()
+    -- move the patch you laid to `at`, and turn it by pl:facing()
   end
 end)
 ```

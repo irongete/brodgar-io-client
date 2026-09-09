@@ -52,8 +52,9 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>It is clicked without being picked</b> (118.3). The four kinds that are gobs render into the clickmap
  * and are resolved by {@code MapView.Hittest}, which answers a frame later; a ground overlay renders into no
- * clickmap at all. So a clickable patch is hit-tested against its own ring, projected, from the {@code // addon:}
- * branch of {@code MapView.mousedown} — {@link PatchClick} — and answers inside the event that asked.
+ * clickmap at all. So a clickable patch is hit-tested against its own pieces, projected, from the
+ * {@code // addon:} branch of {@code MapView.mousedown} — {@link PatchClick} — and answers inside the event
+ * that asked, on whichever piece the pointer is over (136.3).
  *
  * <p><b>Unprotected</b>, like every other kind here: a patch has no server id, never reaches the wire, and
  * grants nothing. It is drawn on your own screen.

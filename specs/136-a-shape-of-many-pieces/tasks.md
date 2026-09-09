@@ -39,7 +39,7 @@
       `[manual]`: three quads in a row with the middle one removed — expect a gap in the shape exactly where
       it was, and the outer two still bordered.
 
-- [ ] **136.3 — a click lands on whichever piece is under it.** `PatchClick.hit` projects and tests each
+- [x] **136.3 — a click lands on whichever piece is under it.** `PatchClick.hit` projects and tests each
       piece rather than one ring; a patch answers when any of its pieces contains the point, and the depth
       that orders one patch in front of another is the hit piece's rather than an average over the whole
       shape. A piece with a corner behind the eye is dropped **alone** — today one such corner drops the

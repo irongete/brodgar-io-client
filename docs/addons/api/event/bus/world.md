@@ -162,9 +162,10 @@ The click is **consumed** — no server click, no character walk. An entity fire
 clickable; a non-clickable one is click-through and silent, and a sprite facing `"screen"` has no
 world mesh, so it is never picked at all.
 
-**A patch is hit-tested rather than picked**, against the ring it was laid as, so it answers whether or not
-you can see that ground — behind a hill, under a house. The other three are found by the engine's own pick
-pass and so answer only where they are visible.
+**A patch is hit-tested rather than picked**, against each of the
+[pieces](../../virtual/pieces.md) it is the union of, so it answers whether or not you can see that ground —
+behind a hill, under a house — and it answers wherever any one of those pieces is under the pointer. The
+other three are found by the engine's own pick pass and so answer only where they are visible.
 
 ## See also
 
