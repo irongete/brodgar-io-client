@@ -5,7 +5,7 @@ main job is being the anchor for that character's own [Gob](gob.md).
 
 ```lua
 local s = hafen.session():current()       -- the character on screen
-local me = s and s:player():gob()         -- nil until that session is in the world
+local me = s and s:player():gob()         -- nil until that character's HUD is up
 local p = me and me:position()
 if p then hafen.log():write("standing on grid " .. p:info().gridId) end
 ```
@@ -37,7 +37,12 @@ the player, and it lives beside its inverse.
 
 | Method | Returns | Description |
 |---|---|---|
-| `s:player():gob()` | [Gob](gob.md) \| nil | that character's own game object; `nil` before that session is in the world |
+| `s:player():gob()` | [Gob](gob.md) \| nil | that character's own game object; `nil` before that character's HUD is up |
+
+The HUD is up a beat **before** the world is, and the read answers over that beat: the client mints the
+Gob on the id the HUD carries rather than waiting for the object cache, so from the moment `s:char()`
+answers you hold a Gob whose `:exists()` is `false` and whose `:position()` is `nil`. That is the reference
+model everywhere else on this API — ask `:exists()`, not `nil`.
 
 `s:player():gob()` is the same object as `s:world():gob():get(<that character's id>)` — so
 `gob == s:player():gob()` is how you tell "is this that character?" from any other gob read through the same

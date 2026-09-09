@@ -52,8 +52,11 @@ end
 
 The four slot reads are **collections** of [spec objects](#a-spec): `:list(filter)` is the array,
 `:find(needle)` the first that matches and `:count(filter)` how many, and each is empty rather than `nil`
-when nothing is open. A slot has no key, so there is no `:get` — the server rebuilds a recipe's slots
-wholesale, so `:list()[n]` takes a position and `:find(needle)` searches the name and the resource.
+when nothing is open. Each is a
+[view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) minted per call, so
+`:inputs() ~= :inputs()`; there is nothing to compare here anyway, since a spec holds what it was minted
+from rather than re-resolving. A slot has no key, so there is no `:get` — the server rebuilds a recipe's
+slots wholesale, so `:list()[n]` takes a position and `:find(needle)` searches the name and the resource.
 
 `s:craft():info()` is the other shape: a plain-table [`Craft`](types/ui.md#craft-and-craftspec) with the
 same four lists copied out as tables, for logging and serialising.

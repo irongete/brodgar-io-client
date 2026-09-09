@@ -4301,9 +4301,9 @@ public final class AddonManager {
     }
 
     /**
-     * Fire a radial-menu event (047.1) — {@code FlowerMenuAdded}, whose payload is the petal captions as an
-     * array of strings in ring order, or {@code FlowerMenuRemoved}, whose payload is the label picked or
-     * {@code nil}. Same {@code hasSub} shape as {@link #fireGob}: the payload is built only for an owner that
+     * Fire a radial-menu event (047.1) — {@code FlowerMenuAdded}, whose payload is the ring's
+     * {@link LuaPetal}s in ring order, or {@code FlowerMenuRemoved}, whose payload is the label picked
+     * or {@code nil}. Same {@code hasSub} shape as {@link #fireGob}: the payload is built only for an owner that
      * actually subscribes, and it is built <i>per owner</i> even though nothing here is interned — a table
      * handed to Lua is mutable, and one addon must not be able to edit another's petal list.
      */
@@ -4729,26 +4729,6 @@ public final class AddonManager {
         // (all=true → 1) through the WINDOW's own wdgmsg, so it CONSUMES the ingredients exactly as a click
         // does, in the session that window stands in. No CraftChanged event (read on demand, like A7 speed — a
         // recipe changes only when the player opens one).
-
-        // s:fight() — combat schools / the maneuver deck builder (A10), off the Session (077.4) and read
-        // from THAT character's own sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"),
-        // reached via CharWnd.fight —
-        // created hidden at login but live, so it reads without opening the window). This is the OUT-OF-COMBAT
-        // configuration editor (distinct from the in-combat hafen.combat.* view, which is Fightview/Fightsess
-        // with live cooldowns). maneuvers([filter]) returns every combat maneuver/attack you know as {res,
-        // name, avail (how many you can slot), used (how many you have slotted)}, filtered by the canonical
-        // nil=all / name-substring / predicate. deck() returns the current school's configured card LAYOUT —
-        // the filled key slots in order, each {slot (raw 0-based deck index), key (the hotkey label
-        // "1".."5"/"⇧1".."⇧5"), res, name, used}. summary() returns the scalars {maxact (the action-point
-        // budget cap), used (total points spent = sum of maneuvers' used), nact (deck size), nsave (number of
-        // saved-school slots), usesave (the active saved-school slot, 0-based)}, or nil before the tab exists.
-        // Read-only — editing a school / switching saved schools (load/save/use, drag cards, set counts) is
-        // the protected Phase-4 action tier; no FightChanged event (a school changes only on explicit player
-        // action, like A4 skills / A8 craft — read on demand). Saved-school NAMES are deferred (the private
-        // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
-        // A school is configured on one character and a fight is fought by one body, so a deck index and an
-        // opponent's gob id both count inside one login: the cards and the target carry the account beside
-        // their key, and :target():gob() resolves in that session's own object cache.
 
         // s:actionbar() — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
         // BeltSlot[144]), off the Session (077.3) and via the widget-tree mechanism (1d-4). A slot index names

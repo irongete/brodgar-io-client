@@ -44,7 +44,7 @@ that character's line of sight and not the screen's.
 | `s:fight():maneuver():list(filter)` | `Maneuver[]` | every maneuver and attack that character knows |
 | `s:fight():maneuver():count(filter)` | number | how many match |
 | `s:fight():maneuver():find(filter)` | `Maneuver` \| nil | the first that matches |
-| `s:fight():deck()` | collection | the loaded school's layout: the filled hotkey slots |
+| `s:fight():deck()` | collection | the loaded school's layout: the filled hotkey slots — `:list(filter)`, `:count(filter)` and `:find(filter)`, and no `:get` |
 | `s:fight():summary()` | `FightSummary` \| nil | the action-point budget and the saved-school slots |
 | `s:fight():target()` | `Opponent` \| nil | who that character is fighting |
 
@@ -56,10 +56,12 @@ A string [filter](conventions.md#the-filter-argument) over the maneuvers matches
 the display name. **There is no `:get`**: a maneuver is addressed by nothing you have, so a string is a
 *search* and a position is `:list()[n]`.
 
-The deck is a **plain array**, not a collection: it is a layout, ordered by hotkey, and there is nothing
-to search it by that the maneuvers do not already answer. Empty slots are left out, and the two numbers say
-so between them: `card:index()` is the position **in that list**, so `deck():list()[n]:index()` is `n`
-whatever the gaps, and `card:wire()` is the hotkey's own place in the school, gaps counted.
+The deck is a **collection** like the maneuvers, and addressed the same way: no `:get`, a `:find` over the
+maneuver's own name, and `deck():list()` as the array — so `#deck()`, `deck()[n]` and `ipairs(deck())` are
+[refused](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) here too. Empty slots are
+left out, and the two numbers say so between them: `card:index()` is the position **in that list**, so
+`deck():list()[n]:index()` is `n` whatever the gaps, and `card:wire()` is the hotkey's own place in the
+school, gaps counted.
 
 ## A maneuver
 
@@ -118,7 +120,7 @@ every maneuver that character knows.
 
 > The target says **who**, and nothing else. Everything readable about the creature — its name, its
 > health, where it is — belongs to the gob and is read there. There is no per-moment combat state here:
-> the client's own fight numbers are drawn from state it is not asked to publish.
+> the relation, the initiative and the openings are on the client, and this API does not publish them.
 
 `target:gob()` is never `nil`, exactly like [`s:world():gob():get(id)`](gob.md) — ask
 `target:gob():exists()` rather than testing for `nil`. The target is interned on that character and the gob

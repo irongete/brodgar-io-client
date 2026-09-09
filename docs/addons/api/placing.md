@@ -57,7 +57,7 @@ and [`place`](world.md#write-protected) refuses any other.
 | `pl:facing()` | number \| nil | its angle in radians, which the mouse wheel turns |
 | `pl:hitbox()` | Position`[][]` \| nil | [the ground it will stand on](#the-footprint) |
 | `pl:exists()` | boolean | whether that character is placing anything at all |
-| `pl:info()` | table \| nil | the snapshot: `name`, `position`, `facing` and `exists` |
+| `pl:info()` | table \| nil | the snapshot: `{ name = string?, position = {gridId, x, y}?, facing = number, exists = true }` |
 
 `nil` from any of the reads means one of two things, and `:exists()` is what tells them apart: **nothing is
 on the cursor**, or **the resource has not resolved yet**. The second is a real moment here rather than a
@@ -66,9 +66,14 @@ answer `nil` for its name, its footprint and its place for a frame or two. Come 
 about it is an error.
 
 `pl:info()` is the [one snapshot](conventions.md#objects-and-the-snapshot-hatch) this object carries, and its
-`position` is the durable `{gridId, x, y}` table a [Position](position.md) answers with. It has **no
-`hitbox`** key, for the reason [`gob:info()`](gob.md) has none: a snapshot holds numbers and strings rather
-than objects, and a footprint rebuilt on every call would be paid by every read that only wanted a name.
+`position` is the durable `{gridId, x, y}` table a [Position](position.md) answers with. Two of its keys are
+**optional**, for the two absences above: `name` while the resource is still resolving, and `position`
+wherever the ghost stands on ground that character cannot name a durable place on. `exists` is `true`
+whenever there is a snapshot at all, because a snapshot of nothing is `nil`.
+
+The snapshot has **no `hitbox`** key, for the reason [`gob:info()`](gob.md) has none: a snapshot holds
+numbers and strings rather than objects, and a footprint rebuilt on every call would be paid by every read
+that only wanted a name.
 
 ## It names the cursor, not one placement
 

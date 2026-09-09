@@ -37,6 +37,7 @@ holds answers an empty array rather than raising.
 | `s:wound():count(filter)` | number | how many match |
 | `s:wound():find(needle)` | `Wound` \| nil | the first whose name or resource contains it |
 | `s:wound():get(id)` | `Wound` \| nil | one wound, by its id |
+| `s:wound():roots()` | collection | the wounds nothing complicates — [the top of the tree](#a-wound) |
 
 Before the tab has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array and `:find()` is
 `nil`. Nothing here throws and nothing is protected.
@@ -54,7 +55,7 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:severity()` | number \| nil | the magnitude beside it, as a number |
 | `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
 | `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
-| `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf |
+| `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), like `:roots()` |
 | `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
 | `w:exists()` | boolean | whether it is still on the character — always answers |
 | `w:info()` | [`Wound`](types/character.md#wound) \| nil | a plain-table **snapshot** |

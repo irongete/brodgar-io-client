@@ -66,7 +66,7 @@ never sent one.
 |---|---|---|
 | `id` | number | member gob id |
 | `x`, `y` | number | live position if in view, else last-known; optional |
-| `color` | [colour](../shapes.md#colours) | party colour; optional |
+| `color` | [colour](../shapes.md#colours) | party colour, black until the server names one |
 | `leader` | bool | whether this member is the party leader |
 
 The live reads are `member:id()`, `:position()` — a [Position](../position.md), not the two

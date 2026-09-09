@@ -20,11 +20,11 @@ import java.util.WeakHashMap;
  * {@code s:flowermenu()} — the <b>open radial context menu</b> (spec {@code 047-flowermenu}), the ring of
  * petals a right-click puts up, plus the two events that say when one comes and goes.
  *
- * <p><b>The section IS the open menu</b>, not a wrapper around one. A petal set is frozen from the moment the
- * menu opens until it dies, so {@code :list()} hands back plain <b>labels</b> rather than entities: there is
- * nothing for the live-object machinery to track, and a petal that outlived its menu would answer questions
- * nobody asks. With no menu open every read answers ({@code {}}, {@code 0}) rather than throwing — a menu is
- * the player's, and "none is up" is the normal state, not an error.
+ * <p><b>The section IS the open menu</b>, not a wrapper around one. A petal set is frozen from the moment
+ * the menu opens until it dies, so a {@link LuaPetal} is a position on one ring and nothing more: it
+ * re-resolves through that menu, and one held past the close answers {@code :exists()} false rather than
+ * pointing at whatever ring is up now. With no menu open every read answers ({@code {}}, {@code 0}) rather
+ * than throwing — a menu is the player's, and "none is up" is the normal state, not an error.
  *
  * <p><b>And a menu is one session's</b> (077.4). It looks screen-shaped, because a right-click is a mouse
  * gesture and the client has one pointer — but the section is the open <b>menu</b>, and a menu is a widget in
@@ -158,8 +158,8 @@ final class FlowerMenuApi {
      */
     static LuaValue flowermenu(final Addon owner, final String user) {
         LuaTable menu = new LuaTable();
-        // list() — the open menu's petal captions, as strings, in ring order (the order the ring is numbered
-        // in, which is the order a petal is addressed by). An empty array when no menu is open.
+        // gob() — the object the ring was opened on, or nil where the correlation cannot vouch for one
+        // (an inventory menu, a menu the client put up for itself, a menu that outran its click).
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), FM, "gob");

@@ -43,10 +43,14 @@ events hand it that character's session as their last argument.
 |---|---|
 | `s:flowermenu():list(filter)` | the [Petals](#a-petal), in ring order — empty when that character has no menu open |
 | `s:flowermenu():count()` | how many petals are on the ring; `0` when none is open |
+| `s:flowermenu():get(n)` | the petal at that **1-based** ring position; `nil` for a number past the ring, and an error for a number that is not a whole one |
+| `s:flowermenu():find(filter)` | the first petal whose caption matches the [filter](conventions.md#the-filter-argument); `nil` for none |
 | `s:flowermenu():gob()` | the object the ring was opened on, or `nil` |
 
-None of them throws, ever: no menu being open is the ordinary state of the game rather than an error, and
-all three answer before that character has entered the world. All three are unprotected.
+None of them throws for an empty ring: no menu being open is the ordinary state of the game rather than an
+error, and every one of them answers before that character has entered the world. `:get(n)` is the one that
+can raise, and only on an argument that is not a whole number — the position is the same one `petal:index()`
+answers with and the ring's own `1`–`9` keys take. Every read here is unprotected.
 
 ## Which object the menu belongs to
 
@@ -210,7 +214,7 @@ exactly that round trip.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `FlowerMenuAdded` | `string[]` — the petal captions, in ring order | a radial menu appears |
+| `FlowerMenuAdded` | [`Petal`](#a-petal)`[]` — the ring, in ring order | a radial menu appears |
 | `FlowerMenuRemoved` | `string` \| nil — the label picked | that menu goes away |
 
 **Every `FlowerMenuAdded` is followed by exactly one `FlowerMenuRemoved`.** That holds however the menu
@@ -231,7 +235,9 @@ hafen.event():on("FlowerMenuAdded", function(petals)
 end)
 hafen.event():on("FlowerMenuRemoved", function(label)
   if not label and pending then
-    hafen.log():write("walked away from: " .. table.concat(pending, ", "))
+    local names = {}
+    for _, p in ipairs(pending) do names[#names + 1] = p:label() or "?" end
+    hafen.log():write("walked away from: " .. table.concat(names, ", "))
   end
   pending = nil
 end)

@@ -603,9 +603,8 @@ public final class LuaKin {
 
             // add(secret) — the Kin window's "Add kin" field: kinning needs the other player's HEARTH SECRET
             // (no add-by-name message exists). Protected, with the one key it has whichever character it is
-            // addressed at (077.2), and the send goes through THAT session's own BuddyWnd. It hands back the
-            // COLLECTION rather than a Kin, because there is no Kin yet: the server decides whether the secret
-            // is valid and the roster changes on a later tick, which is what KinChanged reports.
+            // addressed at (077.2), and the send goes through THAT session's own BuddyWnd. It hands back
+            // NOTHING — see the return below.
             public LuaValue addMember(Varargs a) {
                 AddonManager.requirePermission(AddonManager.current(), Permission.KIN_ADD);
                 // The type, not isstring(): a NUMBER answers isstring() in LuaJ, so the laxer test used to

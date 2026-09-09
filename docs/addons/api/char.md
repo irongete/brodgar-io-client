@@ -15,7 +15,10 @@ if s and s:char():skill():find("Alchemy") then hafen.log():write("I know Alchemy
 ```
 
 The sheet lives in HUD widgets that build after login, so it streams in a beat after `SessionEnteredWorld`: an
-immediate read answers `nil` or an empty array. Read on a short timer, or on the matching event.
+immediate read answers `nil` or an empty array. Read on a short timer. **Two reads on this page have an
+event and the rest have none**: `FepChanged` for food and hunger, and `StudyChanged` for the curiosities
+next door, [both on the bus](event/bus/character.md#character-and-status). Attributes, learning points,
+weight, skills, credos and lore change only on an action of yours, so they are read on demand, after it.
 
 ## Whose sheet it is
 
@@ -27,8 +30,11 @@ hafen.session():current():char():lp()        -- the learning points of the chara
 hafen.session():get("alt"):char():lp()       -- that character's, whether or not you are looking at it
 ```
 
-`s:char()` is the same object every call, and so is each of its four collections — minted once for that
-session — so a panel that reads the sheet every frame allocates nothing to do it. A session the client no
+`s:char()` is the same object every call, and so is each of the collections in the table below — minted
+once for that session — so a panel that reads the sheet every frame allocates nothing to do it.
+`s:char():skill():buyable(f)` is the exception: it is a partition rather than one of the sheet's own
+collections, so [it is a view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) —
+two calls are two objects, and the skills inside them are the identity. A session the client no
 longer holds answers `nil`-shaped rather than raising, the same shape as before entering the world;
 [`s:exists()`](session.md#read) tells the two apart.
 
@@ -79,7 +85,7 @@ keeps two strengths from being one number.
 | Call | Returns | Description |
 |---|---|---|
 | `s:char():skill():list(filter)` | `Skill[]` | the skills the character knows |
-| `s:char():skill():buyable(filter)` | collection | the skills that can be bought, each with a `:cost()` — a collection of its own, so `:count()`, `:find()` and `:list()` all answer |
+| `s:char():skill():buyable(filter)` | collection | the skills that can be bought, each with a `:cost()` — a partition minted per call, so `:count()`, `:find()` and `:list()` all answer on it but `:buyable() == :buyable()` is false |
 | `s:char():skill():count(filter)` | number | how many known ones match |
 | `s:char():skill():find(filter)` | `Skill` \| nil | the first known skill that matches |
 
@@ -147,9 +153,14 @@ demand, after your own action.
 
 ## Food
 
-`s:char():food()` is the one place in the client with **absolute** numbers about a character —
-everywhere else, a bar is a fraction. See [`session:meter`](meter.md). It answers `nil` until that
-character's sheet is up.
+`s:char():food()` is where the client's **absolute** numbers about a character live: `fep():cap()` and
+`fep():total()` are FEP points, and everywhere else a bar is a fraction. See [`session:meter`](meter.md).
+It answers `nil` until that character's sheet is up.
+
+The two hunger reads are **not** points. `hunger:level()` is the raw fullness figure the client's own
+tooltip prints in per-mille, `level() * 1000`, and the bar draws only its fractional part — so it is **not
+capped at 1** and a very full character reads above it. `hunger:efficacy()` is a `0..1` multiplier the
+client paints as a percentage. Neither carries a [unit](shapes.md#units) of the client's.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -161,6 +172,7 @@ character's sheet is up.
 | `food:hunger():label()` | string \| nil | the client's own word for that level |
 | `food:hunger():efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
 | `food:hunger():info()` | table \| nil | a plain-table **snapshot** of the meter — the `hunger` half of [`Food`](types/character.md#food) |
+| `food:fep():exists()`, `food:hunger():exists()` | boolean | whether that half is still up — always answers |
 | `food:exists()` | boolean | whether this is still that character's live sheet |
 | `food:info()` | [`Food`](types/character.md#food) \| nil | a plain-table **snapshot**, the two halves in one table |
 

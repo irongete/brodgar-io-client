@@ -49,8 +49,9 @@ scans display names, and a display name never hijacks a resource lookup.
 
 - `:res()` is the **identity**. It is the intern key, it is known as soon as the resource is named, and
   it is the same string [`slot:res(name)`](actionbar.md#write-protected) takes.
-- A **display name** needs the resource fully loaded, and it is **not unique** — several actions can
-  share one, and the first match in catalogue order wins. Use it to explore, and `:res()` to address.
+- A **display name** needs the resource fully loaded, it is matched **case-insensitively**, and it is
+  **not unique** — several actions can share one, and the first match in catalogue order wins. Use it to
+  explore, and `:res()` to address, which is compared exactly.
 
 A miss is plain `nil` for both forms: "not in the menu" means "that character does not have that action",
 and a stashed handle still answers `:exists()` after the entry goes away.

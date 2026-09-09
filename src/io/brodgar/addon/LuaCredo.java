@@ -30,9 +30,9 @@ import java.util.Map;
  * "a credo" — so an addon could not compare them. Here it is the same object, {@code :pursuing()} says so,
  * and the progress reads ({@code :level()}, {@code :quest()}, …) answer {@code nil} on every other credo.
  *
- * <p><b>The cost of beginning one belongs to the set, not to a member</b>: the server publishes a single
- * learning-point price for taking up any credo, so it is {@code s:char():credo():cost()} rather than a
- * verb on a credo that would report the same number nine times.
+ * <p><b>The price of beginning one is not published here.</b> The server sends a single learning-point
+ * price for taking up any credo, so it belongs to the set rather than to a member — and no verb on either
+ * reads it: {@code SkillWnd.CredoGrid.cost} is where it sits, unexposed.
  */
 public final class LuaCredo {
     /** The server's credo token — the whole state of a handle, and its intern key. */
@@ -326,8 +326,8 @@ public final class LuaCredo {
 
     /**
      * {@code s:char():credo()} — every credo the tab lists, acquired and available together, with
-     * {@code cr:acquired()} saying which. {@code :pursuing()} is the distinguished member (§2.3) and
-     * {@code :cost()} the learning-point price of beginning one.
+     * {@code cr:acquired()} saying which. {@code :pursuing()} is the distinguished member (§2.3), and the
+     * whole vocabulary is the {@code extra} below plus the collection's own six.
      */
     static LuaValue collection(final Addon owner, final String user) {
         LuaTable extra = new LuaTable();

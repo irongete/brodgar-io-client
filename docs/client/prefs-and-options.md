@@ -51,7 +51,8 @@
 
 ## See also
 
-- [services](services.md) — keybindings, resources, audio, and the rest of the cross-cutting map
+- [services](services.md) — keybindings, resources, and the rest of the cross-cutting map
+- [audio](audio.md) — the channels and clips the Audio panel's sliders reach
 - [the camera](camera.md) — `MapView.setcam`, the one writer of the `defcam`/`camargs` prefs
 - [several sessions at once](multi-session.md) — why a sub-mix level and a `GSettings` publish are
   per `UI` rather than per client

@@ -37,9 +37,10 @@ import java.util.List;
  * is reachable solely through a card you were already holding — and {@code :index()}, which is a position in
  * that list, goes {@code nil} with it.
  *
- * <p>The deck is a <b>plain array</b> rather than a collection (§2.3): it is a layout, addressed by nothing but
- * its own order, and there is nothing to search it by that {@code s:fight():maneuver()} does not already
- * answer.
+ * <p>The deck is a <b>collection</b> like every other set here — {@code :list}, {@code :count} and a
+ * {@code :find} over the maneuver's own name — with <b>no {@code :get}</b>, because a layout slot has no key
+ * to address it by. So {@code #deck()}, {@code deck()[n]} and {@code ipairs(deck())} are refused in the
+ * collection's own words, and {@code deck():list()} is the array to index.
  */
 public final class LuaDeckCard {
     /** The account whose school this place is in — half the address, and what makes the index mean one hotkey. */
@@ -313,9 +314,10 @@ public final class LuaDeckCard {
 
     /**
      * {@code s:fight():deck()} — the filled hotkey slots of the school <b>that character</b> has loaded, in
-     * key order, as a plain array (§2.3: a layout is addressed by its own order and there is nothing to
-     * search it by). An empty slot is omitted; the card's own {@code :slot()} and {@code :key()} carry the
-     * position, so the gap is never ambiguous. Empty before that character's schools tab has built.
+     * key order. A collection with no {@code :get} (§2.3: a layout is ordered by hotkey and carries no
+     * key to address a slot by), searched by the maneuver's own name. An empty slot is omitted; the card's own
+     * {@code :wire()} and {@code :key()} carry the position, so the gap is never ambiguous. Empty before that
+     * character's schools tab has built.
      */
     static LuaValue deck(final Addon owner, final String user) {
         return LuaCollection.create(CharApi.FT + ":deck()", new LuaCollection.Source() {

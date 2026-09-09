@@ -262,6 +262,11 @@ the collection [`gob:overlay()`](overlay.md). All of them are unprotected, all o
 object rather than a character, and none of them changes anything on this page: a resized, hidden or
 tinted object still answers every read above.
 
+**`gob:visible(false)` withholds the model alone.** What stands *at* the object is not part of it, so a
+hidden object goes on drawing your [overlays](overlay.md) and the game's own — its name label, its health
+bar — over ground with nothing in it. The click goes through to that ground, which is the verb's whole
+meaning; the label does not.
+
 ## Clicking one
 
 Clicking an object is something a **character** does, so it is not on this page: a Gob names the object, and

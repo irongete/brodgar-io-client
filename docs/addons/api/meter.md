@@ -44,7 +44,9 @@ hafen.session():get("alt"):meter():find("hp")    -- that character's, while you 
 60 fps allocates nothing. A session the client no longer holds answers an empty array rather than raising.
 
 Meter objects are **interned per addon**, so `s:meter():find("hp") == s:meter():list()[1]` and
-`seen[m] = true` work. A `Meter` wraps only the meter widget and re-reads it on every call, so a
+`seen[m] = true` work. `meter:segment()` is not, and neither are the segments in it: both are
+[views](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) off the bar — see
+[a segment](#a-segment). A `Meter` wraps only the meter widget and re-reads it on every call, so a
 stashed one tracks its bar as the server updates it — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles). It also carries its own character with it:
 `meter:exists()` and `meter:index()` answer about the slot that bar is standing in, whichever session
@@ -111,6 +113,12 @@ walks every entry of either, and the place a segment reports is its place in tha
 The bar's fill is `meter:segment():list()[1]:value()`, and it says which segment it is. There was a
 `meter:value()` that read segment one under a whole-bar name: right on every meter the client ships,
 and silently wrong the first time a server publishes a split bar.
+
+**A segment is the one thing on this page that `==` does not answer for.** A band carries no key of its
+own — it is a place in a bar the server rewrites whole — so `meter:segment()` mints a fresh collection per
+call and a fresh Segment with it: `m:segment() ~= m:segment()`, and so are two handles on band 1. The
+handle is still live, and re-reads its band as the server updates it; what identifies a band is
+`seg:index()`, and the Meter above it is the interned thing to key a table by.
 
 > `seg:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
 > hunger figure, in the client. The one place absolute numbers exist is FEP:

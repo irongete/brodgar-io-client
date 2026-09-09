@@ -20,4 +20,4 @@
 - [the chat](chat.md) — the *System* channel `Console.out` is re-pointed at once a `GameUI` is added
 - [several sessions at once](multi-session.md) — the one lock direction a line that reaches another
   session's tree may take
-- [services](services.md) — keybindings, resources, audio and the rest of the cross-cutting map
+- [services](services.md) — keybindings, resources and the rest of the cross-cutting map

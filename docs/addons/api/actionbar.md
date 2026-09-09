@@ -254,6 +254,11 @@ that row — your own write ends your own hold, a beat later, when the server ec
 and puts it back the moment that entry exists again — so a button the player dragged onto the bar last night
 is on the bar tonight, and neither you nor they have to place it a second time.
 
+That record holds **one entry per slot**, so the shared-surface rule above reaches across the relog too: the
+live hold chains, and the record does not. Two addons holding one slot in turn are one remembered entry —
+the last one written — and tonight the bar comes back with that one alone, however many addons were stacked
+on it when the player logged out.
+
 The call that re-applies it is [`s:menugrid():add(id)`](menugrid.md#smenugridaddid), the one your
 addon already makes:
 

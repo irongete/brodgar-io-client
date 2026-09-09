@@ -2004,8 +2004,8 @@ final class CharApi {
     // The combat-school / maneuver-deck builder is a FightWnd (@RName("fmg")) — the character sheet's
     // "Martial Arts & Combat Schools" tab, held by the public CharWnd.fight field (created hidden at login
     // but live, so it reads without opening the window, exactly like A9's quests/wounds). This is the
-    // OUT-OF-COMBAT configuration surface, distinct from the in-combat Fightview/Fightsess deck (which has
-    // live rtime cooldowns and is the separate hafen.combat.* view). It keeps three data structures:
+    // OUT-OF-COMBAT configuration surface, distinct from the in-combat Fightview/Fightsess deck, whose
+    // live rtime cooldowns this API does not publish. It keeps three data structures:
     //   • acts   — public List<Action>: every maneuver/attack you know. Each Action {res (public Indir<
     //              Resource>), a (public int = how many you can slot), u (public int = how many slotted)}.
     //   • order  — public final Action[]: the current school's card LAYOUT, index i → the maneuver bound to

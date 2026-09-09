@@ -78,9 +78,11 @@ A distinguished member is a verb on its collection rather than a second accessor
 `:selected()`, `:leader()`, `:pursuing()` — and the member carries **no flag of its own**, because
 the objects are interned, so `s:party():leader() == member` is the exact test.
 
-**A section's collection is one object; a thing's collection is a view.** `hafen.map():marker()` is the
-same object on every call. `gob:overlay()` is re-derived from the gob, so two calls are not `==` and
-neither one outlives it. Identity lives on the **members**: `gob:overlay():get("tag")` is one overlay.
+**A section's collection is one object; every other collection is a view.** `hafen.map():marker()` is the
+same object every call; a collection off a **thing** (`gob:overlay()`, `meter:segment()`, `q:conditions()`)
+or a **partition** of one (`s:char():skill():buyable(f)`) is re-derived per call, so two calls are not `==`
+and neither outlives what it came off. Identity lives on the **members that carry a key of their own**:
+`gob:overlay():get("tag")` is one overlay.
 
 > **A collection is an object, not a sequence.** `#coll`, `coll[1]`, `pairs(coll)` and `ipairs(coll)` are
 > refused, naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not

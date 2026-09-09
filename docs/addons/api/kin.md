@@ -132,9 +132,10 @@ shapes a player could compose, and what the server does with more than that is t
 undo a rename, a regroup or an ended kinship, and neither does the session ending. There is nothing to
 give back, so put one behind a choice the player made rather than behind a load.
 
-Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain. `add`
-hands back the collection rather than a new `Kin`, because there is none yet: the server decides whether
-the secret is valid and the roster changes a beat later, as a `KinChanged`. Each verb needs its own
+Every verb on a `Kin` returns that `Kin`, so they chain. `s:kin():add(secret)` is the one that does not:
+it returns **nothing**, because there is no `Kin` to hand back yet — the server decides whether the secret
+names anyone and the roster changes a beat later, as a `KinChanged`. A `local k = s:kin():add(...)` is
+therefore `nil`, which is where the mistake shows. Each verb needs its own
 permission key declared in your manifest — or the group `kin.*`, which covers all five — and called from
 an addon that did not declare it, each raises an error naming that key; see
 [the permission model](conventions.md#the-permission-model).

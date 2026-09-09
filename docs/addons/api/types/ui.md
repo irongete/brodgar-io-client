@@ -90,8 +90,8 @@ ability slot with a meter, and is **not** seconds. On a slot
 
 ## Pagina
 
-From [`pag:info()`](../menugrid.md#read) and [`s:menugrid():list()`](../menugrid.md#read), the snapshot
-escape hatch for an action-menu entry.
+From [`pag:info()`](../menugrid.md#read), the snapshot escape hatch for an action-menu entry.
+[`s:menugrid():list()`](../menugrid.md#read) hands you live `Pagina` objects, not this table.
 
 `{ res = string, exists = bool, addon = string?, name = string?, tooltip = string?, hotkey = string?,
 path = string[]?, parent = string?, isnew = bool? }` — `res` is the identity and is always present,

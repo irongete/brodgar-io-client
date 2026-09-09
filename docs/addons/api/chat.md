@@ -53,6 +53,9 @@ takes it away, and two of them may carry one name — so writing it raises namin
 
 A channel is interned on the tab itself, so `s:chat():list()[1] == s:chat():selected()` when it is the one
 on screen, and `seen[ch] = true` works as a table key. Two characters' Party channels are two objects.
+`channel:message()` is not interned, because it hangs off the channel: it is
+[a view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), minted per call, and the
+identity is on the [lines](#a-line) inside it.
 
 **A channel that has gone answers only its own identity.** The server closes a private conversation by
 taking its tab away: `channel:exists()` goes `false` and every other read above answers `nil`, because there
@@ -160,8 +163,13 @@ channel's ordinary colour.
 
 `msg:speaker()` is a [`Kin`](kin.md) of **that character's** roster, and `nil` wherever a line names nobody
 at all — the System log, an ordinary channel's plain lines, and both halves of a private conversation, which
-carry a direction rather than a sender. `msg:mine()` is the read that answers there: it is a fact about
-every line, not only the ones that name somebody.
+carry a direction rather than a sender. `msg:mine()` is the read that answers there: it is asked of every
+line, not only the ones that name somebody.
+
+`msg:mine()` is a test of **which kind of line the client built**, not a comparison of names: the client
+mints a distinct kind for a line you said, and that is what the read looks at. A line nobody said — the
+System log's own output — is therefore `false` rather than unanswerable, which is the safe answer for a
+test whose whole job is to pick your own out.
 
 ### The kind a line wears
 

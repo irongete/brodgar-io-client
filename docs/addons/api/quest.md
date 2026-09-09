@@ -48,10 +48,10 @@ predicate receives the Quest object.
 | `q:id()` | number | the server's quest id — always answers |
 | `q:title()` | string \| nil | the quest's name |
 | `q:res()` | string \| nil | its resource name |
-| `q:status()` | string | `"pending"`, `"done"`, `"failed"` or `"disabled"` |
+| `q:status()` | string \| nil | `"pending"`, `"done"`, `"failed"` or `"disabled"`; `nil` once the server has dropped the quest |
 | `q:modified()` | number \| nil | the server's change stamp; higher is more recent |
 | — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
-| `q:conditions()` | collection | its objectives — see below |
+| `q:conditions()` | collection | its objectives — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), minted per call, with the identity on the objectives in it — see below |
 | `q:exists()` | boolean | whether it is still in the log — always answers |
 | `q:info()` | [`Quest`](types/character.md#quest-and-condition) \| nil | a plain-table **snapshot** |
 
@@ -70,7 +70,7 @@ already have. A quest the server drops goes `:exists() == false` and every other
 | Method | Returns | Description |
 |---|---|---|
 | `c:description()` | string \| nil | what the objective asks for |
-| `c:status()` | string | `"pending"`, `"done"` or `"failed"` |
+| `c:status()` | string \| nil | `"pending"`, `"done"` or `"failed"`; `nil` once the quest it belongs to is deselected |
 | `c:tooltip()` | string \| nil | the line its tooltip states, when the content publishes one — `c:description()` is the objective itself |
 | `c:quest()` | `Quest` | the quest it belongs to — never `nil` |
 | `c:exists()` | boolean | whether it is still an objective of the open quest |

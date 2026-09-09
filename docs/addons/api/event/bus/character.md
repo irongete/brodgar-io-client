@@ -11,7 +11,9 @@ than being handed a `Session` that answers about nobody. Everything here is part
 
 ## Character and status
 
-These come from the HUD's own widgets, so they start once the HUD is up.
+These come from the HUD's own widgets, so they start once the HUD is up. They are the whole of what the
+character sheet fires: attributes, learning points, weight, skills, credos and lore have **no key**, and
+[`s:char()`](../../char.md) says to read them after the action that changes them.
 
 | Event | Payload | Fires |
 |---|---|---|
@@ -46,6 +48,11 @@ back. The payload is the same `Slot`, and while the hold is on it `slot:res()` i
 > For the list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — the payload is
 > the **full new list**, not a delta. Read the initial state once with the section's own `:list()`
 > verb, then listen.
+
+**A list key covers its adds, its removals and its changes**, which is why `WoundChanged` fires for a wound
+appearing, healing and worsening alike where the buffs beside it split three ways. The difference is what
+the payload is: a buff arrives one at a time, so the edge can be named and the object handed over, while a
+wound list is republished whole and the edge is the diff you take against your own last copy.
 
 ## Roster, quests, markers
 

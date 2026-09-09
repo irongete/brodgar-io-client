@@ -45,7 +45,9 @@ From `:info()` on each. [`session:char`](../char.md) hands out the live objects;
   the skill's resource is still loading it is the server's own token for the skill rather than the
   display name; the token is what `res` resolves from, so the field settles once the resource does.
 - **Credo** — `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus
-  `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other.
+  `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other. Two of
+  those keep the client's own spelling: `level` is the live `credo:rank()` and `quest` the live
+  `credo:questsDone()`.
 - **Experience** — `{ name = string?, res = string, score = number, mtime = number }`, where `mtime` is
   the server's change stamp, which `exp:modified()` reads.
 
@@ -56,7 +58,7 @@ From [`slot:info()`](../study.md#a-slot), the one snapshot escape hatch. `s:stud
 
 | Field | Type | Notes |
 |---|---|---|
-| `res` | string | the curiosity item's resource, its identity |
+| `res` | string | the curiosity item's resource, its identity; optional (absent while that resource is still loading) |
 | `name` | string | display name; optional |
 | `lp` | number | learning points; optional |
 | `attention` | number | mental weight; optional |

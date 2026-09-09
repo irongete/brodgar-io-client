@@ -21,6 +21,11 @@ of them you tab to, and one `:remove(key)` takes it off all of them. It ends wit
 with a copy of it: when the last character loses sight of it the record goes, which is the moment
 [`GobRemoved`](event/bus/world.md#world) fires.
 
+> **Hiding the object does not hide what stands at it.** [`gob:visible(false)`](look.md) withholds the
+> object's own model and nothing else, so your overlays — and the game's own, its name label and its health
+> bar — go on drawing at a place with nothing under it. Take yours off in the same breath if that is not
+> what you want.
+
 ## The collection
 
 The verbs below are the standard
