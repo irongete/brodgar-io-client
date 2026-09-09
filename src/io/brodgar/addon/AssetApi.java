@@ -22,6 +22,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import javax.imageio.ImageIO;
 
@@ -201,7 +202,7 @@ final class AssetApi {
          * <b>not assets</b>: engine-owned, no file, no lifetime, so they are never listed by
          * {@code hafen.asset()} and are not members it can remove ([D-060]).
          */
-        private final Map<String, LuaValue> builtinFonts = new LinkedHashMap<String, LuaValue>();
+        private final Interned<String, LuaValue> builtinFonts = Interned.held();
         /**
          * This addon's own Lua view of a font <b>another addon</b> created — minted only when
          * {@code widget:style()} (034.1) reports a rule from someone else's stylesheet. Interned by handle
@@ -209,14 +210,14 @@ final class AssetApi {
          * stable across calls, and it exists at all because <b>no Lua value crosses a sandbox boundary</b>
          * (D-017): what the two addons share is the immutable {@link FontHandle}, never a table.
          */
-        private final Map<FontHandle, LuaValue> fontViews = new IdentityHashMap<FontHandle, LuaValue>();
+        private final Interned<FontHandle, LuaValue> fontViews = Interned.identity();
         /**
          * The same thing for an <b>image</b> another addon loaded (035.1) — minted only when
          * {@code widget:style()} reports a {@code bg}/{@code border} from someone else's rule. Interned by
          * {@link LuaImage} identity, and for the same D-017 reason: the two addons share the loaded image, never
          * a table.
          */
-        private final Map<LuaImage, LuaValue> imageViews = new IdentityHashMap<LuaImage, LuaValue>();
+        private final Interned<LuaImage, LuaValue> imageViews = Interned.identity();
 
         /** {@link #live} by handle identity — the index {@link #pathOf} reads, kept in step by put/remove. */
         private final Map<LuaValue, Entry> byHandle = new IdentityHashMap<LuaValue, Entry>();
@@ -248,28 +249,23 @@ final class AssetApi {
             return (e == null) ? null : e.path;
         }
 
-        LuaValue builtinFont(String name) {return builtinFonts.get(name);}
-        void putBuiltinFont(String name, LuaValue h) {builtinFonts.put(name, h);}
+        /** The interned handle for a built-in font NAME — a hit, or what {@code mint} makes. */
+        LuaValue builtinFont(String name, Supplier<LuaValue> mint) {return builtinFonts.of(name, mint);}
 
         /** {@code hafen.font():list()}: the built-in fonts this addon has named so far. */
         List<LuaValue> builtinFonts() {
-            return new ArrayList<LuaValue>(builtinFonts.values());
+            return builtinFonts.values();
         }
 
         /** The built-in NAME a member was interned under — what a string filter on that collection matches. */
         String builtinFontName(LuaValue handle) {
-            for(Map.Entry<String, LuaValue> e : builtinFonts.entrySet()) {
-                if(e.getValue() == handle)
-                    return e.getKey();
-            }
-            return null;
+            return builtinFonts.keyOf(handle);
         }
 
-        LuaValue fontView(FontHandle fh) {return fontViews.get(fh);}
-        void putFontView(FontHandle fh, LuaValue h) {fontViews.put(fh, h);}
+        /** The interned view of another addon's font face, and the same for one of its images. */
+        LuaValue fontView(FontHandle fh, Supplier<LuaValue> mint) {return fontViews.of(fh, mint);}
 
-        LuaValue imageView(LuaImage li) {return imageViews.get(li);}
-        void putImageView(LuaImage li, LuaValue h) {imageViews.put(li, h);}
+        LuaValue imageView(LuaImage li, Supplier<LuaValue> mint) {return imageViews.of(li, mint);}
 
         /** Teardown: drop every entry (the GPU state is freed by the typed teardowns that ran first). */
         void clear() {
@@ -304,6 +300,10 @@ final class AssetApi {
      */
     static LuaValue load(Addon owner, String name) {
         Path p = resolveAddonAsset(owner, name, "hafen.asset");
+        // The key is the path Inside CANONICALISED, never the spelling the caller passed: Inside.real()
+        // toRealPath()s it, so a link is followed, an internal a/../b is resolved, and on a case-insensitive
+        // filesystem "Icon.PNG" and "icon.png" are the one entry the file is -- one decode, one GPU upload
+        // and one handle, which is the identity per RESOLVED path asset.md promises (audit2 B10, as-06).
         String key = p.toString();
         Entry e = owner.assets.get(key);
         if(e != null)
@@ -404,10 +404,8 @@ final class AssetApi {
     static LuaValue imageFor(Addon reader, final LuaImage li) {
         if((li.owner == reader) && (li.handle != null))
             return li.handle;
-        LuaValue v = reader.assets.imageView(li);
-        if(v == null)
-            reader.assets.putImageView(li, v = LuaValue.userdataOf(li, meta(reader, Kind.IMAGE_VIEW)));
-        return v;
+        final Addon r = reader;
+        return r.assets.imageView(li, () -> LuaValue.userdataOf(li, meta(r, Kind.IMAGE_VIEW)));
     }
 
     /**

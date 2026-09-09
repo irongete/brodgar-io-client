@@ -94,8 +94,6 @@ public final class LuaOption {
 
     /** {@code opt:on("Changed", fn)} — the only key, and only on a kind that carries a value. */
     final Subs subs;
-    /** This option as Lua holds it, minted on the first hand-out and handed back by identity ever after. */
-    private LuaValue self;
 
     LuaOption(AddonOptions.Builder b) {
         this.owner = b.owner;
@@ -315,11 +313,15 @@ public final class LuaOption {
     /** The one event key an option fires, on the four kinds that carry a value. */
     static final String CHANGED = "Changed";
 
-    /** This option as Lua holds it, minted on the first ask. */
+    /**
+     * This option as Lua holds it, minted on the first ask and handed back by identity ever after —
+     * interned on {@link Addon#optionHandles} (audit2 B10) rather than on a field of its own, so the check
+     * and the mint are one act. {@code opts:addon():get("mode")} is read from a settings panel and from an
+     * addon's own Lua, and two of those racing used to be able to hand out two userdata for one row and
+     * break the {@code ==} an option's identity is.
+     */
     LuaValue handle() {
-        if(self == null)
-            self = LuaValue.userdataOf(this, meta());
-        return self;
+        return owner.optionHandles.of(this, () -> LuaValue.userdataOf(this, meta()));
     }
 
     /** The {@code LuaOption} behind a Lua value, or {@code null} for anything that is not one. */

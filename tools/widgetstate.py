@@ -9,7 +9,8 @@ somebody adds next year.
 
 Two mechanical checks, in the shape tools/docverbs.py and tools/refusalverbs.py are written in.
 
-  CHECK 1 -- every FIELD whose declared type is a map keyed by a `haven.Widget` carries a note:
+  CHECK 1 -- every FIELD whose declared type is a map keyed by a `haven.Widget` -- a `*Map<Widget, V>`, or
+  the bridge's own `Interned<Widget, V>`, which is a map by another name -- carries a note:
 
       // retired: <method>      the method that retires it. It must exist, and it must be reachable from
                                 AddonManager.drainDisposedWidgets -- called there, or called by something
@@ -36,6 +37,13 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
 
   * A map behind a helper or a generic wrapper. Both checks match DECLARED TYPES textually, so a
     `Registry<Widget, X>` of one's own, or a `Map<Object, X>` a widget is put into, is invisible here.
+    `Interned` is the one wrapper CHECK 1 is taught by name, because it is where the bridge's own caches
+    live; the next wrapper written has to be added beside it or its maps drop out of the count.
+  * WHICH STRENGTH an `Interned` was built at. CHECK 2 reads `WeakHashMap<K, V>` declarations, and the only
+    one `Interned` writes is over its own type variables -- so what covers an `Interned<Widget, V>` is
+    CHECK 1's note and nothing else. The cycle CHECK 2 hunts cannot form at `Interned.identity()`, whose
+    value is held weakly; at `Interned.held()` the value holds whatever it likes, and the note is the whole
+    answer.
   * A value that reaches its key through a CAPTURED LOCAL or through a Lua closure -- which is how all
     three of the maps that actually leaked did it: `installDragListener(t)` closes over `t` and is stored
     under `t`, `Gesture.listen`'s handler closes over the grip, and an `item:on` handler closes over the
@@ -64,7 +72,7 @@ KEYWORDS = set(("if for while switch catch return new synchronized do else try t
                 "instanceof case break continue void int long float double boolean char byte short")
                .split())
 
-MAPDECL = re.compile(r"\b(\w*Map)\s*<\s*([\w.]+)\s*[,>]")
+MAPDECL = re.compile(r"\b(\w*Map|Interned)\s*<\s*([\w.]+)\s*[,>]")
 TYPEDECL = re.compile(r"\b(?:class|interface|enum)\s+(\w+)")
 ANONBODY = re.compile(r"\bnew\s+[\w.]+\s*(?:<[^;{}]*>)?\s*\([^;{}]*\)\s*$")
 METHDECL = re.compile(r"\b(\w+)\s*\([^()]*\)\s*(?:throws\s[\w.,\s]+)?$")

@@ -37,8 +37,14 @@ final class LuaPetal {
         return "Petal(" + (i + 1) + ")";
     }
 
-    static LuaValue of(Addon owner, String user, int i) {
-        return LuaValue.userdataOf(new LuaPetal(user, i), meta(owner));
+    /**
+     * The interned Petal at wire position {@code i} of {@code user}'s open ring (audit2 B10). {@code (user,
+     * index)} <b>is</b> its identity — the class comment says so, and the page calls a petal "an object like
+     * every other member of a set here" — so that pair is the key, and two reads of one petal are {@code ==}
+     * where they used to be two userdata that no {@code seen[p]} could tell apart.
+     */
+    static LuaValue of(final Addon owner, final String user, final int i) {
+        return owner.petals.of(user + "@" + i, () -> LuaValue.userdataOf(new LuaPetal(user, i), meta(owner)));
     }
 
     static LuaPetal resolve(LuaValue v) {

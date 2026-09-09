@@ -11,8 +11,17 @@ import org.luaj.vm2.lib.OneArgFunction;
  * <p>Data, like a recipe's slots: the client rebuilds the bar wholesale, so an entry has no key to be
  * addressed by and nothing to track. It carries what it was minted from and {@code food:fep():entry()} is
  * read again rather than held.
+ *
+ * <p><b>Interned on what it carries</b> (audit2 B10). It is a collection MEMBER, which is exactly where the
+ * grammar puts identity, so {@code fep:entry():list()[1] == fep:entry():list()[1]} — and since the entry is
+ * data and nothing else, what it is data <i>about</i> is the only key there is: the resource, the name and
+ * the amount. Two reads of one food event are one object for as long as the bar says the same thing, and a
+ * bar the client has rebuilt mints new ones and lets the old go.
  */
 final class LuaFepEntry {
+    /** The intern key's separator: a character neither a resource name nor a display name can carry. */
+    private static final String SEP = String.valueOf((char)0);
+
     private final String res;
     private final String name;
     private final double amount;
@@ -27,8 +36,10 @@ final class LuaFepEntry {
         return "FepEntry(" + ((name != null) ? name : ((res != null) ? res : "?")) + ")";
     }
 
-    static LuaValue of(Addon owner, String res, String name, double amount) {
-        return LuaValue.userdataOf(new LuaFepEntry(res, name, amount), meta(owner));
+    static LuaValue of(final Addon owner, final String res, final String name, final double amount) {
+        String key = res + SEP + name + SEP + amount;
+        return owner.fepEntries.of(key,
+            () -> LuaValue.userdataOf(new LuaFepEntry(res, name, amount), meta(owner)));
     }
 
     static LuaFepEntry resolve(LuaValue v) {

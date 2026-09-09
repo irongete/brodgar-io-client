@@ -25,7 +25,6 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -1121,9 +1120,9 @@ final class UiApi {
             if(dead(e.getValue()))
                 co.remembered.remove(e.getKey(), e.getValue());
         }
-        for(Iterator<Widget> it = co.widgetSubs.keySet().iterator(); it.hasNext(); ) {
-            if(dead(it.next()))                      // 041.3/041.4: ...and so is every widget:on() subscription
-                it.remove();                         // 128.1: the BACKSTOP, not the mechanism — a widget that
+        for(Widget w : co.widgetSubs.keys()) {
+            if(dead(w))                              // 041.3/041.4: ...and so is every widget:on() subscription
+                co.widgetSubs.drop(w);               // 128.1: the BACKSTOP, not the mechanism — a widget that
         }                                            //   dies on its own is retired at the disposal seam
                                                      //   (AddonManager.drainDisposedWidgets); this is what is
                                                      //   left when the whole tree goes and nobody is drained
@@ -1272,9 +1271,9 @@ final class UiApi {
         owner.widgets.add(neu);
         dropPending(old);
         queueArming(u, neu);
-        owner.widgetObjs.rekey(oldw, neww);   // the Lua handle follows the widget it names...
-        owner.styleRules.rekey(oldw, neww);   // ...and so does the Rule object interned on it...
-        Sheet.rekeyWidget(oldw, neww);        // ...and the level that rule installed
+        LuaWidget.rekey(owner, oldw, neww);   // the Lua handle follows the widget it names -- and the Rule
+        Sheet.rekeyWidget(oldw, neww);        //   object goes with it, interned on the handle rather than on
+                                              //   the widget -- and so does the level that rule installed
     }
 
     // ---------------------------------------------------- the arming tick (039.6, spec 039-uniform-api §2.5)

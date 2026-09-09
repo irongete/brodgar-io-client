@@ -309,6 +309,19 @@ final class HookApi {
             consoleHandlers.put(cmd, h);   // last registration wins (the current live handler the dispatcher routes to)
         }
         owner.consoleCommands.add(h);
+        // audit2 B10 (co-04): ONE live subscription per name per addon. Registration is last-wins, and the
+        // registry above already keeps only the last handler -- but the subscription behind the earlier one
+        // stayed alive and readable, so a second :on("greet") in one addon left two Subs where one command
+        // was, and sub:off() on the newer of them killed :greet while the older still listed as alive. The
+        // owner's own earlier registration is ENDED here, after the new handler is installed (so the Ended
+        // hook finds the name still claimed and leaves the engine dispatcher standing) and before the new
+        // Sub is made (so nothing can end a registration the registry has not finished making).
+        for(LuaSub old : owner.consoleSubs.live()) {
+            if(old.key.equals(cmd)) {
+                old.alive = false;
+                owner.consoleSubs.off(old);
+            }
+        }
         // 086.1: the command IS a subscription — the Sub is the handle, its key is the command name, and its
         // Ended hook (Addon.consoleSubs) is what endConsoleCommand below runs. Built last, so nothing can end a
         // registration the registry has not finished making.

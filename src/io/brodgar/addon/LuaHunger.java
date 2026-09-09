@@ -29,8 +29,11 @@ final class LuaHunger {
         return "Hunger()";
     }
 
-    static LuaValue of(Addon owner, BAttrWnd wdg) {
-        return (wdg == null) ? LuaValue.NIL : LuaValue.userdataOf(new LuaHunger(wdg), meta(owner));
+    /** The interned Hunger of the character {@code wdg} is the sheet of — {@link LuaFep#of}'s rule and key. */
+    static LuaValue of(final Addon owner, final BAttrWnd wdg) {
+        if(wdg == null)
+            return LuaValue.NIL;
+        return owner.hungers.of(wdg, () -> LuaValue.userdataOf(new LuaHunger(wdg), meta(owner)));
     }
 
     static LuaHunger resolve(LuaValue v) {

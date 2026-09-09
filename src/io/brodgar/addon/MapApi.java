@@ -93,7 +93,7 @@ final class MapApi {
     static void installMap(LuaTable hafen, final Addon owner) {
         final LuaValue segments = segmentCollection(owner);
         final LuaValue grids = gridCollection(owner);
-        final LuaValue markers = markerCollection(owner);
+        final LuaValue markers = owner.markerColl = markerCollection(owner);
         final LuaValue icons = LuaIconCat.collection(owner);
         final LuaValue displays = displayCollection(owner);
         LuaTable m = new LuaTable();
@@ -210,9 +210,17 @@ final class MapApi {
      * player, and the two writes. There is no {@code :get}: a marker's only id is a per-session ref this
      * bridge mints, which is not a key anything outside the session could hold.
      */
-    /** The marker collection for {@code owner} — what {@code MarkerChanged} hands its handler. */
+    /**
+     * The marker collection for {@code owner} — what {@code MarkerChanged} hands its handler.
+     *
+     * <p><b>The one this addon's {@code hafen.map():marker()} already is</b> (audit2 B10), taken off
+     * {@link Addon#markerColl} rather than built again: each of the five map collections is minted once at
+     * install and handed back by identity, and a payload that built a second one made
+     * {@code payload == hafen.map():marker()} false — so a handler keying on the collection held a different
+     * object every fire. {@code null} only for an addon whose env is not installed, which fires at nobody.
+     */
     static LuaValue markers(Addon owner) {
-        return markerCollection(owner);
+        return (owner.markerColl == null) ? LuaValue.NIL : owner.markerColl;
     }
 
     private static LuaValue markerCollection(final Addon owner) {

@@ -33,8 +33,15 @@ final class LuaFep {
         return "Fep()";
     }
 
-    static LuaValue of(Addon owner, BAttrWnd wdg) {
-        return (wdg == null) ? LuaValue.NIL : LuaValue.userdataOf(new LuaFep(wdg), meta(owner));
+    /**
+     * The interned Fep of the character {@code wdg} is the sheet of (audit2 B10) — a live object with an
+     * {@code :info()}, so the grammar's identity rule covers it: {@code food:fep() == food:fep()} and one
+     * works as a table key. Keyed on the tab widget, which is the character.
+     */
+    static LuaValue of(final Addon owner, final BAttrWnd wdg) {
+        if(wdg == null)
+            return LuaValue.NIL;
+        return owner.feps.of(wdg, () -> LuaValue.userdataOf(new LuaFep(wdg), meta(owner)));
     }
 
     static LuaFep resolve(LuaValue v) {

@@ -53,8 +53,6 @@ public final class LuaSub {
      * it reads it back, from its {@link Subs.Ended} hook.
      */
     Object tag;
-    /** This object as Lua holds it — minted once, handed back by identity. */
-    private LuaValue self;
 
     LuaSub(Subs subs, String key, LuaValue fn) {
         this.subs = subs;
@@ -67,11 +65,15 @@ public final class LuaSub {
         return "Sub(" + key + (alive ? "" : ", off") + ")";
     }
 
-    /** This subscription as Lua holds it, minted on the first ask (from {@link Subs#on}). */
+    /**
+     * This subscription as Lua holds it, minted on the first ask (from {@link Subs#on}) and handed back by
+     * identity ever after — interned on {@link Addon#subHandles} (audit2 B10) rather than on a field of its
+     * own. A sub is published into its emitter's list <b>before</b> {@code on()} asks for the handle, so
+     * {@code hafen.event():list()} can reach one whose handle does not exist yet, from the other thread; the
+     * cache's lock is what makes that one object instead of two.
+     */
     LuaValue handle() {
-        if(self == null)
-            self = LuaValue.userdataOf(this, meta(subs.owner));
-        return self;
+        return subs.owner.subHandles.of(this, () -> LuaValue.userdataOf(this, meta(subs.owner)));
     }
 
     /** The {@code LuaSub} behind a Lua value, or {@code null} for anything that is not one. */

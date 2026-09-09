@@ -185,9 +185,10 @@ rather than being accepted and never firing.
 ### Objects, and the snapshot hatch
 
 A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
-once the thing it names is gone, and reports `:exists()`. Objects are interned per addon, so `==` is
-the identity test and one works as a table key. A point-in-time copy is what `:info()` gives you, and
-nothing else does; every shape it returns is in [data types](types/README.md).
+once the thing it names is gone, and reports `:exists()`. Objects are interned per addon — the same
+object every call, from any thread — so `==` is the identity test and one works as a table key. A
+point-in-time copy is what `:info()` gives you, and nothing else does; every shape it returns is in
+[data types](types/README.md).
 
 ### nil is an error unless it means something
 

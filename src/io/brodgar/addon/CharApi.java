@@ -357,6 +357,13 @@ final class CharApi {
         }
 
         public void refresh() {
+            // audit2 B10 (bm-07): nobody listening, nothing to detect. The per-addon hasSub gate is a level
+            // down, in fireMeter, so this walk -- one snapshot allocated per cached bar per set/col uimsg --
+            // used to be paid in full with zero subscribers. The diff key it keeps is what was last
+            // ANNOUNCED, so an addon that subscribes later is told of a change it did not see happen, on the
+            // first uimsg after it subscribed; nothing is lost, and nothing is spent for nobody.
+            if(!AddonManager.anySub("MeterChanged"))
+                return;
             for(Map.Entry<IMeter, LuaValue> e : cache.entrySet()) {
                 LuaValue snap = LuaMeter.segments(e.getKey());
                 if(!meterEqual(snap, e.getValue())) {
@@ -461,6 +468,8 @@ final class CharApi {
         }
 
         public void refresh() {
+            if(!AddonManager.anySub("BuffChanged"))   // audit2 B10 (bm-07) — MeterAdapter.refresh's reason
+                return;
             for(Map.Entry<Buff, LuaValue> e : cache.entrySet()) {
                 LuaValue snap = LuaBuff.snapshot(e.getKey());
                 if(!buffEqual(snap, e.getValue())) {
@@ -1154,13 +1163,13 @@ final class CharApi {
 
     /**
      * The opaque instance behind a Player userdata (facade-safe: no Java object of the engine's crosses). It
-     * carries the account it is the character of, and caches that character's {@link LuaHand} — which hangs
-     * <b>here</b> rather than on the Session, so a Player an addon kept keeps its cursor's identity even if it
-     * let the Session handle go: {@code pl:hand() == pl:hand()} for as long as the Player itself is alive.
+     * carries the account it is the character of, and is the KEY that character's {@link LuaHand} is interned
+     * under ({@link Addon#handObjs}) — the Player rather than the Session, so a Player an addon kept keeps its
+     * cursor's identity even if it let the Session handle go: {@code pl:hand() == pl:hand()} for as long as
+     * the Player itself is alive.
      */
     static final class PlayerMark {
         final String user;
-        LuaValue handObj;
 
         PlayerMark(String user) {
             this.user = user;

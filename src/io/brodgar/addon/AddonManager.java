@@ -1264,7 +1264,6 @@ public final class AddonManager {
         try {
             double now = Utils.rtime();
             double dt = (lastStep < 0) ? 0.0 : (now - lastStep);
-            lastStep = now;
             if(quiet())
                 return;      // 079.2: the client is quitting; the layer stops stepping before anything is read
             // 114.1: the deadline under the render hold, before any of the returns below — a step that has
@@ -1274,6 +1273,12 @@ public final class AddonManager {
             if(st == null)
                 return;
             sweepStates();   // the backstop under uiDestroyed, on the one thread that is always running
+            // audit2 B10 (tm-02): the mark advances HERE, beside the clock it measures, and not before the
+            // two returns above. It used to advance first, so every second spent quitting or with no session
+            // state was subtracted from the clock and from nothing else -- hafen.timer():after(5, fn)
+            // measured five seconds OF STEPPING rather than five seconds. What a skipped step now costs is
+            // one step's dt carried into the next, which is what dt is for.
+            lastStep = now;
             clock += dt;
             frame++;         // audit2 B07: the beat Wire's rate bound counts in, advanced beside the clock
 
@@ -4336,6 +4341,24 @@ public final class AddonManager {
     /** Does {@code a} have a live subscription to {@code event}? (Gates minting a per-addon event payload.) */
     private static boolean hasSub(Addon a, String event) {
         return a.subs.has(event);
+    }
+
+    /**
+     * <b>Is anyone at all listening to {@code event}?</b> — the same {@code hasSub} gate asked of every
+     * owner at once (audit2 B10, bm-07), for the seam that has work to do <i>before</i> it knows which
+     * addon it is firing at: the status adapters re-snapshot every cached meter and buff on every relevant
+     * {@code uimsg} to find the change, and that allocation was paid in full with nobody subscribed.
+     *
+     * <p>Linear over the addons and called once per {@code uimsg} burst rather than once per widget, which
+     * is what makes it cheaper than the walk it guards.
+     */
+    static boolean anySub(String event) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                return true;
+        }
+        Addon c = consoleOwner;
+        return (c != null) && hasSub(c, event);
     }
 
     /**

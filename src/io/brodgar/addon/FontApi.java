@@ -134,16 +134,17 @@ final class FontApi {
         if(!namev.isstring())
             throw new LuaError("hafen.font():get(name): expected a built-in font name (" + BUILTINS + "), got "
                 + namev.typename() + " — the addon's own .ttf/.otf is hafen.asset():get(\"fonts/Inter.ttf\")");
-        String name = namev.tojstring();
-        LuaValue h = owner.assets.builtinFont(name);
-        if(h != null)
-            return h;
-        Font base = builtinFont(name);
-        if(base == null)
-            return LuaValue.NIL;           // the collection refuses it, naming the built-ins (keys())
-        h = fontHandle(owner, new FontHandle(base, null, null, null), AssetApi.Kind.FONT);
-        owner.assets.putBuiltinFont(name, h);
-        return h;
+        final String name = namev.tojstring();
+        final Addon a = owner;
+        // Interned per addon and minted under that cache's lock (audit2 B10): the check and the mint are one
+        // act, so two threads naming one face get one handle rather than two the == cannot tell apart. A name
+        // no built-in answers mints nothing -- the collection refuses it, naming the built-ins (keys()).
+        LuaValue h = a.assets.builtinFont(name, () -> {
+            Font base = builtinFont(name);
+            return (base == null) ? null
+                : fontHandle(a, new FontHandle(base, null, null, null), AssetApi.Kind.FONT);
+        });
+        return (h == null) ? LuaValue.NIL : h;   // nothing minted: not a built-in, and nothing is cached
     }
 
     /**
@@ -321,13 +322,11 @@ final class FontApi {
      * share the {@link FontHandle} (an immutable, facade-safe Java value) and not a {@link LuaValue}, which is the
      * sandbox rule every intern cache in this bridge follows (D-017).
      */
-    static LuaValue handleFor(Addon reader, FontHandle fh, Addon origin) {
+    static LuaValue handleFor(Addon reader, final FontHandle fh, Addon origin) {
         if((reader == origin) && (fh.handle != null))
             return fh.handle;
-        LuaValue v = reader.assets.fontView(fh);
-        if(v == null)
-            reader.assets.putFontView(fh, v = LuaValue.userdataOf(fh, AssetApi.meta(reader, AssetApi.Kind.FONT)));
-        return v;
+        final Addon r = reader;
+        return r.assets.fontView(fh, () -> LuaValue.userdataOf(fh, AssetApi.meta(r, AssetApi.Kind.FONT)));
     }
 
     /**

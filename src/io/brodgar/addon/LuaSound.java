@@ -46,7 +46,7 @@ import java.util.Map;
  * ({@code AudioOptions}' convention). {@code :play()} returns <b>self</b> so it chains.
  *
  * <p><b>The play path is the client's own</b> (wrap-not-reimplement, D-009), and it is <b>deferred</b>:
- * {@code Resource.local().load(name)} hands back an {@link Indir} and {@code get()} throws {@code Loading}
+ * {@code Resource.remote().load(name)} hands back an {@link Indir} and {@code get()} throws {@code Loading}
  * until the resource is cached, so — exactly like {@code MapView.Plob} and {@link LuaGhost} — the resolve runs
  * on a loader thread ({@code glob.loader.defer} re-runs the task when the resource lands) and never throws
  * {@code Loading} into Lua. The resolved clip goes to {@link UI#sfx} on <b>the addon layer's</b>
@@ -54,8 +54,10 @@ import java.util.Map;
  * session's tree — wrapped in an {@link Audio.VolAdjust} when the volume is not 1. The layer rather than the
  * drawn session because a background session is muted every frame and the addon is not a background
  * character; see {@link #play} for the whole of that.
- * {@code Resource.local()} — <b>not</b> {@code remote()} — is the client jar's own pool, where the bundled
- * {@code sfx/*} live; music (a content resource) is the remote pool's business.
+ *
+ * <p>It resolves through {@code Resource.remote()}, which is the client jar's own pool <i>and</i> what the
+ * server publishes — the remote pool is built with the local one as its parent — so a bundled {@code sfx/*}
+ * and a content resource both play, and a name that resolves nowhere is simply silent.
  *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to the prior sections: the handle
  * crosses as {@code LuaValue.userdataOf(luaSound, mt)} so Lua cannot scribble on it, and the {@link Cache} on
@@ -462,7 +464,12 @@ public final class LuaSound {
             live.pending++;         // :playing() is true from the instant :play() returns, not from the resolve
             gen = live.gen;
         }
-        final Indir<Resource> resid = Resource.local().load(name);
+        // audit2 B10 (sn-17): the REMOTE pool, which is the local one plus everything the server publishes --
+        // Resource.remote() is built over local() as its parent, so "sfx/msg" still comes out of the client's
+        // own jar and a content resource resolves too. It used to consult local() alone, so a name that was
+        // not bundled never played and the page's "any other resource name resolves the way every resource
+        // does" was true of no name at all.
+        final Indir<Resource> resid = Resource.remote().load(name);
         g.loader.defer(new Runnable() {
             public void run() {
                 Audio.CS cs;

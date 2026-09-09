@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Waitable;
+import haven.BAttrWnd;
 import haven.Buff;
 import haven.GItem;
 import haven.IMeter;
@@ -204,16 +205,11 @@ public final class Addon {
      */
     // retired: Addon.dropWidgetSubs -- the disposal drain offers every dead widget to every addon, and the
     //   value holds the key in wdg and again in inwdg, so nothing here ever collected on its own.
-    final Map<Widget, WidgetSubs> widgetSubs = new ConcurrentHashMap<Widget, WidgetSubs>();
+    final Interned<Widget, WidgetSubs> widgetSubs = Interned.held();
 
     /** This addon's {@link WidgetSubs} for {@code w}, minted on the first {@code w:on(key, fn)}. */
-    WidgetSubs widgetSubs(Widget w) {
-        WidgetSubs s = widgetSubs.get(w);
-        if(s == null) {
-            s = new WidgetSubs(this, w);
-            widgetSubs.put(w, s);
-        }
-        return s;
+    WidgetSubs widgetSubs(final Widget w) {
+        return widgetSubs.of(w, () -> new WidgetSubs(this, w));
     }
 
     /**
@@ -273,9 +269,9 @@ public final class Addon {
     void dropWidgetSubs(Widget w) {
         if(w == null)
             return;
-        WidgetSubs s = widgetSubs.remove(w);
+        WidgetSubs s = widgetSubs.drop(w);
         if(s != null)
-            s.teardown();
+            s.teardown();       // outside the cache's lock: a teardown deafens engine listeners as it goes
     }
 
     /**
@@ -286,9 +282,10 @@ public final class Addon {
      */
     void teardownWidgetSubs() {
         itemSubs.clear();
-        for(WidgetSubs s : widgetSubs.values())
-            s.teardown();
+        List<WidgetSubs> all = widgetSubs.values();
         widgetSubs.clear();
+        for(WidgetSubs s : all)
+            s.teardown();         // over the snapshot, and outside the lock, for dropWidgetSubs' reason
         updateSurfaces.clear();   // 112.1: each teardown() already left, so this is the backstop
     }
 
@@ -647,12 +644,19 @@ public final class Addon {
      */
     public volatile boolean skinNodes = false;
     /**
-     * This addon's <b>Rule cache</b>: the interned {@code widget:rule()} handle per widget, and the one
-     * {@link LuaRule} metatable a sheet rule shares with it. Weak on both axes, so styling a window pins
-     * nothing once that window closes — the level itself lives in {@link Sheet}'s weak per-widget map, and a
-     * handle is only a name for it.
+     * This addon's <b>Rule cache</b>: the interned {@code widget:rule()} handle, keyed on the <b>Widget
+     * object</b> whose level it names ({@link LuaRule#ofWidget} says why the handle and not the widget).
+     * Weak on both axes, so styling a window pins nothing once that window closes — the level itself lives
+     * in {@link Sheet}'s weak per-widget map, and a handle is only a name for it.
      */
-    final LuaRule.Cache styleRules = new LuaRule.Cache(this);
+    final Interned<LuaWidget, LuaValue> styleRules = Interned.identity();
+
+    /**
+     * This addon's <b>Rule metatable</b> ({@link LuaRule}), shared by a sheet rule and a widget's own level
+     * and built on the first of either. A plain lazy field for the reason every metatable here is (audit2
+     * B06): it is only ever built from inside this addon's Lua, under {@link #luaLock}.
+     */
+    LuaValue ruleMeta;
 
     /**
      * This addon's <b>Gob interning cache</b> ({@code hafen.gob(id)}, D-045): the weak-valued
@@ -702,6 +706,23 @@ public final class Addon {
     LuaValue fepMeta;
     LuaValue hungerMeta;
     LuaValue petalMeta;
+
+    /**
+     * The four caches those metatables belong to (audit2 B10) — the objects 091 added minted a fresh
+     * userdata per call, against the grammar's own rule that a read hands back the same object every time.
+     *
+     * <p>A {@link LuaPetal} is keyed by {@code <user>@<wire position>}, which its own comment calls its
+     * identity; a {@link LuaFepEntry} by what it carries, because an entry is data and there is no other key;
+     * a {@link LuaFep} and a {@link LuaHunger} by the character's sheet widget, which is the character. The
+     * two widget-keyed ones hold nothing: weak on both axes, so a sheet that closes takes them with it.
+     */
+    final Interned<String, LuaValue> petals = Interned.keyed();
+    final Interned<String, LuaValue> fepEntries = Interned.keyed();
+    // retained: weak on both axes -- the value is held weakly, so nothing here reaches the sheet it is keyed on.
+    final Interned<BAttrWnd, LuaValue> feps = Interned.identity();
+    // retained: weak on both axes -- the value is held weakly, so nothing here reaches the sheet it is keyed on.
+    final Interned<BAttrWnd, LuaValue> hungers = Interned.identity();
+
     /** {@link LuaRole}'s metatable, and its intern cache: a closed set of names that never dies (094). */
     LuaValue roleMeta;
     /** {@link LuaHttpResult}'s metatable — the result is a value, so only the metatable is held (095). */
@@ -709,6 +730,23 @@ public final class Addon {
     final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();
 
     LuaValue subMeta;
+
+    /**
+     * The <b>Sub handles</b> this addon holds ({@link LuaSub#handle}) and the <b>Option handles</b> it holds
+     * ({@link LuaOption#handle}) — each interned on the thing itself (audit2 B10), where each used to be a
+     * lazy field on that thing, minted with no lock on a path two threads reach. Weak on both axes: the value
+     * is the userdata over its own key, so an entry goes when Lua lets the handle go and the emitter lets the
+     * subscription go.
+     */
+    final Interned<LuaSub, LuaValue> subHandles = Interned.identity();
+    final Interned<LuaOption, LuaValue> optionHandles = Interned.identity();
+
+    /**
+     * The <b>Hand</b> of each Player object this addon holds ({@code s:player():hand()}), keyed on the Player
+     * — see {@link CharApi.PlayerMark} for why the identity hangs there. Weak on both axes; the value holds
+     * only the account name, so nothing here reaches anything of the client's.
+     */
+    final Interned<CharApi.PlayerMark, LuaValue> handObjs = Interned.identity();
 
     /**
      * This addon's <b>Grab metatable</b> ({@link LuaGrab}) — {@code hafen.ui():mouse():grab()}'s handle,
@@ -975,7 +1013,7 @@ public final class Addon {
      */
     // retired: Addon.dropItemSubs -- an item destroyed WITH the container that held it reaches the disposal
     //   drain and no removal, and a handler closing over its own item makes the value reach the key.
-    final Map<GItem, Subs> itemSubs = new ConcurrentHashMap<GItem, Subs>();
+    final Interned<GItem, Subs> itemSubs = Interned.held();
 
     /**
      * <b>The frame each of this addon's send verbs last went out on</b> (audit2 B07) — {@link Wire}'s rate
@@ -989,12 +1027,7 @@ public final class Addon {
 
     /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */
     Subs itemSubs(GItem it) {
-        Subs s = itemSubs.get(it);
-        if(s == null) {
-            s = new Subs(this, Addon.C_EVENT);
-            itemSubs.put(it, s);
-        }
-        return s;
+        return itemSubs.of(it, () -> new Subs(this, Addon.C_EVENT));
     }
 
     /**
@@ -1025,7 +1058,7 @@ public final class Addon {
     void dropItemSubs(GItem it) {
         if(it == null)
             return;
-        Subs s = itemSubs.remove(it);
+        Subs s = itemSubs.drop(it);
         if(s != null)
             s.clear();
     }
@@ -1098,13 +1131,30 @@ public final class Addon {
      * every other cache here — no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
      * {@link Addon} on {@code :reload}/disable.
      *
-     * <p>It is the one intern cache that is weak on <b>both</b> axes ({@code WeakHashMap<Widget,
-     * WeakReference<LuaValue>>}), not the {@link #buffs}/{@link #meters} strong-key shape: over a whole widget tree
-     * a strong key would pin every destroyed widget until the next queue drain, breaking the D-041 no-pin rule.
+     * <p>It is the one intern cache that is weak on <b>both</b> axes ({@link Interned#identity}), not the
+     * {@link #buffs}/{@link #meters} strong-key shape: over a whole widget tree a strong key would pin every
+     * destroyed widget until the next queue drain, breaking the D-041 no-pin rule.
      * Nothing to tear down — this is an identity map over engine-owned widgets, deliberately NOT an owned-resource
      * registry like {@link #widgets} (which holds the addon's own drawn {@link AddonWidget}s).
      */
-    final LuaWidget.Cache widgetObjs = new LuaWidget.Cache(this);
+    // retained: weak on both axes -- the value is held weakly, so nothing here reaches the widget it is keyed on.
+    final Interned<Widget, LuaValue> widgetObjs = Interned.identity();
+
+    /**
+     * This addon's <b>Widget metatable</b> ({@link LuaWidget}), built inside the mint above rather than
+     * lazily beside it: a widget handle is minted for an event payload as well as from Lua, so what
+     * publishes this one is {@link #widgetObjs}'s own lock and not {@link #luaLock}.
+     */
+    LuaValue widgetMeta;
+
+    /**
+     * This addon's <b>marker collection</b> ({@code hafen.map():marker()}), minted once when its env is built
+     * and handed back by identity ever after — including to the {@code MarkerChanged} handler, which is the
+     * one door that used to build a second one ({@link MapApi#markers}). It is the collection, not the
+     * {@link #mapMarkers} cache of the Marker objects in it. {@code null} until the env is installed, and
+     * dead with this {@link Addon} like every other Lua value here (D-017).
+     */
+    LuaValue markerColl;
 
     /**
      * This addon's <b>minimap icon-category interning cache</b> ({@code hafen.map():icon():get(res)}, spec

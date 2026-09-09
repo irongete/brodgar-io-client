@@ -39,7 +39,6 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,15 +57,14 @@ import java.util.WeakHashMap;
  * That is what let {@code node:same(other)} be <b>hard cut</b> (D-012/D-013): it only ever existed because nothing
  * was interned.
  *
- * <p><b>The intern cache is weak on BOTH sides</b> — {@code WeakHashMap<Widget, WeakReference<LuaValue>>} — and
- * that is the one deliberate deviation from the prior art. {@link LuaMeter}/{@link LuaBuff} key an
- * {@code IdentityHashMap} <i>strongly</i> and drain a {@link java.lang.ref.ReferenceQueue}; over a handful of
- * meters that is bounded, but over a <b>widget tree</b> a strong key would pin every destroyed widget until the
- * next drain — breaking the D-041 no-pin rule this type implements on purpose. {@code haven.Widget} overrides
- * neither {@code equals} nor {@code hashCode}, so {@code WeakHashMap} gives <b>identity</b> keying <i>and</i> weak
- * keys with no custom map. The map value is a {@link WeakReference}, so it never strongly reaches its own key (the
- * classic {@code WeakHashMap} self-reference leak); a value cleared while its widget is still alive is simply
- * replaced on the next lookup.
+ * <p><b>The intern cache is weak on BOTH sides</b> — {@link Interned#identity} on {@link Addon#widgetObjs} —
+ * and that is what the strength choice is there for. {@link LuaMeter}/{@link LuaBuff} key a strong map and
+ * drain a {@link java.lang.ref.ReferenceQueue}; over a handful of meters that is bounded, but over a
+ * <b>widget tree</b> a strong key would pin every destroyed widget until the next drain — breaking the D-041
+ * no-pin rule this type implements on purpose. {@code haven.Widget} overrides neither {@code equals} nor
+ * {@code hashCode}, so weak keys are <b>identity</b> keying for free; the value is held weakly too, so it
+ * never strongly reaches its own key (the classic self-reference leak), and one cleared while its widget is
+ * still alive is simply minted again on the next lookup.
  *
  * <p><b>Owned vs borrowed (029.2).</b> The same type covers a widget the addon <i>created</i>
  * ({@code hafen.ui():window()}/{@code :widget()} — OWNED) and one it merely <i>found</i> (a native widget, or another
@@ -113,8 +111,10 @@ public final class LuaWidget {
     }
 
     /** An interned Widget object for {@code w} in {@code owner}'s env — the one way a widget reaches Lua. */
-    static LuaValue of(Addon owner, Widget w) {
-        return owner.widgetObjs.of(w);
+    static LuaValue of(final Addon owner, final Widget w) {
+        if(w == null)
+            return LuaValue.NIL;
+        return owner.widgetObjs.of(w, () -> LuaValue.userdataOf(new LuaWidget(w), meta(owner)));
     }
 
     /**
@@ -247,66 +247,38 @@ public final class LuaWidget {
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
     /**
-     * One addon's Widget interning cache and metatable (its {@link Addon#widgetObjs}). Weak keys <b>and</b> weak
-     * values — see the class comment for why this one does not use the {@link LuaMeter} {@code IdentityHashMap} +
-     * {@link java.lang.ref.ReferenceQueue} shape. The metatable is built once, lazily.
+     * <b>Re-point this addon's handle from one widget to the widget that replaced it</b> — the face setter's
+     * rebuild (040.2, {@link UiApi#rebuild}), and the one thing that may ever move an entry in
+     * {@link Addon#widgetObjs}.
+     *
+     * <p>It is the {@link #wdg} field that matters: {@code hafen.ui():button()} handed a userdata to Lua, the
+     * author is chaining setters onto it, and the widget under it is being swapped mid-statement. Re-pointing
+     * the field keeps that value <i>the same object</i>, so {@code ==} still holds and the very next verb in
+     * the chain addresses the new widget; moving the cache entry keeps the intern promise, so a fresh lookup of
+     * the new widget through any other door hands back that same value rather than minting a second one.
+     *
+     * <p>A collected (or never-minted) entry is nothing to move: the next lookup mints one on the new widget,
+     * which is the same answer. Other addons' caches are deliberately untouched — one of them holding the old
+     * widget sees it go stale, which is exactly what happened to it.
      */
-    static final class Cache {
-        private final Addon owner;
-        // retained: weak on both axes -- the value is a WeakReference, so nothing reaches the widget.
-        private final Map<Widget, WeakReference<LuaValue>> live =
-            new WeakHashMap<Widget, WeakReference<LuaValue>>();
-        private LuaValue mt;
+    static void rekey(Addon owner, Widget from, Widget to) {
+        LuaWidget h = resolve(owner.widgetObjs.rekey(from, to));
+        if(h != null)
+            h.wdg = to;
+    }
 
-        Cache(Addon owner) {
-            this.owner = owner;
-        }
-
-        /** The interned handle for {@code w} — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(Widget w) {
-            if(w == null)
-                return LuaValue.NIL;
-            WeakReference<LuaValue> r = live.get(w);
-            if(r != null) {
-                LuaValue v = r.get();
-                if(v != null)
-                    return v;
-            }
-            LuaValue v = LuaValue.userdataOf(new LuaWidget(w), meta());
-            live.put(w, new WeakReference<LuaValue>(v));
-            return v;
-        }
-
-        private LuaValue meta() {
-            if(mt == null)
-                mt = buildMeta(owner);
-            return mt;
-        }
-
-        /**
-         * <b>Re-point this addon's handle from one widget to the widget that replaced it</b> — the face setter's
-         * rebuild (040.2, {@link UiApi#rebuild}), and the one thing that may ever move an entry in this map.
-         *
-         * <p>It is the {@link #wdg} field that matters: {@code hafen.ui():button()} handed a userdata to Lua, the
-         * author is chaining setters onto it, and the widget under it is being swapped mid-statement. Re-pointing
-         * the field keeps that value <i>the same object</i>, so {@code ==} still holds and the very next verb in
-         * the chain addresses the new widget; moving the map entry keeps the intern promise, so a fresh lookup of
-         * the new widget through any other door hands back that same value rather than minting a second one.
-         *
-         * <p>A collected (or never-minted) entry is nothing to move: the next lookup mints one on the new widget,
-         * which is the same answer. Other addons' caches are deliberately untouched — one of them holding the old
-         * widget sees it go stale, which is exactly what happened to it.
-         */
-        synchronized void rekey(Widget from, Widget to) {
-            WeakReference<LuaValue> r = live.remove(from);
-            LuaValue v = (r == null) ? null : r.get();
-            if(v == null)
-                return;
-            LuaWidget h = resolve(v);
-            if(h != null)
-                h.wdg = to;
-            live.put(to, r);
-        }
+    /**
+     * This addon's <b>Widget metatable</b> ({@link Addon#widgetMeta}), built on the first handle it mints.
+     *
+     * <p>Called from inside the mint and from nowhere else, so the {@link Interned} lock is what makes the
+     * check and the build one act and what publishes the finished table. The other per-addon metatables get
+     * that from {@link Addon#luaLock}, and this one may not: a widget handle is minted for an event payload
+     * as well, and that runs <i>beside</i> this addon's Lua rather than inside it.
+     */
+    private static LuaValue meta(Addon owner) {
+        if(owner.widgetMeta == null)
+            owner.widgetMeta = buildMeta(owner);
+        return owner.widgetMeta;
     }
 
     // ---- the Widget metatable ----------------------------------------------------------------------
@@ -1730,7 +1702,7 @@ public final class LuaWidget {
         m.set("rule", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaWidget h = handle(self, "rule");
-                return LuaRule.ofWidget(owner, h, live(h));
+                return LuaRule.ofWidget(owner, h);
             }
         });
         /* name(s) / name() (107) — what THIS addon calls a widget it built, so a theme can name it back:

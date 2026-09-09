@@ -89,12 +89,13 @@ final class LuaHand {
      * this reads the HUD of the session it was asked of — while {@link #use} <b>sends</b>, and a send goes to
      * the character on screen and to no other.
      */
-    static LuaValue of(final Addon owner, CharApi.PlayerMark pl) {
+    static LuaValue of(final Addon owner, final CharApi.PlayerMark pl) {
         if((pl == null) || (held(pl.user) == null))
             return LuaValue.NIL;
-        if(pl.handObj == null)
-            pl.handObj = LuaValue.userdataOf(new HandMark(pl.user), buildMeta(owner));
-        return pl.handObj;
+        // Interned on the PLAYER (audit2 B10), which is where the identity the page promises lives: a Player
+        // an addon kept keeps its cursor's identity even if it let the Session handle go, and the cache's
+        // lock is what makes two threads asking at once one Hand rather than two.
+        return owner.handObjs.of(pl, () -> LuaValue.userdataOf(new HandMark(pl.user), buildMeta(owner)));
     }
 
     /** The item widget on that session's cursor, or {@code null} when it is empty (or its HUD is not up). */

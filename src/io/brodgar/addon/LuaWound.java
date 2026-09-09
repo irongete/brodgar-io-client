@@ -221,12 +221,27 @@ public final class LuaWound {
                 return subtree(owner, h.user, h.id);
             }
         });
-        // level() — how deep in the tree the window indents this wound; 0 at a root.
+        // depth() — how deep in the tree this wound hangs; 0 at a root.
+        //   audit2 B10 (cq-20): counted UP THE PARENT CHAIN, which is the one authority :parent(),
+        // :children() and :roots() already read. It used to answer the window's own `level` field, which is
+        // written only by WoundWnd.treesort and only while the window is loading -- so a complication whose
+        // parent healed out was a root by every other verb here and still reported its old indent, breaking
+        // wound.md's "nil at a root, which is where :depth() is 0" for as long as the window went unsorted.
+        // The walk is bounded by the roster: a chain longer than the list of wounds is a cycle, not a tree.
         m.set("depth", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaWound h = handle(self, "depth");
-                WoundWnd.Wound w = wound(h.user, h.id);
-                return (w == null) ? LuaValue.NIL : LuaValue.valueOf(w.level);
+                Map<Integer, WoundWnd.Wound> ws = byId(all(h.user));   // one copy of the roster, then a hash
+                WoundWnd.Wound w = ws.get(Integer.valueOf(h.id));
+                if(w == null)
+                    return LuaValue.NIL;
+                int depth = 0;
+                for(WoundWnd.Wound up = w; (up.parentid >= 0) && (depth < ws.size()); depth++) {
+                    up = ws.get(Integer.valueOf(up.parentid));
+                    if(up == null)          // the parent healed out: this one is a root, as :parent() says
+                        return LuaValue.valueOf(depth);
+                }
+                return LuaValue.valueOf(depth);
             }
         });
         // exists() — is this wound still on the character? (Healing takes it off the list.)
@@ -406,7 +421,10 @@ public final class LuaWound {
                 for(int i = 0; i < ws.size(); i++) {
                     WoundWnd.Wound w = ws.get(i);
                     // A root is one whose parent is not on the roster -- the server's own -1, and also a
-                    // complication whose parent has healed out from under it, which the window draws flat.
+                    // complication whose parent has healed out from under it. The window does not draw that
+                    // one flat: treesort collects only what hangs off a wound it has already walked, so it
+                    // drops it from the drawn list until the server sends the roster again. This says what
+                    // the tree IS, and :depth() counts the same chain (audit2 B10, cq-20).
                     boolean root = (w.parentid < 0) || !seen.containsKey(Integer.valueOf(w.parentid));
                     if(root ? (parent < 0) : (w.parentid == parent))
                         out.add(of(owner, user, w.id));

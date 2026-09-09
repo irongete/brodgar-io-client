@@ -1,7 +1,6 @@
 package io.brodgar.addon;
 
 import haven.Coord;
-import haven.Widget;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -9,10 +8,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-
-import java.lang.ref.WeakReference;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * A <b>Rule object</b> — one level of the styling cascade (spec {@code 039-uniform-api} §5.4, task 039.7).
@@ -90,64 +85,40 @@ public final class LuaRule {
 
     /** A sheet rule, minted by {@link LuaSheet} when it first names a selector (it interns it from then on). */
     static LuaValue ofSheet(Addon owner, LuaSheet sheet, String selector) {
-        return LuaValue.userdataOf(new LuaRule(sheet, selector, null), owner.styleRules.meta());
+        return LuaValue.userdataOf(new LuaRule(sheet, selector, null), meta(owner));
     }
-
-    /** {@code widget:rule()} — the interned hand-named level of {@code w} in {@code owner}'s env. */
-    static LuaValue ofWidget(Addon owner, LuaWidget h, Widget w) {
-        return owner.styleRules.of(h, w);
-    }
-
-    // ---- the per-addon intern cache for WIDGET rules + the shared metatable -------------------------
 
     /**
-     * One addon's {@code widget:rule()} cache and the Rule metatable both bindings share ({@link
-     * Addon#styleRules}). Weak keys <b>and</b> weak values, the {@link LuaWidget.Cache} shape and for its
-     * reasons: {@code Widget} overrides neither {@code equals} nor {@code hashCode}, so this is an identity map
-     * for free, and a strong key would pin every widget an addon ever styled.
+     * {@code widget:rule()} — the interned hand-named level of the widget {@code h} names, in {@code owner}'s
+     * env.
+     *
+     * <p><b>Keyed on the HANDLE, not on the widget</b> (audit2 B10). A Rule is a name for a level and holds
+     * the {@link LuaWidget} handle rather than the widget, so the handle is what it is one of — and the
+     * handle is itself interned per addon, so keying on it is the same key for every live widget and one
+     * more besides: a <b>stale</b> widget, which has no {@code Widget} left to key on and used to get a
+     * fresh Rule per call. {@code w:rule() == w:rule()} now holds for as long as the Widget object does,
+     * whether or not the widget under it is still in the tree. It is also what makes the rebuild
+     * ({@link UiApi#rebuild}) nothing to do here: re-pointing the handle at the new widget re-aims the Rule
+     * with it, and the entry never moves because its key did not.
+     *
+     * <p>{@code h} is the receiver of {@code widget:rule()}, so there is always one: a call on anything else
+     * has already been refused by the time this runs.
      */
-    static final class Cache {
-        private final Addon owner;
-        // retained: weak on both axes -- the value is a WeakReference, so nothing reaches the widget.
-        private final Map<Widget, WeakReference<LuaValue>> live =
-            new WeakHashMap<Widget, WeakReference<LuaValue>>();
-        private LuaValue mt;
+    static LuaValue ofWidget(final Addon owner, final LuaWidget h) {
+        return owner.styleRules.of(h, () -> LuaValue.userdataOf(new LuaRule(null, null, h), meta(owner)));
+    }
 
-        Cache(Addon owner) {
-            this.owner = owner;
-        }
-
-        synchronized LuaValue of(LuaWidget h, Widget w) {
-            if((h == null) || (w == null))          // a stale widget: a rule with nothing to hold on to
-                return LuaValue.userdataOf(new LuaRule(null, null, h), meta());
-            WeakReference<LuaValue> r = live.get(w);
-            if(r != null) {
-                LuaValue v = r.get();
-                if(v != null)
-                    return v;
-            }
-            LuaValue v = LuaValue.userdataOf(new LuaRule(null, null, h), meta());
-            live.put(w, new WeakReference<LuaValue>(v));
-            return v;
-        }
-
-        synchronized LuaValue meta() {
-            if(mt == null)
-                mt = buildMeta(owner);
-            return mt;
-        }
-
-        /**
-         * Move an interned widget Rule to the widget that replaced it (040.2, {@link UiApi#rebuild}). The
-         * {@link LuaRule} itself needs no fixing — it holds the {@link LuaWidget} <b>handle</b> and resolves it
-         * at every read and write, so re-pointing the handle already re-aimed it — but the entry has to follow,
-         * or {@code w:rule()} would mint a second Rule object for what is still one widget's one level.
-         */
-        synchronized void rekey(Widget from, Widget to) {
-            WeakReference<LuaValue> r = live.remove(from);
-            if((r != null) && (r.get() != null))
-                live.put(to, r);
-        }
+    /**
+     * This addon's <b>Rule metatable</b> ({@link Addon#ruleMeta}), shared by both bindings and built on the
+     * first rule of either. A plain lazy field, and safely so for the reason every one of them on that class
+     * is (audit2 B06): a rule is only ever minted from inside this addon's Lua — {@code sheet:rule(sel)} and
+     * {@code widget:rule()} are both verbs an addon calls — so the check and the build are one act under
+     * {@link Addon#luaLock}, whose release publishes the finished table.
+     */
+    private static LuaValue meta(Addon owner) {
+        if(owner.ruleMeta == null)
+            owner.ruleMeta = buildMeta(owner);
+        return owner.ruleMeta;
     }
 
     // ---- the binding: where this level's properties actually live ----------------------------------
