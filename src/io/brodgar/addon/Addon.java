@@ -328,6 +328,16 @@ public final class Addon {
      */
     public final Subs messageSubs = new Subs(this, Addon.C_EVENT);
     /**
+     * This addon's subscriptions to the <b>pointer's pick pass</b> ({@code hafen.ui():mouse():on(
+     * "PickChanged", fn)}) — the object the client's own machinery finds under the pointer, by the very pass
+     * a right-click goes through. The key set is CLOSED to exactly {@code PickChanged}.
+     *
+     * <p><b>Holding one is what arms the pass.</b> A pick is a render pass and a GPU readback, so
+     * {@link PointerPick} asks this list live and runs nothing while it is empty — which is also why there
+     * is no teardown to write here: a reload throws the {@link Addon} away and the pass disarms itself.
+     */
+    public final Subs pickSubs = new Subs(this, Addon.C_EVENT);
+    /**
      * This addon's <b>selector subscriptions</b> as subscriptions ({@code s:ui():on(sel, "Added", fn)},
      * 086.1) — the emitter that mints what that verb hands back, so it is a {@link LuaSub} like every other
      * {@code :on} in the API rather than a one-verb table. The key is the <b>event</b>, {@code "Added"} or

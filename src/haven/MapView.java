@@ -3781,6 +3781,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
     
+    /* addon: THE POINTER'S PICK PASS (hafen.ui():mouse():pick(), m:on("PickChanged", fn)). The hover is
+     * dispatched EVERY FRAME and carries whether this view is the thing under the pointer, which is exactly
+     * the question the pick answers for -- and it is the right seam rather than mousemove because the world
+     * moves under a pointer that is standing still. Nothing is picked unless an addon holds a live
+     * subscription; the pacing and the readback are io.brodgar.addon.PointerPick's.
+     *   A camera drag is not aiming at anything and a placement ghost is already paying for a readback of
+     * its own on this very frame, so both read as "the pointer is on nothing" rather than as a second pick. */
+    public boolean mousehover(MouseHoverEvent ev, boolean hovering) {
+	io.brodgar.addon.AddonManager.onPointerHover(this, ev.c,
+						     hovering && (camdrag == null) && (this.placing == null));
+	return(super.mousehover(ev, hovering));
+    }
+
     public boolean mouseup(MouseUpEvent ev) {
 	// addon: 044.4 — the release of the gesture the press above started, delivered to the panel that took it
 	//        even if the pointer has since left it.
@@ -3835,8 +3848,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     /* brodgar voice: resolve the Gob a click landed on, unwrapping the composite
-     * clickable that player/animal gobs use. Returns null for the ground or non-gobs. */
-    static Gob clickedgob(ClickData inf) {
+     * clickable that player/animal gobs use. Returns null for the ground or non-gobs.
+     * addon: PUBLIC so the pointer's pick pass reaches the same answer a click does
+     * (io.brodgar.addon.PointerPick -> hafen.ui():mouse():pick()). One unwrapping, not two:
+     * a second copy in the bridge would be the one that forgets CompositeClick. */
+    public static Gob clickedgob(ClickData inf) {
 	if(inf == null)
 	    return(null);
 	if(inf.ci instanceof Gob.GobClick)

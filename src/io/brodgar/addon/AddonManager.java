@@ -713,6 +713,20 @@ public final class AddonManager {
          *  which an action handler can be running. Volatile because reading it is all Lua does with it. */
         volatile long clickGobId = -1;
 
+        /** The object the pointer's own PICK PASS has under it in THIS session, or {@code -1} for ground,
+         *  for a pointer that is not on the world at all, and while nobody has armed the pass. Unlike
+         *  {@link #clickGobId} it is not a window around a dispatch: it is the standing answer
+         *  {@code hafen.ui():mouse():pick()} reads, written by {@link PointerPick} from the render-query
+         *  callback thread and read from Lua, which is the whole of why it is volatile. */
+        volatile long pickGobId = -1;
+
+        /** The GROUND the pointer is over in THIS session, the other half of the same pick pass, or
+         *  {@code null} where there is none — off the map, or the pointer not on the world at all. A
+         *  <b>fresh</b> {@link Coord2d} every time, never the engine's own: {@code Coord2d.x}/{@code y} are
+         *  public and mutable, so holding one would be holding something the frame can move under a reader.
+         *  One volatile reference rather than two loose doubles, which could tear against each other. */
+        volatile Coord2d pickGround = null;
+
         /** {@link #view()}'s memo. Volatile: written by whichever thread first re-derives, and a lost race
          *  costs one extra walk, never a wrong answer — the reader re-checks what it reads. */
         private volatile MapView viewcache;
@@ -2286,6 +2300,42 @@ public final class AddonManager {
 
     public static void noteClick(Gob g, Coord lcc) {
         ClickToken.note((g == null) ? -1 : g.id, lcc);
+    }
+
+    /** addon: the frame's hover on a map view, which is where the pointer's PICK PASS is paced and run —
+     *  see {@link PointerPick}. Public because {@code MapView.mousehover} calls it; everything about it,
+     *  the opt-in gate included, is that class's. */
+    public static void onPointerHover(MapView mv, Coord c, boolean hovering) {
+        PointerPick.onHover(mv, c, hovering);
+    }
+
+    /**
+     * addon: publish BOTH halves of what one pick pass found in {@code ui}'s session — the object and the
+     * ground — and answer whether the OBJECT changed, which is what decides whether {@code PickChanged}
+     * fires. The ground is stored either way and raises nothing: it moves with every pixel the pointer
+     * travels, so an edge on it would be a per-frame drip rather than an event.
+     */
+    static boolean notePick(UI ui, long id, Coord2d ground) {
+        SessionState st = state(ui);
+        if(st == null)
+            return false;
+        st.pickGround = ground;
+        if(st.pickGobId == id)
+            return false;
+        st.pickGobId = id;
+        return true;
+    }
+
+    /** addon: what {@code hafen.ui():mouse():pick()} answers for one session — see {@link #onPointerHover}. */
+    static long pickGobId(UI ui) {
+        SessionState st = state(ui);
+        return (st == null) ? -1 : st.pickGobId;
+    }
+
+    /** addon: what {@code hafen.ui():mouse():ground()} answers for one session — the same pass's other half. */
+    static Coord2d pickGround(UI ui) {
+        SessionState st = state(ui);
+        return (st == null) ? null : st.pickGround;
     }
 
     // The widget-targeting descriptor {id, type, place, caption, parentType} (D-024) is GONE (032.2). It was the

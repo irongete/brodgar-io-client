@@ -374,6 +374,7 @@ def event_keys():
     live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
     live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)
     live |= {"Move", "Up"}           # the pointer grab, closed to exactly these two
+    live |= {"PickChanged"}          # the pointer's pick pass, m:on(key, fn), closed to exactly this one
     return live
 
 ON_KEY = re.compile(r':on\(\s*(?:[^,()]*,\s*)?"([A-Za-z][A-Za-z]*)"')

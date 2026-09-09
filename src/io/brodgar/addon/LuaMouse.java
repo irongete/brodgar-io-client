@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.Coord2d;
 import haven.UI;
 import haven.Widget;
 
@@ -68,6 +69,55 @@ final class LuaMouse {
         m.set("over", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return over(owner);
+            }
+        });
+        // :pick() — the OBJECT under the pointer, where :over() is the WIDGET under it. The two halves of one
+        // question, and the two words the industry already uses for them: a HIT TEST walks a widget tree
+        // (hafen.ui():hit, :over), PICKING resolves a 3D pixel to the thing drawn there. It is the client's
+        // own pick, the one a right-click goes through, so it can never disagree with what a click reaches.
+        //   nil while nobody holds a PickChanged subscription: the pass is not run at all then, and naming an
+        // object out of a pass nobody armed would be naming a stale one.
+        m.set("pick", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                UI u = AddonManager.screen();
+                if(u == null)
+                    return LuaValue.NIL;
+                long id = AddonManager.pickGobId(u);
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, AddonManager.userOf(u), id);
+            }
+        });
+        // :ground() — THE SAME PASS'S OTHER HALF. MapView.Hittest resolves the ground point and the object
+        // together (checkmapclick + checkgobclick, one submission), so this costs nothing beyond :pick() and
+        // -- the part that matters -- the two come out of the SAME instant: the tile under the pointer can
+        // never be one frame's while the object over it is another's. A Position, which is what a place is
+        // everywhere else in this API, so it goes straight into s:world():tile(p), :height(p), :grid():at(p).
+        //   nil where there is no ground: the pointer off the map view, off the world's edge, and while
+        // nobody holds a PickChanged subscription, since the pass is not run at all then.
+        m.set("ground", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                UI u = AddonManager.screen();
+                if(u == null)
+                    return LuaValue.NIL;
+                Coord2d g = AddonManager.pickGround(u);
+                return (g == null) ? LuaValue.NIL
+                    : LuaPosition.ofWorld(owner, AddonManager.userOf(u), g.x, g.y);
+            }
+        });
+        // :on(key, fn) — the ordinary subscription door (D-125 shape: a closed key set, listed in the
+        // refusal). HOLDING ONE IS THE OPT-IN: a pick is a render pass and a GPU readback, which is why the
+        // client itself only picks on a click, so PointerPick runs nothing until somebody is listening and
+        // stops again on the last sub:off().
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue keyArg = Args.required(a, 2, "mouse():on", "key");
+                LuaValue fnArg = Args.required(a, 3, "mouse():on", "fn");
+                if(!keyArg.isstring() || !fnArg.isfunction())
+                    throw new LuaError("mouse():on(key, fn) expects (string, function)");
+                String key = keyArg.tojstring();
+                if(!PointerPick.KEY.equals(key))
+                    throw new LuaError("mouse():on(key, fn): the pointer has no event '" + key
+                        + "' — it has: " + PointerPick.KEY);
+                return owner.pickSubs.on(key, fnArg);
             }
         });
         m.set("shift", new OneArgFunction() {
