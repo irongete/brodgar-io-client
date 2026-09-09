@@ -2425,16 +2425,29 @@ final class UiApi {
      */
     static Widget deepest(Coord at) {
         UI l = layer();
+        Widget layerHit = null;
         if((l != null) && (l.root != null)) {
+            synchronized(LuaWidget.monitorOf(l)) { layerHit = LuaWidget.hitTest(l.root, at); }
+            // THE LAYER'S OWN ROOT IS NOT ONE OF YOUR SURFACES, and it is the whole screen. Widget.checkhit
+            // is the bare rectangle and LuaWidget.hitTest answers `from` itself when no child claims the
+            // point, so a layer holding no window under the pointer -- which is the layer almost everywhere,
+            // almost always -- claimed EVERY pixel here and the session behind it was never walked at all.
+            // hafen.ui():hit(x, y) and m:over() then answered RootWidget for the whole screen, which is the
+            // one answer neither verb can be used for. The layer wins where something IN it is hit, which is
+            // what "a point over one of your own windows is over that window" says and all it says.
+            if((layerHit != null) && (layerHit != l.root))
+                return layerHit;
+        }
+        UI u = screen();
+        if((u != null) && (u.root != null) && (u != l)) {
             Widget hit;
-            synchronized(LuaWidget.monitorOf(l)) { hit = LuaWidget.hitTest(l.root, at); }
+            synchronized(LuaWidget.monitorOf(u)) { hit = LuaWidget.hitTest(u.root, at); }
             if(hit != null)
                 return hit;
         }
-        UI u = screen();
-        if((u == null) || (u.root == null) || (u == l))
-            return null;
-        synchronized(LuaWidget.monitorOf(u)) { return LuaWidget.hitTest(u.root, at); }
+        // Nothing in the session claimed it, or there is no session: the layer's root is the honest answer
+        // for a point over the layer and nothing else -- the login screen, where there is no session tree.
+        return layerHit;
     }
 
     // ------------------------------------------------------ the replacement verb (widget:replace, 032.1)
