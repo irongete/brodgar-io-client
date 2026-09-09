@@ -186,18 +186,29 @@ final class FontApi {
      * ({@code TexFurn}/{@code BlurFurn}), not a flag on a face.
      */
     static FontHandle face(Addon owner, String what, LuaValue v) {
-        FontHandle h = FontHandle.resolve(v);
+        // audit2 B14 (fn-04): RESOLVED WITHOUT SEALING, and sealed once it is accepted. `resolve` marks the
+        // handle used, and it used to run before either check below -- so a face this rule REFUSES was
+        // marked as read by a consumer that then refused it, and the setter its own refusal asks for
+        // ("derive one and leave :color off") met "this font is already in use" on the handle in hand.
+        // A rule reads the face at the moment it takes one, so that is where the seal goes.
+        FontHandle h = FontHandle.of(v);
         if(h != null) {                     // handed over: a built-in, a file, or a :derive()d variant of one
             // ...and if it carries a colour, it is refused for the same reason a NAMED face carrying one is
             // (084.5). Accepting it would drop the colour on the floor: h:color() would go on reading back the
             // value that was set, the surface would be drawn in the client's own colour, and nothing would say
             // which of the two is the answer. The colour of a client surface is the rule's own property.
+            // audit2 B14 (fn-05): AND THE ADVICE NAMES A ROUTE THAT EXISTS. It used to say "derive one and
+            // leave :color off", which cannot be done from a coloured handle: draft() copies the colour into
+            // the variant, and h:color(nil) is refused (the page documents no absent state for colour, so an
+            // explicit nil is the ordinary accident §2.9 names). The face itself is interned and carries
+            // none, so asking for it again is the whole of the fix — and h:type() says which door to ask at.
             if(h.color != null)
                 throw new LuaError(what + ": this font carries a colour, and a font's colour never styles a"
                     + " client surface — it is for your OWN drawing (g:text and widget:font). The colour of a"
                     + " surface is the rule's own property, said where it can be read: rule:color(c)."
-                    + " Hand this rule a face that carries none — derive one and leave :color off — and say"
-                    + " the colour beside the font");
+                    + " Ask for the face again — hafen.font():get(name) for a built-in, hafen.asset():get(path)"
+                    + " for one you ship (h:type() says which this is) — derive from THAT and leave :color"
+                    + " off, and say the colour beside the font");
             // ...and an OUTLINE is refused on the same boundary (134.1). It is a decoration baked into the
             // raster, and no client surface is decorated that way: the four that are stack TexFurn/BlurFurn
             // per site, routed per site. A rule accepting one would grow every raster that surface draws by
@@ -207,7 +218,8 @@ final class FontApi {
                 throw new LuaError(what + ": this font carries an outline, and an outline is your OWN drawing"
                     + " (g:text, widget:font and a label of yours) — it is baked into the raster, and no"
                     + " client surface is drawn with a decorated face. Hand this rule a face that carries"
-                    + " none: derive one and leave :outline off");
+                    + " none: h:derive():outline(nil)");
+            h.seal();                      // fn-04: taken, so read HERE — a setter afterwards would be silent
             return h;
         }
         if(!v.istable())
@@ -245,9 +257,7 @@ final class FontApi {
             } else if("size".equals(p)) {
                 size = optSize(pv, what + ".size");
             } else if("aa".equals(p) || "bold".equals(p) || "italic".equals(p)) {
-                if(!pv.isboolean())
-                    throw new LuaError(what + "." + p + ": expected true or false, got " + pv.typename());
-                Boolean f = Boolean.valueOf(pv.toboolean());
+                Boolean f = Boolean.valueOf(Args.bool(pv, what, p, null));
                 if("aa".equals(p))
                     aa = f;
                 else if("bold".equals(p))
@@ -370,10 +380,28 @@ final class FontApi {
         // answered "font" through the shared asset verbs; the other two answered a nil call. Set before the
         // asset verbs below, so a loaded face keeps the one the file gives it and the answer is one string
         // from one place either way.
-        m.set("type", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                FontHandle fh = FontHandle.of(self);
-                return (fh == null) ? LuaValue.NIL : LuaValue.valueOf(fh.kind());
+        m.set("type", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                // audit2 B14 (fn-11): IT RAISES, like every other verb on this receiver. `of` answers null
+                // for a receiver that is not a font and this handed that back as nil -- so a dot call, or a
+                // :type() on the wrong value, read as "this font has no kind" where :family() one line down
+                // says what the receiver actually is. One receiver, one answer to a wrong one.
+                FontHandle fh = font(a.arg1(), "type");
+                Args.only(a, 0, "font:type");
+                return LuaValue.valueOf(fh.kind());
+            }
+        });
+        // info() — 094/audit2 B14 (fn-08): THE SNAPSHOT every live interned object owes. A handle is none
+        // of the three kinds the grammar excuses a snapshot for -- it is not a builder (a draft is
+        // configured by setters and dispatched by being HANDED OVER, and a built-in is not even that), not
+        // already a snapshot, and not a carrier of an ending -- so reading its whole state meant six colon
+        // calls whose answers could not be taken as one face, and a log line about a font was written by
+        // hand. One table, one read, in the shape every other :info() has: what the object holds, plainly.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                FontHandle fh = font(a.arg1(), "info");
+                Args.only(a, 0, "font:info");
+                return fontInfo(fh);
             }
         });
         m.set("size", property("size"));
@@ -400,6 +428,32 @@ final class FontApi {
             }
         });
         return mt;
+    }
+
+    /**
+     * {@code h:info()} — this face as a plain table: {@code type}, {@code family}, {@code size}
+     * ({@code nil} = the stock size of whatever it is applied to), {@code bold}, {@code italic},
+     * {@code aa} ({@code nil} = inherit), {@code color} and {@code outline} ({@code nil} = none), and
+     * {@code path} for a face loaded from a file. Read under the handle's own monitor, so the eight are one
+     * face and not eight reads of a draft another thread is configuring.
+     */
+    private static LuaValue fontInfo(FontHandle fh) {
+        LuaTable t = new LuaTable();
+        synchronized(fh) {
+            t.set("type", LuaValue.valueOf(fh.kind()));
+            t.set("family", LuaValue.valueOf(fh.family()));
+            if(fh.size != null)
+                t.set("size", LuaValue.valueOf(fh.size.intValue()));
+            t.set("bold", LuaValue.valueOf(fh.font.isBold()));
+            t.set("italic", LuaValue.valueOf(fh.font.isItalic()));
+            if(fh.aa != null)
+                t.set("aa", LuaValue.valueOf(fh.aa.booleanValue()));
+            t.set("color", AddonManager.color(fh.color));
+            t.set("outline", AddonManager.color(fh.outline));
+            if(fh.asset != null)
+                t.set("path", LuaValue.valueOf(fh.asset.path));
+        }
+        return t;
     }
 
     /**
@@ -462,13 +516,14 @@ final class FontApi {
                     if("size".equals(prop))
                         fh.size = clear ? null : optSize(v, "font:size");
                     else if("aa".equals(prop))
-                        fh.aa = clear ? null : Boolean.valueOf(v.toboolean());
+                        fh.aa = clear ? null : Boolean.valueOf(Args.bool(v, "font:aa", "aa",
+                            "whether glyphs are antialiased"));
                     else if("color".equals(prop))
                         fh.color = colorArg(a, 2, "font:color");
                     else if("outline".equals(prop))
                         fh.outline = clear ? null : colorArg(a, 2, "font:outline");
                     else
-                        fh.style("bold".equals(prop), v.toboolean());
+                        fh.style("bold".equals(prop), Args.bool(v, "font:" + prop, prop, null));
                 }
                 return self;
             }
@@ -515,7 +570,18 @@ final class FontApi {
         int px = Args.integer(v, ctx, "'size'", "design px");
         if(px <= 0)
             throw new LuaError(ctx + ": 'size' must be a positive number (design px)");
+        // audit2 B14 (fn-09): AND AN UPPER BOUND. Nothing capped this above zero, and the size is not a
+        // number that is merely stored: rich() derives an AWT face at it and rasterises glyphs, ON THE
+        // RENDER THREAD, at the first draw. h:size(20000) is a 20000-px face, which is seconds of CPU and
+        // hundreds of megabytes of glyph raster for a line of text nothing can display. The bound is the
+        // largest size a screen could want a glyph at, so nothing legible is refused.
+        if(px > MAX_SIZE)
+            throw new LuaError(ctx + ": 'size' must be at most " + MAX_SIZE + " design px, got " + px
+                + " — a face is rasterised at the size you ask for, on the thread that draws it");
         return Integer.valueOf(px);
     }
+
+    /** The largest face {@code h:size(px)} will derive — see {@link #optSize}. Design px, before UI scaling. */
+    private static final int MAX_SIZE = 512;
 
 }

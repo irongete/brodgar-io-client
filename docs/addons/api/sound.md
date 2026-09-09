@@ -24,23 +24,23 @@ Resources resolve off the UI thread, so a not-yet-loaded one never throws either
 | Method | Returns | Description |
 |---|---|---|
 | `hafen.sound():get(name)` | Sound | the Sound for that resource name |
-| `hafen.sound():playing(filter)` | collection | your addon's **still-playing** Sounds; empty when there are none. `hafen.sound()` itself does not enumerate — `:get(name)` mints a Sound for any clip, playing or not, so there is no set of "your sounds" to count |
-| `hafen.sound():playing():count(filter)` | number | how many are still sounding |
-| `hafen.sound():playing():find(filter)` | Sound \| nil | the first still-sounding one that matches |
+| `hafen.sound():sounding(filter)` | collection | your addon's **still-playing** Sounds; empty when there are none. `hafen.sound()` itself does not enumerate — `:get(name)` mints a Sound for any clip, sounding or not, so there is no set of "your sounds" to count |
+| `hafen.sound():sounding():count(filter)` | number | how many are still sounding |
+| `hafen.sound():sounding():find(filter)` | Sound \| nil | the first still-sounding one that matches |
 | `sound:res()` | string | the resource name this Sound addresses |
 | `sound:playing()` | bool | whether a clip of this name is still sounding, or still starting |
 | `sound:info()` | table | a flat snapshot, `{ res, playing }` |
 
 **The two halves address different sets, on purpose.** `:get(name)` reaches *any* clip the game owns,
 played or not, because sound resources are not enumerable and a Sound simply exists on demand.
-`:playing()` is *your* clips in the air: the client's own blips share the channel but are not yours to
+`:sounding()` is *your* clips in the air: the client's own blips share the channel but are not yours to
 enumerate or stop. `hafen.sound()` itself does **not** enumerate — asking it to raises, naming both halves,
 because "every sound you have addressed" is not a set anyone wants. It prunes as you ask, so the count falls back to zero by itself as clips end. A
 string [filter](conventions.md#the-filter-argument) matches the resource name. There is no `:add` —
 playing is `sound:play(volume)` — and no `:remove`, since silencing one is `sound:stop()`.
 
 ```lua
-local live = hafen.sound():playing():list()
+local live = hafen.sound():sounding():list()
 for i = 1, #live do live[i]:stop() end   -- silence everything this addon started
 ```
 
@@ -53,6 +53,13 @@ for i = 1, #live do live[i]:stop() end   -- silence everything this addon starte
 
 Playing is client-local and sends nothing to the server, which is why it needs no permission. A
 `volume` that is not a number, or is outside `0..1`, raises an error rather than being clamped.
+
+**Sixty-four clips at once, and that is the limit.** Your addon may have 64 clips sounding or still
+loading; a `:play()` past that raises rather than queueing, and says so. A loop that reaches it is
+playing one sound many times over rather than playing many sounds — `sound:playing()` reads what is
+still in the air, and `sound:stop()` ends it. A clip whose resource never resolves gives up after 30
+seconds and stops counting, so a name the server never answers for cannot leave `:playing()` true
+for ever.
 
 **Your blip is heard whichever character is on screen.** The client silences the characters you are not
 looking at, so that several logged in at once do not play their pings and alerts over the one you are

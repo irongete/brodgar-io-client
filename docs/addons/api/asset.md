@@ -35,6 +35,10 @@ points you back here.
 PNG is the recommended image format, for transparency, and `.glb` the recommended model format, being a
 single file. Any other extension is an error listing the ones above.
 
+**A file is read whole into memory, so there is a size limit: 128 MB.** A larger one raises, naming its
+size, rather than being read — the caps inside the glTF parser apply to bytes that are already on the
+heap, and a file that big is a mistake rather than an asset.
+
 ## The loader takes a path and nothing else
 
 `:get(path)` has **one argument, always**; there is no per-type options table. Loading a *file* is
@@ -60,7 +64,10 @@ reaches rather than on the way it is spelled. External `.gltf` buffer and textur
 to the model file and go through that same check, so a `.gltf` cannot reach out either.
 
 Decoding is **synchronous**: call `:get` from setup code — `Load`, `SessionEnteredWorld`, a command —
-**never** from inside a draw callback.
+**never** from inside a draw callback. It is one call from Lua's side however big the file is, so the
+[instruction budget](threading.md) that stops a runaway loop cannot see it coming: a large
+model or image is a frame the client drops, and the only thing deciding when it drops is where you
+called `:get`.
 
 ## Interning
 
@@ -116,6 +123,7 @@ a file is the job of the addon that loaded it.
 | Method | Description |
 |---|---|
 | `img:size()` | `{w=, h=}` — the file's own dimensions, in [design pixels](ui/pixels.md) |
+| `img:info()` | `{width, height}` — the same two, as a flat snapshot |
 
 The file's pixels **are** design pixels: a 32×32 PNG answers `32, 32` and covers 32×32 wherever it is
 drawn, so it stands beside the client's own art at the same size at every interface scale.
@@ -158,6 +166,7 @@ file, or one using an unsupported feature, raises a clear error that **names** t
 | Method | Description |
 |---|---|
 | `d:text()` | the file's contents as a **string**, decoded as UTF-8; a leading BOM is stripped |
+| `d:info()` | `{bytes}` — how long that string is, without reading it; the same number `#d:text()` gives |
 
 A `.json` or `.txt` file your addon ships — a config, a word list, a **theme**. It is how an addon's
 *content* stops being written in Lua:
@@ -231,7 +240,8 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 
 `hafen.asset` loads **local files only**. A remote asset would mean an async load in a synchronous API, an
 untrusted binary going into the font and texture paths, and a per-user tracking channel; fetching *data*
-over HTTP is [`hafen.http`](http.md), which is protected by a host allowlist the user approves.
+over HTTP is [`hafen.http`](http.md), which is protected by a host allowlist the user approves. Hand
+`:get` a URL and it says exactly that, rather than reporting a missing file.
 
 The client already owns every `.res` in the game, and those are **addressed by name** rather than loaded
 from your folder: they have no sandbox to pass, no cache of yours to fill and no lifetime to manage. This

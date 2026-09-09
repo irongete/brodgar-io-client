@@ -134,7 +134,7 @@ public final class LuaOption {
         String key = prefKey();
         switch(kind) {
         case BOOLEAN:
-            return LuaValue.valueOf(Utils.getprefb(key, def.toboolean()));
+            return LuaValue.valueOf(Utils.getprefb(key, Args.truthy(def)));
         case NUMBER: {
             int v = Utils.getprefi(key, def.toint());
             return LuaValue.valueOf((v < lo) || (v > hi) ? def.toint() : v);
@@ -152,7 +152,7 @@ public final class LuaOption {
     private void store() {
         String key = prefKey();
         switch(kind) {
-        case BOOLEAN: Utils.setprefb(key, value.toboolean()); break;
+        case BOOLEAN: Utils.setprefb(key, Args.truthy(value)); break;
         case NUMBER:  Utils.setprefi(key, value.toint());     break;
         default:      Utils.setpref(key, value.tojstring());  break;
         }
@@ -182,10 +182,8 @@ public final class LuaOption {
     private LuaValue check(LuaValue v) {
         switch(kind) {
         case BOOLEAN:
-            if(!v.isboolean())
-                throw new LuaError("option:value(v): the row '" + name + "' is a boolean, got " + v.typename()
-                    + " — pass true or false");
-            return LuaValue.valueOf(v.toboolean());
+            return LuaValue.valueOf(Args.bool(v, "option:value", "v",
+                                                 "the row '" + name + "' is a boolean"));
         case NUMBER: {
             int n = Args.integer(v, "option:value", "v", "between " + lo + " and " + hi + "; the row '" + name
                                  + "' is drawn as a slider");
@@ -247,7 +245,7 @@ public final class LuaOption {
 
     /** A boolean row's value. */
     public boolean bool() {
-        return value.toboolean();
+        return Args.truthy(value);
     }
 
     /** A number row's value, inside the range it declared. */

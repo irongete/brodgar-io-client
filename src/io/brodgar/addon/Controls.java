@@ -969,9 +969,7 @@ final class Controls {
             return;
         }
         if(w instanceof haven.ACheckBox) {                // a CheckBox and an ICheckBox alike
-            if(!v.isboolean())
-                throw new LuaError("widget:value(v) on a checkbox is a BOOLEAN, got " + v.typename());
-            boolean b = v.toboolean();
+            boolean b = Args.bool(v, "widget:value", "v", "a checkbox holds one or the other");
             synchronized(mon) { ((haven.ACheckBox)w).set(b); }
             return;
         }

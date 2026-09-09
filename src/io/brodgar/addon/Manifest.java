@@ -372,17 +372,32 @@ public final class Manifest {
         Object v = m.get("saved_variables");
         if(v == null) return out;
         if(!(v instanceof List)) throw new IllegalArgumentException("'saved_variables' must be an array");
+        // audit2 B14 (st-10): ONE ENTRY PER NAME, refused here rather than collapsed downstream. A name
+        // declared twice is one table -- installStore mints it once and declaredVar finds the first -- so the
+        // second entry named nothing, while every walk of this list answered it: hafen.store():list() said
+        // "layout" twice about one table, and a second entry with the OTHER scope silently did not apply.
+        // The manifest is where the shape is decided, and every other malformed entry throws here too.
         for(Object o : (List<?>)v) {
+            String nm;
+            boolean account;
             if(o instanceof String) {
-                out.add(new SavedVar((String)o, false));
+                nm = (String)o;
+                account = false;
             } else if(o instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> e = (Map<String, Object>)o;
-                String nm = str(e, "name", true);
-                out.add(new SavedVar(nm, "account".equals(e.get("scope"))));
+                nm = str(e, "name", true);
+                account = "account".equals(e.get("scope"));
             } else {
                 throw new IllegalArgumentException("'saved_variables' entries must be a string or an object");
             }
+            for(SavedVar had : out) {
+                if(had.name.equals(nm))
+                    throw new IllegalArgumentException("'saved_variables' declares \"" + nm + "\" twice --"
+                        + " one name is one table, and only the first entry would have taken effect. Declare"
+                        + " it once, in the scope you mean.");
+            }
+            out.add(new SavedVar(nm, account));
         }
         return out;
     }

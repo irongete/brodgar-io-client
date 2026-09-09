@@ -41,7 +41,7 @@ public final class ClientOptions {
                 return LuaValue.valueOf(Prof.armed());
             }
             protected void onWrite(LuaValue value) {
-                Prof.arm(value.toboolean());
+                Prof.arm(bool(value, "on", "whether the profiler collects frames"));
             }
         });
 
@@ -52,7 +52,8 @@ public final class ClientOptions {
                 return LuaValue.valueOf(MapView.recallon);
             }
             protected void onWrite(LuaValue value) {
-                Utils.setprefb("recallon", MapView.recallon = value.toboolean());
+                Utils.setprefb("recallon", MapView.recallon = bool(value, "on",
+                                                                  "whether remembered ground is drawn"));
             }
         });
 
@@ -81,7 +82,8 @@ public final class ClientOptions {
                 return LuaValue.valueOf(MapView.recallgrey);
             }
             protected void onWrite(LuaValue value) {
-                Utils.setprefb("recallgrey", MapView.recallgrey = value.toboolean());
+                Utils.setprefb("recallgrey", MapView.recallgrey = bool(value, "on",
+                                                                      "whether it is drawn without colour"));
             }
         });
         return m;

@@ -889,7 +889,8 @@ public final class LuaWidget {
                         + " verb — " + FlowerMenuApi.FM + ":visible(b). The ring dies about a second after it"
                         + " opens, and this write keeps a restore record that would outlive it;"
                         + " widget:visible() still reads.");
-                if(v.toboolean()) {
+                boolean show = Args.bool(v, "widget:visible", "b", null);
+                if(show) {
                     // audit2 B08 (un-01): THE ONE-WINDOW-ONE-OWNER RULE GUARDS BOTH DIRECTIONS. This arm used
                     // to show the widget and drop only THIS addon's record, with no owner check at all — so a
                     // second addon un-hid a window the first owns and is standing in for, and the rule the
@@ -2520,7 +2521,7 @@ public final class LuaWidget {
             // called it too early, and the answer is a moment rather than a different verb.
             // 092.8: "no character is in world yet" is now about THIS widget's own session. A window the addon
             // built itself is in the layer and is filed under the account, so it never reaches this branch.
-            AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and the"
+            AddonManager.logAbout(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and the"
                 + " session this widget stands in has no character in world yet, so there is nothing to put"
                 + " back. Call it from that session's SessionEnteredWorld onwards; what happens to the widget"
                 + " from here is saved under that name all the same.");
@@ -3415,7 +3416,7 @@ public final class LuaWidget {
         if(w == null)
             return;
         LuaValue r = AddonManager.callLua(owner, Addon.C_WIDGET, fn, self, LuaValue.valueOf(depth)).arg1();
-        if(r.isboolean() && !r.toboolean())       // fn returned false → prune this subtree
+        if(r.isboolean() && !Args.truthy(r))      // fn returned false → prune this subtree
             return;
         for(Widget c : kids(w))
             walk(owner, of(owner, c), fn, depth + 1);

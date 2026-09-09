@@ -248,9 +248,8 @@ public final class LuaIconCat {
                     List<GobIcon.Setting> sets = settingsFor(h.user, res);
                     return sets.isEmpty() ? LuaValue.NIL : LuaValue.valueOf(anyFlag(sets, notifyFlag));
                 }
-                if(!v.isboolean())
-                    throw new LuaError("cat:" + verb + "(on): on must be true or false");
-                if(setIn(MapApi.iconconf(h.user), res, v.toboolean(), notifyFlag) == 0)
+                boolean on = Args.bool(v, "cat:" + verb, "on", null);
+                if(setIn(MapApi.iconconf(h.user), res, on, notifyFlag) == 0)
                     throw new LuaError("cat:" + verb + "(on): no such icon category — the registry carries no \""
                         + res + "\" (it is empty before the HUD is up, and grows as new icon types are seen)");
                 return self;

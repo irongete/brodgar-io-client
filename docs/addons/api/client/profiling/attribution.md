@@ -20,8 +20,12 @@ completed frame**, sorted most expensive first. The top row is the answer to "wh
 | `scopes` | this addon's [named scopes](#custom-scopes), keyed by name |
 
 The array is followed by a **`total`** key, `{ms=, share=}`, which is the *same number* `frame().addons`
-reports: both read the accounting the addon CPU watchdog already keeps, so the two views can never
-disagree. Iterate the rows with `ipairs` — `total` is not part of the array.
+reports: both read the accounting the addon CPU watchdog already keeps, so neither can hold time the
+other has not. They are folded a fraction of a frame apart, though — `frame()` closes with the frame,
+these rows on the tick after it — so Lua that runs in between (an HTTP handler, a draw callback) is in
+the frame these rows close and not yet in the one `frame()` has already taken. Nothing is lost and
+nothing is counted twice; a comparison of the two is a comparison across that gap. Iterate the rows
+with `ipairs` — `total` is not part of the array.
 
 ```lua
 local rows = hafen.client():profiling():addons()
@@ -71,6 +75,14 @@ and the parameter, so `p:scope()` says which argument it wanted rather than fail
 Names are **per addon**: two addons may both use `"update"` without colliding, and a scope map dies with its
 addon on `:reload` or disable, so there is nothing to clean up. Each scope appears in that addon's
 `addons()` row as `{ms=, msAvg=, msPeak=, calls=}`.
+
+**A name is a section of your code, and you may have 256 of them.** Naming a scope after an item id, a
+coordinate or a frame number is measuring one thing under a million labels: the map grows without
+bound and every `addons()` snapshot builds a table per entry. Past the limit `p:scope(name)` raises
+saying so. Name the section.
+
+**`s:finish()` always closes the bracket**, armed or not — disarming between a `begin` and its `finish`
+leaves nothing half-open. What the switch decides is whether the time is written down.
 
 `ms` and `calls` are **this-frame** figures, so a scope that ran a moment ago reads 0 and its cost lives in
 `msPeak` and `msAvg`. Read `ms` per frame, from an `Update` say; read `msPeak` for "how bad does this

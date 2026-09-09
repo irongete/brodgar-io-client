@@ -36,8 +36,8 @@ it. Ending it is idempotent, and it is done for you on reload or disable.
 
 **A name you have registered stays the addon layer's for the rest of the client's run.** Ending the
 subscription frees it for another addon to claim, but the console goes on routing it here — so `:name`
-with nobody holding it says that no addon handles it rather than that the command is unknown, and it
-says that until the client is restarted. Nothing is lost by it: a name the client itself owns cannot be
+with nobody holding it says that no addon handles it, in the console you typed it into, rather than
+that the command is unknown, and it says that until the client is restarted. Nothing is lost by it: a name the client itself owns cannot be
 taken in the first place, so there is no command underneath yours to come back.
 
 Subscribe any time; the file body is fine, and there is nothing to wait for. It is reload-safe: editing
@@ -47,6 +47,8 @@ your file and running `:reload` swaps the handler with no duplicate and no leake
 an existing client command already owns is refused; both raise an error naming the command. If another
 *addon* holds the name, the newest subscription wins and takes it over, and the console records the
 reassignment — so two addons claiming `:sort` is a first-come, last-served race rather than an error.
+The loser's subscription **ends**: it leaves that addon's `:list()`, `cmd:off()` on it does nothing, and
+nothing of it reads alive after a name it can no longer be reached through has gone.
 
 **A command you subscribe to answers from every character.** The name is routed once, for the client
 rather than for a login, so with several characters up it runs from whichever one's console you type it

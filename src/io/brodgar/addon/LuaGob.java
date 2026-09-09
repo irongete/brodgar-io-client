@@ -492,12 +492,8 @@ public final class LuaGob {
                     Gob g = gob(self, "visible");
                     return (g == null) ? LuaValue.NIL : LuaValue.valueOf(!g.addoninvis);
                 }
-                // A bare adjective takes a bare boolean. LuaJ would coerce anything at all through
-                // toboolean(), and 0 is TRUE in Lua -- so gob:visible(0) reading as "show it" is the one
-                // silent wrong answer this verb can give, and it is refused naming the argument instead.
-                if(!bv.isboolean())
-                    throw new LuaError("gob:visible(b): b must be true or false, got " + bv.typename());
-                boolean vis = bv.toboolean();
+                // A bare adjective takes a bare boolean, through the house door (Args.bool).
+                boolean vis = Args.bool(bv, "gob:visible", "b", null);
                 // A gob that is gone takes the write and does nothing with it, like every other verb here:
                 // nobody holds it, so the walk is empty and that IS doing nothing with it.
                 for(Gob g : AddonManager.gobCopies(h.id))

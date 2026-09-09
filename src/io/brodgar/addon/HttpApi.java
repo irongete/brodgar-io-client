@@ -102,6 +102,12 @@ final class HttpApi {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "hafen.http()", "post");
                 String url = urlArg(a, 2, "hafen.http():post");
+                // audit2 B14 (ht-09): SLOT 3 AS WELL AS SLOT 4. The typo this refusal exists for is
+                // :post(url, cb) -- the old shape with the body left out -- and that puts the function in
+                // slot 3, which went to httpBody and came back "body must be a string or a table": true,
+                // useless, and not the sentence written for the mistake. Slot 4 is the OTHER spelling of the
+                // same typo, :post(url, body, cb), and both now meet the refusal that names the new shape.
+                refuseCallback(a, 3, "hafen.http():post(url, body)");
                 refuseCallback(a, 4, "hafen.http():post(url, body)");
                 LuaValue h = newHttpRequest(owner, "POST", url);
                 LuaHttpRequest req = resolve(h);
@@ -168,8 +174,8 @@ final class HttpApi {
      * on — and it names the whole new shape rather than the argument.
      */
     private static void refuseCallback(Varargs a, int i, String verb) {
-        if(!Args.passed(a, i))
-            return;
+        if(!Args.passed(a, i) || !a.arg(i).isfunction())
+            return;                     // ht-09: only a FUNCTION in that slot is this mistake
         throw new LuaError(verb + " takes no callback. The handler is req:on(\"done\", fn), the one"
             + " notification verb, and the request does not leave until you call :send():\n"
             + "  hafen.http():get(url):on(\"done\", function(res) end):send()\n"
@@ -543,7 +549,7 @@ final class HttpApi {
         try {
             u = java.net.URI.create(url).toURL();
         } catch(java.net.MalformedURLException | IllegalArgumentException e) {
-            String why = (e.getMessage() == null) ? e.getClass().getSimpleName() : e.getMessage();
+            String why = Refusal.reason(e);
             throw new LuaError(verb + ": malformed url \"" + url + "\" (" + why + ")");
         }
         String scheme = (u.getProtocol() == null) ? "" : u.getProtocol().toLowerCase(java.util.Locale.ROOT);
@@ -599,7 +605,7 @@ final class HttpApi {
             try {
                 json = Json.write(body, true);        // strict: non-serializable value / cycle → LuaError
             } catch(LuaError e) {
-                throw new LuaError(verb + ": body table is not JSON-serializable (" + e.getMessage() + ")");
+                throw new LuaError(verb + ": body table is not JSON-serializable (" + Refusal.reason(e) + ")");
             }
             if(!hasContentType(headers))
                 headers.put("Content-Type", "application/json");

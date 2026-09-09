@@ -30,7 +30,7 @@ import java.util.Map;
  * {@code 024-audio-oop}), the OOP successor of the flat fire-and-forget {@code hafen.sound.play(res)}. Built on
  * exactly the mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021) and
  * {@link LuaPagina} (023) established; <b>the section object IS the collection</b> (uniform grammar §2.1):
- * {@code hafen.sound():get(name)} is one Sound and {@code hafen.sound():playing(filter)} is what this addon
+ * {@code hafen.sound():get(name)} is one Sound and {@code hafen.sound():sounding(filter)} is what this addon
  * still has in the air.
  *
  * <p><b>The key is a resource name and nothing else</b> — {@code "sfx/msg"} — and, unlike every prior section,
@@ -74,7 +74,7 @@ import java.util.Map;
  * to the same playback state. {@code :stop()} and {@code :playing()} are pure engine surface (no core edit):
  * {@code ActAudio.RootChannel.remove(cs)} stops, {@code mixer().playing(cs)} tests. There is no end-of-clip
  * callback and none is needed — {@code Audio.Mixer.get} drops a drained clip <b>lazily</b>, so asking is also
- * how a Sound prunes its own list. {@code :playing(filter)} is that prune across the whole map: the
+ * how a Sound prunes its own list. {@code :sounding(filter)} is that prune across the whole map: the
  * addon's still-playing Sounds, and only the addon's — the client's own blips run through the same kind of
  * channel in each session's own tree, and are not ours to enumerate or stop.
  *
@@ -128,7 +128,7 @@ public final class LuaSound {
         /**
          * The addon's <b>playback state</b>, keyed by resource name — the clips in the air plus the plays still
          * resolving. Deliberately here and not on the handle: the handles are weak, so a Sound Lua has dropped
-         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code :playing()}
+         * (or re-fetched) must not lose track of what it started. Insertion-ordered, so {@code :sounding()}
          * lists in the order the addon started them; entries are dropped as they drain.
          */
         private final Map<String, Live> sounding = new LinkedHashMap<String, Live>();
@@ -161,6 +161,27 @@ public final class LuaSound {
             return l;
         }
 
+        /**
+         * <b>How many clips this addon has in the air right now</b> — sounding plus still resolving,
+         * across every name (audit2 B14, sn-03).
+         *
+         * <p>Nothing capped it. {@code :play()} bumped {@code pending} and handed a task to the client's
+         * shared {@code glob.loader}, so a loop of ten thousand plays queued ten thousand resolves on the
+         * thread every resource in the client comes through and then ten thousand streams into one mixer —
+         * and because a play is a single Java bridge call, the sandbox's instruction watchdog charged the
+         * loop about one instruction per iteration and never fired. The bound is per addon rather than per
+         * name, because the name was already the only bound there was and the map key is not a limit.
+         */
+        synchronized int inTheAir() {
+            int n = 0;
+            for(Live l : sounding.values()) {
+                synchronized(l) {
+                    n += l.pending + l.clips.size();
+                }
+            }
+            return n;
+        }
+
         /** Is this name still sounding (or still resolving)? Prunes what the mixer has drained. */
         synchronized boolean playing(String res) {
             Live l = sounding.get(res);
@@ -180,7 +201,7 @@ public final class LuaSound {
         }
 
         /**
-         * {@code hafen.sound():playing()}: the addon's still-playing Sounds, pruning as it goes — so the same
+         * {@code hafen.sound():sounding()}: the addon's still-playing Sounds, pruning as it goes — so the same
          * call that counts them is the call that drains the drained ones.
          */
         synchronized List<LuaValue> members() {
@@ -312,8 +333,13 @@ public final class LuaSound {
             l.pending = 0;
             for(int i = 0; i < l.clips.size(); i++) {
                 Clip c = l.clips.get(i);
-                if(c.ui.audio != null)          // ITS channel: a layer replaced since this clip started
-                    c.ui.audio.aui.remove(c.cs);   //   still has to be the one told to drop it
+                // audit2 B14 (sn-08): THE WHOLE PATH IS ASKED, as prune's own guard does. This tested the
+                // channel object and then dereferenced the field inside it, so a UI whose audio root exists
+                // with no `aui` on it yet -- which is what a tree between construction and its first frame
+                // is -- threw a NullPointerException out of :stop(), inside this monitor.
+                ActAudio.Root au = c.ui.audio;   // ITS channel: a layer replaced since this clip started
+                if((au != null) && (au.aui != null))
+                    au.aui.remove(c.cs);         //   still has to be the one told to drop it
             }
             l.clips.clear();
         }
@@ -453,13 +479,28 @@ public final class LuaSound {
      * all. Because the resolve lands later, the play carries the {@link Live#gen} it started under: a
      * {@code :stop()} in between bumps that stamp and the clip is dropped instead of blipping (024.2).
      */
+    /** How many clips one addon may have sounding or resolving at once — see {@link Sounds#inTheAir}. */
+    private static final int MAX_LIVE = 64;
+
+    /** How long a play waits for a resource that neither resolves nor fails, in seconds (sn-09). */
+    private static final double LOAD_TIMEOUT = 30.0;
+
     private static void play(final Addon owner, final String name, final double vol) {
         final Glob g = AddonManager.glob();
         final UI u = AddonManager.layer();
         if((g == null) || (u == null))
             return;
+        // sn-03: the cap, refused BEFORE anything is queued. A refusal and not a silent drop: a play that
+        // did not happen is exactly the kind of nothing an addon never notices, and the number it names is
+        // what tells an author their loop is the problem rather than the mixer.
+        if(owner.sounds.inTheAir() >= MAX_LIVE)
+            throw new LuaError("sound:play(): this addon already has " + MAX_LIVE + " clips playing or"
+                + " loading, which is the limit — a sound that has to be started that often is one sound"
+                + " played once, or a timer. sound:playing() reads what is still in the air and"
+                + " sound:stop() ends it");
         final Live live = owner.sounds.sounding(name);
         final int gen;
+        final double t0 = haven.Utils.rtime();
         synchronized(live) {
             live.pending++;         // :playing() is true from the instant :play() returns, not from the resolve
             gen = live.gen;
@@ -474,6 +515,21 @@ public final class LuaSound {
             public void run() {
                 Audio.CS cs;
                 try {
+                    // audit2 B14 (sn-09): AND THE WAIT IS BOUNDED. A Loading is rethrown so the loader runs
+                    // this task again, and `pending` deliberately stands across that -- but a resource that
+                    // neither resolves nor fails (a name the server never answers for) left it standing for
+                    // ever, so :playing() answered true about a clip that would never sound and the entry
+                    // never pruned. A load failure already decrements below; a load that never finishes now
+                    // reaches the same end by the clock.
+                    if((haven.Utils.rtime() - t0) > LOAD_TIMEOUT) {
+                        synchronized(live) {
+                            if(live.gen == gen)
+                                live.pending--;
+                        }
+                        AddonManager.log("gave up loading " + name + " after " + (int)LOAD_TIMEOUT
+                                         + "s — it is still not resolved, so nothing was played");
+                        return;
+                    }
                     cs = Audio.fromres(resid.get());   // Loading → the loader re-runs this task (pending stands)
                 } catch(Loading l) {
                     throw(l);
@@ -515,18 +571,23 @@ public final class LuaSound {
      */
     static LuaValue collection(final Addon owner) {
         LuaTable extra = new LuaTable();
-        // playing(filter) -- the clips of yours that are AUDIBLE right now (091, A-081). It was :list(),
+        // sounding(filter) -- the clips of yours that are AUDIBLE right now (091, A-081). It was :list(),
         // which promised the set :get() addresses and delivered a different one.
-        extra.set("playing", new VarArgFunction() {
+        // audit2 B14 (sn-11): SPELLED :sounding(). It was :playing(filter), which is an adjective naming a
+        // COLLECTION -- and the same word one receiver down (sound:playing()) is a boolean, so one word
+        // meant two kinds on two receivers of one section. The boolean keeps it, because a bare adjective
+        // IS how this grammar spells a boolean; the set takes the word the client's own state has always
+        // used for it (Sounds.sounding), and Refusal names the move.
+        extra.set("sounding", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "hafen.sound()", "playing");
-                Args.only(a, 1, "hafen.sound():playing");
+                LuaCollection.receiver(a.arg1(), "hafen.sound()", "sounding");
+                Args.only(a, 1, "hafen.sound():sounding");
                 final LuaValue filter = a.arg(2);
-                return LuaCollection.create("hafen.sound():playing()", new LuaCollection.Source() {
+                return LuaCollection.create("hafen.sound():sounding()", new LuaCollection.Source() {
                     public List<LuaValue> members() {
                         List<LuaValue> out = new ArrayList<LuaValue>();
                         for(LuaValue m : owner.sounds.members()) {
-                            if(LuaCollection.keeps(filter, m, this, "hafen.sound()", "playing"))
+                            if(LuaCollection.keeps(filter, m, this, "hafen.sound()", "sounding"))
                                 out.add(m);
                         }
                         return out;
@@ -543,7 +604,7 @@ public final class LuaSound {
 
                     public String noGet() {
                         return "the audible clips are a partition of what you have addressed:"
-                            + " hafen.sound():get(name) mints one by resource name, playing or not";
+                            + " hafen.sound():get(name) mints one by resource name, sounding or not";
                     }
                 }, null);
             }
@@ -553,10 +614,10 @@ public final class LuaSound {
                 // 091/A-081: this collection ADDRESSES by name and does not enumerate. :get(name) mints a
                 // Sound for ANY clip, playing or not, so a :list() of the PLAYING ones was a different set
                 // under the same collection -- :count() answered "how many are audible", which is correct
-                // and is not the question :count() asks anywhere else. The playing ones are :playing(f).
+                // and is not the question :count() asks anywhere else. The audible ones are :sounding(f).
                 throw new LuaError("hafen.sound() does not enumerate: hafen.sound():get(name) mints a Sound"
-                    + " for any clip, playing or not, so there is no set of \"your sounds\" to count."
-                    + " hafen.sound():playing(filter) is the ones audible right now");
+                    + " for any clip, sounding or not, so there is no set of \"your sounds\" to count."
+                    + " hafen.sound():sounding(filter) is the ones audible right now");
             }
 
             public String needle(LuaValue member) {

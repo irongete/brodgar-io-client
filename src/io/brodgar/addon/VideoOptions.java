@@ -76,7 +76,7 @@ public final class VideoOptions {
                 u.setgprefs(u.gprefs.update(null, setting, val));
             }
         } catch(GSettings.SettingException e) {
-            throw new LuaError("video:" + method + "(): " + e.getMessage());
+            throw new LuaError("video:" + method + "(): " + Refusal.reason(e));
         }
     }
 
@@ -90,7 +90,7 @@ public final class VideoOptions {
             protected void onWrite(LuaValue value) {
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.lshadow, value.toboolean(), "shadows");
+                    apply(gs.lshadow, bool(value, "on", "whether the sun casts shadows"), "shadows");
             }
         });
         m.set("renderScale", new OptionsMethod(owner, handle, "video:renderScale") {
@@ -113,7 +113,7 @@ public final class VideoOptions {
             protected void onWrite(LuaValue value) {
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.vsync, value.toboolean(), "vsync");
+                    apply(gs.vsync, bool(value, "on", "whether frames wait for the display"), "vsync");
             }
         });
         m.set("fpsLimit", new OptionsMethod(owner, handle, "video:fpsLimit") {

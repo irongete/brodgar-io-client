@@ -193,7 +193,7 @@ final class HookApi {
      *
      * <p><b>A command that fails is not the caller's error.</b> The body mirrors {@code ConsoleHost.done}
      * exactly — which is copied rather than called, being an instance method of a widget owning a
-     * {@code ReadLine}, and no line is read here: catch {@code Exception}, take {@code getMessage()} with a
+     * {@code ReadLine}, and no line is read here: catch every throwable, take {@link Refusal#reason} with a
      * {@code toString()} fallback, and write to <b>both</b> of the console's own exits, {@code cons.out} (that
      * character's System log once its HUD is up) and {@link UI#error} (its on-screen notice). It catches
      * {@code Exception} and not {@code Throwable}, which is what leaves {@code :die}'s {@code Error}
@@ -237,13 +237,21 @@ final class HookApi {
                         + " character list, gone) has no widget tree to run a line in");
                 try {
                     u.cons.run(u.root, line);
-                } catch(Exception e) {
+                } catch(Throwable t) {
                     // ConsoleHost.done, verbatim: the console owns a refusal channel and it is the one the
                     // user reads. Raising here instead would reprint it behind the CALLER's addon tag, so
                     // `zzz` would read as the addon's mistake rather than the console's answer.
-                    String msg = e.getMessage();
-                    if(msg == null)
-                        msg = e.toString();
+                    //   audit2 B14 (co-07): AND AN Error. This used to catch Exception alone, so `:die`'s
+                    // own Error unwound out of the console and into the CALLING addon's Lua -- past a
+                    // channel console.md promises raises nothing to catch. Two kinds are still not ours,
+                    // for AddonManager.called's reasons: ThreadDeath belongs to whoever raised it, and
+                    // anything caught while this thread is interrupted belongs to the quit.
+                    if((t instanceof ThreadDeath) || Thread.currentThread().isInterrupted()) {
+                        if(t instanceof Error)
+                            throw (Error)t;
+                        throw new LuaError(RUN + ": " + Refusal.reason(t));
+                    }
+                    String msg = Refusal.reason(t);
                     u.cons.out.println(msg);
                     u.error(msg);
                 }
@@ -302,9 +310,21 @@ final class HookApi {
                 // different addon. If a LIVE handler owned by a different addon holds it, note the reassignment
                 // (last registration wins, WoW-like); a same-owner re-register (the reload case) is silent.
                 LuaConsoleCommand cur = consoleHandlers.get(cmd);
-                if((cur != null) && cur.alive && (cur.owner != owner))
+                if((cur != null) && cur.alive && (cur.owner != owner)) {
                     AddonManager.log("console command ':" + cmd + "' reassigned from '" + idOf(cur.owner)
                                      + "' to '" + idOf(owner) + "'");
+                    // audit2 B14 (co-03): AND THE LOSER IS ENDED, not merely out-voted. Registration is
+                    // last-wins, and the previous owner's Sub used to stay `alive` in its own :list() and
+                    // :get() with the dispatcher permanently unable to reach it -- a subscription that reads
+                    // live and can never fire, which is co-04's shape one door over. Its Ended hook is what
+                    // ends it, so the loser's own bookkeeping (consoleCommands, consoleSubs) is dropped by
+                    // the same path :off() uses; the dispatcher stays standing because the map below is
+                    // about to name the winner and endConsoleCommand only unsets a name nobody holds.
+                    for(LuaSub old : cur.owner.consoleSubs.live()) {
+                        if(old.key.equals(cmd))
+                            cur.owner.consoleSubs.off(old);
+                    }
+                }
             }
             consoleHandlers.put(cmd, h);   // last registration wins (the current live handler the dispatcher routes to)
         }
@@ -339,7 +359,19 @@ final class HookApi {
     private static void dispatchConsole(String name, String[] words) {
         LuaConsoleCommand h = consoleHandlers.get(name);
         if((h == null) || !h.alive) {
-            AddonManager.log("no addon currently handles :" + name);
+            // audit2 B14 (co-11): TO THE CONSOLE, which is the channel that asked. This went to the addon
+            // log -- a line the user reads in the chat, tagged as the client's, about a word they typed at
+            // a prompt that then said nothing at all. The failure path fifteen lines up already writes to
+            // cons.out + UI.error with a comment saying that is "the console's own refusal channel and it
+            // is the one the user reads"; a word nobody answers is the same kind of answer.
+            UI u = AddonManager.screen();
+            String msg = "no addon currently handles :" + name;
+            if((u != null) && (u.cons != null)) {
+                u.cons.out.println(msg);
+                u.error(msg);
+            } else {
+                AddonManager.log(msg);       // pre-HUD: there is no console to answer in
+            }
             return;
         }
         h.invoke(words);
@@ -395,10 +427,19 @@ final class HookApi {
      * Declare one addon hotkey — the body of {@code keybindings:on(name, fn)}. The binding starts
      * <b>unbound</b> (D-047): the addon names an action, the user assigns the key in Options ▸ Keybindings.
      */
+    /**
+     * The {@link KeyBinding} id one addon hotkey is registered and remembered under — {@code Utils.setpref}
+     * then stores it as {@code "keybind/" + this}. Spelled once (audit2 B14, cl-03) so the door that checks
+     * the length and the door that builds the key cannot mean two different strings.
+     */
+    static String keyBindId(Addon owner, String name) {
+        return "addon/" + owner.manifest.id + "/" + name;
+    }
+
     static LuaKeyBind newKeyBind(final Addon owner, String name, LuaValue fn) {
         // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
         // a user's assignment (persisted in the client prefs) survives; KeyMatch.nil applies only on first create.
-        KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + name, KeyMatch.nil);
+        KeyBinding kbnd = KeyBinding.get(keyBindId(owner, name), KeyMatch.nil);
         kbnd.hold();   // the claim on the user's assignment lives as long as a handler does; teardown released it
         LuaKeyBind h = new LuaKeyBind(owner, name, kbnd, fn);
         keyBinds.add(h);
@@ -495,6 +536,14 @@ final class HookApi {
      * called from {@link AddonRoot#globtype}. Runs the handler of the first addon hotkey
      * ({@code keybindings:on}) whose current key matches and returns whether the key was <b>consumed</b>. The addon-root is walked last,
      * so a client binding on the same key wins — an addon hotkey is the fallback, never a hijack.
+     *
+     * <p><b>The BINDING consumes the press, not the handler's outcome</b> (audit2 B14, cl-10), and that is a
+     * decision rather than an oversight. {@link AddonManager#callLua} contains a handler that throws, so
+     * asking it whether the press "worked" would answer no for a bug in the addon — and the client would
+     * then run its own binding for that key, so a typo in an addon would make a hotkey do two things at
+     * once, intermittently. A key the user assigned to an addon action belongs to that addon while the
+     * assignment stands. {@code keybindings.md} says this, and says which thread and tree the handler runs
+     * on beside it.
      */
     static boolean dispatchKey(Widget.GlobKeyEvent ev) {
         if(keyBinds.isEmpty())

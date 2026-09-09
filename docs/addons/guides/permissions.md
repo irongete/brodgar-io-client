@@ -47,8 +47,8 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `virtual.click` | [`hafen.virtual():click`](../api/virtual/README.md#clicking-what-stands-in-the-world-protected) | click the controls it has standing in the world, which act as if you had clicked them |
 | `client.settings` | [every option write](../api/client/README.md) and [`binding:key(k)`](../api/client/keybindings.md) | change your client settings and hotkeys |
 | `console.run` | [`s:console():run`](../api/console.md#run-a-line-protected) | run any of the client's console commands, on any of your characters, including ones that run code outside the addon sandbox |
-| `http.get` | [`hafen.http():get`](../api/http.md) | fetch data from the servers it lists |
-| `http.post` | [`hafen.http():post`](../api/http.md) | send data to the servers it lists |
+| `http.get` | [`request:send`](../api/http.md#the-request-object) on a GET | fetch data from the servers it lists |
+| `http.post` | [`request:send`](../api/http.md#the-request-object) on a POST | send data to the servers it lists |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.

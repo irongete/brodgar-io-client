@@ -96,6 +96,18 @@ public final class Subs {
     public static final class Cancel {
         private boolean prevented;
 
+        /**
+         * <b>Whether this fire is over</b> (audit2 B14, ev-03) — set by the dispatcher when the last handler
+         * has run and it has read {@link #prevented()}.
+         *
+         * <p>An {@code ev} is an ordinary Lua value, so a handler may stash it in a table and reach for it a
+         * minute later; {@code ev:preventDefault()} then set a flag nobody was still reading and answered as
+         * if it had stopped something. A fire that has been answered cannot be un-answered, and the verbs
+         * that imply a cancel refuse rather than pretend. A {@code Cancel} whose dispatcher never finishes
+         * it is simply never finished, which is what every site that does not bracket its fire already got.
+         */
+        private boolean done;
+
         /** {@code ev:preventDefault()} — from this moment the fire is cancelled, whoever else runs. */
         public void prevent() {
             prevented = true;
@@ -104,6 +116,16 @@ public final class Subs {
         /** Did any handler of this fire cancel it? */
         public boolean prevented() {
             return prevented;
+        }
+
+        /** The dispatcher has read {@link #prevented()}: nothing said after this can change the outcome. */
+        public void finish() {
+            done = true;
+        }
+
+        /** Is the fire this cancel belongs to already over? — see {@link #done}. */
+        public boolean done() {
+            return done;
         }
     }
 

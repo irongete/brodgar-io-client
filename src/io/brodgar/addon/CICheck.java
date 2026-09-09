@@ -77,9 +77,7 @@ final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, 
     }
 
     public void value(LuaValue v) {
-        if(!v.isboolean())
-            throw new LuaError("widget:value(v) on a checkbox is a BOOLEAN, got " + v.typename());
-        this.a = v.toboolean();
+        this.a = Args.bool(v, "widget:value", "v", "a checkbox holds one or the other");
     }
 
     private void fire(boolean val) {

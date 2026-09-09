@@ -93,6 +93,9 @@ final class Refusal {
     static {
         // The renames this API's own refusals went on naming after the cut (audit2 B09): each keyed by the
         // spelling a reader meets it under, each naming the verb that answers now.
+        MOVED.put("hafen.sound():playing", "hafen.sound():playing(filter) is hafen.sound():sounding(filter):"
+            + " a set is a collection and takes a noun, and `playing` is the BOOLEAN one receiver down"
+            + " (sound:playing()). One word, one kind.");
         MOVED.put("slot:pagina", "slot:pagina(pag) is slot:hold(pag): the entry your addon holds that bar"
                   + " slot for, and slot:hold(nil) ends the hold");
         MOVED.put("session:study():slot", "session:study():slot() is session:study():curiosity(): the"
@@ -236,15 +239,6 @@ final class Refusal {
     }
 
     /**
-     * The members of {@code t}, alphabetical, as an English list — {@code ":a() :b() and :c()"} for a
-     * vocabulary, {@code ".w and .h"} for a shape. Built <b>at refusal time off the very table the refusal
-     * guards</b>, which is the whole point: a hand-written copy drifts the moment a verb is added or dropped,
-     * and a message that names a verb the receiver has not got sends the reader somewhere there is nothing.
-     * Alphabetical because the order has to come from somewhere and a table's own is a hash order.
-     *
-     * <p>It costs nothing until something is already going wrong: this runs on the refusal path only.
-     */
-    /**
      * The vocabulary a methods table carries, as {@code ":a() :b() and :c()"} — the door for a receiver that
      * builds its own {@code __index} ({@link Section}, {@link LuaCollection}) rather than hanging
      * {@link #closedIndex} off one. Same list, same source of truth, so the two shapes of refusal cannot
@@ -254,6 +248,15 @@ final class Refusal {
         return members(methods, ":", "()");
     }
 
+    /**
+     * The members of {@code t}, alphabetical, as an English list — {@code ":a() :b() and :c()"} for a
+     * vocabulary, {@code ".w and .h"} for a shape. Built <b>at refusal time off the very table the refusal
+     * guards</b>, which is the whole point: a hand-written copy drifts the moment a verb is added or dropped,
+     * and a message that names a verb the receiver has not got sends the reader somewhere there is nothing.
+     * Alphabetical because the order has to come from somewhere and a table's own is a hash order.
+     *
+     * <p>It costs nothing until something is already going wrong: this runs on the refusal path only.
+     */
     private static String members(LuaTable t, String prefix, String suffix) {
         List<String> names = new ArrayList<String>();
         LuaValue k = LuaValue.NIL;
@@ -321,5 +324,23 @@ final class Refusal {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, hafenIndex());
         hafen.setmetatable(mt);
+    }
+
+    /**
+     * <b>A thrown problem as one readable line</b> — its message, or its class and message when it carries
+     * none. The one place {@code getMessage()} is read in the bridge, and the reason it is: an
+     * {@code IOException} thrown by a closed socket, a {@code NullPointerException} and a
+     * {@code FontFormatException} on a truncated file all carry {@code null} there, so every site that
+     * concatenated it wrote {@code "could not read 'icon.png': null"} — a refusal that names the file and
+     * then says nothing at all about what went wrong. {@code toString()} always names at least the kind.
+     *
+     * <p>It is used by refusals and by log lines alike, which is why it lives with the wording and not with
+     * either of them.
+     */
+    static String reason(Throwable e) {
+        if(e == null)
+            return "no reason given";
+        String reason = e.getMessage();
+        return ((reason == null) || reason.isEmpty()) ? e.toString() : reason;
     }
 }

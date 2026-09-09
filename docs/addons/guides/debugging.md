@@ -44,8 +44,13 @@ nothing is sandboxed and every protected verb works there.
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
 :lua hafen.session():current():ui():match("window[title=Inventory]"):info()
-:lua for _, m in ipairs(hafen.session():current():meter():list()) do hafen.log():write(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.session():current():meter():list()) do print(m:res()) end
 ```
+
+**`print` in a loop, not `hafen.log():write`.** In `:lua` a `print` goes to the console you are typing
+in, where a run of lines reads as a run of lines; `hafen.log():write` posts a timed notice over the
+world for each one, which carpets the screen and is rate-limited to eight a second for exactly that
+reason. Write to the log when your addon has something to say; print when you are looking at it.
 
 Anything that reads is safe to try. Anything that writes is a real change to your client — that is the
 point of the console, and the reason to keep `:reload` in reach.

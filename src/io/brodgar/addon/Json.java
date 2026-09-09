@@ -37,13 +37,22 @@ import org.luaj.vm2.LuaValue;
  * deep table would {@code StackOverflow} the writer exactly as a deep document would the reader.
  */
 public final class Json {
-    /** Input-length cap for {@code hafen.json():parse} (bytes of the string), {@code -Dhaven.addon.json.maxlen}. */
-    public static final int MAX_INPUT = (int)propLong("haven.addon.json.maxlen", 8L * 1024 * 1024);
+    /**
+     * The size cap, <b>one cap in both directions</b> and counted in <b>UTF-16 chars</b> —
+     * {@code hafen.json():parse} refuses a longer document and {@link #write(LuaValue,boolean)} stops
+     * writing past it. {@code -Dhaven.addon.json.maxlen}.
+     *
+     * <p>It said "bytes of the string" and measured {@code s.length()} (audit2 B14, js-12): an astral
+     * character is two of these and four UTF-8 bytes, so the two readings differ by up to four times on the
+     * one input where it matters. Chars is what the gate can actually count without encoding the string
+     * first, so chars is what it is called.
+     */
+    public static final int MAX_INPUT = propInt("haven.addon.json.maxlen", 8 * 1024 * 1024);
     /**
      * Nesting-depth cap, one cap in both directions: {@code hafen.json():parse} and the default
      * {@link #parse(String)} read no deeper, and {@link #write(LuaValue,boolean)} writes no deeper.
      */
-    public static final int DEFAULT_MAX_DEPTH = (int)propLong("haven.addon.json.maxdepth", 256L);
+    public static final int DEFAULT_MAX_DEPTH = propInt("haven.addon.json.maxdepth", 256);
 
     private final String s;
     private final int maxDepth;
@@ -144,8 +153,21 @@ public final class Json {
                 case 'r':  b.append('\r'); break;
                 case 't':  b.append('\t'); break;
                 case 'u':
+                    // audit2 B14 (js-04, js-08): FOUR HEX DIGITS, read by hand. Integer.parseInt(_,16) is
+                    // the wrong reader twice over: on "ZZZZ" it throws a raw NumberFormatException, which is
+                    // a RuntimeException, so the bridge rethrew "For input string: \"ZZZZ\" under radix 16"
+                    // where json.md promises "JSON: <message> at offset <n>"; and it ACCEPTS A SIGN, so
+                    // "\\u-123" scanned to 0xfedd and "\\u+041" to 'A' -- a garbage character where the page
+                    // promises a refusal. Four digits is a four-iteration loop; there is nothing to parse.
                     if(i + 4 > s.length()) throw err("bad \\u escape");
-                    b.append((char)Integer.parseInt(s.substring(i, i + 4), 16));
+                    int cp = 0;
+                    for(int u = 0; u < 4; u++) {
+                        int d = Character.digit(s.charAt(i + u), 16);
+                        if(d < 0) throw err("bad \\u escape: '" + s.substring(i, i + 4)
+                                            + "' is not four hex digits");
+                        cp = (cp << 4) | d;
+                    }
+                    b.append((char)cp);
                     i += 4;
                     break;
                 default: throw err("bad escape '\\" + e + "'");
@@ -156,11 +178,36 @@ public final class Json {
         }
     }
 
+    /**
+     * A number, scanned by <b>JSON's own grammar</b> and not by what {@code Double.parseDouble} happens to
+     * take (audit2 B14, js-09). The scanner used to swallow any run of {@code 0123456789+-.eE} and hand it
+     * over, so every form {@code parseDouble} is happy with parsed silently against json.md's flat
+     * "malformed input raises": {@code 01} read as 1, {@code +5}, {@code .5}, {@code 5.}, {@code 0x1p3} and
+     * {@code Infinity} likewise. The grammar is
+     * {@code -? (0 | [1-9][0-9]*) (. [0-9]+)? ([eE] [+-]? [0-9]+)?}, and it is short enough to write.
+     */
     private Double number() {
         int start = i;
-        if(peek() == '-') i++;
-        while((i < s.length()) && ("0123456789+-.eE".indexOf(s.charAt(i)) >= 0))
+        if((i < s.length()) && (s.charAt(i) == '-')) i++;
+        if(i >= s.length()) throw err("bad number");
+        if(s.charAt(i) == '0') {
+            i++;                                    // a leading zero stands alone: 01 is two tokens, not one
+        } else if(digit(i)) {
+            while(digit(i)) i++;
+        } else {
+            throw err("bad number");
+        }
+        if((i < s.length()) && (s.charAt(i) == '.')) {
             i++;
+            if(!digit(i)) throw err("bad number");  // a point needs a digit after it
+            while(digit(i)) i++;
+        }
+        if((i < s.length()) && ((s.charAt(i) == 'e') || (s.charAt(i) == 'E'))) {
+            i++;
+            if((i < s.length()) && ((s.charAt(i) == '+') || (s.charAt(i) == '-'))) i++;
+            if(!digit(i)) throw err("bad number");  // an exponent needs a digit after it
+            while(digit(i)) i++;
+        }
         double d;
         try {
             d = Double.parseDouble(s.substring(start, i));
@@ -173,6 +220,14 @@ public final class Json {
         if(!Double.isFinite(d))
             throw err("number out of range");
         return Double.valueOf(d);
+    }
+
+    /** Is {@code s.charAt(at)} an ASCII digit? (End of input is not one.) */
+    private boolean digit(int at) {
+        if(at >= s.length())
+            return false;
+        char c = s.charAt(at);
+        return (c >= '0') && (c <= '9');
     }
 
     private Object literal(String word, Object val) {
@@ -201,13 +256,25 @@ public final class Json {
         return new RuntimeException("JSON: " + msg + " at offset " + i);
     }
 
-    private static long propLong(String name, long def) {
+    /**
+     * A cap read off a launch property, <b>clamped into the range an {@code int} holds</b> (audit2 B14,
+     * js-12). It used to be {@code (int)propLong(...)}, and a cast is not a clamp:
+     * {@code -Dhaven.addon.json.maxlen=8589934592} truncated to {@code 0}, a cap that refuses every input
+     * including the empty string, and a negative one did the same. A number below 1 is not a cap anybody
+     * meant, so the floor is 1.
+     */
+    private static int propInt(String name, int def) {
+        long v = def;
         try {
-            String v = haven.Utils.getprop(name, null);
-            return (v == null) ? def : Long.parseLong(v.trim());
+            String raw = haven.Utils.getprop(name, null);
+            if(raw != null)
+                v = Long.parseLong(raw.trim());
         } catch(RuntimeException e) {
             return def;
         }
+        if(v < 1L)
+            return 1;
+        return (v > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int)v;
     }
 
     // -------------------------------------------------- writer (N1/D-013)
@@ -232,13 +299,21 @@ public final class Json {
 
     /** {@code depth} is the number of tables already open around {@code v} — 0 at the root. */
     private static void write(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict, int depth) {
+        // audit2 B14 (js-11): THE SIZE CAP APPLIES IN THIS DIRECTION TOO. parse() has had one since it was
+        // written; encode had none of any kind, and both are a single Java bridge call, which the sandbox's
+        // instruction watchdog charges ~1 for -- so a table with a few million entries was an unbounded
+        // allocation and an unbounded stall that nothing in the addon layer could see coming. One length
+        // test per value written is the cheapest place to put it and the earliest that can stop.
+        if(sb.length() > MAX_INPUT)
+            throw new LuaError("hafen.json():encode: the document is too large (over " + MAX_INPUT
+                + " chars) — encode the part you mean to write, or raise -Dhaven.addon.json.maxlen");
         LuaPosition pos = LuaPosition.resolve(v);
         if(pos != null) {
             writePos(pos, sb, strict);
         } else if(v.isnil()) {
             sb.append("null");
         } else if(v.isboolean()) {
-            sb.append(v.toboolean() ? "true" : "false");
+            sb.append(Args.truthy(v) ? "true" : "false");
         } else if(v instanceof LuaNumber) {
             double d = v.todouble();
             if(!Double.isFinite(d)) {
@@ -287,12 +362,25 @@ public final class Json {
         sb.append('}');
     }
 
-    /** A number, with clean integers (no trailing {@code .0}) — the one place numbers are formatted. */
+    /**
+     * A number, with clean integers (no trailing {@code .0}) — the one place numbers are formatted.
+     *
+     * <p><b>However wide it is</b> (audit2 B14, js-07). The threshold used to be {@code 1e15}, above which
+     * an integral value fell to {@code Double.toString} and came out {@code 1.0E15} — the trailing
+     * {@code .0} json.md says an integral number never has, on the very values (a millisecond epoch, a byte
+     * count, a server id) that reach that size. {@code long} covers to {@code 9.2e18} exactly, and
+     * {@link java.math.BigDecimal#valueOf} spells the rest as the digits that round-trip to the same double.
+     */
     private static void writeNum(double d, StringBuilder sb) {
-        if((d == Math.rint(d)) && (Math.abs(d) < 1e15))
-            sb.append(Long.toString((long)d));
-        else
+        if(d != Math.rint(d)) {
             sb.append(Double.toString(d));
+        } else if(Math.abs(d) < 1e15) {
+            sb.append(Long.toString((long)d));
+        } else if(Math.abs(d) < 9.007199254740992E15) {   // exact in a long, and exact in a double
+            sb.append(Long.toString((long)d));
+        } else {
+            sb.append(java.math.BigDecimal.valueOf(d).toBigInteger().toString());
+        }
     }
 
     /**
@@ -339,11 +427,25 @@ public final class Json {
             } else {
                 sb.append('{');
                 boolean first = true;
+                java.util.Set<String> written = new java.util.HashSet<String>();
                 for(LuaValue k : keys) {
+                    String ks = key(k, strict);
+                    // audit2 B14 (js-02): AND EACH ONE ONCE. Every key is stringified, so {[1]='a',['1']='b'}
+                    // wrote {"1":"a","1":"b"} -- a duplicate key, which is not valid JSON, against the page's
+                    // "it only ever produces valid JSON". Strict refuses the collision naming both spellings;
+                    // the forgiving path keeps the first and drops the later one, because a store flush must
+                    // not be lost to it and a document with one of the two in it is at least readable.
+                    if(!written.add(ks)) {
+                        if(strict)
+                            throw new LuaError("hafen.json():encode: two keys of this table are the same JSON"
+                                + " name (\"" + ks + "\") — a number key and a string key spell the same"
+                                + " thing, and a JSON object holds one of them. Use one or the other");
+                        continue;
+                    }
                     if(!first)
                         sb.append(',');
                     first = false;
-                    writeStr(k.tojstring(), sb);          // JSON keys are strings
+                    writeStr(ks, sb);                     // JSON keys are strings
                     sb.append(':');
                     write(t.get(k), sb, seen, strict, depth + 1);
                 }
@@ -352,6 +454,27 @@ public final class Json {
         } finally {
             seen.remove(t);
         }
+    }
+
+    /**
+     * <b>One table key, as the JSON name it becomes</b> (audit2 B14, js-03) — the key half of the check
+     * {@code strict} was doing on values alone.
+     *
+     * <p>Every {@code strict} branch lived in {@link #write}, which is the VALUE path, so a key of a kind
+     * JSON cannot hold went through {@code k.tojstring()} unexamined: a table key wrote
+     * {@code {"table: 4459eb14":1}} — a heap address in a document, different on every run, and no refusal
+     * anywhere. A JSON name is a string; a number is the one other kind that spells one unambiguously, and
+     * the rest are refused strict and given a stable placeholder by the forgiving path, which writes a
+     * marker rather than a value everywhere else too.
+     */
+    private static String key(LuaValue k, boolean strict) {
+        int t = k.type();
+        if((t == LuaValue.TSTRING) || (t == LuaValue.TNUMBER))
+            return k.tojstring();
+        if(strict)
+            throw new LuaError("hafen.json():encode: a " + k.typename() + " cannot be a JSON key — an object's"
+                + " names are strings (a number key spells one too). Key this table by a string");
+        return "<" + k.typename() + ">";
     }
 
     private static void writeStr(String s, StringBuilder sb) {
@@ -367,7 +490,14 @@ public final class Json {
             case '\b': sb.append("\\b"); break;
             case '\f': sb.append("\\f"); break;
             default:
-                if(c < 0x20)
+                // audit2 B14 (js-10): AND A LONE SURROGATE. Only < 0x20 and the seven named characters were
+                // escaped, so an unpaired \uD800 was emitted raw -- and a lone surrogate is not encodable as
+                // UTF-8 at all, so the document could not be written to a file or sent over a socket. A
+                // PAIRED surrogate is an ordinary astral character and is left exactly as it is.
+                if((c < 0x20) || (Character.isHighSurrogate(c)
+                                  && ((i + 1 >= s.length()) || !Character.isLowSurrogate(s.charAt(i + 1))))
+                   || (Character.isLowSurrogate(c)
+                       && ((i == 0) || !Character.isHighSurrogate(s.charAt(i - 1)))))
                     sb.append(String.format("\\u%04x", (int)c));
                 else
                     sb.append(c);

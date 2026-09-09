@@ -107,17 +107,26 @@ public final class ProfScope {
             s.t0 = System.nanoTime();
     }
 
-    /** Close the scope and charge the elapsed time (no-op when disarmed or when nothing is open). */
+    /**
+     * Close the scope and charge the elapsed time (no-op when nothing is open).
+     *
+     * <p><b>The depth is always balanced; only the charge is armed-only</b> (audit2 B14, pf-05). This
+     * returned before touching {@code depth} while disarmed — so disarming BETWEEN a {@code begin} and its
+     * {@code finish} left that scope's depth permanently above zero, and {@code --s.depth == 0} never held
+     * for it again: the name went on being opened and closed for the rest of the session and recorded
+     * nothing, with the profiler armed and everything else in the row filling normally. A bracket has to
+     * close whatever the switch is doing; what the switch decides is whether the time is written down.
+     * The reverse direction was already right and still is: an {@code end} with no {@code begin} behind it
+     * finds depth 0 and does nothing.
+     */
     static void finish(Addon owner, String name) {
-        if(!Prof.on)
-            return;
         Addon.Scope s;
         synchronized(owner.scopes) {         // audit2 B06: the map's own monitor, as Addon.scope takes
             s = owner.scopes.get(name);
         }
         if((s == null) || (s.depth == 0))
             return;                       // an unmatched finish(), or the switch was armed mid-section
-        if(--s.depth == 0) {
+        if((--s.depth == 0) && Prof.on) {
             s.nanos += System.nanoTime() - s.t0;
             s.calls++;
         }

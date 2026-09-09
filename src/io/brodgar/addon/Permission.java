@@ -112,8 +112,13 @@ public enum Permission {
                                                                               + " characters, including ones that"
                                                                               + " run code outside the addon"
                                                                               + " sandbox"),
-    HTTP_GET         ("http.get",           "hafen.http():get",               "fetch data from the servers it lists"),
-    HTTP_POST        ("http.post",          "hafen.http():post",              "send data to the servers it lists");
+    // audit2 B14 (pm-06): BOTH NAME request:send, which is the one door either key gates. 095 reshaped
+    // HTTP into a builder -- nothing leaves the client until :send() -- and the catalogue kept the old
+    // spellings, so the permissions guide named a verb that is gated by nothing while the refusal an author
+    // actually reads named the right one. The key is still per method: which of the two is asked for is
+    // decided by the request's own method at the send.
+    HTTP_GET         ("http.get",           "request:send",                   "fetch data from the servers it lists"),
+    HTTP_POST        ("http.post",          "request:send",                   "send data to the servers it lists");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;

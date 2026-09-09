@@ -1992,7 +1992,7 @@ final class Chrome {
             throw new LuaError(ctx + what + ": no such resource \"" + name + "\" — a resource name is the"
                 + " client's own, without a leading slash (e.g. \"gfx/hud/wnd/lg/bg\")");
         } catch(RuntimeException e) {
-            throw new LuaError(ctx + what + ": \"" + name + "\" is not an image resource: " + e.getMessage());
+            throw new LuaError(ctx + what + ": \"" + name + "\" is not an image resource: " + Refusal.reason(e));
         }
         if(tx == null)
             throw new LuaError(ctx + what + ": \"" + name + "\" carries no image");
@@ -2149,7 +2149,7 @@ final class Chrome {
      */
     static Emboss parseEmboss(Addon owner, String ctx, LuaValue v) {
         if(v.isboolean()) {
-            if(v.toboolean())
+            if(Args.truthy(v))
                 throw new LuaError(ctx + ".emboss: an emboss is " + EMBOSSES + ". \"true\" is this client's own"
                     + " relief, which is what a rule naming no emboss at all already draws — leave the property"
                     + " out to keep it");

@@ -209,13 +209,9 @@ final class FlowerMenuApi {
                     FlowerMenu fm = open(user);
                     return (fm == null) ? LuaValue.NIL : LuaValue.valueOf(fm.visible());
                 }
-                // A bare adjective takes a bare boolean. LuaJ would coerce anything at all through
-                // toboolean(), and 0 is TRUE in Lua — so :visible(0) reading as "paint it" is the one silent
-                // wrong answer this verb can give, and it is refused naming the argument instead. It comes
+                // A bare adjective takes a bare boolean, through the house door (Args.bool). It comes
                 // BEFORE the menu is looked for: the argument is wrong whether or not a ring is up.
-                if(!bv.isboolean())
-                    throw new LuaError(FM + ":visible(b): b must be true or false, got " + bv.typename());
-                boolean vis = bv.toboolean();
+                boolean vis = Args.bool(bv, FM + ":visible", "b", null);
                 // ...and the write cannot answer with no ring up, where the read can: there is nothing to
                 // hide, and silently doing nothing is the failure an automation never notices. Same door
                 // select and cancel take, so "no menu is open" is ONE message on this section.

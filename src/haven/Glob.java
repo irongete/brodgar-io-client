@@ -236,13 +236,14 @@ public class Glob {
 		double yt = Utils.dv(a[n++]);
 		boolean night = Utils.bv(a[n++]);
 		Color mc = (Color)a[n++];
-		int is = (n < a.length) ? Utils.iv(a[n++]) : 1;
+		boolean ispub = (n < a.length);   // addon: whether the SERVER said which season it is
+		int is = ispub ? Utils.iv(a[n++]) : 1;
 		double sp = (n < a.length) ? Utils.dv(a[n++]) : 0.5;
 		double sd = (n < a.length) ? Utils.dv(a[n++]) : 0.5;
 		double years = (n < a.length) ? Utils.dv(a[n++]) : 0.5;
 		double ym = (n < a.length) ? Utils.dv(a[n++]) : 0.5;
 		double md = (n < a.length) ? Utils.dv(a[n++]) : 0.5;
-		ast = new Astronomy(dt, mp, yt, night, mc, is, sp, sd, years, ym, md);
+		ast = new Astronomy(dt, mp, yt, night, mc, is, ispub, sp, sd, years, ym, md);   // addon: ispub
 	    } else if(t == "light") {
 		synchronized(this) {
 		    tlightamb = (Color)a[n++];

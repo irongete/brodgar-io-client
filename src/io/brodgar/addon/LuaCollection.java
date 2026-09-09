@@ -411,7 +411,7 @@ public final class LuaCollection {
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(member).toboolean();
+                return Args.truthy(filter.call(member));
             } catch(Loading l) {
                 // NOT RuntimeException, which LuaError is too. A read the predicate made that is not ready
                 // yet is not a "no" -- Loading is control flow, and the member simply does not match, exactly

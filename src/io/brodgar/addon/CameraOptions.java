@@ -38,7 +38,8 @@ public final class CameraOptions {
                 return LuaValue.valueOf(MapView.invcamx);
             }
             protected void onWrite(LuaValue value) {
-                Utils.setprefb("invcamx", MapView.invcamx = value.toboolean());
+                Utils.setprefb("invcamx", MapView.invcamx = bool(value, "on", "whether dragging left"
+                                                                 + " turns the camera right"));
             }
         });
         m.set("invertVertical", new OptionsMethod(owner, handle, "camera:invertVertical") {
@@ -46,7 +47,8 @@ public final class CameraOptions {
                 return LuaValue.valueOf(MapView.invcamy);
             }
             protected void onWrite(LuaValue value) {
-                Utils.setprefb("invcamy", MapView.invcamy = value.toboolean());
+                Utils.setprefb("invcamy", MapView.invcamy = bool(value, "on", "whether dragging up"
+                                                                 + " tilts the camera down"));
             }
         });
         m.set("mode", new OptionsMethod(owner, handle, "camera:mode") {

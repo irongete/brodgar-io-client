@@ -115,7 +115,18 @@ final class LocaleApi {
             }
         }
 
-        /** {@code :install()} — make this catalogue what the client displays, and start a fresh round of misses. */
+        /**
+         * {@code :install()} — make this catalogue what the client displays, and start a fresh round of
+         * misses.
+         *
+         * <p><b>A re-install is a promotion, and that is decided one layer down</b> (audit2 B14, lo-12).
+         * There is no first-install test here because there is nothing here for one to decide:
+         * {@link Fonts#installCatalogue} removes this catalogue from the stack and adds it back on top, so
+         * installing one that is already installed re-raises it — which is locale.md's "the last one
+         * installed wins", said by the stack itself. What this verb decides is the miss round, and it
+         * starts a new one either way: the misses of the round before are the answer to a catalogue that
+         * has just been rewritten, not part of the next round's question.
+         */
         void install() {
             if(doc == null)
                 throw new LuaError("hafen.locale():install(): there is no catalogue to install —"
@@ -132,7 +143,17 @@ final class LocaleApi {
             installed = true;
         }
 
-        /** {@code :release()} — stop displaying it. The document is untouched, so {@code :install()} puts it back. */
+        /**
+         * {@code :release()} — stop displaying it. The document is untouched, so {@code :install()} puts it
+         * back.
+         *
+         * <p><b>The misses stand, and that is the point of them</b> (audit2 B14, lo-08). Releasing ends the
+         * round: the catalogue is off the stack, so nothing can record into it again, and what it holds is
+         * the record of the round that just finished — which is the thing an author releases in order to
+         * read, since locale.md makes {@code miss()} the one part of this surface Lua can observe at all.
+         * {@code install()} is what clears it, because starting to display again is what starts a new
+         * question. {@code info().installed} is how a reader tells a finished round from a running one.
+         */
         void release() {
             Fonts.releaseCatalogue(this);   // audit2 B06: as above, and in this direction too
             installed = false;

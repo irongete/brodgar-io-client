@@ -103,7 +103,7 @@ final class VirtualApi {
                 LuaValue bv = Args.written(a, 2, "hafen.virtual():visible", "b");
                 if(bv == null)
                     return LuaValue.valueOf(!owner.virtualHidden);
-                setSectionVisible(owner, bv.toboolean());
+                setSectionVisible(owner, Args.bool(bv, "hafen.virtual():visible", "b", null));
                 return self;
             }
         });
@@ -947,7 +947,8 @@ final class VirtualApi {
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
         gh.scale = luaScale(opts.get("scale"), verb);  // V6: uniform scale (default 1 = original size)
         gh.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
-        gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
+        // V2: absent -> not clickable; a value that is not a boolean is refused rather than coerced
+        gh.clickable = Args.optbool(clickablev, verb, "clickable", "opt into the client-side pick", false);
         if(onclickv.isfunction())
             gh.onClick = onclickv;
         owner.ghosts.add(gh);
@@ -1176,7 +1177,7 @@ final class VirtualApi {
                 if(bv == null) {
                     synchronized(e) { return LuaValue.valueOf(!e.hidden && !e.dead); }
                 }
-                if(bv.toboolean())
+                if(Args.bool(bv, kind + ":visible", "b", null))
                     showEntity(e);
                 else
                     hideEntity(e);
@@ -1194,7 +1195,7 @@ final class VirtualApi {
                 if(bv == null) {
                     synchronized(e) { return LuaValue.valueOf(e.clickable); }
                 }
-                setEntityClickable(e, bv.toboolean());
+                setEntityClickable(e, Args.bool(bv, kind + ":clickable", "b", null));
                 return self;
             }
         });
@@ -1579,7 +1580,8 @@ final class VirtualApi {
         ob.alpha = luaAlpha(opts.get("alpha"), verb);
         ob.tint = luaTint(opts.get("tint"));
         ob.scale = luaScale(opts.get("scale"), verb);  // uniform scale on top of the baked model→world size
-        ob.clickable = opts.get("clickable").toboolean();
+        ob.clickable = Args.optbool(opts.get("clickable"), verb, "clickable",
+                                    "opt into the client-side pick", false);
         LuaValue onclickv = opts.get("onClick");
         if(onclickv.isfunction())
             ob.onClick = onclickv;
@@ -1675,7 +1677,9 @@ final class VirtualApi {
         sp.alpha = luaAlpha(opts.get("alpha"), verb);  // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
         sp.scale = luaScale(opts.get("scale"), verb);  // uniform scale ("fixed": ~1 tile tall; "screen": screen-size ×)
-        sp.clickable = opts.get("clickable").toboolean();   // R2b: opt-in pick (a "screen" sprite has no world mesh → never picked)
+        // R2b: opt-in pick (a "screen" sprite has no world mesh -> never picked)
+        sp.clickable = Args.optbool(opts.get("clickable"), verb, "clickable",
+                                    "opt into the client-side pick", false);
         LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
         if(onclickv.isfunction())
             sp.onClick = onclickv;
@@ -2347,12 +2351,8 @@ final class VirtualApi {
                 if(bv == null) {
                     synchronized(p) { return LuaValue.valueOf(p.occluded); }
                 }
-                // A bare adjective takes a bare boolean, as gob:visible(b) does: LuaJ coerces anything at all
-                // through toboolean() and 0 is TRUE in Lua, so patch:occluded(0) reading as "the world hides
-                // it" is the one silent wrong answer this verb can give.
-                if(!bv.isboolean())
-                    throw new LuaError("patch:occluded(b): b must be true or false, got " + bv.typename());
-                setPatchOccluded(p, bv.toboolean());
+                // A bare adjective takes a bare boolean, as gob:visible(b) does, through the house door.
+                setPatchOccluded(p, Args.bool(bv, "patch:occluded", "b", null));
                 return self;
             }
         });

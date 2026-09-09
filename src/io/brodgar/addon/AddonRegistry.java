@@ -90,6 +90,7 @@ public final class AddonRegistry {
         loadGen++;
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
+        loadErrors.clear();           // ...and so does the record of what threw last time
         scanAddonDefaults();          // D-027: default-disable any addon asking for permissions the user has not consented to
         File dir = addonDir();
         log("addons dir: " + dir);
@@ -128,19 +129,37 @@ public final class AddonRegistry {
                 ad.set("dir", LuaValue.valueOf(sub.getAbsolutePath()));
                 g.set("ADDON", ad);
                 addon.run();
-                addons.add(addon);
+                // audit2 B14 (lc-04): AN ADDON WHOSE FILE BODY THREW IS NOT LOADED. It used to be added to
+                // the live set first and asked about its error afterwards, so a half-run body stayed in
+                // `addons` with whatever it had registered before the throw -- its timers firing, its
+                // handlers running, its widgets drawn -- and no `Load` ever fired for any of it. Nothing on
+                // the tick path asks `.error`, and nothing should have to: the set is the addons that
+                // loaded. A failed one is torn down, so what it did register before the throw is released
+                // by the same sweep a disable runs, and its row still reports the error to the panel.
                 if(addon.error == null) {
+                    addons.add(addon);
                     fireTo(addon, "Load");                    // the addon's file body just ran
                     log("loaded " + m.id + " v" + m.version);
                 } else {
                     log("error in " + m.id + ": " + addon.error);
+                    loadErrors.put(sub.getName(), addon.error);   // ...the panel still says what threw
+                    teardown(addon);
                 }
             } catch(Exception e) {
-                log("failed to load '" + sub.getName() + "': " + e.getMessage());
+                log("failed to load '" + sub.getName() + "': " + Refusal.reason(e));
             }
         }
         log(addons.size() + " addon(s) loaded");
     }
+
+    /**
+     * <b>What an addon's file body threw</b>, by id — the record that outlives the {@link Addon} itself
+     * (audit2 B14, lc-04). A body that threw is not loaded, so the failed addon is not in {@link #addons}
+     * and nothing there can be asked why; the panel's row and {@link #liveStatus} read this instead. Cleared
+     * by every (re)load, like {@link AddonManager#autoDisabledWarn} beside it, because a load that succeeds
+     * is the answer to "why did it fail".
+     */
+    private static final Map<String, String> loadErrors = new java.util.concurrent.ConcurrentHashMap<String, String>();
 
     /**
      * <b>One thing an addon owned, and the release of it</b> — a step of {@link #teardown}, carrying the name
@@ -295,7 +314,15 @@ public final class AddonRegistry {
         new Step("widget overlays", LuaWidgetOverlay::teardown),
         // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
         new Step("subscriptions", a -> a.subs.clear()),
-        new Step("timers", a -> a.timers.clear())));
+        // audit2 B14 (tm-06): each timer is MARKED DEAD before the list is dropped. `alive` is the flag
+        //   every read of a timer handle keys on, and clearing the list alone left it true on a timer this
+        //   very step had just dropped -- a handle held past a teardown answering "still ticking" about
+        //   something with nothing left to tick it.
+        new Step("timers", a -> {
+            for(AddonManager.Timer t : a.timers)
+                t.alive = false;
+            a.timers.clear();
+        })));
 
     /**
      * <b>Fire {@code Disable}, flush the addon's saved vars, then drop its owned resources</b> — every step of
@@ -322,7 +349,7 @@ public final class AddonRegistry {
         try {
             s.run.accept(a);
         } catch(Throwable t) {
-            log(a, "teardown: " + s.name + " failed: " + reason(t));
+            logAbout(a, "teardown: " + s.name + " failed: " + Refusal.reason(t));
         }
     }
 
@@ -1025,7 +1052,9 @@ public final class AddonRegistry {
             Addon a = findLoaded(id);
             String status;
             if(a != null)
-                status = (a.error == null) ? ("v" + a.manifest.version) : "error";
+                status = "v" + a.manifest.version;
+            else if(loadErrors.containsKey(id))
+                status = "error";
             else
                 status = disabled.contains(id) ? "disabled" : "not loaded";
             if(sb.length() > 0)
@@ -1109,9 +1138,10 @@ public final class AddonRegistry {
             // Keep the parser's OWN message: it is the only place the reason exists (an unknown permission key
             // lists the whole vocabulary), and the panel is where the author reads it — the terminal log is not
             // an answer to "why is this row broken".
-            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { mferr = reason(e); }
+            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { mferr = Refusal.reason(e); }
             Addon loaded = findLoaded(id);
-            String error = (loaded != null) ? loaded.error : mferr;
+            String error = (loaded != null) ? loaded.error
+                : ((mferr != null) ? mferr : loadErrors.get(id));
             out.add(new AddonInfo(id,
                 (m != null) ? m.name : id,
                 (m != null) ? m.version : null,
@@ -1129,12 +1159,6 @@ public final class AddonRegistry {
         return out;
     }
 
-    /** A thrown problem as one readable line -- a manifest's, or a teardown step's (some carry no message). */
-    private static String reason(Throwable e) {
-        String msg = e.getMessage();
-        return ((msg == null) || msg.isEmpty()) ? e.toString() : msg;
-    }
-
     /**
      * A short live status string for one addon id, cheap enough to call each frame (no manifest I/O): the
      * session auto-disable warning if any, else loaded-version / error / disabled / not-loaded. Backs the
@@ -1146,7 +1170,10 @@ public final class AddonRegistry {
             return "auto-disabled (" + w + ")";
         Addon a = findLoaded(id);
         if(a != null)
-            return (a.error == null) ? ("loaded v" + a.manifest.version) : ("error: " + a.error);
+            return "loaded v" + a.manifest.version;
+        String err = loadErrors.get(id);
+        if(err != null)
+            return "error: " + err;
         if(!isEnabled(id))
             return "disabled";
         return "not loaded";

@@ -147,9 +147,28 @@ public final class FontHandle implements AssetApi.Loaded {
         richCache = null;                 // the cached foundries were built from the old face
     }
 
-    /** The AWT family name — what {@code h:family()} returns and what a {@code $font[family,sz]{…}} tag resolves by (F2). */
+    /**
+     * The AWT family name — what {@code h:family()} returns and what a {@code $font[family,sz]{…}} tag
+     * resolves by (F2).
+     *
+     * <p><b>The name the face was ASKED for, where AWT answers with the one it fell back to</b> (audit2 B14,
+     * fn-03). Two of the four built-ins name a logical family AWT has: {@code serif} and {@code mono} ask
+     * for {@code "Serif"}/{@code "Monospaced"} and get them. {@code sans} asks for {@code "Sans"}, which is
+     * not a logical family, so AWT resolves it to {@code Dialog} — and {@code getFamily()} on it is then
+     * indistinguishable from any other {@code Dialog} face, which is what {@code docs/client/text-and-fonts}
+     * states as the trap. So {@code h:family()} answered {@code "Dialog"} for {@code sans},
+     * {@code tostring(h)} printed {@code Font(Dialog)}, and a {@code $font[Dialog]} tag built from it named
+     * a font that is not this one.
+     *
+     * <p>{@code getName()} keeps the string the {@code Font} was constructed with and survives every
+     * {@code deriveFont}, so it is what tells the four apart — and it round-trips through the tag, because
+     * an unknown family resolves to {@code Dialog}, which is exactly what {@code sans} is. It is preferred
+     * only where the family IS the fallback and the name is not: a loaded {@code .ttf} keeps its real
+     * family, which is the one thing {@code TextAttribute.FAMILY} can match on.
+     */
     String family() {
-        return font.getFamily();
+        String fam = font.getFamily(), nm = font.getName();
+        return ("Dialog".equals(fam) && (nm != null) && !"Dialog".equals(nm)) ? nm : fam;
     }
 
     /**
@@ -160,16 +179,38 @@ public final class FontHandle implements AssetApi.Loaded {
      * follows the handle (default off, matching {@link haven.Text#std}). Immutable handle &rarr; the cache is
      * stable and small (typically one entry).
      */
-    synchronized RichText.Foundry rich(int stockPx) {
-        int px = (size != null) ? Math.round(UI.scale((float)size.intValue())) : stockPx;
-        if(richCache == null)
-            richCache = new HashMap<Integer, RichText.Foundry>();
-        RichText.Foundry f = richCache.get(px);
-        if(f == null) {
-            f = new RichText.Foundry(font.deriveFont((float)px), Color.WHITE).aa((aa != null) && aa.booleanValue());
-            richCache.put(px, f);
+    RichText.Foundry rich(int stockPx) {
+        // audit2 B14 (fn-15): THE BUILD IS OUTSIDE THE MONITOR. This whole method was synchronized on the
+        // very monitor draft(), writable(), seal() and style() take -- and the expensive line in it is
+        // `new RichText.Foundry(font.deriveFont(px), …)`, which rasterises metrics for a face AWT has not
+        // seen at that size. A first draw of a large TTF therefore held the render thread inside the lock a
+        // Lua :derive() was waiting on, which is lo-03's shape exactly. The two short sections below take
+        // the monitor (the fields are non-final and the cache is shared); the build between them takes
+        // nothing. Two threads racing one size build two foundries and the second is dropped -- a foundry
+        // is a value, so that costs one wasted build and never a wrong answer.
+        Font base;
+        boolean anti;
+        int px;
+        synchronized(this) {
+            px = (size != null) ? Math.round(UI.scale((float)size.intValue())) : stockPx;
+            if(richCache == null)
+                richCache = new HashMap<Integer, RichText.Foundry>();
+            RichText.Foundry have = richCache.get(px);
+            if(have != null)
+                return have;
+            base = font;
+            anti = (aa != null) && aa.booleanValue();
         }
-        return f;
+        RichText.Foundry built = new RichText.Foundry(base.deriveFont((float)px), Color.WHITE).aa(anti);
+        synchronized(this) {
+            if(richCache == null)
+                richCache = new HashMap<Integer, RichText.Foundry>();
+            RichText.Foundry have = richCache.get(px);   // a style() between the two sections re-nulled it
+            if(have != null)
+                return have;
+            richCache.put(px, built);
+            return built;
+        }
     }
 
     public AssetApi.Asset asset() {

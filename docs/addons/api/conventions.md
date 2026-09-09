@@ -46,6 +46,14 @@ w:title("Scout"):size(180, 48)     -- writes, and chains
 There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is one too — written
 `w:visible(true)`, and named as a **bare adjective**, never `isX`: `kin:online()`, `gob:player()`.
 
+**A boolean argument is `true` or `false` and nothing else.** In Lua every value but `false` and `nil`
+is true, so `0` is true and so is `"no"` — which means a verb that took Lua's word for it would read
+`w:visible(0)` as *show it* and `video:shadows("no")` as *shadows on*, doing the opposite of what the
+line says and reporting nothing. The type is what is asked, exactly as it is for a
+[string and a number](#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). What your own
+**callback** returns is the other question and keeps Lua's answer: a filter ending in
+`return m:owner()` is an ordinary filter.
+
 **A verb refuses an argument it does not take.** `kin:online(1)` and `b:key("F5", "x")` raise, naming how
 many arguments the verb takes and how many it got, rather than dropping the extra — a surplus argument is a
 call the verb would have answered wrong, silently, and the refusal is what makes the mistake fail where it

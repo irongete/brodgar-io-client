@@ -69,12 +69,17 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:type()` | string | which of the three this handle is: `"builtin"`, `"font"` for one loaded from a file, or `"variant"` for one `:derive()` made |
 | `h:derive()` | `FontHandle` | a fresh variant of this font, ready to configure |
 | `h:family()` | string | the family name — feed it to a `$font[family, size]{…}` tag for per-run mixing |
-| `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes. `nil` is the stock size of whatever surface it is applied to, and writing `nil` [undoes](conventions.md#nil-is-an-error-unless-it-means-something) the size this variant carries |
+| `h:info()` | table | a flat snapshot of the whole face: `{ type, family, size, bold, italic, aa, color, outline, path }`, with a key absent wherever its own verb answers `nil` |
+| `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes, a whole number from 1 to 512. `nil` is the stock size of whatever surface it is applied to, and writing `nil` [undoes](conventions.md#nil-is-an-error-unless-it-means-something) the size this variant carries |
 | `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting, and writing `nil` undoes the flag this variant carries |
 | `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
 | `h:outline()` / `h:outline(c)` | [colour](shapes.md#colours) \| nil | an [edge](#an-outline-round-every-glyph) baked one pixel round every glyph — **for your own drawing only**. `nil` is no edge, and writing `nil` undoes the one this variant carries |
+
+A face is **rasterised at the size you ask for**, on the thread that draws it, so a size is a whole
+number of design px from 1 to 512 and anything larger raises: there is no glyph a screen can show at
+20000 px, and deriving one is seconds of CPU and hundreds of megabytes of raster.
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:path`, even when
 the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the same reason.
@@ -91,7 +96,9 @@ tostring(hafen.asset():get("fonts/Inter.ttf"))      --> Asset(font, fonts/Inter.
 > values, so writing one would restyle every surface already using it: they refuse a setter, naming
 > `:derive()`. And once you have handed a variant to a rule, a widget, an overlay or a draw call, that
 > surface has read it — so a later write is refused too, rather than looking like it took and changing
-> nothing. Derive another variant instead; deriving from a handle always works.
+> nothing. Derive another variant instead; deriving from a handle always works. A face a rule
+> **refuses** is not used: it is read only once it is taken, so the handle in your hand is as writable
+> as it was before you offered it.
 
 **`color` and `outline` are the two options that do not travel.** They apply wherever *you* draw with the
 handle — the widget default and the per-call option below — and a handle carrying either is **refused**

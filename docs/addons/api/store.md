@@ -29,7 +29,9 @@ Every saved variable is named in `manifest.json`, and nothing else here is persi
 | a bare name | per character | `savedata/<genus>_<char>/<addon>.json` | the session whose character it is |
 | `{ "name": …, "scope": "account" }` | account-wide, shared by all your characters | `savedata/account/<addon>.json` | no address |
 
-Any scope other than `"account"` is per-character. A name declared twice keeps the first declaration.
+Any scope other than `"account"` is per-character. A name declared **twice is an error**: one name is
+one table, so the second entry could only have been ignored, and a manifest that will not load says so
+at the moment you can fix it.
 
 **A character's folder is named by the server**, so that name is checked before anything is written under
 it: it is reduced to characters a filesystem can hold, and then it has to be a folder *inside* `savedata/`.
@@ -118,7 +120,14 @@ placeholder above and carry on — but they **say so**: each of those writes log
 it degraded, so a variable that quietly turned into text is reported whether or not you ever call `flush()`.
 
 A file the engine cannot read or parse leaves your tables as they are, and the failure is logged rather than
-raised: your addon starts with empty settings instead of not starting.
+raised: your addon starts with empty settings instead of not starting. A file that parses cleanly into
+something that is **not** a JSON object — an array, a number, `null` — is the same failure and is
+reported the same way, rather than loading nothing in silence.
+
+**A cycle is one of the things a saved variable cannot hold**, and `flush()` names it like any other: a
+table that contains itself has no JSON spelling, and the forgiving writes put the literal text
+`"<cycle>"` where it was, which reads back as text. So do the **keys**: a saved table is keyed by
+strings and numbers, and a function, table or boolean key is named at the same door its values are.
 
 > **A scope whose file could not be read is read-only for the rest of the session.** The tables are empty
 > because the client could not read the file, not because you have saved nothing — and a write is a whole,

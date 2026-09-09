@@ -120,6 +120,12 @@ final class Interned<K, V> {
         return v;
     }
 
+    /** Retire one entry and say nothing about it — {@link #drop} where the caller wants no value back. */
+    synchronized void remove(K key) {
+        drain();
+        live.remove(key);
+    }
+
     /** Retire the lot — teardown. What each value needs done to it is the caller's, over {@link #values}. */
     synchronized void clear() {
         live.clear();

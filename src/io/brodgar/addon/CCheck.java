@@ -60,9 +60,7 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
 
     /** {@code c:value(v)} — {@code v} must be a boolean; a direct field write, so it does NOT fire :onChange. */
     public void value(LuaValue v) {
-        if(!v.isboolean())
-            throw new LuaError("widget:value(v) on a checkbox is a BOOLEAN, got " + v.typename());
-        this.a = v.toboolean();
+        this.a = Args.bool(v, "widget:value", "v", "a checkbox holds one or the other");
     }
 
     /** The engine's own {@code changed} slot, replacing the stock {@code wdgmsg} consumer. A user click only. */

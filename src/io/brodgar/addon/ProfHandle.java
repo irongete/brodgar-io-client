@@ -157,9 +157,19 @@ public final class ProfHandle {
                     return out;
                 int n = have;
                 LuaValue arg = a.arg(2);            // colon call: arg(1) is the handle
-                if(!arg.isnil())
-                    n = Math.max(0, Math.min(have, Args.integer(arg, "p:history", "n",
-                                                                "how many frames back, newest last")));
+                if(!arg.isnil()) {
+                    n = Args.integer(arg, "p:history", "n", "how many frames back, newest last");
+                    // audit2 B14 (pf-10): A NEGATIVE IS REFUSED BY NAME, where Math.max(0, …) turned it
+                    // into an empty table -- the same silence every counter beside this one already refuses
+                    // (p:render(), p:gl(), p:passes() all name the mistake). Clamping DOWN to what the ring
+                    // holds is not the same thing: asking for more frames than exist is a reasonable way to
+                    // ask for all of them, and it answers with all of them.
+                    if(n < 0)
+                        throw new LuaError("client:profiling():history(n): n is how many frames back to"
+                            + " read, so it cannot be negative — got " + n + ". Call it with no argument"
+                            + " for everything the ring holds");
+                    n = Math.min(have, n);
+                }
                 for(int i = 0; i < n; i++) {
                     int s = Prof.slot(have - n + i);
                     LuaTable e = new LuaTable();
@@ -544,10 +554,12 @@ public final class ProfHandle {
             }
             t.set("vram", vram);
         }
-        MapView mv;
-        synchronized(LuaWidget.monitorOf(u)) {   // audit2 B06: findchild is a subtree walk
-            mv = u.root.findchild(MapView.class);
-        }
+        // audit2 B14 (pf-09): THE SESSION'S OWN MEMO, not a fresh tree walk. This was
+        // u.root.findchild(MapView.class) on every call -- a depth-first search of the whole widget tree,
+        // under that tree's monitor -- against counters.md's "reading them costs nothing", which an addon
+        // polling render() once a frame takes at its word. SessionState.view() is the same answer, paid
+        // once per view and re-checked on every read, and it is what every other per-frame reader here uses.
+        MapView mv = AddonManager.screenView();
         if(mv == null)
             return t;
         // 120.1: the remembered ground's four. Three are gauges and recallGridsRead is cumulative; all four

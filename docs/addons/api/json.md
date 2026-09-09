@@ -37,7 +37,10 @@ the two languages; there is no sentinel value standing in for `null`.
 Lua table and a table holds one value per key. Nothing tells you it happened, so validate a document you
 did not write if a repeated key would mean something to you.
 
-Malformed input raises a Lua error reading `JSON: <message> at offset <n>`, so wrap untrusted input:
+Malformed input raises a Lua error reading `JSON: <message> at offset <n>`, so wrap untrusted input.
+**Malformed means JSON's own grammar**, not what a lenient reader would take: `01`, `+5`, `.5`, `5.`
+and `1e` are each refused by that message, and a `\u` escape that is not exactly four hex digits
+(`\uZZZZ`, `\u-123`) is refused too rather than yielding a character nobody asked for.
 
 ```lua
 local ok, result = pcall(function() return hafen.json():parse(untrusted) end)
@@ -49,9 +52,11 @@ One that is not `:durable()` cannot be written and raises saying so, rather than
 that reads like a place and is not one.
 
 Input longer than **8 million characters**, or nested deeper than **256** levels, raises instead of
-risking the stack or the heap. The depth cap is one cap for both directions: `encode` refuses a table
-nested past it too, because nesting costs the stack on that side as well. Both caps are set at launch
-with `-Dhaven.addon.json.maxlen=<chars>` and `-Dhaven.addon.json.maxdepth=<levels>`.
+risking the stack or the heap. Both caps are one cap for both directions: `encode` refuses a table
+nested past the depth, and stops with the same "too large" error once the document it is building
+passes the length. Both are set at launch with `-Dhaven.addon.json.maxlen=<chars>` and
+`-Dhaven.addon.json.maxdepth=<levels>`; a value outside what the client can hold is clamped rather
+than wrapped.
 
 ### `hafen.json():encode(value)`
 
@@ -61,12 +66,20 @@ Serializes a Lua value to **compact**, single-line JSON.
   **object**, with its keys stringified. An empty table has no keys, so it satisfies that rule and is
   written as `[]`. Lua does not distinguish an empty list from an empty map, so a document that needs
   `{}` in that place is one you assemble as a string.
-- An integral number is written without a trailing `.0`; a non-integral one keeps its decimal form.
-- Booleans and strings map across with the usual escaping.
+- An integral number is written without a trailing `.0`, however large it is; a non-integral one
+  keeps its decimal form.
+- Booleans and strings map across with the usual escaping. A lone surrogate — half of an astral
+  character, which cannot be encoded as UTF-8 — is escaped as `\uXXXX` so the document stays a
+  document.
+- **An object's names are strings, and a number key spells one.** Any other kind of key raises,
+  because `{[{}] = 1}` has no JSON name and stringifying it would put a heap address in your file.
+- **Two keys that spell the same name raise**: `{[1] = "a", ["1"] = "b"}` is one JSON name twice,
+  and a document with a repeated key is not valid JSON.
 
 **`encode` is strict**: it only ever produces valid JSON, so a **function**, **userdata**, **thread**, a
-**reference cycle**, a table nested deeper than the **depth cap** above, or a **non-finite number** raises
-a Lua error rather than emitting a placeholder. Wrap it if the value might hold one:
+**reference cycle**, a table nested deeper than the **depth cap** above, a **non-finite number**, a key
+of a kind JSON has no name for, two keys that spell one name, or a document past the **size cap**
+raises a Lua error rather than emitting a placeholder. Wrap it if the value might hold one:
 
 ```lua
 local ok, s = pcall(function() return hafen.json():encode(value) end)

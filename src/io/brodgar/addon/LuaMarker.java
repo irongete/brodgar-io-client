@@ -138,7 +138,7 @@ public final class LuaMarker {
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(of(owner, MapApi.markerId(owner, m))).toboolean();
+                return Args.truthy(filter.call(of(owner, MapApi.markerId(owner, m))));
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }
@@ -319,10 +319,9 @@ public final class LuaMarker {
                         return LuaValue.NIL;
                     return LuaValue.valueOf(((MapFile.PMarker)mk).onmap);
                 }
-                if(!v.isboolean())
-                    throw new LuaError("marker:onMap(on): on must be true or false");
+                boolean on = Args.bool(v, "marker:onMap", "on", null);
                 MapFile.PMarker pm = player(mk, "onMap");
-                pm.onmap = v.toboolean();
+                pm.onmap = on;
                 pm.update(true);
                 return self;
             }

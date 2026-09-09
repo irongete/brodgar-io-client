@@ -58,7 +58,16 @@ import haven.Matrix4f;
  * The node walk needs no cap of its own: glTF's invariant that a node has at most one parent is enforced in
  * {@link #walk}, so the walk visits each node at most once and a document that reaches one twice is refused.
  * That walk is iterative over an explicit stack, so a legal chain is bounded by the node count and not by the
- * calling thread's Java stack.
+ * calling thread's Java stack. {@link #MAX_BUFFERS} and the running total beside it bound the eager buffer
+ * read, which is everything this parser allocates before it has looked at a single accessor.
+ *
+ * <p><b>What the caps are, and are not</b> (audit2 B14, as-05). They bound the WORK, and the work is charged
+ * to the caller's frame either way: {@code hafen.asset():get(path)} is one Java bridge call, so the addon
+ * sandbox's instruction watchdog charges it about one instruction however many million vertices come back.
+ * A model at the caps still costs the frame it is loaded in, and there is no budget the sandbox can see it
+ * against. That is why the caps are the size they are, why the file-size gate in {@link AssetApi} stands in
+ * front of them, and why asset.md tells an author to load at {@code Load} rather than in a handler: a decode
+ * is a stall the client takes, not one it schedules.
  *
  * <p><b>Purity / testability.</b> This class touches no GL and no client session — only {@link Json},
  * {@link Matrix4f}/{@link Coord3f} (pure math), and byte arrays — so it is fully headless-testable (the geometry
@@ -84,7 +93,8 @@ public final class Gltf {
     static final int  MAX_PRIMS =   4096;              // total primitives across all nodes/meshes
     static final long MAX_VERTS = 4_000_000L;          // total vertices across all primitives, and any one accessor's count
     static final long MAX_INDICES = 6L * MAX_VERTS;    // any one index accessor (a closed mesh has ~6 indices per vertex)
-    static final long MAX_BYTES = 128L * 1024 * 1024;  // any single decoded buffer
+    static final long MAX_BYTES = 128L * 1024 * 1024;  // any single decoded buffer, and all of them together
+    static final int  MAX_BUFFERS =  64;               // how many a document may declare (as-08)
     static final int  MAX_IMAGES =    64;              // distinct baseColor textures referenced by the model (R3b)
     static final long MAX_IMAGE_BYTES = 64L * 1024 * 1024;  // any single texture image blob (R3b)
 
@@ -254,7 +264,7 @@ public final class Gltf {
         try {
             root = Json.parse(jsonText);
         } catch(RuntimeException e) {
-            throw err(name, "malformed JSON (" + e.getMessage() + ")");
+            throw err(name, "malformed JSON (" + Refusal.reason(e) + ")");
         }
         if(!(root instanceof Map))
             throw err(name, "top-level glTF is not a JSON object");
@@ -620,7 +630,7 @@ public final class Gltf {
             try {
                 bytes = loader.read(uri);
             } catch(Exception e) {
-                throw err(name, "could not read external image '" + uri + "': " + e.getMessage());
+                throw err(name, "could not read external image '" + uri + "': " + Refusal.reason(e));
             }
         } else {
             throw err(name, "image " + gi + " has neither a uri nor a bufferView");
@@ -743,7 +753,16 @@ public final class Gltf {
 
     /** Resolve every glTF buffer to its bytes: the {@code .glb} BIN for buffer 0 (no uri), a {@code data:} URI, or an external file via {@code loader}. */
     private static byte[][] resolveBuffers(List<Object> buffers, byte[] glbBin, Loader loader, String name) {
+        // audit2 B14 (as-08): THE COUNT IS A CAP TOO. MAX_BYTES was tested per buffer and nothing bounded
+        // how many buffers a document could declare, so a .gltf naming two hundred of them multiplied the
+        // one cap by two hundred -- and every one is read EAGERLY, here, before a single accessor is
+        // touched. Two bounds, because they are two different documents: MAX_BUFFERS refuses the one that
+        // declares an absurd number, and the running total refuses the one whose buffers are each legal and
+        // together are not.
+        if(buffers.size() > MAX_BUFFERS)
+            throw err(name, "declares " + buffers.size() + " buffers (the limit is " + MAX_BUFFERS + ")");
         byte[][] out = new byte[buffers.size()][];
+        long total = 0;
         for(int i = 0; i < buffers.size(); i++) {
             Map<String, Object> b = asMap(buffers.get(i));
             String uri = str(b.get("uri"));
@@ -767,11 +786,14 @@ public final class Gltf {
                 try {
                     data = loader.read(uri);
                 } catch(Exception e) {
-                    throw err(name, "could not read external buffer '" + uri + "': " + e.getMessage());
+                    throw err(name, "could not read external buffer '" + uri + "': " + Refusal.reason(e));
                 }
             }
             if((data == null) || (data.length > MAX_BYTES))
                 throw err(name, "buffer " + i + " is missing or too large (> " + MAX_BYTES + " bytes)");
+            total += data.length;
+            if(total > MAX_BYTES)
+                throw err(name, "its buffers come to more than " + MAX_BYTES + " bytes together");
             out[i] = data;
         }
         return out;

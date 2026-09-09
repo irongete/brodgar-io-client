@@ -215,7 +215,7 @@ final class LuaMarshal {
         case LuaValue.TNIL:
             return null;
         case LuaValue.TBOOLEAN:
-            return Boolean.valueOf(v.toboolean());
+            return Boolean.valueOf(Args.truthy(v));
         case LuaValue.TNUMBER:
             return (v instanceof LuaInteger) ? (Object)Integer.valueOf(v.toint())
                                              : (Object)Double.valueOf(v.todouble());

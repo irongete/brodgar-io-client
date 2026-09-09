@@ -2624,7 +2624,7 @@ final class UiApi {
     private static void assertToggleTarget(Addon owner, Widget wdg, Widget nativeWin) {
         GameUI g = gui();
         if((g != null) && (wdg == g.maininv) && (nativeWin != g.maininv.parent))
-            log(owner, "widget:replace(view): internal — the hidden window is not the main inventory's own"
+            logAbout(owner, "widget:replace(view): internal — the hidden window is not the main inventory's own"
                 + " wrapper, so the client's Tab toggle will not follow this replacement");
     }
 

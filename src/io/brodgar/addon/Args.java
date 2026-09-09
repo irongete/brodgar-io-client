@@ -29,11 +29,14 @@ import org.luaj.vm2.Varargs;
  * conventions page states this and the suite asserts it, because a limit that is written down is a contract
  * and a limit that is not is a defect waiting to be discovered.
  *
- * <p><b>And the type discipline beside it.</b> {@link #str} and {@link #num} are the API's only two type
- * assertions, and they ask {@link LuaValue#type()} rather than {@code isstring()}/{@code isnumber()} for the
- * reason written on {@link #str}: in LuaJ those two predicates coerce, so the laxer test lets a number
- * through as a name and the defensive one refuses a perfectly ordinary string. Stating the rule once is what
- * keeps the twelve hand-rolled variants of it from disagreeing.
+ * <p><b>And the type discipline beside it.</b> {@link #str}, {@link #num} and {@link #bool} are the API's
+ * three type assertions, and they ask {@link LuaValue#type()} rather than
+ * {@code isstring()}/{@code isnumber()}/{@code toboolean()} for the reason written on {@link #str}: in LuaJ
+ * the first two predicates coerce, so the laxer test lets a number through as a name and the defensive one
+ * refuses a perfectly ordinary string — and {@code toboolean()} does not test at all, it is Lua truth, which
+ * takes {@code 0} and {@code "no"} as {@code true}. Stating the rule once is what keeps the twelve
+ * hand-rolled variants of it from disagreeing. {@link #truthy} is the one place the other question — what a
+ * callback of the addon's own ANSWERED — is asked, and it is a different question.
  *
  * <p><b>And the VALUE discipline the type one is only half of.</b> {@code 0/0} and {@code math.huge} are
  * numbers by type, so a test that asks the type alone takes them — and every range check written after one
@@ -246,6 +249,68 @@ final class Args {
         return (v == null) ? def : integer(v, verb, param, hint);
     }
 
+    /**
+     * A <b>required boolean</b> argument, by type — the third of the API's type assertions, and the one the
+     * other two were written without.
+     *
+     * <p><b>Why a coercion is not a check.</b> LuaJ's {@code toboolean()} is Lua truth, and in Lua every
+     * value but {@code false} and {@code nil} is true: {@code 0} is true, {@code ""} is true, and
+     * {@code "no"} is true. So {@code video:shadows("no")} turned shadows ON, {@code client:recall(0)}
+     * turned the remembered ground ON, and {@code h:bold("no")} made the face bold — three writes that did
+     * the opposite of what they said and reported nothing. Every one of them sat beside a door that already
+     * demanded a real boolean for the same property (the {@code {aa=…, bold=…, italic=…}} face table), so
+     * the API answered one question two ways. It asks it once, here.
+     *
+     * <p>The value the caller wrote is what comes back, as a Java {@code boolean}: there is nothing to
+     * coerce once the type is the type.
+     */
+    static boolean bool(Varargs a, int i, String verb, String param, String hint) {
+        return bool(required(a, i, verb, param), verb, param, hint);
+    }
+
+    /** {@link #bool(Varargs, int, String, String, String)} over a value already in hand — a table field, a
+     *  {@link #written} result, an option's {@code onWrite(value)}. */
+    static boolean bool(LuaValue v, String verb, String param, String hint) {
+        if(v.type() != LuaValue.TBOOLEAN)
+            throw new LuaError(verb + ": " + param + " must be true or false" + hint(hint) + ", got "
+                + v.typename() + NOT_A_BOOLEAN);
+        return v.toboolean();
+    }
+
+    /**
+     * An <b>optional boolean</b>: the caller's {@code true}/{@code false}, or {@code def} when they passed
+     * nothing at all. The twin of {@link #bool} for the argument a verb can do without — a modifier flag, an
+     * opt-in. An explicit {@code nil} in a slot the caller passed is refused by {@link #written}, like any
+     * other.
+     */
+    static boolean optbool(Varargs a, int i, String verb, String param, String hint, boolean def) {
+        LuaValue v = written(a, i, verb, param);
+        return (v == null) ? def : bool(v, verb, param, hint);
+    }
+
+    /**
+     * {@link #optbool(Varargs, int, String, String, String, boolean)} over a value already in hand — an
+     * options-table field, which is absent as a {@code nil} rather than as a missing slot.
+     */
+    static boolean optbool(LuaValue v, String verb, String param, String hint, boolean def) {
+        return v.isnil() ? def : bool(v, verb, param, hint);
+    }
+
+    /**
+     * <b>Lua truth</b>, and the one place the API takes it — the value a <b>callback of the addon's own</b>
+     * answered with ({@code :list(function(m) return m:name() end)}), or a value already known to be a
+     * boolean on its way back out (the JSON writer, {@link LuaMarshal}).
+     *
+     * <p>It is the exact opposite question from {@link #bool} and is separated from it for that reason. An
+     * ARGUMENT is a thing the caller wrote and meant, so it is asked for its type; a RETURN is a Lua
+     * expression, and Lua's own answer to "is this true" is the whole of what a predicate promises — a
+     * filter that ends in {@code return m:owner()} is an ordinary filter and refusing it would be refusing
+     * Lua. Naming the two apart is what keeps a sweep of one from quietly changing the other.
+     */
+    static boolean truthy(LuaValue v) {
+        return v.toboolean();
+    }
+
     /** What the call site knows and the parameter name does not, in parentheses, or nothing. */
     private static String hint(String hint) {
         return (hint == null) ? "" : (" (" + hint + ")");
@@ -269,6 +334,9 @@ final class Args {
     private static final String NUMBER_IS_NOT =
         " — a number is not a string here, whatever Lua does with it in a concatenation; tostring(n) is the"
         + " conversion if that is what you meant";
+    private static final String NOT_A_BOOLEAN =
+        " — a boolean here is true or false and nothing else; Lua counts 0 and \"no\" as true, which is"
+        + " how a write of one of them turned a setting ON. Say which you mean.";
     private static final String STRING_IS_NOT =
         " — a string that merely scans as a number is still a string; tonumber(s) is the conversion if that"
         + " is what you meant";

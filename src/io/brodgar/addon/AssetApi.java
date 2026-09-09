@@ -267,6 +267,16 @@ final class AssetApi {
 
         LuaValue imageView(LuaImage li, Supplier<LuaValue> mint) {return imageViews.of(li, mint);}
 
+        /**
+         * <b>Forget the view of an image that has been disposed</b> (audit2 B14, as-10). These two maps
+         * only ever inserted, and the only removal was {@link #clear} at the READER's own teardown — so an
+         * addon that once read a rule of someone else's held a strong reference to that {@link LuaImage},
+         * and through it to the disposed {@link TexI}, until it was itself unloaded. The loader knows the
+         * moment: {@code hafen.asset():remove(img)} is where the picture stops existing, and every reader's
+         * view of it stops with it. Keyed by identity, so this is one map lookup per reader.
+         */
+        void forgetImageView(LuaImage li) {imageViews.remove(li);}
+
         /** Teardown: drop every entry (the GPU state is freed by the typed teardowns that ran first). */
         void clear() {
             live.clear();
@@ -335,6 +345,14 @@ final class AssetApi {
     static Path resolveAddonAsset(Addon owner, String name, String ctx) {
         if(owner.dir == null)   // the :lua REPL owns no folder, so it has no files of "its own" to load
             throw new LuaError(ctx + ": the :lua console has no addon folder — an asset path is relative to the folder of the addon loading it");
+        // audit2 B14 (as-15): A URL IS NAMED FOR WHAT IT IS, before the containment check reads it as a
+        // filename. asset.md gives remote assets a section of their own, and this door answered them with
+        // "no such file" (or, on Windows, "invalid path" — a colon is not a character a path may hold), so
+        // the message sent the reader looking for a typo in a name that was never meant to be a file.
+        if(name.contains("://"))
+            throw new LuaError(ctx + ": '" + name + "' is a URL, and " + ctx + " loads files this addon"
+                + " SHIPS — a path inside its own folder, nothing remote. Fetch it with hafen.http() (which"
+                + " the user grants per host) and hand what comes back to the verb that takes it");
         return Inside.inside(owner.dir, name, ctx);
     }
 
@@ -343,15 +361,47 @@ final class AssetApi {
         Path fn = p.getFileName();
         String s = (fn == null) ? "" : fn.toString();
         int dot = s.lastIndexOf('.');
-        return (dot < 0) ? "" : s.substring(dot + 1).toLowerCase();
+        // audit2 B14 (as-13): Locale.ROOT, because the dispatch below compares against ASCII literals. The
+        // default-locale toLowerCase() is the user's, and in a Turkish one 'I' lowercases to a dotless
+        // 'i' -- so a file named ICON.GIF became "gıf", matched no branch, and was refused as having no
+        // supported extension on the machines of exactly two countries.
+        return (dot < 0) ? "" : s.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
     }
 
-    /** The one "missing file" error, shared by all three types (a decode error would name the format instead). */
+    /**
+     * The one "missing file" error, shared by all three types (a decode error would name the format
+     * instead) — <b>and the one size cap, in front of every read</b> (audit2 B14, as-04).
+     *
+     * <p>There was no size check anywhere before a file was opened: {@code ImageIO.read} took a whole PNG,
+     * {@code Files.readAllBytes} a whole {@code .glb} and a whole data file, and glTF's own
+     * {@code MAX_BYTES} is applied to bytes that are already on the heap. So an addon shipping a 2 GB file
+     * — by accident, or because it was handed one — took the client's heap down before anything had a
+     * chance to refuse it. The bound is per file and generous enough that no asset anyone authors meets it;
+     * what it stops is the one that is not an asset at all.
+     *
+     * <p><b>And a URL is named for what it is</b> (as-15). {@code hafen.asset} takes a path inside the
+     * addon's own folder, so an {@code http://…} handed to it is simply a filename that does not exist —
+     * and "no such file" is a true sentence that sends the reader looking for a typo. asset.md gives remote
+     * assets a section of their own; the refusal now names the same thing that section does.
+     */
     private static Path requireFile(Path p, String name) {
         if(!Files.isRegularFile(p))
             throw new LuaError("hafen.asset: no such file '" + name + "' in this addon's folder");
+        long sz;
+        try {
+            sz = Files.size(p);
+        } catch(java.io.IOException e) {
+            throw new LuaError("hafen.asset: could not read '" + name + "': " + Refusal.reason(e));
+        }
+        if(sz > MAX_FILE)
+            throw new LuaError("hafen.asset: '" + name + "' is " + (sz / (1024L * 1024L)) + " MB, and an"
+                + " asset is read whole into memory — the limit is " + (MAX_FILE / (1024L * 1024L))
+                + " MB per file");
         return p;
     }
+
+    /** The largest file {@code hafen.asset} will read — see {@link #requireFile}. */
+    private static final long MAX_FILE = 128L * 1024 * 1024;
 
     // ---- images (R1) ---------------------------------------------------------------------------------
 
@@ -365,12 +415,22 @@ final class AssetApi {
      * straight off the value ({@link LuaImage#resolve}), and there is no table around it to scribble on, to
      * delete {@code dispose} from, or to copy into a look-alike that lies about its size.
      */
+    /**
+     * Drop every addon's interned VIEW of {@code li} — called where the image itself is disposed
+     * (as-10). The owner's own handle goes with its cache entry; a reader's view is in the reader's cache,
+     * which is the one place that can be asked.
+     */
+    private static void forgetImageViews(LuaImage li) {
+        for(Addon a : AddonManager.profOwners())
+            a.assets.forgetImageView(li);
+    }
+
     private static LuaValue newImage(Addon owner, String name, String key, Path p) {
         BufferedImage img;
         try {
             img = ImageIO.read(p.toFile());
         } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.asset: could not read '" + name + "': " + e.getMessage());
+            throw new LuaError("hafen.asset: could not read '" + name + "': " + Refusal.reason(e));
         }
         if(img == null)
             throw new LuaError("hafen.asset: '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
@@ -378,6 +438,7 @@ final class AssetApi {
         li.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // a re-load after this is a NEW asset, never the disposed one
+                forgetImageViews(li);      // as-10: ...and nobody's VIEW of it outlives the picture either
                 disposeImage(li);
             }
         };
@@ -449,9 +510,9 @@ final class AssetApi {
         try {
             f = Font.createFont(Font.TRUETYPE_FONT, p.toFile());
         } catch(java.awt.FontFormatException e) {
-            throw new LuaError("hafen.asset: '" + name + "' is not a valid TrueType/OpenType font: " + e.getMessage());
+            throw new LuaError("hafen.asset: '" + name + "' is not a valid TrueType/OpenType font: " + Refusal.reason(e));
         } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.asset: could not read font '" + name + "': " + e.getMessage());
+            throw new LuaError("hafen.asset: could not read font '" + name + "': " + Refusal.reason(e));
         }
         try {
             // The AWT font registry is the JVM's ONE namespace of family names, and it has no counterpart:
@@ -491,7 +552,7 @@ final class AssetApi {
         try {
             bytes = Files.readAllBytes(p);
         } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.asset: could not read '" + name + "': " + e.getMessage());
+            throw new LuaError("hafen.asset: could not read '" + name + "': " + Refusal.reason(e));
         }
         final Path beside = Paths.get(name).getParent();   // the model's own folder, addon-relative
         Gltf.Loader loader = new Gltf.Loader() {
@@ -506,7 +567,7 @@ final class AssetApi {
         try {
             mesh = Gltf.parse(bytes, name, loader);
         } catch(RuntimeException e) {
-            throw new LuaError("hafen.asset: " + e.getMessage());
+            throw new LuaError("hafen.asset: " + Refusal.reason(e));
         }
         TexI[] textures = buildMeshTextures(mesh, name);   // R3b: the shared base-colour textures (owned by the mesh)
         final LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
@@ -541,7 +602,8 @@ final class AssetApi {
             try {
                 bi = ImageIO.read(new ByteArrayInputStream(im.bytes));
             } catch(IOException | RuntimeException e) {
-                throw new LuaError("hafen.asset: could not decode texture image " + i + " (" + kind + ") in '" + name + "': " + e.getMessage());
+                throw new LuaError("hafen.asset: could not decode texture image " + i + " (" + kind + ") in '" + name + "': "
+                                   + Refusal.reason(e));
             }
             if(bi == null)
                 throw new LuaError("hafen.asset: texture image " + i + " (" + kind + ") in '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
@@ -570,6 +632,14 @@ final class AssetApi {
      * {@code mdl:info()} &rarr; a small summary of what the parser produced (R3b): primitive/texture/triangle
      * counts. Useful for an addon to confirm a model loaded textured, and for logging.
      */
+    /** {@code img:info()} — the image as a plain table: its size in pixels, and whether it is still live. */
+    private static LuaValue imageInfo(LuaImage li) {
+        LuaTable t = new LuaTable();
+        t.set("width", LuaValue.valueOf(li.sz.x));
+        t.set("height", LuaValue.valueOf(li.sz.y));
+        return t;
+    }
+
     private static LuaValue meshInfo(LuaMesh lm) {
         int textured = 0, lit = 0;
         for(Gltf.Prim p : lm.mesh.prims) {
@@ -652,7 +722,7 @@ final class AssetApi {
         try {
             text = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
         } catch(IOException | RuntimeException e) {
-            throw new LuaError("hafen.asset: could not read '" + name + "': " + e.getMessage());
+            throw new LuaError("hafen.asset: could not read '" + name + "': " + Refusal.reason(e));
         }
         if(text.startsWith("\uFEFF"))
             text = text.substring(1);      // a UTF-8 BOM is not JSON: it would fail parse() on the very first char
@@ -832,6 +902,14 @@ final class AssetApi {
                     return LuaWidget.whTable(image(self, "size").sz);
                 }
             });
+            // audit2 B14 (as-09): the SNAPSHOT, which a mesh has had since 028 and the other three kinds
+            // did not. An image is a live interned object and none of the three kinds the grammar excuses,
+            // so :info() is owed; it is the same shape meshInfo has -- what the file turned out to hold.
+            m.set("info", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return imageInfo(image(self, "info"));
+                }
+            });
             addAssetVerbs(m, "image");
             return fileMeta("image", "image", m,
                 (k == Kind.IMAGE) ? "an image asset" : "an image another addon loaded",
@@ -854,6 +932,13 @@ final class AssetApi {
             m.set("text", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {
                     return data(self, "text").text;
+                }
+            });
+            m.set("info", new OneArgFunction() {      // as-09: the same, for a data file
+                public LuaValue call(LuaValue self) {
+                    LuaTable t = new LuaTable();
+                    t.set("bytes", LuaValue.valueOf(data(self, "info").text.length()));
+                    return t;
                 }
             });
             addAssetVerbs(m, "data");

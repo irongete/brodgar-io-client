@@ -89,6 +89,17 @@ abstract class OptionsMethod extends VarArgFunction {
         return Args.integer(value, verb, param, hint);
     }
 
+    /**
+     * The written value as a <b>boolean</b>, by type ({@link Args#bool}) — the door every switch on every
+     * panel goes through. Each of them used to coerce with Lua truth rather than check, and Lua truth is
+     * not a check: {@code video:shadows("no")} turned shadows ON and {@code client:recall(0)} turned the
+     * remembered ground ON, where the numeric siblings beside them had refused a fractional value by name
+     * since 018. One spelling of the question, in one sentence, for all seven.
+     */
+    protected boolean bool(LuaValue value, String param, String hint) {
+        return Args.bool(value, verb, param, hint);
+    }
+
     /** The written value as a <b>string</b>, by type — the other half of {@link #num}. */
     protected LuaValue str(LuaValue value, String param, String hint) {
         return Args.str(value, verb, param, hint);

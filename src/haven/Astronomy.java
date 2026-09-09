@@ -34,8 +34,19 @@ public class Astronomy {
     public final boolean night;
     public final Color mc;
     public final int is;
+    /* addon: whether the server actually SENT the season index, or `is` is Glob's own default of 1.
+     * The number cannot say it -- 1 is a legal index and it is also what an absent field becomes -- and
+     * hafen.time():season() has to answer nil for what the server does not publish rather than a confident
+     * "summer". Nothing in the client's own calendar reads this: Cal takes `is` either way. */
+    public final boolean seasonPublished;
 	
     public Astronomy(double dt, double mp, double yt, boolean night, Color mc, int is, double sp, double sd, double years, double ym, double md) {
+	this(dt, mp, yt, night, mc, is, true, sp, sd, years, ym, md);
+    }
+
+    /* addon: the same, told whether `is` came off the wire -- see `seasonPublished`. */
+    public Astronomy(double dt, double mp, double yt, boolean night, Color mc, int is, boolean seasonPublished, double sp, double sd, double years, double ym, double md) {
+	this.seasonPublished = seasonPublished;
 	this.dt = dt;
 	this.mp = mp;
 	this.yt = yt;

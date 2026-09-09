@@ -1089,6 +1089,7 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_SEND, "ev:resend");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "resend");
+                live(e, "resend");
                 e.cancel.prevent();
                 e.ui.rawWdgmsg(e.wdg, e.msg, e.args);      // the ORIGINAL args, verbatim and lossless
                 return LuaValue.NIL;
@@ -1099,11 +1100,34 @@ public final class LuaEvent {
                 AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_SEND, "ev:send");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "send");
                 LuaValue t = Args.required(a, 2, "ev:send", "args");
+                live(e, "send");
                 e.cancel.prevent();
                 e.ui.rawWdgmsg(e.wdg, e.msg, LuaMarshal.luaToArgs(t, "ev:send"));
                 return LuaValue.NIL;
             }
         });
+    }
+
+    /**
+     * <b>The two things an outbound verb needs to still be true</b> (audit2 B14, ev-03) — the widget is
+     * still in a tree, and the fire this {@code ev} belongs to has not been answered yet.
+     *
+     * <p>CONTROL's {@code resend} one screen up has asked both since it was written; ACTION's
+     * {@code resend}/{@code send} asked neither, and an {@code ev} is an ordinary Lua value a handler can
+     * stash. So a timer holding one re-sent to a widget that had left the tree — a message addressed to a
+     * widget id the client no longer draws — and the {@code preventDefault} both verbs imply reached a
+     * dispatch that had already returned its answer to the caller, cancelling nothing while reading as if it
+     * had. One helper, because the two verbs are one act with different arguments.
+     */
+    private static void live(LuaEvent e, String verb) {
+        UI u = e.ui;
+        if((e.wdg == null) || (u == null) || (u.root == null) || !e.wdg.hasparent(u.root))
+            throw new LuaError("ev:" + verb + "(): the widget this " + e.msg + " came from has LEFT THE TREE"
+                + " (widget:exists() is false), so there is nothing left to send to. Nothing was sent.");
+        if((e.cancel != null) && e.cancel.done())
+            throw new LuaError("ev:" + verb + "(): this " + e.msg + " has already been dispatched — the"
+                + " client has taken its answer, so the preventDefault this verb implies would stop nothing."
+                + " Send from inside the handler, or hold the widget and use widget:send(msg, ...).");
     }
 
 

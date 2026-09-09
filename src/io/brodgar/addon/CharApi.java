@@ -1919,7 +1919,7 @@ final class CharApi {
                 return false;
             if(ea.get("group").toint() != eb.get("group").toint())
                 return false;
-            if(ea.get("online").toboolean() != eb.get("online").toboolean())
+            if(Args.truthy(ea.get("online")) != Args.truthy(eb.get("online")))
                 return false;
         }
         return true;

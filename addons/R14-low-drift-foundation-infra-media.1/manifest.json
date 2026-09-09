@@ -1,0 +1,8 @@
+{
+  "id": "R14-low-drift-foundation-infra-media.1",
+  "name": "R14 low drift: foundation, infrastructure, media",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for refactor block R14. `:tr14` asserts, through the API itself, the one mechanism the block built and the sites moved onto it: every boolean argument is a real boolean, a callback's return still keeps Lua's own truth, and the block's other doors answer as they now say they do — the JSON reader's grammar and the writer's keys, a font's snapshot and its size cap, the asset loader's URL and extension refusals, the game clock as one reading, the sound collection's new name, a hotkey's name rules, and the profiler's history refusal.",
+  "files": ["main.lua"]
+}

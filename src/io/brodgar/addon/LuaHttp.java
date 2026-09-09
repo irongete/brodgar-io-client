@@ -148,7 +148,7 @@ final class LuaHttp {
                     // RFC 3986, as at :request(url) -- and on a hop, of the Location it resolved
                     u = URI.create(url).toURL();
                 } catch(MalformedURLException | IllegalArgumentException e) {
-                    return Result.fail("malformed url: " + e.getMessage());
+                    return Result.fail("malformed url: " + Refusal.reason(e));
                 }
                 // Per-hop ORIGIN validation: the grant (a redirect cannot escape it) and the private/loopback
                 // block. ALL resolved addresses are checked, so a host with both a public and a private A
@@ -198,7 +198,7 @@ final class LuaHttp {
                             // resolve a relative Location against the current URL, by RFC 3986
                             next = u.toURI().resolve(loc).toURL();
                         } catch(URISyntaxException | MalformedURLException | IllegalArgumentException e) {
-                            return Result.fail("malformed redirect Location \"" + loc + "\": " + e.getMessage());
+                            return Result.fail("malformed redirect Location \"" + loc + "\": " + Refusal.reason(e));
                         }
                         url = next.toString();
                         // 303 See Other → GET; 301/302 on a body-bearing method → GET (browser convention);
@@ -226,11 +226,11 @@ final class LuaHttp {
             } catch(SocketTimeoutException e) {
                 return Result.fail("timeout");
             } catch(MalformedURLException e) {
-                return Result.fail("malformed url: " + e.getMessage());
+                return Result.fail("malformed url: " + Refusal.reason(e));
             } catch(IOException e) {
-                return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
+                return Result.fail(e.getClass().getSimpleName() + ": " + Refusal.reason(e));
             } catch(RuntimeException e) {
-                return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
+                return Result.fail(e.getClass().getSimpleName() + ": " + Refusal.reason(e));
             } finally {
                 r.conn = null;
                 if(c != null)
@@ -406,14 +406,25 @@ final class LuaHttp {
         return StandardCharsets.UTF_8;
     }
 
-    /** Response headers with lower-cased keys (HTTP headers are case-insensitive); the status line dropped. */
+    /**
+     * Response headers with lower-cased keys (HTTP headers are case-insensitive); the status line dropped.
+     *
+     * <p><b>A header sent twice keeps both lines</b> (audit2 B14, ht-13). Repeats used to be folded with
+     * {@code ", "}, which is what RFC 7230 says a list-valued header means — and {@code Set-Cookie} is the
+     * one header it explicitly forbids that of, because a cookie's own {@code Expires} attribute contains a
+     * comma. So two {@code Set-Cookie} lines reached {@code res:header("set-cookie")} as one string nothing
+     * could split back apart. They are joined by a NEWLINE instead: a header value cannot contain one, so
+     * the join is unambiguous and {@code s:gmatch("[^\n]+")} is the whole of reading it. Every other header
+     * keeps the comma, which is what a list-valued header means.
+     */
     private static Map<String, String> lowerHeaders(HttpURLConnection c) {
         Map<String, String> out = new LinkedHashMap<String, String>();
         for(Map.Entry<String, List<String>> e : c.getHeaderFields().entrySet()) {
             if(e.getKey() == null)   // the null key holds the "HTTP/1.1 200 OK" status line — not a header
                 continue;
+            String name = e.getKey().toLowerCase(Locale.ROOT);
             List<String> vals = e.getValue();
-            out.put(e.getKey().toLowerCase(Locale.ROOT), String.join(", ", vals));
+            out.put(name, String.join(name.equals("set-cookie") ? "\n" : ", ", vals));
         }
         return out;
     }

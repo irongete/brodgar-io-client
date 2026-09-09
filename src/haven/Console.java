@@ -140,7 +140,34 @@ public class Console {
 	}
     }
 
+    /* addon: (audit2 B14, co-09) the pre-split entry CLEARS the raw line for the length of the dispatch.
+     * `rawtext` is a thread-local the String overload sets, and this overload used to leave it alone -- so a
+     * pre-split run() nested inside a typed one (a command dispatching another) had rawcmd() answer the
+     * ENCLOSING line, flatly against rawcmd()'s own "or null when invoked with pre-split args". The two
+     * overloads now both bracket it, and neither calls the other: `dispatch` is the body they share, so the
+     * String one still sets the line it was handed. */
     public void run(Host host, String[] args) throws Exception {
+	String prev = rawtext.get();
+	try {
+	    rawtext.set(null);                        // addon: pre-split: there IS no raw line
+	    dispatch(host, args);
+	} finally {
+	    rawtext.set(prev);
+	}
+    }
+
+    public void run(Host host, String cmdl) throws Exception {
+	String prev = rawtext.get();
+	try {
+	    rawtext.set(cmdl);                        // addon: keep the raw line for rawcmd()
+	    dispatch(host, Utils.splitwords(cmdl));
+	} finally {
+	    rawtext.set(prev);
+	}
+    }
+
+    /* addon: the dispatch itself, shared by the two overloads above and touching `rawtext` at neither end. */
+    private void dispatch(Host host, String[] args) throws Exception {
 	if(args.length < 1)
 	    return;
 	Command cmd = findcmd(args[0]);
@@ -152,16 +179,6 @@ public class Console {
 	    cmd.run(this, args);
 	} finally {
 	    this.host.set(ph);
-	}
-    }
-
-    public void run(Host host, String cmdl) throws Exception {
-	String prev = rawtext.get();
-	try {
-	    rawtext.set(cmdl);                        // addon: keep the raw line for rawcmd()
-	    run(host, Utils.splitwords(cmdl));
-	} finally {
-	    rawtext.set(prev);
 	}
     }
 

@@ -376,7 +376,9 @@ final class WorldApi {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "snapPlace", W);
                 Coord2d rc = LuaPosition.worldArg(a, 2, W + ":snapPlace", "p", user);
-                int modflags = a.arg(3).toboolean() ? UI.MOD_SHIFT : 0;
+                int modflags = Args.optbool(a, 3, W + ":snapPlace", "fine",
+                                            "snap to the sub-tile grid, not the tile centre", false)
+                    ? UI.MOD_SHIFT : 0;
                 Coord2d s = MapView.placeSnap(new Coord2d(rc.x, rc.y), modflags);
                 return LuaPosition.ofWorld(owner, user, s.x, s.y);
             }
@@ -388,7 +390,8 @@ final class WorldApi {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "snapAngle", W);
                 double ang = number(a, 2, W + ":snapAngle", "a");
-                return LuaValue.valueOf(snapPlaceAngle(ang, a.arg(3).toboolean()));
+                return LuaValue.valueOf(snapPlaceAngle(ang, Args.optbool(a, 3, W + ":snapAngle", "fine",
+                    "snap to the finer angle grid, not 45-degree steps", false)));
             }
         });
         // placing() — the ghost on this character's CURSOR, as a Placing object, or nil when it is placing
@@ -816,6 +819,14 @@ final class WorldApi {
                 Astronomy t = astro();
                 if(t == null)
                     return LuaValue.NIL;
+                // audit2 B14 (ti-05): AND THE SERVER HAS TO HAVE SAID SO. The "astro" branch defaults every
+                // field it does not receive, and `is` defaults to 1, which is summer -- so a server that
+                // publishes no season index made this verb answer a confident "summer" where time.md's own
+                // rule is that what the server does not publish answers nil. Astronomy now records whether
+                // the index was in the message (an `// addon:` field), which is the only place that fact
+                // exists at all: the number itself cannot say it.
+                if(!t.seasonPublished)
+                    return LuaValue.NIL;
                 return ((t.is < 0) || (t.is >= SEASONS.length)) ? LuaValue.NIL
                     : LuaValue.valueOf(SEASONS[t.is]);
             }
@@ -834,6 +845,30 @@ final class WorldApi {
                 timeRead(a, "yearFraction");
                 Astronomy t = astro();
                 return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.yt);
+            }
+        });
+        // info() — audit2 B14 (ti-04): THE SIX AS ONE READING. Each verb above calls astro() for itself,
+        // and Glob replaces that object whole on every "astro" update -- so `t:dayFraction()` and
+        // `t:night()` on one Lua line could straddle a replacement and describe two different moments,
+        // which is exactly what a section that is a live interned object owes an :info() for. One astro(),
+        // one globtime(), one table. Every key is absent where its own verb answers nil, so the two agree.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "info");
+                LuaTable t = new LuaTable();
+                Glob g = anyglob();
+                if(g != null)
+                    t.set("clock", LuaValue.valueOf(g.globtime()));
+                Astronomy ast = astro();
+                if(ast != null) {
+                    t.set("dayFraction", LuaValue.valueOf(ast.dt));
+                    t.set("night", LuaValue.valueOf(ast.night));
+                    if(ast.seasonPublished && (ast.is >= 0) && (ast.is < SEASONS.length))
+                        t.set("season", LuaValue.valueOf(SEASONS[ast.is]));
+                    t.set("moon", LuaValue.valueOf(ast.mp));
+                    t.set("yearFraction", LuaValue.valueOf(ast.yt));
+                }
+                return t;
             }
         });
         Section.install(hafen, "time", m);

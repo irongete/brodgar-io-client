@@ -1422,11 +1422,26 @@ public final class Addon {
     Scope scope(String name) {
         synchronized(scopes) {
             Scope s = scopes.get(name);
-            if(s == null)
+            if(s == null) {
+                // audit2 B14 (pf-08): AND THE SET OF NAMES IS BOUNDED. This map is cleared at teardown and
+                // nowhere else, and every snapshot of p:addons() builds one Lua table per entry -- so a
+                // scope named by a generated string (an item id, a frame number, a coordinate) grew the map
+                // and the per-frame snapshot together, without limit, for as long as the profiler was
+                // armed. A scope is a NAME an author writes, so a few hundred is already more than a
+                // program has; past that the write is refused rather than the memory taken.
+                if(scopes.size() >= MAX_SCOPES)
+                    throw new org.luaj.vm2.LuaError("p:scope(name): this addon has already named "
+                        + MAX_SCOPES + " scopes, which is the limit — a scope names a SECTION of your code,"
+                        + " so a generated name (an id, a coordinate, a frame) is measuring one thing under"
+                        + " a million labels. Name the section instead.");
                 scopes.put(name, s = new Scope(name));
+            }
             return s;
         }
     }
+
+    /** How many distinct scope names one addon may hold — see {@link #scope}. */
+    private static final int MAX_SCOPES = 256;
 
     /**
      * Close the frame: move this frame's accounting into the "last completed frame" fields and start the
@@ -1575,7 +1590,7 @@ public final class Addon {
                         if(e instanceof RuntimeException)
                             throw (RuntimeException)e;
                     }
-                    error = file + ": " + e.getMessage();
+                    error = file + ": " + Refusal.reason(e);
                     return;
                 }
             }

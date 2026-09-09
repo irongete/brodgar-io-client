@@ -26,8 +26,17 @@ import org.luaj.vm2.LuaValue;
  * teardown a no-op.
  *
  * <p><b>Threading.</b> The in-game {@code ":"} console dispatches on the UI thread (input handling), the same
- * thread as the tick/draw, so a command handler never races other Lua — matching the {@code :lua} REPL (a terminal
+ * thread as the tick/draw, so a TYPED command's handler never races other Lua — matching the {@code :lua} REPL (a terminal
  * stdin build dispatches on the reader thread, the same trust/threading profile the REPL already accepts).
+ *
+ * <p><b>And {@code s:console():run(line)} is a SECOND door onto this same dispatcher</b> (audit2 B14, co-05),
+ * which the paragraph above does not describe. That verb runs the line synchronously on whatever thread its
+ * caller is on, into {@code AddonManager.sessionui(user)} — another session's tree — and through the
+ * dispatcher into another addon's Globals, with no thread of the client's involved. So the guarantee above
+ * is the TYPED console's and belongs to it: a handler registered here may be entered from a Lua caller's
+ * thread, and what protects it there is what protects every other cross-addon entry, the callee's own
+ * {@code Addon.luaLock} taken by {@link AddonManager#callLua}. The permission {@code console.run} exists
+ * because that door is a door.
  */
 public final class LuaConsoleCommand {
     final Addon owner;

@@ -1283,9 +1283,21 @@ public final class AddonManager {
             frame++;         // audit2 B07: the beat Wire's rate bound counts in, advanced beside the clock
 
             // 074.2: the client's addons, loaded once, on the first frame the layer is ticked.
+            //   audit2 B14 (lc-11): AND ITS OWN CATCH. `booted` used to be set before boot() ran, inside a
+            // step whose catch turns anything thrown into one "layer tick error" line -- so a throw in the
+            // load left a client with no addons, one generic line naming neither the boot nor a way back,
+            // and no retry. The flag still goes up whatever happens (a retry every frame is a stall, not a
+            // recovery), and the failure now says what failed and what the retry is.
             if(!booted) {
-                booted = true;
-                boot();
+                try {
+                    boot();
+                } catch(RuntimeException e) {
+                    log("the addons could NOT be loaded: " + Refusal.reason(e)
+                        + " -- no addon is running. Fix it and type :reload to try again");
+                    trace(e);
+                } finally {
+                    booted = true;
+                }
                 return;      // the loaded addons begin their own tick cleanly next frame
             }
 
@@ -1330,7 +1342,14 @@ public final class AddonManager {
             // 019.4: this instant is also where the PREVIOUS frame closes — tickLuaNanos accrues through the
             // tick and the draw callbacks that follow it, so right here it holds exactly one whole frame.
             // profRoll() moves it into the addon's "last completed frame" figures before it is cleared, which
-            // is why p:addons() never shows a half-accumulated frame and its total matches p:frame().addons.
+            // is why p:addons() never shows a half-accumulated frame.
+            // audit2 B14 (pf-03): AND THE TWO VIEWS ARE FOLDED A FRACTION OF A FRAME APART. p:frame().addons
+            // is folded at `framedone` (UILoop.framedone -> Prof.frame), this roll runs on the next layer
+            // tick, and the two read the SAME tickLuaNanos accounting -- so they agree about a frame, and
+            // Lua that runs in the gap between them (an HTTP completion, a draw callback after framedone) is
+            // charged to the frame this roll closes and not to the one Prof.frame has already taken. Neither
+            // view loses it and neither counts it twice; "the two can never disagree" was the overstatement,
+            // and attribution.md now says what this comment says.
             // 019.7: `armed` is the MASTER switch, so the ms figures keep rolling across a control frame;
             // `probed` describes the frame being CLOSED (this tick opens the next one), so the category and
             // scope split — which a control frame does not measure — holds its last measured value instead
@@ -1813,7 +1832,7 @@ public final class AddonManager {
      */
     private static void autoDisable(Addon a, String reason) {
         String id = (a.manifest != null) ? a.manifest.id : "addon";
-        log(a, "AUTO-DISABLED (" + reason + ") - see Options -> AddOns");
+        logAbout(a, "AUTO-DISABLED (" + reason + ") - see Options -> AddOns");
         autoDisabledWarn.put(id, reason);
         AddonRegistry.teardown(a);
         addons.remove(a);
@@ -1860,9 +1879,17 @@ public final class AddonManager {
         if(a.timers.isEmpty() || !enterLua(a))
             return;
         try {
+            // audit2 B14 (tm-10): COLLECTED, then dropped in one call. `a.timers` is a CopyOnWriteArrayList
+            // and this loop used to remove into it as it walked -- correct, because the iterator is a
+            // snapshot, but one whole array copy per expiring one-shot and one per dead timer. A frame that
+            // retires twenty timers copied the list twenty times; now it copies it once, and never at all on
+            // the ordinary frame where nothing expires.
+            List<Timer> done = null;
             for(Timer t : a.timers) {
                 if(!t.alive) {
-                    a.timers.remove(t);
+                    if(done == null)
+                        done = new ArrayList<Timer>();
+                    done.add(t);
                     continue;
                 }
                 if(clock >= t.due) {
@@ -1872,10 +1899,14 @@ public final class AddonManager {
                     } else {
                         t.fired = true;                          // one-shot: it ran, which tostring says
                         t.alive = false;
-                        a.timers.remove(t);
+                        if(done == null)
+                            done = new ArrayList<Timer>();
+                        done.add(t);
                     }
                 }
             }
+            if(done != null)
+                a.timers.removeAll(done);
         } finally {
             leaveLua(a);
         }
@@ -2510,6 +2541,7 @@ public final class AddonManager {
                 fireAction(co, sender, msg, args, c, u);
         } finally {
             st.dispatchingAction = false;
+            c.finish();       // ev-03: from here an ev stashed by a handler can no longer cancel this fire
         }
         return !c.prevented();
     }
@@ -2658,19 +2690,6 @@ public final class AddonManager {
     }
 
     /**
-     * Fire one of the four session events, whose payload is a <b>Session object</b> (076.2) — the address an
-     * addon names a character by, rather than a bare account name a handler would have to hand back to
-     * {@code hafen.session():get} before it could read anything with it.
-     *
-     * <p>The {@link #fireGob} shape exactly, and for its two reasons: interning is <b>per addon</b> (D-045),
-     * so the payload cannot be shared — one object handed to every owner would cross a sandbox boundary — and
-     * it is minted only for an owner that actually subscribes, so the addons that do not listen pay nothing.
-     *
-     * <p>A {@code SessionRemoved} payload names a session that is <b>already gone</b>: the account name is
-     * the whole of the ref, so {@code :user()} answers there while {@code :exists()} is {@code false}, which
-     * is what lets a handler drop its own tables by the very key it was handed.
-     */
-    /**
      * {@code MarkerChanged} — the marker COLLECTION, per owner (091, A-083). It was a bare count, which
      * answered a question nobody asked ({@code :count()} is one call away) and not the one they did.
      */
@@ -2736,6 +2755,19 @@ public final class AddonManager {
         s.fire(LuaItem.CHANGED, LuaItem.of(a, it));
     }
 
+    /**
+     * Fire one of the four session events, whose payload is a <b>Session object</b> (076.2) — the address an
+     * addon names a character by, rather than a bare account name a handler would have to hand back to
+     * {@code hafen.session():get} before it could read anything with it.
+     *
+     * <p>The {@link #fireGob} shape exactly, and for its two reasons: interning is <b>per addon</b> (D-045),
+     * so the payload cannot be shared — one object handed to every owner would cross a sandbox boundary — and
+     * it is minted only for an owner that actually subscribes, so the addons that do not listen pay nothing.
+     *
+     * <p>A {@code SessionRemoved} payload names a session that is <b>already gone</b>: the account name is
+     * the whole of the ref, so {@code :user()} answers there while {@code :exists()} is {@code false}, which
+     * is what lets a handler drop its own tables by the very key it was handed.
+     */
     static void fireSession(String event, String user) {
         for(Addon a : addons) {
             if(hasSub(a, event))
@@ -4380,7 +4412,7 @@ public final class AddonManager {
     /**
      * Call into Lua with full error isolation (a Lua error never escapes the engine step) and return its
      * result varargs (or {@link LuaValue#NIL} on error). Most callers (events/timers) ignore the return;
-     * the custom-UI input forwards ({@link AddonWidget}) read {@code .arg1().toboolean()} for "consume".
+     * the custom-UI input forwards ({@link AddonWidget}) read {@link Args#truthy} of {@code arg1()} for "consume".
      * Package-visible so {@link AddonWidget} (same package) routes its draw/tick/mouse callbacks through the
      * one watchdog-armed, CPU-accounted choke point.
      */
@@ -4458,10 +4490,10 @@ public final class AddonManager {
         try {
             return fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
         } catch(LuaError e) {
-            log(owner, "handler error: " + e.getMessage());
+            logAbout(owner, "handler error: " + Refusal.reason(e));
             trace(e.getCause());
         } catch(RuntimeException e) {
-            log(owner, "handler error: " + e);
+            logAbout(owner, "handler error: " + e);
             trace(e);
         } catch(Throwable t) {
             // 126.1: AND AN Error. Everything above this line was already contained; a StackOverflowError or
@@ -4530,7 +4562,7 @@ public final class AddonManager {
         String kind = t.getClass().getName();
         quarantines.add(new Quarantine(owner, "fatal: " + kind));
         try {
-            log(owner, "FATAL " + kind + " out of a callback - contained; this addon is quarantined until"
+            logAbout(owner, "FATAL " + kind + " out of a callback - contained; this addon is quarantined until"
                 + " the next load - see Options -> AddOns");
             trace(t);
         } catch(Throwable ignored) {
@@ -4645,7 +4677,7 @@ public final class AddonManager {
         // throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
         Section.mount(hafen, "sound", LuaSound.collection(owner),
                       "hafen.sound(name) is now hafen.sound():get(name), and the clips of yours in the air"
-                      + " are hafen.sound():playing(filter)");
+                      + " are hafen.sound():sounding(filter)");
 
         // hafen.music is DELIBERATELY ABSENT (024.3, maintainer 2026-08-01). haven.Music is the client's MIDI
         // player, driven by exactly one thing — RootWidget's "bgm" server message — and this server never
@@ -4841,7 +4873,13 @@ public final class AddonManager {
                 LuaValue self = a.arg1();
                 Section.self(self, "log", "write");
                 Args.only(a, 1, "hafen.log():write");
-                String msg = Args.required(a, 2, "hafen.log():write", "msg").tojstring();
+                // audit2 B14 (lg-04): tostring(), not tojstring(). log.md promises "any value, which is
+                // converted to one", and tojstring() is NOT that conversion -- it never consults the
+                // __tostring metatag, which every handle class in this package defines. So a line written
+                // about a live handle printed `userdata: 5f2a11c0` where the handle's own metatable would
+                // have said `Gob(gfx/borka/body, 1234)`, and the value the author reached for was the one
+                // thing the line could not say.
+                String msg = Args.required(a, 2, "hafen.log():write", "msg").tostring().tojstring();
                 // audit2 B08 (lg-03): A LINE IS SIGNED BY WHOEVER WROTE IT. The in-game half renders
                 // `<id>: <msg>`, so a message opening with another loaded addon's id and a colon reads as
                 // that addon's own line -- and the newlines the sink escapes (log(Addon, String)) close the
@@ -4880,7 +4918,7 @@ public final class AddonManager {
                 try {
                     parsed = Json.parse(s, Json.DEFAULT_MAX_DEPTH);
                 } catch(RuntimeException e) {
-                    throw new LuaError(e.getMessage());  // "JSON: <msg> at offset <n>" -> pcall-able
+                    throw new LuaError(Refusal.reason(e));  // "JSON: <msg> at offset <n>" -> pcall-able
                 }
                 return LuaMarshal.jsonToLua(parsed, owner);
             }
@@ -5217,7 +5255,8 @@ public final class AddonManager {
      */
     static void log(String msg) {
         System.out.println("[addon] " + msg);
-        notice(clampMsg(msg));
+        if(noticeAllowed("(client)"))                  // lg-02: a client line repeats too (a retry, a give-up)
+            notice(clampMsg(msg));
     }
 
     /**
@@ -5245,9 +5284,22 @@ public final class AddonManager {
                 u.msg(line);
             }
         } catch(RuntimeException e) {
-            /* pre-HUD or no notice sink yet; stdout still has it */
+            // audit2 B14 (lg-05): SAID ONCE, rather than swallowed. The expected case really is benign --
+            // a line written before the HUD exists has no sink to reach and stdout is the whole record --
+            // but this catch spans the entire dispatch, so every later failure of the notice path went the
+            // same silent way, and a line the page promises to the in-game console could vanish with no
+            // trace but the terminal copy. It is reported to stdout (never back through notice(), which is
+            // what is failing) and only the first time, because a sink that is broken is broken every frame.
+            if(!noticeSinkFailed) {
+                noticeSinkFailed = true;
+                logDiag("the in-game notice sink refused a line (" + Refusal.reason(e) + ") -- every line is"
+                        + " still on the terminal, and this is said once");
+            }
         }
     }
+
+    /** Whether {@link #notice} has already reported a failing sink — see the catch there (lg-05). */
+    private static volatile boolean noticeSinkFailed = false;
 
     /**
      * Lines written from inside a tree's monitor, waiting for the step — see {@link #notice}. Empty on every
@@ -5293,13 +5345,90 @@ public final class AddonManager {
     /**
      * Addon-level output ({@code hafen.log():write} + handler errors): tagged with the addon id. The notice
      * half goes to {@link #screen()} for {@link #log(String)}'s reason.
+     *
+     * <p><b>The terminal half is never rate-limited and the notice half always is</b> (audit2 B14, lg-02).
+     * The two sinks answer different questions: stdout is the record, and a record with lines missing is
+     * not one, so every call writes there. The in-game notice is a timed line drawn over the world and
+     * appended to the System channel, and both of those are the player's screen — so a handler throwing
+     * once a frame, or a loop of {@code hafen.log():write}, used to be one {@code println} AND one whole
+     * {@code UI.msg} tree dispatch per call, on the UI thread, with nothing bounding the count.
+     * {@link #noticeAllowed} spends a small per-second allowance per addon and files the rest as a single
+     * count, so a runaway costs one line saying how many were dropped and where to read them.
      */
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
         String one = oneLine(msg);
         System.out.println("[" + id + "] " + one);
-        notice(clampMsg(id + ": " + one));
+        if(noticeAllowed(id))
+            notice(clampMsg(id + ": " + one));
     }
+
+    /**
+     * <b>A diagnostic the CLIENT writes ABOUT an addon</b> (audit2 B14, lg-08) — a failure of the engine's
+     * own, named with the addon it concerns rather than signed with that addon's name.
+     *
+     * <p>{@link #log(Addon, String)} prefixes {@code [<id>]} on the terminal and {@code <id>: } in the
+     * chat, which is the addon speaking; every engine call site shared it, so "could not play sfx/msg" and
+     * "a widget could not be put back" read as lines the addon had written about itself, and an author
+     * grepping their own id found the client's sentences among their own. The two are now spelled apart:
+     * this one wears the client's own {@code [addon]} tag and names the addon INSIDE the line, the same
+     * shape {@link #log(String)} has, which is what it is.
+     */
+    static void logAbout(Addon subject, String msg) {
+        String id = ownerName(subject);
+        String one = oneLine(msg);
+        System.out.println("[addon] " + id + ": " + one);
+        if(noticeAllowed(id))                          // lg-02: the same allowance, for the same reason
+            notice(clampMsg("addon " + id + ": " + one));
+    }
+
+    /**
+     * <b>May this addon post another notice right now?</b> — the count bound {@link #clampMsg} is not.
+     * {@code clampMsg} bounds ONE line's length, which is what stops a huge line taking the render thread
+     * down; nothing bounded how many lines, so the cost of a loop was linear in the loop. The allowance is
+     * per addon and per second, and the line that closes a spent second says how many were dropped, so the
+     * player is told that something is shouting rather than merely being shouted at.
+     */
+    private static boolean noticeAllowed(String id) {
+        long now = System.currentTimeMillis();
+        NoticeRate r = noticeRates.get(id);
+        if(r == null) {
+            r = new NoticeRate();
+            NoticeRate had = noticeRates.putIfAbsent(id, r);
+            if(had != null)
+                r = had;
+        }
+        synchronized(r) {
+            if((now - r.since) >= 1000L) {          // a new second: report what the last one swallowed
+                long dropped = r.dropped;
+                r.since = now;
+                r.count = 0;
+                r.dropped = 0;
+                if(dropped > 0)
+                    notice(clampMsg(id + ": " + dropped + " more line(s) in the last second are on the"
+                                    + " terminal only"));
+            }
+            if(r.count < NOTICE_PER_SECOND) {
+                r.count++;
+                return true;
+            }
+            r.dropped++;
+            return false;
+        }
+    }
+
+    /** How many in-game notices one addon may post per second before the rest are counted instead. */
+    private static final int NOTICE_PER_SECOND = 8;
+
+    /** One addon's notice allowance for the second it is in — see {@link #noticeAllowed}. */
+    private static final class NoticeRate {
+        long since = System.currentTimeMillis();
+        int count;
+        long dropped;
+    }
+
+    /** The allowances, by addon id. Concurrent: a line is written from any thread an addon runs on. */
+    private static final Map<String, NoticeRate> noticeRates = new ConcurrentHashMap<String, NoticeRate>();
 
     /**
      * <b>One line, whatever was written</b> (audit2 B08, lg-03) — the newlines in a logged message escaped
@@ -5476,7 +5605,7 @@ public final class AddonManager {
                 notice(clampMsg(out));                             // ...clamped in-game (a huge one-line result crashes the text renderer)
             }
         } catch(LuaError e) {
-            String err = "lua: " + e.getMessage();
+            String err = "lua: " + Refusal.reason(e);
             System.out.println("[console] " + err);
             if(u != null) {
                 try {
@@ -6059,7 +6188,7 @@ public final class AddonManager {
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(snap).toboolean();
+                return Args.truthy(filter.call(snap));
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }
@@ -6086,7 +6215,7 @@ public final class AddonManager {
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(LuaGob.of(owner, user, g.id)).toboolean();
+                return Args.truthy(filter.call(LuaGob.of(owner, user, g.id)));
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }
@@ -6621,17 +6750,6 @@ public final class AddonManager {
     }
 
     /**
-     * The declared addon options grouped by owning addon, for the AddOns tab of the settings window. Only
-     * addons with at least one <b>live</b> declared option appear — the same WoW-style rule
-     * {@link #describeKeyBinds()} follows, and for the same reason: a row for an addon with nothing to
-     * configure is a page the user opens once. Order is {@link #addons}, which is the order they were
-     * loaded in; within an addon, declaration order.
-     *
-     * <p>Read on the UI thread, when the tab is shown. A disabled or unloaded addon holds no live option, so
-     * it does not appear — its stored values stay in the client's preference store, exactly as a re-mapped
-     * keybinding does.
-     */
-    /**
      * <b>How many declarations there have been</b> — bumped by every {@code :add()} that takes a name. The
      * AddOns tab watches it beside {@link AddonRegistry#reloadGen()}, which is what makes its list what the
      * addons have declared <i>now</i> rather than what they had declared when the window was last opened: an
@@ -6650,6 +6768,17 @@ public final class AddonManager {
         optionsGen++;
     }
 
+    /**
+     * The declared addon options grouped by owning addon, for the AddOns tab of the settings window. Only
+     * addons with at least one <b>live</b> declared option appear — the same WoW-style rule
+     * {@link #describeKeyBinds()} follows, and for the same reason: a row for an addon with nothing to
+     * configure is a page the user opens once. Order is {@link #addons}, which is the order they were
+     * loaded in; within an addon, declaration order.
+     *
+     * <p>Read on the UI thread, when the tab is shown. A disabled or unloaded addon holds no live option, so
+     * it does not appear — its stored values stay in the client's preference store, exactly as a re-mapped
+     * keybinding does.
+     */
     public static List<OptionGroup> describeOptions() {
         List<OptionGroup> out = new ArrayList<OptionGroup>();
         for(Addon a : addons) {

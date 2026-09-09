@@ -243,7 +243,9 @@ looking.
 
 **Every counter group is read-only in the strict sense** — each takes no argument, and passing one raises
 rather than being ignored, so `p:net(1)` is a refusal rather than a read that quietly discards what you
-meant. The one that does take an argument is `p:history(n)`, which says how many frames back to read.
+meant. The one that does take an argument is `p:history(n)`, which says how many frames back to read: a
+whole number, and a negative one raises rather than answering an empty table. Asking for more frames
+than the ring holds is how you ask for all of them, and answers with all of them.
 
 ```lua
 local a = hafen.client():profiling():session()

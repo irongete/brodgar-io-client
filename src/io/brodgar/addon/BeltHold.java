@@ -321,7 +321,7 @@ public final class BeltHold {
             try {
                 hold(pag.user, n.intValue(), pag);
             } catch(RuntimeException e) {
-                AddonManager.log("action-bar holds: could not restore slot " + n + ": " + e.getMessage());
+                AddonManager.log("action-bar holds: could not restore slot " + n + ": " + Refusal.reason(e));
             }
         }
     }

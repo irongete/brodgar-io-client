@@ -74,9 +74,12 @@ There is no `get`/`set` pair — one name per option. Always use a **colon** cal
 anything else is an error. Invalid values raise a Lua error rather than being clipped, so a bad write fails
 loudly instead of silently doing nothing.
 
-A **number** option refuses `"60"` and a **string** option refuses `60`: what is checked is the value's
-type, and a numeric string is
-[still a string](../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). The
+A **number** option refuses `"60"`, a **string** option refuses `60`, and a **switch** refuses anything
+that is not `true` or `false`: what is checked is the value's type, and a numeric string is
+[still a string](../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number).
+`shadows("no")` and `recall(0)` raise rather than turning the setting **on** — in Lua every value but
+`false` and `nil` is true, so a switch that took Lua's word for it would do the opposite of what the
+line says. The
 refusal names the option and its parameter, and it fires before the option is looked up at all, so it is the
 same refusal whether or not the client's UI is up yet.
 

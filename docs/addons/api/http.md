@@ -159,6 +159,19 @@ So check `:ok()` first and branch on `:status()` after.
 > because `if gob.name then` is always true. `res:header("content-type")` also does the header matching
 > for you: the name is matched case-insensitively, so there is nothing to remember about casing.
 
+**A header the server sent twice comes back as its lines, newline-separated.** Most repeated headers
+mean one comma-separated list and are joined with `", "` — but `set-cookie` is the one header that
+must not be, because a cookie's own `Expires` attribute contains a comma. So `res:header("set-cookie")`
+answers every line, joined with `
+`, and a header value can never contain one:
+
+```lua
+for line in (res:header("set-cookie") or ""):gmatch("[^
+]+") do
+  hafen.log():write(line)
+end
+```
+
 ## Cancellation and lifecycle
 
 `req:cancel()` marks the request dead and its handler **never fires** — there is no "cancelled" event.

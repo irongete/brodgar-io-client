@@ -885,9 +885,9 @@ public class Widget {
 	    if(!wdg.visible)
 		continue;
 	    long pt0 = pon ? System.nanoTime() : 0;   // addon:
+	    GOut g2;   // addon: (audit2 B14, pf-16) declared out here -- the overlay below draws after the bracket
 	    try(CPUProfile.Current prof = CPUProfile.begin(wdg)) {
 		Coord cc = xlate(wdg.c, true);
-		GOut g2;
 		if(strict)
 		    g2 = g.reclip(cc, wdg.sz);
 		else
@@ -900,13 +900,6 @@ public class Widget {
 		try(Fonts.Frame ff = Fonts.frame(wdg)) {
 		    wdg.draw(g2);
 		}
-		/* addon: what an addon draws OVER this widget (103.3). AFTER the child's own draw, so an
-		 * overlay lands on top of it, and OUTSIDE the style frame above, so a painter of an addon's
-		 * is not restyled by the sheet the user put on the widget underneath it. g2 is already
-		 * translated and clipped to the child's box, so the painter draws widget-local and is cut
-		 * off at that widget's edge. */
-		if(wdg.addonovs != null)   // addon:
-		    io.brodgar.addon.LuaWidgetOverlay.paint(wdg, g2);
 	    }
 	    if(pon) {   // addon:
 		long d = System.nanoTime() - pt0;
@@ -914,6 +907,18 @@ public class Widget {
 		wdg.profadd(PR_DRAW, d);
 		csum += d;
 	    }
+	    /* addon: what an addon draws OVER this widget (103.3). AFTER the child's own draw, so an
+	     * overlay lands on top of it, and OUTSIDE the style frame above, so a painter of an addon's
+	     * is not restyled by the sheet the user put on the widget underneath it. g2 is already
+	     * translated and clipped to the child's box, so the painter draws widget-local and is cut
+	     * off at that widget's edge.
+	     *   OUTSIDE THE TIMED BRACKET TOO (audit2 B14, pf-16): the painter is an addon's Lua, and
+	     * callLua already charges it to that addon, which is what p:addons() reports. Drawn inside the
+	     * bracket it was ALSO added to this client widget's own PR_DRAW and to CPUProfile's slot for it
+	     * -- so p:widgets() blamed a Window for the addon painting over it, in a row that carries no
+	     * owner and nothing to follow back. One cost, charged once, to whoever incurred it. */
+	    if(wdg.addonovs != null)   // addon:
+		io.brodgar.addon.LuaWidgetOverlay.paint(wdg, g2);
 	}
 	if(pon && (csum > 0))   // addon: what our own draw spent on children, for the self-time subtraction
 	    profadd(PR_DRAWCH, csum);

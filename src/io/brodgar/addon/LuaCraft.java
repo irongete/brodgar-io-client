@@ -100,14 +100,15 @@ public final class LuaCraft {
                 LuaValue me = a.arg1();
                 Section.self(me, "craft", "make", CharApi.CR);
                 AddonManager.requirePermission(AddonManager.current(), Permission.CRAFT_MAKE);
-                LuaValue all = Args.written(a, 2, CharApi.CR + ":make", "all");
+                boolean all = Args.optbool(a, 2, CharApi.CR + ":make", "all",
+                                           "make as many as the recipe's inputs allow", false);
                 Makewindow mw = ActApi.makewindow(user);
                 if(mw == null)
                     throw new LuaError(CharApi.CR + ":make(all): no recipe is open on that character — "
                         + CharApi.CR + ":exists() is the test, and which recipe is open is the player's"
                         + " choice");
                 Wire.send(owner, user, CharApi.CR + ":make", mw, "make",
-                          Integer.valueOf(((all != null) && all.toboolean()) ? 1 : 0));
+                          Integer.valueOf(all ? 1 : 0));
                 return me;
             }
         });

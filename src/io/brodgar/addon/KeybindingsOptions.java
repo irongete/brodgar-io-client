@@ -64,8 +64,34 @@ public final class KeybindingsOptions {
                 if(!fn.isfunction())
                     throw new LuaError("keybindings:on: fn must be a function — it runs when the user"
                         + " presses the key they bound, got " + fn.typename());
-                LuaSub sub = owner.keySubs.add(name.tojstring(), fn);
-                sub.tag = HookApi.newKeyBind(owner, name.tojstring(), fn);
+                String nm = name.tojstring();
+                // audit2 B14 (cl-03): THE NAME IS CHECKED HERE, where it is written. Args.str asked its type
+                // and nothing else, so an empty name registered a hotkey nothing could label, and a long one
+                // registered fine and then threw a raw IllegalArgumentException out of Utils.setpref — at
+                // the moment the USER assigned a key to it, in the Options window, naming neither the addon
+                // nor the row. The sibling option:add() has compared its own composed pref key against
+                // Preferences.MAX_KEY_LENGTH since 115; this is the same check on the same store.
+                if(nm.trim().isEmpty())
+                    throw new LuaError("keybindings:on(name, fn): name is empty — it is what the user reads"
+                        + " beside the key in Options > Keybindings, so it has to say what the key does");
+                String key = "keybind/" + HookApi.keyBindId(owner, nm);
+                if(key.length() > java.util.prefs.Preferences.MAX_KEY_LENGTH)
+                    throw new LuaError("keybindings:on(name, fn): the hotkey '" + nm + "' is remembered under"
+                        + " '" + key + "', which is " + key.length() + " characters and the client's"
+                        + " preference store takes " + java.util.prefs.Preferences.MAX_KEY_LENGTH
+                        + " — give it a shorter name");
+                // audit2 B14 (cl-11): ONE LIVE HOTKEY PER NAME PER ADDON, the console's own co-04 rule on
+                // the other registry. Nothing rejected a second :on under one name, and the Ended hook drops
+                // EVERY keybind with that name and releases the key — so sub:off() on either of two killed
+                // both, and the survivor read alive with nothing left to fire it. The earlier one is ended
+                // FIRST, before the new binding is claimed, so the sweep it triggers cannot take the new one
+                // with it.
+                for(LuaSub old : owner.keySubs.live()) {
+                    if(old.key.equals(nm))
+                        owner.keySubs.off(old);
+                }
+                LuaSub sub = owner.keySubs.add(nm, fn);
+                sub.tag = HookApi.newKeyBind(owner, nm, fn);
                 return sub.handle();
             }
         });

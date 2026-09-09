@@ -208,12 +208,12 @@ final class StoreApi {
                     LuaWidget.rememberCapture(owner);
                     writePlacements(owner, ACCOUNT);
                 } catch(RuntimeException e) {
-                    log(owner, "store: could not save remembered placements: " + e);
+                    logAbout(owner, "store: could not save remembered placements: " + e);
                 }
                 try {
                     writeAccount(owner);
                 } catch(RuntimeException e) {
-                    log(owner, "store: flush failed: " + e);
+                    logAbout(owner, "store: flush failed: " + e);
                 }
                 return self;
             }
@@ -293,12 +293,12 @@ final class StoreApi {
                     LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
                     writePlacements(owner, st.charScope);
                 } catch(RuntimeException e) {
-                    log(owner, "store: could not save remembered placements: " + e);
+                    logAbout(owner, "store: could not save remembered placements: " + e);
                 }
                 try {
                     writeChar(owner, cs);
                 } catch(RuntimeException e) {
-                    log(owner, "store: flush failed: " + e);
+                    logAbout(owner, "store: flush failed: " + e);
                 }
                 return self;
             }
@@ -524,7 +524,7 @@ final class StoreApi {
                 LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands right now...
                 writePlacements(a);             //   ...each into the folder of the tree it stands in
             } catch(RuntimeException e) {
-                log(a, "store: could not save remembered placements: " + e);
+                logAbout(a, "store: could not save remembered placements: " + e);
             }
         }
     }
@@ -568,7 +568,7 @@ final class StoreApi {
                 try {
                     writeChar(a, cs);
                 } catch(RuntimeException ex) {
-                    log(a, "store: could not save this character's variables: " + ex);
+                    logAbout(a, "store: could not save this character's variables: " + ex);
                 }
             }
             cs.scope = null;
@@ -641,25 +641,44 @@ final class StoreApi {
     }
 
     private static String uncarriable(LuaTable t, String path, Set<LuaValue> seen) {
+        // audit2 B14 (st-05): A CYCLE IS THE FIRST THING A STORE CANNOT HOLD, and it used to be the one
+        // thing this walk answered `null` for. The writer breaks a cycle into the literal string "<cycle>",
+        // so the table came back from disk as text where a table had been — and because this returned
+        // null, flush() accepted it and degraded() said nothing, which degraded()'s own javadoc names as
+        // the whole defect it exists for. `seen` is now the ANCESTOR set, removed on the way back out (the
+        // shape Json.writeTab has): a table reached twice down two branches is ordinary sharing and is
+        // walked twice, and only a table reached from inside itself is the cycle.
         if(!seen.add(t))
-            return null;                        // a cycle: the writer breaks it, and one visit reads it all
-        for(LuaValue k : t.keys()) {
-            LuaValue v = t.get(k);
-            String at = path + "." + k.tojstring();
-            if(v.istable()) {
-                String bad = uncarriable((LuaTable)v, at, seen);
-                if(bad != null)
-                    return bad;
-            } else if(!v.isnil() && !v.isboolean() && !(v instanceof LuaNumber) && !(v instanceof LuaString)
-                      && (LuaPosition.resolve(v) == null)) {
-                return at + " holds a " + v.typename();
-            } else if((v instanceof LuaNumber) && !Double.isFinite(v.todouble())) {
-                // A NaN or an infinity IS a LuaNumber, so the kind test above waves it through — and JSON
-                // has no spelling for one, so the writer puts a bare null there and the read back drops the
-                // KEY, which is a saved variable deleted rather than degraded. Named here, where every other
-                // thing a store cannot hold is named.
-                return at + " holds " + (Double.isNaN(v.todouble()) ? "nan" : "an infinity");
+            return path + " is inside itself (a reference cycle)";
+        try {
+            for(LuaValue k : t.keys()) {
+                LuaValue v = t.get(k);
+                // audit2 B14 (st-06): THE KEY IS ASKED TOO. This walk type-checked the value alone and built
+                // the path with k.tojstring(), so a function, a table or a boolean KEY passed both the flush
+                // refusal and the degraded log — and reached the writer, which spelled it as a heap address
+                // and put that in the file. A JSON object's names are strings; a number key spells one too.
+                int kt = k.type();
+                if((kt != LuaValue.TSTRING) && (kt != LuaValue.TNUMBER))
+                    return path + " is keyed by a " + k.typename()
+                        + " (a saved table's keys are strings or numbers)";
+                String at = path + "." + k.tojstring();
+                if(v.istable()) {
+                    String bad = uncarriable((LuaTable)v, at, seen);
+                    if(bad != null)
+                        return bad;
+                } else if(!v.isnil() && !v.isboolean() && !(v instanceof LuaNumber) && !(v instanceof LuaString)
+                          && (LuaPosition.resolve(v) == null)) {
+                    return at + " holds a " + v.typename();
+                } else if((v instanceof LuaNumber) && !Double.isFinite(v.todouble())) {
+                    // A NaN or an infinity IS a LuaNumber, so the kind test above waves it through — and JSON
+                    // has no spelling for one, so the writer puts a bare null there and the read back drops the
+                    // KEY, which is a saved variable deleted rather than degraded. Named here, where every other
+                    // thing a store cannot hold is named.
+                    return at + " holds " + (Double.isNaN(v.todouble()) ? "nan" : "an infinity");
+                }
             }
+        } finally {
+            seen.remove(t);
         }
         return null;
     }
@@ -679,7 +698,7 @@ final class StoreApi {
     private static void degraded(Addon a, LuaTable src, boolean account, String how) {
         String bad = uncarriable(a, src, account);
         if(bad != null)
-            log(a, "store: " + bad + ", which is saved as text and reads back as text — a saved variable may"
+            logAbout(a, "store: " + bad + ", which is saved as text and reads back as text — a saved variable may"
                 + " hold only tables, strings, numbers, booleans and Positions. This write was the timer's or"
                 + " the teardown's, so it was made anyway; " + how + ":flush() refuses it instead");
     }
@@ -704,7 +723,7 @@ final class StoreApi {
             Inside.inside(saveDir().toPath(), key, "store");
         } catch(RuntimeException e) {
             AddonManager.log("store: this character's folder name is not one savedata/ can hold ("
-                + e.getMessage() + ") — nothing of this character's is written to disk this session");
+                + Refusal.reason(e) + ") — nothing of this character's is written to disk this session");
             return null;
         }
         return key;
@@ -800,12 +819,24 @@ final class StoreApi {
             return true;
         String text = readFile(f);
         if(text == null) {
-            log(a, "store: " + f.getName() + " is there and could not be read — this addon's "
+            logAbout(a, "store: " + f.getName() + " is there and could not be read — this addon's "
                 + (account ? ACC : SS) + " is READ-ONLY for this session, and the file is left as it is");
             return false;
         }
         try {
             Object root = Json.parse(text);
+            // audit2 B14 (st-08): A WELL-FORMED FILE THAT IS NOT AN OBJECT IS A FAILED LOAD, and it used to
+            // be the one failure with no `else`: an array or a scalar parsed cleanly, matched nothing here,
+            // loaded nothing and said nothing, and the addon then wrote an empty scope over its own data on
+            // the next flush. store.md promises the failure is logged rather than thrown, and this is one —
+            // the same read-only answer an unreadable file gets, for the same reason.
+            if(!(root instanceof Map)) {
+                logAbout(a, "store: " + f.getName() + " is not a JSON object (it holds "
+                         + ((root == null) ? "null" : (root instanceof List) ? "an array" : "a single value")
+                         + ") — this addon's " + (account ? ACC : SS) + " is READ-ONLY for this session, and"
+                         + " the file is left as it is");
+                return false;
+            }
             if(root instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> m = (Map<String, Object>)root;
@@ -825,7 +856,7 @@ final class StoreApi {
                 }
             }
         } catch(RuntimeException e) {
-            log(a, "store: could not read " + f.getName() + ": " + e + " — this addon's "
+            logAbout(a, "store: could not read " + f.getName() + ": " + e + " — this addon's "
                 + (account ? ACC : SS) + " is READ-ONLY for this session, and the file is left as it is");
             return false;
         }
@@ -849,7 +880,7 @@ final class StoreApi {
             LuaWidget.rememberCapture(a);               // 062: where every remembered widget stands right now...
             writePlacements(a);                         //   ...saved beside the store file, needing no declaration
         } catch(RuntimeException e) {
-            log(a, "store: could not save remembered placements: " + e);
+            logAbout(a, "store: could not save remembered placements: " + e);
         }
         if((a.store == null) || a.manifest.savedVariables.isEmpty())
             return;
@@ -858,7 +889,7 @@ final class StoreApi {
             for(AddonManager.SessionState st : AddonManager.allStates())
                 writeChar(a, st.charStores.get(a));     // ...and each character this addon has tables for
         } catch(RuntimeException e) {
-            log(a, "store: flush failed: " + e);
+            logAbout(a, "store: flush failed: " + e);
         }
     }
 
@@ -874,7 +905,7 @@ final class StoreApi {
             LuaWidget.rememberCapture(a);
             writePlacements(a);
         } catch(RuntimeException e) {
-            log(a, "store: could not save remembered placements: " + e);
+            logAbout(a, "store: could not save remembered placements: " + e);
         }
         if((a.store == null) || a.manifest.savedVariables.isEmpty())
             return;
@@ -882,7 +913,7 @@ final class StoreApi {
             writeAccount(a);
             writeChar(a, st.charStores.get(a));
         } catch(RuntimeException e) {
-            log(a, "store: flush failed: " + e);
+            logAbout(a, "store: flush failed: " + e);
         }
     }
 
@@ -1022,7 +1053,7 @@ final class StoreApi {
         String text = f.isFile() ? readFile(f) : null;
         if(f.isFile() && (text == null)) {
             ps.readOnly = true;
-            log(a, "store: " + f.getName() + " is there and could not be read — this addon's remembered"
+            logAbout(a, "store: " + f.getName() + " is there and could not be read — this addon's remembered"
                 + " placements in that folder are READ-ONLY for this session");
         }
         if(text != null) {
@@ -1041,7 +1072,7 @@ final class StoreApi {
                 }
             } catch(RuntimeException e) {
                 ps.readOnly = true;
-                log(a, "store: could not read " + f.getName() + ": " + e + " — this addon's remembered"
+                logAbout(a, "store: could not read " + f.getName() + ": " + e + " — this addon's remembered"
                     + " placements in that folder are READ-ONLY for this session");
             }
         }

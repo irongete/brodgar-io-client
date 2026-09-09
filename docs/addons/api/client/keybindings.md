@@ -22,6 +22,23 @@ A hotkey is a subscription like every other `:on` in the API. What `on` gives ba
 while your addon keeps running. The user's assignment survives that ending — the binding belongs to the
 client, and only the handler behind it is yours.
 
+**`name` is what the user reads beside the key**, so it may not be empty, and it is remembered under a
+preference key built from your addon's id and it — a name long enough to overflow that key raises here,
+naming the length, rather than failing later when the user tries to assign a key to it.
+
+**One live hotkey per name.** Declaring `on("toggle", …)` a second time replaces the first: the earlier
+subscription ends, exactly as `hot:off()` would end it, and the new handler takes the key. Two under one
+name would be two hotkeys the user could only see once and could only unbind together.
+
+**Your handler runs on the client's UI thread, on the step, holding no character's tree** — the same
+place a [timer](../timer.md) runs. It is handed nothing: a hotkey is a key, not an event, so reach for
+the session you want through [`hafen.session()`](../session.md).
+
+**A key the user assigned to you is consumed by that assignment**, whatever your handler does. A handler
+that raises still eats the press — the error is logged and contained, and the client does not then also
+run its own binding for that key. Half a press reaching two actions would be worse than a press that
+did nothing.
+
 `binding()` takes no arguments: it **is** the collection, and everything about a key — reading it, writing
 it, putting it back — lives on the member rather than on this handle.
 
