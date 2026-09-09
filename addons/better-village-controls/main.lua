@@ -31,11 +31,13 @@ local SYNC  = 0.25  -- seconds between two reads of what the rows are showing
 -- refused at the boundary. So a picker there does not offer a capability, it offers a SILENT FAILURE --
 -- the ticks stand while the window is open, because this client remembers them, and are gone the next
 -- time it is opened.
---   BuddyInfo -- the Kin tab's row is the kin's OWN group, and that one the server does keep, 0..254,
--- across a restart. But above the eighth nothing spends it: no colour of its own, and the one place a kin
--- group is read is that same claim table. It is a label, not a setting, and `kin:group(n)` is where an
--- addon that wants one writes it -- which is why this row keeps the eight squares and nothing else.
-local NO_PICKER = {Landwindow = true, BuddyInfo = true}
+--   The Kin tab's row -- the kin's OWN group -- the server does keep, 0..254, across a restart. But above
+-- the eighth nothing spends it: no colour of its own, and the one place a kin group is read is that same
+-- claim table. It is a label, not a setting, and `kin:group(n)` is where an addon that wants one writes it.
+-- That row is not in the table below and never could be: it sits inside the kin window, which is not
+-- walkable from inside -- `:parent()` answers nil on anything under it, because the window holds this
+-- character's hearth secret two branches along. It is turned away by the nil, one branch earlier.
+local NO_PICKER = {Landwindow = true}
 
 -- "0" .. "254", built once. Rows are strings, and `Changed` hands back the very one it was given.
 local GROUPS = {}
@@ -65,7 +67,9 @@ end
 
 local function addPicker(colours)
   local panel = colours:parent()
-  if NO_PICKER[panel:type()] then return end
+  -- nil is the kin window's row: unwalkable from inside, and a row with no reachable parent has nowhere to
+  -- put a picker in any case. Both readings end here, so the nil is the whole check.
+  if (panel == nil) or NO_PICKER[panel:type()] then return end
   local name = "group" .. tostring(colours:position().y)
   if panel:matchAll("[name=better-village-controls/" .. name .. "]")[1] then return end
 
@@ -149,10 +153,13 @@ hafen.console():on("bvc", function()
   local found = session:ui():matchAll("@GroupSelector")
   say(#found .. " colour rows in this character's tree")
   for i, row in ipairs(found) do
-    local at = row:position()
-    say("  row " .. i .. ": panel=" .. row:parent():type() .. " group=" .. tostring(row:value())
-        .. " at " .. at.x .. "," .. at.y
-        .. " picker=" .. (NO_PICKER[row:parent():type()] and "none (the eight are the whole space here)"
-            or tostring(row:parent():matchAll("[name^=better-village-controls/]")[1] ~= nil)))
+    local at, panel = row:position(), row:parent()
+    local picker
+    if panel == nil then picker = "none (the kin window is not walkable from inside)"
+    elseif NO_PICKER[panel:type()] then picker = "none (the eight are the whole space here)"
+    else picker = tostring(panel:matchAll("[name^=better-village-controls/]")[1] ~= nil) end
+    say("  row " .. i .. ": panel=" .. (panel and panel:type() or "unreachable")
+        .. " group=" .. tostring(row:value()) .. " at " .. at.x .. "," .. at.y
+        .. " picker=" .. picker)
   end
 end)
