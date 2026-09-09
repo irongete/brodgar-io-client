@@ -93,7 +93,8 @@ public final class LuaPlacing {
         mt.set("__name", LuaValue.valueOf("Placing"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "tostring").toString());
+                LuaPlacing h = resolve(self);
+                return LuaValue.valueOf((h == null) ? "Placing(?)" : h.toString());
             }
         });
         return mt;

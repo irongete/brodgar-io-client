@@ -13,6 +13,8 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -201,7 +203,7 @@ public final class LuaSkill {
         LuaSkill h = resolve(self);
         if(h == null)
             throw new LuaError("skill:" + method + "() — use a COLON call on a Skill object"
-                + " (" + CharApi.C + ":skill():list()[i], :find(name), :available()[i])");
+                + " (" + CharApi.C + ":skill():list()[i], :find(name), :buyable():list()[i])");
         return h;
     }
 
@@ -234,13 +236,21 @@ public final class LuaSkill {
 
     /** A copy of one group's tokens, in the window's own order ({@code known} = the learnt group). */
     static List<String> tokens(String user, boolean known) {
-        List<String> out = new ArrayList<String>();
+        return new ArrayList<String>(index(user, known).keySet());
+    }
+
+    /**
+     * One copy of a group, keyed by token in the tab's order — the members of one call and every needle of
+     * that call read this one copy, where a scan per member re-copied the group per member.
+     */
+    static Map<String, SkillWnd.Skill> index(String user, boolean known) {
+        Map<String, SkillWnd.Skill> out = new LinkedHashMap<String, SkillWnd.Skill>();
         SkillWnd w = skillwnd(user);
         if(w == null)
             return out;
         try {
             for(SkillWnd.Skill s : new ArrayList<SkillWnd.Skill>(known ? w.skg.csk.items : w.skg.nsk.items))
-                out.add(s.nm);
+                out.put(s.nm, s);
         } catch(RuntimeException e) {
             /* not ready or swapped mid-read — return what we have */
         }
@@ -263,14 +273,38 @@ public final class LuaSkill {
     }
 
     /** The text a string filter matches: display name and resource name, one substring test over both. */
-    static String needleOf(LuaValue member) {
-        LuaSkill h = resolve(member);
-        if(h == null)
-            return "";
-        SkillWnd.Skill s = find(h.user, h.token);
+    static String needleOf(LuaSkill h, SkillWnd.Skill s) {
         String res = (s == null) ? null : AddonManager.resIdent(s.res);
         String name = (s == null) ? h.token : AddonManager.resTipName(s.res, h.token);
         return ((name == null) ? "" : name) + "\n" + ((res == null) ? "" : res);
+    }
+
+    /**
+     * A {@link LuaCollection.Source} over one group, whose needles read the copy its members were built from.
+     * {@code seen} is the index of the last {@link #members()}; a member outside it (a stale handle) falls
+     * back to the resolve funnel.
+     */
+    private abstract static class Group extends LuaCollection.Source {
+        private Map<String, SkillWnd.Skill> seen = Collections.emptyMap();
+
+        /** The index of this call, remembered for its needles. */
+        Map<String, SkillWnd.Skill> walk(String user, boolean known) {
+            seen = index(user, known);
+            return seen;
+        }
+
+        public String needle(LuaValue member) {
+            LuaSkill h = resolve(member);
+            if(h == null)
+                return "";
+            SkillWnd.Skill s = seen.get(h.token);
+            return needleOf(h, (s != null) ? s : find(h.user, h.token));
+        }
+
+        /** These have a name, so a string filter is a substring test over {@link #needle}. */
+        public boolean named() {
+            return true;
+        }
     }
 
     // ---- the collection ------------------------------------------------------------------------------
@@ -299,27 +333,17 @@ public final class LuaSkill {
         // answers the whole quartet over exactly that set.
         extra.set("buyable", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "buyable");
+                LuaCollection.receiver(a.arg1(), CharApi.C + ":skill()", "buyable");
                 final LuaValue filter = a.arg(2);
-                return LuaCollection.create(CharApi.C + ":skill():buyable()", new LuaCollection.Source() {
+                return LuaCollection.create(CharApi.C + ":skill():buyable()", new Group() {
                     public List<LuaValue> members() {
                         List<LuaValue> out = new ArrayList<LuaValue>();
-                        for(String nm : tokens(user, false)) {
+                        for(String nm : walk(user, false).keySet()) {
                             LuaValue member = of(owner, user, nm);
-                            if(LuaCollection.keeps(filter, member, true, needleOf(member),
-                                                   CharApi.C + ":skill()", "buyable"))
+                            if(LuaCollection.keeps(filter, member, this, CharApi.C + ":skill()", "buyable"))
                                 out.add(member);
                         }
                         return out;
-                    }
-
-                    public String needle(LuaValue member) {
-                        return needleOf(member);
-                    }
-
-                    /** These have a name, so a string filter is a substring test over {@link #needle}. */
-                    public boolean named() {
-                        return true;
                     }
 
                     public String noGet() {
@@ -329,21 +353,12 @@ public final class LuaSkill {
                 }, null);
             }
         });
-        return LuaCollection.create(CharApi.C + ":skill()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.C + ":skill()", new Group() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : tokens(user, true))
+                for(String nm : walk(user, true).keySet())
                     out.add(of(owner, user, nm));
                 return out;
-            }
-
-            public String needle(LuaValue member) {
-                return needleOf(member);
-            }
-
-            /** These have a name, so a string filter is a substring test over {@link #needle}. */
-            public boolean named() {
-                return true;
             }
 
             public String noGet() {

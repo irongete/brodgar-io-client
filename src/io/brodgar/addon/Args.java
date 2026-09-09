@@ -66,6 +66,25 @@ final class Args {
     }
 
     /**
+     * The <b>surplus</b> refusal, and the receiver back: a verb that takes {@code n} arguments after its
+     * receiver refuses an {@code n + 1}th, naming how many it takes and how many it got. Arity is the verb,
+     * so an argument a verb does not take is a call it would answer wrong — {@code b:key("F5", "x")} would
+     * have set the key and dropped the {@code "x"} with nothing said, which is the write nobody made all over
+     * again. Every verb calls it first with its own count, which is why no verb is a {@code OneArgFunction}:
+     * LuaJ's {@code call(self)} drops the extras above the body, where no check can see them.
+     *
+     * <p>It hands back argument 1, so an arity-0 verb reads
+     * {@code LuaValue self = Args.only(a, 0, "kin:online");}.
+     */
+    static LuaValue only(Varargs a, int n, String verb) {
+        if(passed(a, n + 2))
+            throw new LuaError(verb + ": takes " + ((n == 0) ? "no arguments" : (n == 1) ? "at most one argument"
+                : ("at most " + n + " arguments")) + ", got " + (a.narg() - 1)
+                + " — an argument a verb does not take is refused rather than dropped");
+        return a.arg1();
+    }
+
+    /**
      * A <b>required</b> argument: absent or explicitly {@code nil} is an error naming the verb and the
      * parameter. For a verb that takes a value and has no read arity ({@code hafen.log():write(msg)}).
      */

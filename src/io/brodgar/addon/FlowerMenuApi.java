@@ -162,7 +162,7 @@ final class FlowerMenuApi {
         // in, which is the order a petal is addressed by). An empty array when no menu is open.
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "gob");
+                LuaCollection.receiver(a.arg1(), FM, "gob");
                 if(Args.passed(a, 2))
                     throw new LuaError(FM + ":gob() takes no arguments: there is one open menu"
                         + " and it was opened on one object — to read that object, call it bare");
@@ -179,7 +179,7 @@ final class FlowerMenuApi {
         // The one key is unchanged whichever character it is addressed at (077.4).
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "select");
+                LuaCollection.receiver(a.arg1(), FM, "select");
                 AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_SELECT);
                 select(owner, user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
@@ -201,7 +201,7 @@ final class FlowerMenuApi {
         menu.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaCollection.receiver(self, "visible");
+                LuaCollection.receiver(self, FM, "visible");
                 LuaValue bv = Args.written(a, 2, FM + ":visible", "b");
                 if(bv == null) {
                     // The read is the other two reads' shape: no menu open is the ordinary state of the game
@@ -240,7 +240,7 @@ final class FlowerMenuApi {
         // picking from it. Its one key is unchanged too.
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "cancel");
+                LuaCollection.receiver(a.arg1(), FM, "cancel");
                 AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_CANCEL);
                 if(Args.passed(a, 2))
                     throw new LuaError(FM + ":cancel() takes no arguments: there is one open"
@@ -259,9 +259,14 @@ final class FlowerMenuApi {
         // and re-resolves, so one held past the close reports :exists() false, exactly as a Buff or a Craft
         // does -- and both of those are shorter-lived than a menu.
         return LuaCollection.create(FM, new LuaCollection.Source() {
+            /** The captions of the last {@link #members()}: one walk of the tree, then every needle of that
+             *  call is an array read. */
+            private String[] seen = new String[0];
+
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 String[] ns = names(open(user));
+                seen = ns;
                 for(int i = 0; i < ns.length; i++)
                     out.add(LuaPetal.of(owner, user, i));
                 return out;
@@ -273,6 +278,9 @@ final class FlowerMenuApi {
             }
 
             public String needle(LuaValue member) {
+                LuaPetal h = LuaPetal.resolve(member);
+                if((h != null) && user.equals(h.user) && (h.i >= 0) && (h.i < seen.length))
+                    return seen[h.i];
                 return LuaPetal.needle(member);
             }
 

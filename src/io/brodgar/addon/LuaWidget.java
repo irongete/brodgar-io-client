@@ -1791,7 +1791,7 @@ public final class LuaWidget {
     // ---- widget:on(key, fn)'s vocabulary (041.3/041.4) --------------------------------------------------
 
     /**
-     * The keys every LIVE widget answers — the universal four inputs (041.3), Destroy (041.4), and the two
+     * The keys every LIVE widget answers — the universal four inputs (041.3), Removed (041.4), and the two
      * gesture keys {@code widget:draggable(h)}/{@code widget:resizable(h)} arm (062). They are here rather
      * than beside a control's own capability keys because being dragged or resized is a fact about a widget's
      * <i>place</i> and its <i>box</i>, and every widget has both.
@@ -1877,7 +1877,7 @@ public final class LuaWidget {
         LuaWidget h = resolve(self);
         if(h == null)
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
-                + " (hafen.session():current():ui():root(), :find(selector) or :node(id) on the same s:ui()"
+                + " (hafen.session():current():ui():root(), :match(selector) or :node(id) on the same s:ui()"
                 + " for the client's own widgets, hafen.ui():hit(x, y) for a point on the screen, and the"
                 + " handle hafen.ui():window() gave you for one of yours)");
         return h;

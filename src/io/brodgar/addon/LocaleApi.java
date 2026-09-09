@@ -179,6 +179,7 @@ final class LocaleApi {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 Section.self(self, "locale", "load");
+                Args.only(a, 1, "hafen.locale():load");
                 LuaValue doc = Args.required(a, 2, "hafen.locale():load", "doc");
                 h.load(Catalogue.parse("hafen.locale():load(doc)", doc));
                 return self;
@@ -186,8 +187,9 @@ final class LocaleApi {
         });
         // install() -- make it what the client displays, live, and start a fresh round of misses. Owned: a
         // :reload or a disable drops it, so the client's own English is always one step away.
-        m.set("install", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("install", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "hafen.locale():install");
                 Section.self(self, "locale", "install");
                 h.install();
                 return self;
@@ -195,16 +197,18 @@ final class LocaleApi {
         });
         // release() -- give the client its own words back. The same act sheet:release() is: a catalogue is a
         // layer over what the client says, and this hands it back. Inert when nothing was installed.
-        m.set("release", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("release", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "hafen.locale():release");
                 Section.self(self, "locale", "release");
                 h.release();
                 return self;
             }
         });
         // info() -- the snapshot hatch: whether it is in force, what it holds, and how much has missed.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "hafen.locale():info");
                 Section.self(self, "locale", "info");
                 Catalogue c = h.doc;
                 LuaTable t = new LuaTable();
@@ -227,8 +231,9 @@ final class LocaleApi {
         // miss() -- the strings that reached a routed surface while this catalogue was installed and that it
         // named nothing for, each with the surface it reached. A set is a collection, so it is one; the
         // members are objects, so :find(fn) is the search and a string filter matches the text.
-        m.set("miss", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("miss", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "hafen.locale():miss");
                 Section.self(self, "locale", "miss");
                 return misses(h);
             }
@@ -327,19 +332,22 @@ final class LocaleApi {
             LuaTable m = new LuaTable();
             // surface() -- the locale key this string reached, which is the key an entry for it is written
             // under. Never "*": that is a key you write, not a surface the client draws at.
-            m.set("surface", new OneArgFunction() {
-                public LuaValue call(LuaValue self) {
+            m.set("surface", new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    LuaValue self = Args.only(a, 0, "miss:surface");
                     return LuaValue.valueOf(receiver(self, "surface").surface);
                 }
             });
             // text() -- the string the client drew, in its own English, which is the key an entry names.
-            m.set("text", new OneArgFunction() {
-                public LuaValue call(LuaValue self) {
+            m.set("text", new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    LuaValue self = Args.only(a, 0, "miss:text");
                     return LuaValue.valueOf(receiver(self, "text").text);
                 }
             });
-            m.set("info", new OneArgFunction() {
-                public LuaValue call(LuaValue self) {
+            m.set("info", new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    LuaValue self = Args.only(a, 0, "miss:info");
                     Miss m = receiver(self, "info");
                     LuaTable t = new LuaTable();
                     t.set("surface", LuaValue.valueOf(m.surface));

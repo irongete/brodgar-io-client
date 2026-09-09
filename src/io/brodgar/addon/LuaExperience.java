@@ -11,6 +11,8 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -222,7 +224,16 @@ public final class LuaExperience {
 
     /** Every listed lore resource name, in the tab's own order; an unresolved one is not listed yet. */
     static List<String> names(String user) {
-        List<String> out = new ArrayList<String>();
+        return new ArrayList<String>(index(user).keySet());
+    }
+
+    /**
+     * One copy of the tab keyed by resource name, in its order, with {@code resIdent} paid once per entry —
+     * the members of one call and every needle of that call read it, where a scan per member re-copied the
+     * list and re-resolved every resource per member.
+     */
+    static Map<String, SkillWnd.Experience> index(String user) {
+        Map<String, SkillWnd.Experience> out = new LinkedHashMap<String, SkillWnd.Experience>();
         SkillWnd w = CharApi.skillwnd(user);
         if(w == null)
             return out;
@@ -230,7 +241,7 @@ public final class LuaExperience {
             for(SkillWnd.Experience e : new ArrayList<SkillWnd.Experience>(w.exps.seen.items)) {
                 String nm = AddonManager.resIdent(e.res);
                 if(nm != null)
-                    out.add(nm);
+                    out.put(nm, e);
             }
         } catch(RuntimeException ex) {
             /* not ready or swapped mid-read — return what we have */
@@ -262,9 +273,13 @@ public final class LuaExperience {
      */
     static LuaValue collection(final Addon owner, final String user) {
         return LuaCollection.create(CharApi.C + ":experience()", new LuaCollection.Source() {
+            /** The index of the last {@link #members()}, so every needle of one call is a hash lookup. */
+            private Map<String, SkillWnd.Experience> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
+                seen = index(user);
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : names(user))
+                for(String nm : seen.keySet())
                     out.add(of(owner, user, nm));
                 return out;
             }
@@ -273,7 +288,9 @@ public final class LuaExperience {
                 LuaExperience h = resolve(member);
                 if(h == null)
                     return "";
-                SkillWnd.Experience e = find(h.user, h.res);
+                SkillWnd.Experience e = seen.get(h.res);
+                if(e == null)
+                    e = find(h.user, h.res);
                 String disp = (e == null) ? null : AddonManager.resTipName(e.res, h.res);
                 return ((disp == null) ? "" : disp) + "\n" + h.res;
             }

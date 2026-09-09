@@ -168,47 +168,53 @@ public final class LuaPartyMember {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // id() — the member's gob id, the only thing the server publishes about them.
-        m.set("id", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("id", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:id");
                 return LuaValue.valueOf((double)handle(self, "id").gobid);
             }
         });
         // gob() — the member's live object, in THIS character's own view of the world. NEVER nil: an id
         // that session's object cache does not hold answers a Gob whose :exists() is false, exactly as
         // s:world():gob():get(id) does.
-        m.set("gob", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:gob");
                 LuaPartyMember h = handle(self, "gob");
                 return LuaGob.of(owner, h.user, h.gobid);
             }
         });
         // position() — where the member is: the live gob position while they are in view, the last-known one
         // otherwise, and nil for a member the server has not placed at all.
-        m.set("position", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("position", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:position");
                 LuaPartyMember h = handle(self, "position");
                 Party.Member pm = member(h.user, h.gobid);
                 return (pm == null) ? LuaValue.NIL : LuaPosition.of(owner, h.user, coord(pm));
             }
         });
         // color() — the party colour the client paints this member with, or nil before one arrives.
-        m.set("color", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("color", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:color");
                 LuaPartyMember h = handle(self, "color");
                 Party.Member pm = member(h.user, h.gobid);
                 return ((pm == null) || (pm.col == null)) ? LuaValue.NIL : AddonManager.color(pm.col);
             }
         });
         // exists() — is this member still in the party?
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:exists");
                 LuaPartyMember h = handle(self, "exists");
                 return LuaValue.valueOf(member(h.user, h.gobid) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "member:info");
                 LuaPartyMember h = handle(self, "info");
                 return snapshot(h.user, member(h.user, h.gobid));
             }
@@ -278,7 +284,7 @@ public final class LuaPartyMember {
         LuaTable extra = new LuaTable();
         extra.set("leader", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "leader");
+                LuaCollection.receiver(a.arg1(), CharApi.PT, "leader");
                 if(Args.passed(a, 2))
                     throw new LuaError(CharApi.PT + ":leader() takes no arguments — it reads who leads the"
                         + " party, and the party leader is not something an addon sets");

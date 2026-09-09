@@ -200,8 +200,9 @@ public final class LuaChannel {
         LuaTable m = new LuaTable();
         // name() — the tab's own caption. A private conversation is named for the other person and reads
         // "???" until this character's kin roster carries them, which is the client's own answer.
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:name");
                 String nm = nameOf(live(handle(self, "name")));
                 return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
             }
@@ -209,16 +210,18 @@ public final class LuaChannel {
         // kind() — the site key this channel's lines resolve at, which is the very word a stylesheet rule
         // names: "chat", "chat.system", "chat.party" or "chat.private". A closed set, decided by the channel
         // classes the client ships.
-        m.set("kind", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("kind", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:kind");
                 String k = kindOf(live(handle(self, "kind")));
                 return (k == null) ? LuaValue.NIL : LuaValue.valueOf(k);
             }
         });
         // urgency() — the unread level the client keeps for this tab, 0 when nothing is unread. It is the
         // level "chat.urgent"'s palette is read one entry per, so the number and the theme agree.
-        m.set("urgency", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("urgency", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:urgency");
                 ChatUI.Channel c = live(handle(self, "urgency"));
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.urgency);
             }
@@ -227,16 +230,23 @@ public final class LuaChannel {
         // line: :get(i) is a real address, because the client never trims the scrollback -- what it drops
         // when a line scrolls away is the raster it drew, and the line keeps its place. :list() therefore
         // copies a whole login's chat, which is why the page reaches for :count() and :get(i).
-        m.set("message", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("message", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:message");
                 final LuaChannel h = handle(self, "message");
                 return LuaCollection.create("channel:message()", new LuaCollection.Source() {
                     public List<LuaValue> members() {
                         List<LuaValue> out = new ArrayList<LuaValue>();
+                        ChatUI.Channel c = live(h);
                         int n = count(h);
                         for(int i = 0; i < n; i++)
-                            out.add(LuaMessage.of(owner, live(h), i));
+                            out.add(LuaMessage.of(owner, c, i));
                         return out;
+                    }
+
+                    /** {@code :count()} is the line count itself — no Message is minted to be counted. */
+                    public int size() {
+                        return count(h);
                     }
 
                     /** A line is its text, so a string filter is a substring test over what was said. */
@@ -278,6 +288,7 @@ public final class LuaChannel {
                 AddonManager.requirePermission(AddonManager.current(), Permission.CHAT_SEND);
                 LuaValue self = a.arg1();
                 LuaChannel h = handle(self, "send");
+                Args.only(a, 1, "channel:send");
                 String text = Args.str(a, 2, "channel:send", "text", null).tojstring();
                 if(text.isEmpty())
                     throw new LuaError("channel:send(text): text is empty — there is no line to say, and"
@@ -301,15 +312,17 @@ public final class LuaChannel {
         });
         // exists() — is this channel still one of the character's? A tab the server takes away goes false and
         // every read above answers nil, while the object stays the key your own table is under.
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:exists");
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch; nil once the channel is gone, because there is nothing
         // left to copy.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "channel:info");
                 return snapshot(live(handle(self, "info")));
             }
         });

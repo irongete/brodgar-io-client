@@ -408,7 +408,7 @@ public final class LuaSpeed {
         // partition that used to BE :list() needs its own name, the way s:char():skill():buyable() does.
         extra.set("available", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "available");
+                LuaCollection.receiver(a.arg1(), CharApi.SP, "available");
                 final LuaValue filter = a.arg(2);
                 return LuaCollection.create(CharApi.SP + ":available()", new LuaCollection.Source() {
                     public List<LuaValue> members() {
@@ -419,10 +419,7 @@ public final class LuaSpeed {
                         int max = Math.min(s.max, SPEEDS - 1);
                         for(int i = 0; i <= max; i++) {
                             LuaValue member = of(owner, user, i);
-                            LuaSpeed sh = resolve(member);
-                            if(LuaCollection.keeps(filter, member, true,
-                                                   (sh == null) ? null : speedName(sh.index),
-                                                   CharApi.SP, "available"))
+                            if(LuaCollection.keeps(filter, member, this, CharApi.SP, "available"))
                                 out.add(member);
                         }
                         return out;
@@ -446,7 +443,7 @@ public final class LuaSpeed {
         });
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "current");
+                LuaCollection.receiver(a.arg1(), CharApi.SP, "current");
                 if(Args.passed(a, 2))
                     throw new LuaError(CharApi.SP + ":current() takes no argument — picking a speed is "
                         + CharApi.SP + ":set(speed|index|name), under the \"speed.set\" permission."
@@ -464,7 +461,7 @@ public final class LuaSpeed {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 AddonManager.requirePermission(AddonManager.current(), Permission.SPEED_SET);
-                LuaCollection.receiver(me, "set");
+                LuaCollection.receiver(me, CharApi.SP, "set");
                 int n = demand(Args.required(a, 2, CharApi.SP + ":set", "speed"));
                 // That character's own selector sends it: Speedget.set walks the widget's own tree to that
                 // session, so a speed picked on a character nobody is looking at reaches the right server.

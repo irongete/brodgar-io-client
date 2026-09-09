@@ -227,7 +227,7 @@ public final class LuaDeckCard {
         LuaDeckCard h = resolve(self);
         if(h == null)
             throw new LuaError("card:" + method + "() — use a COLON call on a DeckCard object"
-                + " (" + CharApi.FT + ":deck()[i])");
+                + " (" + CharApi.FT + ":deck():list()[i])");
         return h;
     }
 
@@ -243,10 +243,18 @@ public final class LuaDeckCard {
         }
     }
 
-    /** The maneuver dealt into {@code slot} of {@code user}'s deck, or {@code null} for an empty or vanished slot. */
+    /**
+     * The maneuver dealt into {@code slot} of {@code user}'s deck, or {@code null} for an empty or vanished
+     * slot — one element read under the monitor, never a copy of the whole layout per verb.
+     */
     private static FightWnd.Action action(String user, int slot) {
-        FightWnd.Action[] order = order(user);
-        return ((slot < 0) || (slot >= order.length)) ? null : order[slot];
+        FightWnd fw = CharApi.fightwnd(user);
+        if(fw == null)
+            return null;
+        synchronized(LuaWidget.monitor(fw)) {
+            FightWnd.Action[] order = fw.order;
+            return ((slot < 0) || (slot >= order.length)) ? null : order[slot];
+        }
     }
 
     /** The hotkey label for a deck slot (the game's own table), or a 1-based fallback beyond it. */

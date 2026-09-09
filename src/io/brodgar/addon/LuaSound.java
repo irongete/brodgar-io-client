@@ -252,11 +252,32 @@ public final class LuaSound {
      */
     private static final class Clip {
         final UI ui;                 // the channel this clip was handed to, and the only one that can take it back
-        final Audio.CS cs;
+        final Drained cs;
 
-        Clip(UI ui, Audio.CS cs) {
+        Clip(UI ui, Drained cs) {
             this.ui = ui;
             this.cs = cs;
+        }
+    }
+
+    /**
+     * The stream the mixer is handed, remembering the moment it drained. The mixer drops a finished clip
+     * from a list only it can walk, so asking it per clip was a scan of every clip in the air per clip of
+     * ours; the stream itself is told first, by its own return value, and that is what {@link #prune} reads.
+     */
+    private static final class Drained implements Audio.CS {
+        private final Audio.CS real;
+        volatile boolean done;
+
+        Drained(Audio.CS real) {
+            this.real = real;
+        }
+
+        public int get(double[][] buf, int len) {
+            int n = real.get(buf, len);
+            if(n < 0)
+                done = true;
+            return n;
         }
     }
 
@@ -268,8 +289,7 @@ public final class LuaSound {
         synchronized(l) {
             for(Iterator<Clip> i = l.clips.iterator(); i.hasNext();) {
                 Clip c = i.next();
-                ActAudio.Root au = c.ui.audio;   // ITS channel, not whichever layer is up now
-                if((au == null) || !au.aui.mixer().playing(c.cs))
+                if(c.cs.done || (c.ui.audio == null))
                     i.remove();                  // drained, or its channel went with the UI that held it
             }
             return (l.pending > 0) || !l.clips.isEmpty();
@@ -327,14 +347,16 @@ public final class LuaSound {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the resource name this Sound addresses. Always answers: it IS the handle.
-        m.set("res", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("res", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sound:res");
                 return LuaValue.valueOf(handle(self, "res").res);
             }
         });
         // info() — the one SNAPSHOT escape hatch, for logging/serialising.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sound:info");
                 LuaSound h = handle(self, "info");
                 LuaTable t = new LuaTable();
                 t.set("res", LuaValue.valueOf(h.res));
@@ -350,6 +372,7 @@ public final class LuaSound {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaSound h = handle(self, "play");
+                Args.only(a, 1, "sound:play");
                 play(h.owner, h.res, volume(a.arg(2), "sound:play"));
                 return self;
             }
@@ -357,8 +380,9 @@ public final class LuaSound {
         // stop() — cut every clip of this name THIS addon has in the air (and cancel a play still resolving,
         // so :play():stop() never blips), return SELF so it chains. Never touches another addon's clips or the
         // client's own blips, which run through the sessions' own channels. Silent when nothing is playing.
-        m.set("stop", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("stop", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sound:stop");
                 LuaSound h = handle(self, "stop");
                 h.owner.sounds.stop(h.res);
                 return self;
@@ -366,8 +390,9 @@ public final class LuaSound {
         });
         // playing() — is a clip of this name still sounding (or still resolving)? The mixer drops a drained
         // clip lazily, so this call is also the prune: ask it and the finished ones stop being counted.
-        m.set("playing", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("playing", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sound:playing");
                 LuaSound h = handle(self, "playing");
                 return LuaValue.valueOf(h.owner.sounds.playing(h.res));
             }
@@ -458,12 +483,13 @@ public final class LuaSound {
                 }
                 if(vol != 1.0)
                     cs = new Audio.VolAdjust(cs, vol);
+                Drained dc = new Drained(cs);
                 synchronized(live) {
                     if(live.gen != gen)                // stopped while we resolved: never blip (pending zeroed)
                         return;
                     live.pending--;
-                    live.clips.add(new Clip(u, cs));   // the clip AND the channel it is about to go to
-                    u.sfx(cs);      // INSIDE the monitor: registering and starting must be one step, or a
+                    live.clips.add(new Clip(u, dc));   // the clip AND the channel it is about to go to
+                    u.sfx(dc);      // INSIDE the monitor: registering and starting must be one step, or a
                                     // :stop() landing between them removes a clip the mixer has not got yet
                 }
             }
@@ -486,15 +512,14 @@ public final class LuaSound {
         // which promised the set :get() addresses and delivered a different one.
         extra.set("playing", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "playing");
+                LuaCollection.receiver(a.arg1(), "hafen.sound()", "playing");
+                Args.only(a, 1, "hafen.sound():playing");
                 final LuaValue filter = a.arg(2);
                 return LuaCollection.create("hafen.sound():playing()", new LuaCollection.Source() {
                     public List<LuaValue> members() {
                         List<LuaValue> out = new ArrayList<LuaValue>();
                         for(LuaValue m : owner.sounds.members()) {
-                            LuaSound h = resolve(m);
-                            if(LuaCollection.keeps(filter, m, true, (h == null) ? "" : h.res,
-                                                   "hafen.sound()", "playing"))
+                            if(LuaCollection.keeps(filter, m, this, "hafen.sound()", "playing"))
                                 out.add(m);
                         }
                         return out;

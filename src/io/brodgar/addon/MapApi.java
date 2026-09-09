@@ -135,7 +135,7 @@ final class MapApi {
         LuaTable extra = new LuaTable();
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "current");
+                LuaCollection.receiver(a.arg1(), "hafen.map():segment()", "current");
                 MiniMap.Location sl = sessloc();
                 return (sl == null) ? LuaValue.NIL : LuaSegment.of(owner, sl.seg.id);
             }
@@ -219,13 +219,19 @@ final class MapApi {
         LuaTable extra = new LuaTable();
         extra.set("nearest", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "nearest");
+                LuaCollection.receiver(a.arg1(), "hafen.map():marker()", "nearest");
+                Args.only(a, 1, "hafen.map():marker():nearest");
                 return LuaMarker.nearest(owner, a.arg(2));
             }
         });
         return LuaCollection.create("hafen.map():marker()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return LuaMarker.members(owner, null);
+            }
+
+            /** {@code :add(name, p)}: the pin's label comes first. */
+            public String addName() {
+                return "name";
             }
 
             public String needle(LuaValue member) {
@@ -251,7 +257,7 @@ final class MapApi {
             // The gate runs FIRST (D-213), before the name and the Position are looked at.
             public LuaValue addMember(Varargs a) {
                 AddonManager.requirePermission(AddonManager.current(), Permission.MAP_MARKER, "hafen.map():marker():add");
-                LuaValue nm = Args.required(a, 2, "hafen.map():marker():add", "name");
+                LuaValue nm = a.arg(2);
                 if(nm.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.map():marker():add(name, p): name is the label the map shows");
                 return addMarker(owner, nm.tojstring(),
@@ -311,12 +317,22 @@ final class MapApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                return LuaOverlayToggle.of(owner, displayArg(key));
+                if(key.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
+                    throw new LuaError("hafen.map():display():get(tag): tag is one of " + toggleList());
+                return (toggle(key.tojstring()) == null) ? LuaValue.NIL
+                    : LuaOverlayToggle.of(owner, key.tojstring());
             }
 
             /** The client's display switches are a closed set, unlike a grid's recorded tags. */
             public LuaCollection.Missing missing() {
                 return LuaCollection.Missing.RAISE;
+            }
+
+            public String keys() {
+                return "the client displays no such switch — the toggles it owns are " + toggleList()
+                    + " (note prov = provinces in the WORLD and realm = provinces on the MAP: same feature, two"
+                    + " tags). The recorded masks on one grid are grid:mask(), which is a different set with"
+                    + " its own tags";
             }
 
             /** The key is one of the client's own display tags. */
@@ -1166,17 +1182,6 @@ final class MapApi {
      * client owns exactly these four switches, and a typo that silently did nothing forever is the one
      * failure here nothing else would ever report.
      */
-    private static String displayArg(LuaValue tag) {
-        if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
-            throw new LuaError("hafen.map():display():get(tag): tag is one of " + toggleList());
-        String t = tag.tojstring();
-        if(toggle(t) == null)
-            throw new LuaError("hafen.map():display():get(\"" + t + "\"): the client displays no such switch"
-                + " — the toggles it owns are " + toggleList() + " (note prov = provinces in the WORLD and"
-                + " realm = provinces on the MAP: same feature, two tags). The recorded masks on one grid are"
-                + " grid:mask(), which is a different set with its own tags");
-        return t;
-    }
 
     private static String toggleList() {
         StringBuilder sb = new StringBuilder();

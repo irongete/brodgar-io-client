@@ -284,15 +284,16 @@ public final class LuaAttr {
                     throw new LuaError(CharApi.C + ":attr():get(name): expected an attribute name, got "
                         + key.typename());
                 String nm = key.tojstring();
-                if(!known(nm))
-                    throw new LuaError(CharApi.C + ":attr():get(\"" + nm + "\"): there is no such attribute."
-                        + " The base attributes are: " + namesList());
-                return of(owner, user, nm);
+                return known(nm) ? of(owner, user, nm) : LuaValue.NIL;
             }
 
             /** The base attributes are a closed set, so a name outside it is a typo. */
             public LuaCollection.Missing missing() {
                 return LuaCollection.Missing.RAISE;
+            }
+
+            public String keys() {
+                return "there is no such attribute. The base attributes are: " + namesList();
             }
 
             /** The key is the attribute's name. */

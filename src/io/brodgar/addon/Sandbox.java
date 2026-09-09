@@ -115,6 +115,7 @@ public final class Sandbox {
         // omitting it makes TableLib/StringLib/… fail) — but require/module/package are stripped in
         // harden(): the LIBRARIES are wanted, the require MACHINERY is not (D-017 "withhold require").
         g.load(new JseBaseLib());   // assert/error/pcall/xpcall/select/type/tostring/tonumber/pairs/… (+ load*, stripped below)
+        LuaCollection.guardIteration(g);   // pairs/ipairs over a collection refuse in its own words
         g.load(new PackageLib());   // needed only so the modules below can register; then stripped
         g.load(new TableLib());     // table.*
         g.load(new StringLib());    // string.* (+ the string metatable)

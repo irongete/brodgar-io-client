@@ -518,7 +518,7 @@ final class WorldApi {
         // thing that makes them different from :find()/:list() over the same members.
         extra.set("nearest", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "nearest");
+                LuaCollection.receiver(a.arg1(), W + ":gob()", "nearest");
                 LuaValue filter = a.arg(2);
                 Gob pl = playerGob(user);
                 if(pl == null)
@@ -546,7 +546,7 @@ final class WorldApi {
         });
         extra.set("within", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "within");
+                LuaCollection.receiver(a.arg1(), W + ":gob()", "within");
                 double r = number(a, 2, W + ":gob():within", "radius");
                 LuaValue filter = a.arg(3);
                 LuaTable out = new LuaTable();
@@ -634,7 +634,7 @@ final class WorldApi {
         // asking which grid a place is in must not send a map request for ground you only asked about.
         extra.set("at", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "at");
+                LuaCollection.receiver(a.arg1(), W + ":grid()", "at");
                 Coord2d rc = here(a, 2, W + ":grid():at", user);
                 MCache mc = mcache(user);
                 if((mc == null) || (rc == null))

@@ -541,7 +541,7 @@ public final class LuaGob {
         });
         m.set("player", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Gob g = gob(self, "isPlayer");
+                Gob g = gob(self, "player");
                 // nil only when the gob is GONE; a gob whose name hasn't resolved yet is simply not a player.
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(AddonManager.gobIsPlayer(g));
             }

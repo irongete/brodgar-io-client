@@ -118,7 +118,7 @@ final class HookApi {
         // :off() drops the handler while the engine's own dispatcher stays installed forever (C1).
         verbs.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "on");
+                LuaCollection.receiver(a.arg1(), "hafen.console()", "on");
                 return newConsoleCommand(owner, a);
             }
         });

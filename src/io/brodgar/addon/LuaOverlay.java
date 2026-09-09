@@ -184,7 +184,7 @@ public final class LuaOverlay {
             // beside the add, so a handler keeping its own set stays balanced — the key survives, but the thing
             // under it is a different one.
             public LuaValue addMember(Varargs a) {
-                String k = keyArg(Args.required(a, 2, "gob:overlay():add", "key"), "gob:overlay():add");
+                String k = keyArg(a.arg(2), "gob:overlay():add");
                 Gob g = AddonManager.getgob(user, gobId);
                 if(g == null)
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that gob is gone, so there is nothing"
@@ -392,6 +392,7 @@ public final class LuaOverlay {
         m.set("draw", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, "overlay:draw");
                 LuaValue fn = Args.written(a, 2, "overlay:draw", "fn");
                 LuaGobOverlay.Attach rec = writable(owner, self, "draw");
                 if(fn == null)
@@ -410,6 +411,7 @@ public final class LuaOverlay {
         m.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, "overlay:text");
                 LuaValue sv = Args.written(a, 2, "overlay:text", "s");
                 LuaGobOverlay.Attach rec = writable(owner, self, "text");
                 if(sv == null)
@@ -431,6 +433,7 @@ public final class LuaOverlay {
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, "overlay:color");
                 LuaGobOverlay.Attach rec = writable(owner, self, "color");
                 if(!Args.passed(a, 2))
                     return (rec == null) ? LuaValue.NIL : AddonManager.color(rec.color);
@@ -449,6 +452,7 @@ public final class LuaOverlay {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaGobOverlay.Attach rec = writable(owner, self, "font");
+                Args.only(a, 1, "overlay:font");
                 LuaValue hv = Args.written(a, 2, "overlay:font", "h");
                 if(hv == null) {
                     LuaValue cur = (rec == null) ? null : rec.fontVal;
@@ -503,6 +507,7 @@ public final class LuaOverlay {
         m.set("height", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, "overlay:height");
                 LuaGobOverlay.Attach rec = writable(owner, self, "height");
                 if(!Args.passed(a, 2))
                     return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.height);

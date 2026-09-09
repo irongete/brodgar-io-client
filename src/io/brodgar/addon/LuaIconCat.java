@@ -360,25 +360,37 @@ public final class LuaIconCat {
                 Map<GobIcon.Setting.ID, GobIcon.Setting> m = (conf == null) ? null : conf.settings;
                 if(m == null)
                     return out;
-                Set<String> seen = new HashSet<String>();
+                Map<String, List<GobIcon.Setting>> byRes = new HashMap<String, List<GobIcon.Setting>>();
                 List<String> names = new ArrayList<String>();
                 for(GobIcon.Setting set : m.values()) {
                     if((set == null) || (set.id == null) || (set.id.res == null))
                         continue;
-                    if(seen.add(set.id.res))
+                    List<GobIcon.Setting> sets = byRes.get(set.id.res);
+                    if(sets == null) {
+                        byRes.put(set.id.res, sets = new ArrayList<GobIcon.Setting>());
                         names.add(set.id.res);
+                    }
+                    sets.add(set);
                 }
+                grouped = byRes;
                 Collections.sort(names);
                 for(String res : names)
                     out.add(of(owner, user, res));
                 return out;
             }
 
+            /** The registry of the last {@link #members()} grouped by resource — one walk of the map, then
+             *  every needle of that call is a hash lookup. */
+            private Map<String, List<GobIcon.Setting>> grouped = Collections.emptyMap();
+
             // A string filter matches the DISPLAY name (the icon's tooltip), which is what a person reading a
             // list of them would type; :get(res) is how you address one, and it takes the resource name.
             public String needle(LuaValue member) {
                 LuaIconCat h = resolve(member);
-                return (h == null) ? null : catName(settingsFor(h.user, h.res));
+                if(h == null)
+                    return null;
+                List<GobIcon.Setting> sets = grouped.get(h.res);
+                return catName((sets != null) ? sets : settingsFor(h.user, h.res));
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */

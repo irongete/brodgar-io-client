@@ -428,7 +428,11 @@ public final class LuaSlot {
 
     /** The LIVE belt slot behind a method's {@code self}: re-read every call, {@code null} when empty. */
     private static GameUI.BeltSlot belt(LuaValue self, String method) {
-        LuaSlot h = handle(self, method);
+        return belt(handle(self, method));
+    }
+
+    /** The belt slot behind a resolved handle, or {@code null} for an unpopulated one. */
+    private static GameUI.BeltSlot belt(LuaSlot h) {
         GameUI g = AddonManager.gameui(h.user);     // THAT character's bar, not the drawn one's
         if((g == null) || (g.belt == null) || (h.index < 0) || (h.index >= g.belt.length))
             return null;        // pre-HUD / mid-:reload — an unpopulated slot, not an error
@@ -459,7 +463,8 @@ public final class LuaSlot {
             // An EMPTY slot has no resource, and there are usually many: it matches no string filter rather
             // than refusing the filter for everybody (which a null needle would do).
             public String needle(LuaValue member) {
-                String rn = CharApi.actionbarRes(belt(member, "list"));
+                LuaSlot h = resolve(member);
+                String rn = (h == null) ? null : CharApi.actionbarRes(belt(h));
                 return (rn == null) ? "" : rn;
             }
 

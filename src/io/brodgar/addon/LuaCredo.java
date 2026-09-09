@@ -13,6 +13,8 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -263,18 +265,27 @@ public final class LuaCredo {
 
     /** Every credo token the tab holds, acquired first, then available, then the pursued one if apart. */
     static List<String> tokens(String user) {
-        List<String> out = new ArrayList<String>();
+        return new ArrayList<String>(index(user).keySet());
+    }
+
+    /**
+     * One copy of the tab, keyed by token in its order — acquired, then available, then the pursued one. The
+     * members of one call and every needle of that call read this one copy, where a scan per member
+     * re-copied both lists per member.
+     */
+    static Map<String, SkillWnd.Credo> index(String user) {
+        Map<String, SkillWnd.Credo> out = new LinkedHashMap<String, SkillWnd.Credo>();
         SkillWnd.CredoGrid cg = grid(user);
         if(cg == null)
             return out;
         try {
             for(SkillWnd.Credo c : new ArrayList<SkillWnd.Credo>(cg.ccr))
-                out.add(c.nm);
+                out.put(c.nm, c);
             for(SkillWnd.Credo c : new ArrayList<SkillWnd.Credo>(cg.ncr))
-                out.add(c.nm);
+                out.put(c.nm, c);
             SkillWnd.Credo p = cg.pcr;
-            if((p != null) && !out.contains(p.nm))
-                out.add(p.nm);
+            if((p != null) && !out.containsKey(p.nm))
+                out.put(p.nm, p);
         } catch(RuntimeException e) {
             /* swapped mid-read — return what we have */
         }
@@ -305,11 +316,7 @@ public final class LuaCredo {
     }
 
     /** The text a string filter matches: display name and resource name. */
-    static String needleOf(LuaValue member) {
-        LuaCredo h = resolve(member);
-        if(h == null)
-            return "";
-        SkillWnd.Credo c = find(h.user, h.token);
+    static String needleOf(LuaCredo h, SkillWnd.Credo c) {
         String res = (c == null) ? null : AddonManager.resIdent(c.res);
         String name = (c == null) ? h.token : AddonManager.resTipName(c.res, h.token);
         return ((name == null) ? "" : name) + "\n" + ((res == null) ? "" : res);
@@ -326,22 +333,30 @@ public final class LuaCredo {
         LuaTable extra = new LuaTable();
         extra.set("pursuing", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "pursuing");
+                LuaCollection.receiver(a.arg1(), CharApi.C + ":credo()", "pursuing");
                 SkillWnd.CredoGrid cg = grid(user);
                 SkillWnd.Credo p = (cg == null) ? null : cg.pcr;
                 return (p == null) ? LuaValue.NIL : of(owner, user, p.nm);
             }
         });
         return LuaCollection.create(CharApi.C + ":credo()", new LuaCollection.Source() {
+            /** The index of the last {@link #members()}, so every needle of one call is a hash lookup. */
+            private Map<String, SkillWnd.Credo> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
+                seen = index(user);
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : tokens(user))
+                for(String nm : seen.keySet())
                     out.add(of(owner, user, nm));
                 return out;
             }
 
             public String needle(LuaValue member) {
-                return needleOf(member);
+                LuaCredo h = resolve(member);
+                if(h == null)
+                    return "";
+                SkillWnd.Credo c = seen.get(h.token);
+                return needleOf(h, (c != null) ? c : find(h.user, h.token));
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */

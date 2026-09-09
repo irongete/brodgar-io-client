@@ -92,6 +92,7 @@ public final class OptionsHandle {
         LuaTable m = new LuaTable();
         m.set("interface", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "interface");
                 if(owner.clientInterface == null)
                     owner.clientInterface = InterfaceOptions.create(owner);
                 return owner.clientInterface;
@@ -99,6 +100,7 @@ public final class OptionsHandle {
         });
         m.set("video", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "video");
                 if(owner.clientVideo == null)
                     owner.clientVideo = VideoOptions.create(owner);
                 return owner.clientVideo;
@@ -106,6 +108,7 @@ public final class OptionsHandle {
         });
         m.set("audio", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "audio");
                 if(owner.clientAudio == null)
                     owner.clientAudio = AudioOptions.create(owner);
                 return owner.clientAudio;
@@ -113,6 +116,7 @@ public final class OptionsHandle {
         });
         m.set("camera", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "camera");
                 if(owner.clientCamera == null)
                     owner.clientCamera = CameraOptions.create(owner);
                 return owner.clientCamera;
@@ -120,6 +124,7 @@ public final class OptionsHandle {
         });
         m.set("client", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "client");
                 if(owner.clientClient == null)
                     owner.clientClient = ClientOptions.create(owner);
                 return owner.clientClient;
@@ -127,6 +132,7 @@ public final class OptionsHandle {
         });
         m.set("keybindings", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "keybindings");
                 if(owner.clientKeybindings == null)
                     owner.clientKeybindings = KeybindingsOptions.create(owner);
                 return owner.clientKeybindings;
@@ -137,6 +143,7 @@ public final class OptionsHandle {
         // why they hang here beside the six panels rather than anywhere else.
         m.set("addon", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                self(a, "addon");
                 if(owner.clientAddonOpts == null)
                     owner.clientAddonOpts = AddonOptions.create(owner);
                 return owner.clientAddonOpts;
@@ -145,6 +152,17 @@ public final class OptionsHandle {
         return close(opts, "options", m,
             "the options handle",
             "one panel of the client's Options window per verb, plus :addon(), your own");
+    }
+
+    /**
+     * The receiver of a colon call on the options handle, and its arity: a dot call passes the wrong self,
+     * and an accessor takes nothing. The refusal names the door the panel is reached through.
+     */
+    private static void self(Varargs a, String verb) {
+        LuaValue v = Args.only(a, 0, "options:" + verb);
+        if(!v.isuserdata() || !(v.touserdata() instanceof Mark))
+            throw new LuaError("options:" + verb + "() — use a COLON call on the options handle"
+                + " (hafen.client():options():" + verb + "()), got " + v.typename());
     }
 
     /**

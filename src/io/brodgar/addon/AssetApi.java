@@ -218,9 +218,21 @@ final class AssetApi {
          */
         private final Map<LuaImage, LuaValue> imageViews = new IdentityHashMap<LuaImage, LuaValue>();
 
+        /** {@link #live} by handle identity — the index {@link #pathOf} reads, kept in step by put/remove. */
+        private final Map<LuaValue, Entry> byHandle = new IdentityHashMap<LuaValue, Entry>();
+
         Entry get(String key) {return live.get(key);}
-        void put(String key, Entry e) {live.put(key, e);}
-        void remove(String key) {live.remove(key);}
+        void put(String key, Entry e) {
+            Entry old = live.put(key, e);
+            if(old != null)
+                byHandle.remove(old.handle);
+            byHandle.put(e.handle, e);
+        }
+        void remove(String key) {
+            Entry old = live.remove(key);
+            if(old != null)
+                byHandle.remove(old.handle);
+        }
 
         /** {@code hafen.asset():list()}: this addon's live assets, in load order — the collection's members. */
         List<LuaValue> members() {
@@ -232,11 +244,8 @@ final class AssetApi {
 
         /** The addon-relative path a member was loaded from — what a string filter matches on. */
         String pathOf(LuaValue handle) {
-            for(Entry e : live.values()) {
-                if(e.handle == handle)
-                    return e.path;
-            }
-            return null;
+            Entry e = byHandle.get(handle);
+            return (e == null) ? null : e.path;
         }
 
         LuaValue builtinFont(String name) {return builtinFonts.get(name);}
@@ -265,6 +274,7 @@ final class AssetApi {
         /** Teardown: drop every entry (the GPU state is freed by the typed teardowns that ran first). */
         void clear() {
             live.clear();
+            byHandle.clear();
             builtinFonts.clear();
             fontViews.clear();
             imageViews.clear();

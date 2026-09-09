@@ -441,8 +441,15 @@ public final class LuaMarker {
                                     (gt.y * MCache.tilesz.y) + (MCache.tilesz.y / 2));
     }
 
-    /** The player marker behind a write, or a refusal: a system marker's colour and flag are the server's. */
+    /**
+     * The player marker behind a write, or a refusal: a system marker's colour and flag are the server's, and
+     * a marker the database no longer holds resolves to nothing — which is not a system marker, so it is
+     * refused in its own words rather than in a system marker's.
+     */
     private static MapFile.PMarker player(MapFile.Marker m, String verb) {
+        if(m == null)
+            throw new LuaError("marker:" + verb + "(...): this marker is gone — the database no longer holds"
+                + " it (marker:exists() says so), and there is nothing left to write");
         if(!(m instanceof MapFile.PMarker))
             throw new LuaError("marker:" + verb + "(...): only a PLAYER marker can be written — a system"
                 + " marker is the server's own pin (marker:type() says which)");

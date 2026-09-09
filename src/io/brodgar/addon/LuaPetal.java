@@ -24,9 +24,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * it is the 1-based one A-071 made the rule.
  */
 final class LuaPetal {
-    private final String user;
+    final String user;
     /** The 0-based wire position; {@code :index()} answers the 1-based one. */
-    private final int i;
+    final int i;
 
     private LuaPetal(String user, int i) {
         this.user = user;

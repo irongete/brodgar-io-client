@@ -59,7 +59,8 @@ final class ChatApi {
         extra.set("selected", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaCollection.receiver(self, "selected");
+                LuaCollection.receiver(self, CH, "selected");
+                Args.only(a, 1, CH + ":selected");
                 LuaValue want = Args.written(a, 2, CH + ":selected", "channel");
                 ChatUI chat = chatui(user);
                 if(want == null) {                                    // the read

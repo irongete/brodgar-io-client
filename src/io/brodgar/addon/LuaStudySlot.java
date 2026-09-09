@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>StudySlot object</b> — one curiosity in the study window ({@code s:study():slot()}), with the
+ * A <b>StudySlot object</b> — one curiosity in the study window ({@code s:study():curiosity()}), with the
  * study profile the item's resource publishes: learning points, mental weight, experience cost and the
  * total study time.
  *
@@ -227,7 +227,7 @@ public final class LuaStudySlot {
         LuaStudySlot h = resolve(self);
         if(h == null)
             throw new LuaError("slot:" + method + "() — use a COLON call on a StudySlot object"
-                + " (s:study():slot():list()[i])");
+                + " (session:study():curiosity():list()[i])");
         return h;
     }
 
@@ -317,13 +317,13 @@ public final class LuaStudySlot {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code s:study():slot()} — the curiosities in the window. <b>There is no {@code :get}</b>: a slot
+     * {@code s:study():curiosity()} — the curiosities in the window. <b>There is no {@code :get}</b>: a slot
      * has no key, since the same curiosity can occupy two of them, so a string is a search
      * ({@code :find(needle)} over the resource and the display name) and a position is
      * {@code :list()[n]}.
      */
     static LuaValue collection(final Addon owner, final String user) {
-        return LuaCollection.create(CharApi.ST + ":slot()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.ST + ":curiosity()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<GItem> its = items(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(its.size());
@@ -346,8 +346,8 @@ public final class LuaStudySlot {
 
             public String noGet() {
                 return "a slot has no key, since the same curiosity can sit in two of them: " + CharApi.ST
-                    + ":slot():find(needle) is the search and " + CharApi.ST
-                    + ":slot():list()[n] takes a position";
+                    + ":curiosity():find(needle) is the search and " + CharApi.ST
+                    + ":curiosity():list()[n] takes a position";
             }
         }, null);
     }

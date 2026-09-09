@@ -106,6 +106,11 @@ final class FontApi {
                 return LuaCollection.Missing.RAISE;
             }
 
+            public String keys() {
+                return "not a built-in font — the built-ins are " + BUILTINS + "; a font FILE this addon ships"
+                    + " is an asset: hafen.asset():get(\"fonts/Inter.ttf\")";
+            }
+
             /** The key is a built-in font NAME; a font file this addon ships is an asset. */
             public String keyName() {
                 return "name";
@@ -135,8 +140,7 @@ final class FontApi {
             return h;
         Font base = builtinFont(name);
         if(base == null)
-            throw new LuaError("hafen.font():get(\"" + name + "\"): not a built-in font — the built-ins are "
-                + BUILTINS + "; a font FILE this addon ships is an asset: hafen.asset():get(\"fonts/Inter.ttf\")");
+            return LuaValue.NIL;           // the collection refuses it, naming the built-ins (keys())
         h = fontHandle(owner, new FontHandle(base, null, null, null), AssetApi.Kind.FONT);
         owner.assets.putBuiltinFont(name, h);
         return h;
@@ -437,6 +441,7 @@ final class FontApi {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 FontHandle fh = font(self, prop);
+                Args.only(a, 1, "font:" + prop);
                 if(!Args.passed(a, 2))
                     return read(fh, prop);
                 LuaValue v = a.arg(2);

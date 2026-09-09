@@ -84,7 +84,7 @@ final class HttpApi {
         // gone with the call that scheduled it.
         extra.set("request", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "request");
+                LuaCollection.receiver(a.arg1(), "hafen.http()", "request");
                 return newHttpRequest(owner, "GET", urlArg(a, 2, "hafen.http():request"));
             }
         });
@@ -92,7 +92,7 @@ final class HttpApi {
         // has exactly one spelling, req:on("done", fn), which is the API's one notification verb.
         extra.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "get");
+                LuaCollection.receiver(a.arg1(), "hafen.http()", "get");
                 String url = urlArg(a, 2, "hafen.http():get");
                 refuseCallback(a, 3, "hafen.http():get(url)");
                 return newHttpRequest(owner, "GET", url);
@@ -100,7 +100,7 @@ final class HttpApi {
         });
         extra.set("post", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "post");
+                LuaCollection.receiver(a.arg1(), "hafen.http()", "post");
                 String url = urlArg(a, 2, "hafen.http():post");
                 refuseCallback(a, 4, "hafen.http():post(url, body)");
                 LuaValue h = newHttpRequest(owner, "POST", url);

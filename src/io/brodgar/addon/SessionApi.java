@@ -71,7 +71,7 @@ public final class SessionApi {
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
-                LuaCollection.receiver(me, "current");
+                LuaCollection.receiver(me, "hafen.session()", "current");
                 if(!Args.passed(a, 2)) {                   // the read arity
                     Sessions.Member m = Sessions.anchormember();
                     return (m == null) ? LuaValue.NIL : LuaSession.of(owner, m.user);

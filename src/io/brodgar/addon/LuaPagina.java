@@ -363,7 +363,7 @@ public final class LuaPagina {
         // cleared by the client when the button is actually used.
         m.set("unseen", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaPagina h = handle(self, "isNew");
+                LuaPagina h = handle(self, "unseen");
                 MenuGrid.Pagina p = live(h.user, h.res);
                 return LuaValue.valueOf((p != null) && (p.anew > 0));
             }
@@ -719,10 +719,26 @@ public final class LuaPagina {
         return null;
     }
 
+    /** The catalogue by resource name — one walk of the closure, then every needle of one call is a hash. */
+    private static Map<String, MenuGrid.Pagina> byRes(List<Entry> cat) {
+        Map<String, MenuGrid.Pagina> out = new HashMap<String, MenuGrid.Pagina>(cat.size() * 2);
+        for(int n = 0; n < cat.size(); n++)
+            out.put(cat.get(n).res, cat.get(n).pag);
+        return out;
+    }
+
+    /** The display name a string filter matches, off the catalogue of this call where it has the entry. */
+    private static String needleOf(String user, LuaPagina h, Map<String, MenuGrid.Pagina> seen) {
+        if(h == null)
+            return "";
+        MenuGrid.Pagina p = seen.get(h.res);
+        String nm = dispname(button((p != null) ? p : live(user, h.res)));
+        return (nm == null) ? "" : nm;
+    }
+
     /** The entries whose {@code parent()} is {@code p} (identity — the client interns paginae in its pmap). */
-    private static List<LuaValue> childrenOf(Addon owner, String user, MenuGrid.Pagina p) {
+    private static List<LuaValue> childrenOf(Addon owner, String user, MenuGrid.Pagina p, List<Entry> cat) {
         List<LuaValue> out = new ArrayList<LuaValue>();
-        List<Entry> cat = catalogue(user);
         for(int n = 0; n < cat.size(); n++) {
             Entry e = cat.get(n);
             try {
@@ -741,8 +757,13 @@ public final class LuaPagina {
     private static LuaValue childCollection(final Addon owner, final String user,
                                             final MenuGrid.Pagina p, String name) {
         return LuaCollection.create(name, new LuaCollection.Source() {
+            /** The catalogue of the last {@link #members()} by resource, for its needles. */
+            private Map<String, MenuGrid.Pagina> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
-                return childrenOf(owner, user, p);
+                List<Entry> cat = catalogue(user);
+                seen = byRes(cat);
+                return childrenOf(owner, user, p, cat);
             }
 
             /** An entry has a display name, so a string filter is a substring test over it. */
@@ -751,9 +772,7 @@ public final class LuaPagina {
             }
 
             public String needle(LuaValue member) {
-                LuaPagina h = resolve(member);
-                String nm = (h == null) ? null : dispname(button(live(user, h.res)));
-                return (nm == null) ? "" : nm;
+                return needleOf(user, resolve(member), seen);
             }
 
             public String noGet() {
@@ -844,8 +863,12 @@ public final class LuaPagina {
             }
         });
         return LuaCollection.create(CharApi.MG, new LuaCollection.Source() {
+            /** The catalogue of the last {@link #members()} by resource, for its needles. */
+            private Map<String, MenuGrid.Pagina> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
                 List<Entry> cat = catalogue(user);
+                seen = byRes(cat);
                 List<LuaValue> out = new ArrayList<LuaValue>(cat.size());
                 for(int i = 0; i < cat.size(); i++)
                     out.add(of(owner, user, cat.get(i).res));
@@ -853,9 +876,12 @@ public final class LuaPagina {
             }
 
             public String needle(LuaValue member) {
-                LuaPagina h = resolve(member);
-                String nm = (h == null) ? null : dispname(button(live(user, h.res)));
-                return (nm == null) ? "" : nm;
+                return needleOf(user, resolve(member), seen);
+            }
+
+            /** {@code :add(id)}: the identity of the entry your addon puts on the menu. */
+            public String addName() {
+                return "id";
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */
@@ -899,7 +925,7 @@ public final class LuaPagina {
             // :icon). It is drawn by this client and reaches no server, so it needs no permission — and it is
             // a Pagina like any other, so every reader on this page answers for it.
             public LuaValue addMember(Varargs a) {
-                return AddonPagina.add(owner, user, Args.required(a, 2, CharApi.MG + ":add", "id"));
+                return AddonPagina.add(owner, user, a.arg(2));
             }
 
             public boolean destroyable() {

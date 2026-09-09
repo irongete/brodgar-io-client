@@ -360,7 +360,7 @@ def java_mentions(vocab):
 #     are not checked at all. Their key sets are PROTOCOL or user-chosen; there is nothing to check
 #     against, and a typo there is the author's own.
 #   - a key built from a variable rather than written as a literal is invisible here.
-#   - suites under addons/<NNN>-*/ are skipped: they call moved spellings ON PURPOSE, to prove the
+#   - suites under addons/<NNN>-*/ and addons/R<nn>-*/ are skipped: they call moved spellings ON PURPOSE, to prove the
 #     refusal raises. A suite is re-run every round, which is its own guard.
 def event_keys():
     """Every key a CLOSED emitter fires, read out of the bridge's own key sets."""
@@ -387,7 +387,7 @@ def key_mentions(live):
         for dirpath, dirnames, files in os.walk(base):
             rel_dir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
             # a suite folder is <NNN>-<feature>.<X> -- it calls dead spellings on purpose
-            if mode == "suite" and re.search(r'/\d{3}-[^/]+$', rel_dir):
+            if mode == "suite" and re.search(r'/(?:\d{3}|R\d{2})-[^/]+$', rel_dir):
                 continue
             for f in files:
                 if not f.endswith((".md", ".lua")):

@@ -314,7 +314,9 @@ final class LuaGOut {
         t.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.point(px(a, 3, "g:text", "x"), px(a, 4, "g:text", "y")),
+                Args.only(a, 4, "g:text");
+                drawText(d, Args.str(a, 2, "g:text", "str", null).tojstring(),
+                         Px.point(px(a, 3, "g:text", "x"), px(a, 4, "g:text", "y")),
                          0.0, 0.0, a.arg(5), "g:text");
                 return NIL;
             }
@@ -324,7 +326,9 @@ final class LuaGOut {
         t.set("atext", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.point(px(a, 3, "g:atext", "x"), px(a, 4, "g:atext", "y")),
+                Args.only(a, 6, "g:atext");
+                drawText(d, Args.str(a, 2, "g:atext", "str", null).tojstring(),
+                         Px.point(px(a, 3, "g:atext", "x"), px(a, 4, "g:atext", "y")),
                          Args.num(a, 5, "g:atext", "ax", "a fraction 0..1 across the text").todouble(),
                          Args.num(a, 6, "g:atext", "ay", "a fraction 0..1 down the text").todouble(),
                          a.arg(7), "g:atext");
@@ -335,6 +339,7 @@ final class LuaGOut {
         // LINE_STRIP at the default width), exactly like the client's own hairlines; the box it traces is design.
         t.set("rect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 4, "g:rect");
                 GOut d = cur; if(d == null) return NIL;
                 d.rect(Px.point(px(a, 2, "g:rect", "x"), px(a, 3, "g:rect", "y")),
                        Px.point(px(a, 4, "g:rect", "w"), px(a, 5, "g:rect", "h")));
@@ -344,6 +349,7 @@ final class LuaGOut {
         // g:frect(x, y, w, h) — filled rectangle.
         t.set("frect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 4, "g:frect");
                 GOut d = cur; if(d == null) return NIL;
                 d.frect(Px.point(px(a, 2, "g:frect", "x"), px(a, 3, "g:frect", "y")),
                         Px.point(px(a, 4, "g:frect", "w"), px(a, 5, "g:frect", "h")));
@@ -354,6 +360,7 @@ final class LuaGOut {
         // 4 px rule drawn half as thick as the chrome beside it is the very mismatch this unit exists to end).
         t.set("line", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 5, "g:line");
                 GOut d = cur; if(d == null) return NIL;
                 d.line(Px.point(px(a, 2, "g:line", "x1"), px(a, 3, "g:line", "y1")),
                        Px.point(px(a, 4, "g:line", "x2"), px(a, 5, "g:line", "y2")),
@@ -387,6 +394,7 @@ final class LuaGOut {
         // resolve returns null / the dead guard skips it) — never throws, matching the forgiving g wrapper.
         t.set("image", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 5, "g:image");
                 GOut d = cur; if(d == null) return NIL;
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
@@ -411,6 +419,7 @@ final class LuaGOut {
         // (never throws into the render thread). Static only — no live sprite / cooldown sweep (D-039).
         t.set("resource", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 5, "g:resource");
                 GOut d = cur; if(d == null) return NIL;
                 String name = a.arg(2).tojstring();
                 if((name == null) || name.isEmpty()) return NIL;
@@ -430,6 +439,7 @@ final class LuaGOut {
         // mirroring g:atext. Same forgiving nil/disposed handling as g:image.
         t.set("aimage", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 5, "g:aimage");
                 GOut d = cur; if(d == null) return NIL;
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
@@ -444,6 +454,7 @@ final class LuaGOut {
         // Ergonomic form of GOut.prect for cooldowns/meters; fraction 1 = full circle.
         t.set("prect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 5, "g:prect");
                 GOut d = cur; if(d == null) return NIL;
                 int r = Px.length(px(a, 4, "g:prect", "radius"));   // a radius is a length: design px, like everything here
                 d.prect(Px.point(px(a, 2, "g:prect", "cx"), px(a, 3, "g:prect", "cy")),
@@ -460,6 +471,7 @@ final class LuaGOut {
         // LuaJ, not an error, so without this branch a value the API just handed you drew BLACK.
         t.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 4, "g:color");
                 GOut d = cur; if(d == null) return NIL;
                 LuaValue r = a.arg(2);
                 if(r.isnil()) {

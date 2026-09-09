@@ -81,8 +81,8 @@ public final class ProfHandle {
         // fail one character later as "attempt to call a nil value", naming neither the verb nor this line.
         mt.set(LuaValue.INDEX, Refusal.closedIndex("profiling", methods(p, owner),
             "the profiling handle",
-            ":frame() :history() :addons() :widgets() :passes() :gl() :overhead() and :reset() need"
-            + " profiling armed; the counters and :scope()/:measure() answer whether it is or not"));
+            ":frame() :history() :addons() :widgets() :passes() :gl() and :overhead() need profiling"
+            + " armed; the counters, :reset() and :scope()/:measure() answer whether it is or not"));
         mt.set("__name", LuaValue.valueOf("Profiling"));
         mt.set("__tostring", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -377,6 +377,7 @@ public final class ProfHandle {
         // now clears the CALLING addon's alone (audit2 B08, pf-04).
         m.set("reset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "profiling:reset");
                 Prof.reset();
                 return handle;
             }

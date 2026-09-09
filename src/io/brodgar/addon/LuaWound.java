@@ -15,6 +15,7 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -272,6 +273,22 @@ public final class LuaWound {
         return out;
     }
 
+    /** {@link #all} keyed by wound id: one copy of the list, and every lookup of one call is a hash. */
+    static Map<Integer, WoundWnd.Wound> byId(List<WoundWnd.Wound> ws) {
+        Map<Integer, WoundWnd.Wound> out = new HashMap<Integer, WoundWnd.Wound>(ws.size() * 2);
+        for(int i = 0; i < ws.size(); i++)
+            out.put(Integer.valueOf(ws.get(i).id), ws.get(i));
+        return out;
+    }
+
+    /** The needle of one wound: res OR name, as one string the substring test runs over once. */
+    private static String needleOf(WoundWnd.Wound w) {
+        if(w == null)
+            return "";
+        String r = AddonManager.resIdent(w.res), nm = nameOf(w);
+        return ((r == null) ? "" : r) + "\n" + ((nm == null) ? "" : nm);
+    }
+
     /** The live record for {@code wid}, or {@code null} once the wound has healed. */
     static WoundWnd.Wound wound(String user, int wid) {
         for(WoundWnd.Wound w : all(user)) {
@@ -379,14 +396,18 @@ public final class LuaWound {
     static LuaValue subtree(final Addon owner, final String user, final int parent) {
         final String verb = (parent < 0) ? (CharApi.WD + ":roots()") : "wound:children()";
         return LuaCollection.create(verb, new LuaCollection.Source() {
+            /** The list of the last {@link #members()} by id: rootness and every needle of one call read it. */
+            private Map<Integer, WoundWnd.Wound> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
                 List<WoundWnd.Wound> ws = all(user);
+                seen = byId(ws);
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(int i = 0; i < ws.size(); i++) {
                     WoundWnd.Wound w = ws.get(i);
                     // A root is one whose parent is not on the roster -- the server's own -1, and also a
                     // complication whose parent has healed out from under it, which the window draws flat.
-                    boolean root = (w.parentid < 0) || (wound(user, w.parentid) == null);
+                    boolean root = (w.parentid < 0) || !seen.containsKey(Integer.valueOf(w.parentid));
                     if(root ? (parent < 0) : (w.parentid == parent))
                         out.add(of(owner, user, w.id));
                 }
@@ -395,11 +416,10 @@ public final class LuaWound {
 
             public String needle(LuaValue member) {
                 LuaWound h = resolve(member);
-                WoundWnd.Wound w = (h == null) ? null : wound(user, h.id);
-                if(w == null)
+                if(h == null)
                     return "";
-                String r = AddonManager.resIdent(w.res), nm = nameOf(w);
-                return ((r == null) ? "" : r) + "\n" + ((nm == null) ? "" : nm);
+                WoundWnd.Wound w = seen.get(Integer.valueOf(h.id));
+                return needleOf((w != null) ? w : wound(user, h.id));
             }
 
             public boolean named() {
@@ -415,8 +435,12 @@ public final class LuaWound {
 
     static LuaValue collection(final Addon owner, final String user) {
         return LuaCollection.create(CharApi.WD, new LuaCollection.Source() {
+            /** The list of the last {@link #members()} by id, so every needle of one call is a hash lookup. */
+            private Map<Integer, WoundWnd.Wound> seen = Collections.emptyMap();
+
             public List<LuaValue> members() {
                 List<WoundWnd.Wound> ws = all(user);
+                seen = byId(ws);
                 List<LuaValue> out = new ArrayList<LuaValue>(ws.size());
                 for(int i = 0; i < ws.size(); i++)
                     out.add(of(owner, user, ws.get(i).id));
@@ -427,11 +451,10 @@ public final class LuaWound {
             // presence test matched. The separator is a newline, which neither half ever contains.
             public String needle(LuaValue member) {
                 LuaWound h = resolve(member);
-                WoundWnd.Wound w = (h == null) ? null : wound(user, h.id);
-                if(w == null)
+                if(h == null)
                     return "";
-                String r = AddonManager.resIdent(w.res), nm = nameOf(w);
-                return ((r == null) ? "" : r) + "\n" + ((nm == null) ? "" : nm);
+                WoundWnd.Wound w = seen.get(Integer.valueOf(h.id));
+                return needleOf((w != null) ? w : wound(user, h.id));
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */
@@ -462,7 +485,8 @@ public final class LuaWound {
         LuaTable extra = new LuaTable();
         extra.set("roots", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "roots");
+                LuaCollection.receiver(a.arg1(), CharApi.WD, "roots");
+                Args.only(a, 0, CharApi.WD + ":roots");
                 return subtree(owner, user, -1);
             }
         });

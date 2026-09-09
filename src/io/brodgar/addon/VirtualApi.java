@@ -29,6 +29,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.List;
 
 import io.brodgar.addon.AddonManager.SessionState;
@@ -202,6 +203,10 @@ final class VirtualApi {
     /** {@code hafen.virtual():ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
     private static LuaValue ghostCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():ghost()", new LuaCollection.Source() {
+            public String addName() {
+                return "res";
+            }
+
             public List<LuaValue> members() {
                 return entityMembers(owner.ghosts);
             }
@@ -220,7 +225,7 @@ final class VirtualApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue rv = Args.required(a, 2, "hafen.virtual():ghost():add", "res");
+                LuaValue rv = a.arg(2);
                 if(!rv.isstring() || rv.isnumber())
                     throw new LuaError("hafen.virtual():ghost():add(res, p) expects a resource NAME string (e.g."
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
@@ -274,6 +279,10 @@ final class VirtualApi {
     /** {@code hafen.virtual():sprite()} — this addon's custom-PNG world sprites. */
     private static LuaValue spriteCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():sprite()", new LuaCollection.Source() {
+            public String addName() {
+                return "image";
+            }
+
             public List<LuaValue> members() {
                 return entityMembers(owner.sprites);
             }
@@ -292,7 +301,7 @@ final class VirtualApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue img = Args.required(a, 2, "hafen.virtual():sprite():add", "image");
+                LuaValue img = a.arg(2);
                 Anchor an = anchorArg(a, "hafen.virtual():sprite():add");
                 LuaTable spec = an.spec();
                 spec.set("image", img);
@@ -317,6 +326,10 @@ final class VirtualApi {
     /** {@code hafen.virtual():object()} — this addon's glTF world models. */
     private static LuaValue objectCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():object()", new LuaCollection.Source() {
+            public String addName() {
+                return "model";
+            }
+
             public List<LuaValue> members() {
                 return entityMembers(owner.objects);
             }
@@ -335,7 +348,7 @@ final class VirtualApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue mdl = Args.required(a, 2, "hafen.virtual():object():add", "model");
+                LuaValue mdl = a.arg(2);
                 Anchor an = anchorArg(a, "hafen.virtual():object():add");
                 LuaTable spec = an.spec();
                 spec.set("model", mdl);
@@ -371,6 +384,10 @@ final class VirtualApi {
      */
     private static LuaValue widgetCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():widget()", new LuaCollection.Source() {
+            public String addName() {
+                return "w";
+            }
+
             public List<LuaValue> members() {
                 return entityMembers(owner.surfaces);
             }
@@ -389,7 +406,7 @@ final class VirtualApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue wv = Args.required(a, 2, "hafen.virtual():widget():add", "w");
+                LuaValue wv = a.arg(2);
                 Anchor an = anchorArg(a, "hafen.virtual():widget():add");
                 return born(makeWidget(owner, an.spec(), wv, an.tgt, an.place), "hafen.virtual():widget():add");
             }
@@ -428,6 +445,10 @@ final class VirtualApi {
      */
     private static LuaValue patchCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():patch()", new LuaCollection.Source() {
+            public String addName() {
+                return "ring";
+            }
+
             public List<LuaValue> members() {
                 return entityMembers(owner.patches);
             }
@@ -475,12 +496,24 @@ final class VirtualApi {
      */
     private static LuaValue entityCollection(final Addon owner) {
         return LuaCollection.create("hafen.virtual():entity()", new LuaCollection.Source() {
+            /** The entities of the last {@link #members()} by handle, so a string filter's needle per member is
+             *  a hash lookup rather than five registry scans. Read only inside the call that built it. */
+            private Map<LuaValue, LuaWorldEntity> seen = java.util.Collections.emptyMap();
+
             public List<LuaValue> members() {
-                return entityMembers(allEntities(owner));
+                List<LuaWorldEntity> all = allEntities(owner);
+                Map<LuaValue, LuaWorldEntity> idx = new java.util.IdentityHashMap<LuaValue, LuaWorldEntity>();
+                for(LuaWorldEntity e : all) {
+                    if(e.handle != null)
+                        idx.put(e.handle, e);
+                }
+                seen = idx;
+                return entityMembers(all);
             }
 
             public String needle(LuaValue member) {
-                return visualNameOf(anyRegistry(owner, member), member);
+                LuaWorldEntity e = seen.get(member);
+                return (e != null) ? e.visualName() : visualNameOf(anyRegistry(owner, member), member);
             }
 
             /** Every kind has a visual name, so a string filter is a substring test over it. */
@@ -1034,6 +1067,7 @@ final class VirtualApi {
                 // place it can go on holding, or it is not moved. The coordinate follows from the anchor,
                 // and since 045.2 it may not be here yet: the same door :add uses, so moving something to
                 // the far side of the world is the same act as placing it there, and it waits the same way.
+                Args.only(a, 2, kind + ":position");
                 LuaPosition.Anchor place = LuaPosition.anchorArg(a, 2, kind + ":position", "p");
                 Coord2d rc = LuaPosition.worldOf(place, null);
                 Double ang = Args.passed(a, 3)
@@ -1057,6 +1091,7 @@ final class VirtualApi {
                         + " offset from nothing -- its place is " + kind + ":position(p). An offset is what a "
                         + kind + " placed with hafen.virtual():" + sect + "():add(what, gob) sits at relative to that"
                         + " gob");
+                Args.only(a, 3, kind + ":offset");
                 if(!Args.passed(a, 2)) {
                     Coord3f off;
                     synchronized(e) { off = e.followOff; }
@@ -1080,6 +1115,7 @@ final class VirtualApi {
         m.set("rotate", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":rotate");
                 LuaValue av = Args.written(a, 2, kind + ":rotate", "a");
                 if(av == null) {
                     synchronized(e) { return LuaValue.valueOf(e.a); }
@@ -1092,6 +1128,7 @@ final class VirtualApi {
         m.set("scale", new VarArgFunction() {           // uniform scale (1 = original size)
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":scale");
                 LuaValue sv = Args.written(a, 2, kind + ":scale", "s");
                 if(sv == null) {
                     synchronized(e) { return LuaValue.valueOf((double)e.scale); }
@@ -1104,6 +1141,7 @@ final class VirtualApi {
         m.set("alpha", new VarArgFunction() {           // opacity 0..1 (1 = opaque)
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":alpha");
                 LuaValue av = Args.written(a, 2, kind + ":alpha", "a");
                 if(av == null) {
                     synchronized(e) { return LuaValue.valueOf((double)e.alpha); }
@@ -1117,7 +1155,7 @@ final class VirtualApi {
         // the whole API documents a meaning for.
         m.set("tint", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = Args.only(a, 1, kind + ":tint");
                 if(!Args.passed(a, 2)) {
                     synchronized(e) { return AddonManager.color(e.tint); }
                 }
@@ -1129,6 +1167,7 @@ final class VirtualApi {
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":visible");
                 LuaValue bv = Args.written(a, 2, kind + ":visible", "b");
                 if(bv == null) {
                     synchronized(e) { return LuaValue.valueOf(!e.hidden && !e.dead); }
@@ -1146,6 +1185,7 @@ final class VirtualApi {
         m.set("clickable", new VarArgFunction() {   // opt into the client-side pick (never reaches the server)
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":clickable");
                 LuaValue bv = Args.written(a, 2, kind + ":clickable", "b");
                 if(bv == null) {
                     synchronized(e) { return LuaValue.valueOf(e.clickable); }
@@ -1157,6 +1197,7 @@ final class VirtualApi {
         m.set("onClick", new VarArgFunction() {     // fn(handle, button, x, y) -- the per-entity click callback
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, kind + ":onClick");
                 LuaValue fn = Args.written(a, 2, kind + ":onClick", "fn");
                 if(fn == null) {
                     synchronized(e) { return (e.onClick == null) ? LuaValue.NIL : e.onClick; }
@@ -1171,6 +1212,7 @@ final class VirtualApi {
         // exists() -- is it still in the world? False once the collection removed it, and false after a teardown.
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                Args.only(a, 0, kind + ":exists");
                 synchronized(e) { return LuaValue.valueOf(!e.dead); }
             }
         });
@@ -1696,7 +1738,7 @@ final class VirtualApi {
     private static VarArgFunction facingVerb(final LuaWorldEntity e, final String kind) {
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = Args.only(a, 1, kind + ":facing");
                 LuaValue mv = Args.written(a, 2, kind + ":facing", "mode");
                 if(mv == null) {
                     synchronized(e) { return LuaValue.valueOf(e.facing); }

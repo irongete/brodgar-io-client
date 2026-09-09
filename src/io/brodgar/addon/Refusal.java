@@ -27,18 +27,19 @@ import org.luaj.vm2.lib.TwoArgFunction;
  * nothing, and every other key raises listing what the receiver answers. That is the whole of the mechanism,
  * and it needs no row below it to work.
  *
- * <p><b>Three tables sharpen it</b>, because a name that <i>moved</i> deserves better than the generic list
- * — though two of the three carry no rows today, as the paragraph after them says:
+ * <p><b>Three tables sharpen it</b>, because a name that <i>moved</i> deserves better than the generic list:
  *
  * <ul>
- *   <li>{@link #MOVED} — a section keyed {@code "hafen.<name>"}, a verb {@code "<entity>:<name>"}, a shape's
- *       field {@code "<shape>.<field>"}, each mapped to the message naming its replacement. <b>No row is
- *       declared</b>, so every name reads as plain {@code nil} at the section level and a feature probe
- *       ({@code if hafen.something then}) keeps working.</li>
+ *   <li>{@link #MOVED} — a verb keyed by the spelling the call site writes ({@code "slot:pagina"},
+ *       {@code "session:study():slot"}, {@code "session:char():skill():available"}), a section
+ *       {@code "hafen.<name>"}, a shape's field {@code "<shape>.<field>"}, each mapped to the message naming
+ *       its replacement. An entity keys its rows {@code "<entity>:<verb>"}; a section and a collection key
+ *       theirs by the spelling they are reached through — {@code session:study():slot}, never a
+ *       {@code hafen.} door the reader did not write — so the three doors read one table one way.</li>
  *   <li>{@link #eventKey} — an event key is a string ARGUMENT ({@code hafen.event():on("Key", fn)}), so no
  *       field read can carry the refusal and no {@code __index} can be hung off it. The emitter consults this
- *       one at the door, before it decides whether the key is one it answers. <b>No row is declared</b>, so
- *       what an unknown key meets is the emitter's own generic refusal.</li>
+ *       one at the door, before it decides whether the key is one it answers, so a moved key says what it is
+ *       now rather than falling into the generic "unknown event".</li>
  *   <li>{@link #MISPLACED} — <b>live</b> spellings, not moved ones. Where a namespace splits, half its verbs
  *       grow an address and half keep their global spelling, and the mistake goes both ways: a sweep that
  *       addresses {@code hafen.ui():window()} writes code that compiles, runs and is wrong. So a verb that
@@ -47,14 +48,12 @@ import org.luaj.vm2.lib.TwoArgFunction;
  *       derives to check that no dead name is written on a page.</li>
  * </ul>
  *
- * <p><b>{@link #MOVED} and {@link #KEYS} carry no rows, and the doors that read them stand unguarded.</b>
- * Nothing generates rows and nothing {@code put}s one there, so every read of those two misses and falls
- * through — to plain {@code nil} for a section name and a dotted verb, to the generic refusal for an event
- * key. That is the decision of {@code 11bf2871c} and it is in force: <b>nothing is published</b>, so a hard
- * cut needs no row, and the row would be a message for a caller that never existed. The doors stay because
- * the day something IS published a moved spelling needs somewhere to be answered, and a table is cheaper to
- * fill than a metamethod is to add back. {@link #MISPLACED} is the one that carries rows, and what it
- * carries is <b>live</b> spellings, not moved ones.
+ * <p><b>A row is declared for every spelling this API replaced and still names</b> — the ones its own
+ * refusal messages went on offering after the rename, which is how a reader met them. Nothing is published,
+ * so a hard cut needs no alias; it does need the cut to be visible from the line that wrote the old name,
+ * which is what a row is. Every replacement a row promises is a verb its receiver answers:
+ * {@code tools/refusalverbs.py} resolves each one against the receiver's own vocabulary, so a row cannot
+ * outlive the verb it points at.
  *
  * <p>A row keys on a <b>name</b>, which is the whole of what a row can carry — a changed argument, return
  * or payload shape has nothing to hang one off, and needs a refusal written inside the verb itself.
@@ -64,10 +63,11 @@ final class Refusal {
     }
 
     /**
-     * A section {@code "hafen.<name>"}, a verb {@code "<entity>:<name>"}, a shape's field
-     * {@code "<shape>.<field>"} — each mapped to the message naming its replacement. <b>No row is
-     * declared</b> (see the class javadoc), so every read of it misses and the three doors below answer
-     * plain {@code nil}.
+     * A verb keyed by the spelling the call site writes ({@code "slot:pagina"}, {@code "session:study():slot"}),
+     * a section {@code "hafen.<name>"}, a shape's field {@code "<shape>.<field>"} — each mapped to the message
+     * naming its replacement. The rows are the renames this API's own messages went on naming (see the class
+     * javadoc); a section or an entity whose miss is not a row here reads as the generic refusal, or as plain
+     * {@code nil} on the {@code hafen} table.
      */
     private static final Map<String, String> MOVED = new HashMap<String, String>();
 
@@ -75,9 +75,9 @@ final class Refusal {
      * Moved <b>event keys</b> (spec {@code 041-unified-events}), keyed {@code "<emitter>|<key>"} — the third
      * kind of moved spelling and the one that is not a field read at all: a key is an ARGUMENT to {@code :on},
      * so nothing can hang off reading it and the refusal has to happen where the key is accepted. The emitter
-     * checks this table before it checks its own vocabulary, so a moved key would say what it is now instead
-     * of falling into the generic "unknown event" refusal. <b>No row is declared</b> (see the class javadoc),
-     * so every key the client does not fire meets that generic refusal, moved spellings included.
+     * checks this table before it checks its own vocabulary, so a moved key says what it is now instead of
+     * falling into the generic "unknown event" refusal. Every key a row promises is one the emitter fires:
+     * {@code tools/refusalverbs.py} resolves it against the key sets the bridge declares.
      */
     private static final Map<String, String> KEYS = new HashMap<String, String>();
 
@@ -91,6 +91,27 @@ final class Refusal {
     private static final Map<String, String> MISPLACED = new HashMap<String, String>();
 
     static {
+        // The renames this API's own refusals went on naming after the cut (audit2 B09): each keyed by the
+        // spelling a reader meets it under, each naming the verb that answers now.
+        MOVED.put("slot:pagina", "slot:pagina(pag) is slot:hold(pag): the entry your addon holds that bar"
+                  + " slot for, and slot:hold(nil) ends the hold");
+        MOVED.put("session:study():slot", "session:study():slot() is session:study():curiosity(): the"
+                  + " curiosities in the study window, as a collection");
+        MOVED.put("session:char():skill():available", "session:char():skill():available(filter) is"
+                  + " session:char():skill():buyable(filter): the skills the character can buy, as a"
+                  + " collection of its own");
+        MOVED.put("buff:duration", "buff:duration() is buff:remaining(): the 0..1 fraction of the run the buff"
+                  + " has left");
+        MOVED.put("session:ui():find", "session:ui():find(selector) is session:ui():match(selector): the one"
+                  + " widget a selector names, and session:ui():matchAll(selector) is every one");
+        KEYS.put("widget|Destroy", "widget:on(\"Destroy\", fn): the key is Removed — widget:on(\"Removed\","
+                 + " fn) fires when the widget leaves its tree");
+        KEYS.put("hafen.event()|FlowerMenuOpened", "hafen.event():on(\"FlowerMenuOpened\", fn): the key is"
+                 + " FlowerMenuAdded — hafen.event():on(\"FlowerMenuAdded\", fn) fires when a radial menu"
+                 + " opens");
+        KEYS.put("hafen.event()|FlowerMenuClosed", "hafen.event():on(\"FlowerMenuClosed\", fn): the key is"
+                 + " FlowerMenuRemoved — hafen.event():on(\"FlowerMenuRemoved\", fn) fires when a radial"
+                 + " menu closes, chosen or not");
         String twoTrees = " — your window and the client's window are not the same thing, and they stand in"
             + " two trees";
         uiKept("window", "builds a window of YOURS, in the addon layer above every session" + twoTrees);

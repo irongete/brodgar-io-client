@@ -221,6 +221,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "font");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":font");
                 LuaValue v = Args.written(a, 2, r.where() + ":font", "face");
                 if(v == null)
                     return ((cur == null) || (cur.font == null)) ? LuaValue.NIL
@@ -280,6 +281,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "emboss");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":emboss");
                 LuaValue v = Args.written(a, 2, r.where() + ":emboss", "emboss");
                 if(v == null)
                     return ((cur == null) || (cur.emboss == null)) ? LuaValue.NIL : cur.emboss.toLua(owner);
@@ -298,6 +300,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "glow");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":glow");
                 LuaValue v = Args.written(a, 2, r.where() + ":glow", "glow");
                 if(v == null)
                     return ((cur == null) || (cur.glow == null)) ? LuaValue.NIL : cur.glow.toLua();
@@ -315,6 +318,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "bg");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":bg");
                 LuaValue v = Args.written(a, 2, r.where() + ":bg", "background");
                 if(v == null)
                     return ((cur == null) || (cur.bg == null)) ? LuaValue.NIL : cur.bg.toLua(owner);
@@ -334,6 +338,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "border");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":border");
                 LuaValue v = Args.written(a, 2, r.where() + ":border", "border");
                 if(v == null)
                     return ((cur == null) || (cur.border == null)) ? LuaValue.NIL : cur.border.toLua(owner);
@@ -351,6 +356,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "padding");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":padding");
                 LuaValue v = Args.written(a, 2, r.where() + ":padding", "pixels");
                 if(v == null)
                     return ((cur == null) || (cur.padding == null)) ? LuaValue.NIL : cur.padding.toLua();
@@ -369,6 +375,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "picture");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":picture");
                 LuaValue v = Args.written(a, 2, r.where() + ":picture", "picture");
                 if(v == null)
                     return ((cur == null) || (cur.picture == null)) ? LuaValue.NIL : cur.picture.toLua(owner);
@@ -387,6 +394,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "caption");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":caption");
                 LuaValue v = Args.written(a, 2, r.where() + ":caption", "spot");
                 if(v == null)
                     return ((cur == null) || (cur.caption == null)) ? LuaValue.NIL : cur.caption.toLua();
@@ -404,6 +412,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "sizer");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":sizer");
                 LuaValue v = Args.written(a, 2, r.where() + ":sizer", "sizer");
                 if(v == null)
                     return ((cur == null) || (cur.sizer == null)) ? LuaValue.NIL : cur.sizer.toLua(owner);
@@ -425,6 +434,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "closeButton");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":closeButton");
                 LuaValue v = Args.written(a, 2, r.where() + ":closeButton", "closeButton");
                 if(v == null)
                     return ((cur == null) || (cur.close == null)) ? LuaValue.NIL : cur.close.toLua(owner);
@@ -441,6 +451,7 @@ public final class LuaRule {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "position");
+                Args.only(a, 2, r.where() + ":position");
                 Sheet.Props cur = r.read(owner);
                 if(!Args.passed(a, 2)) {
                     return ((cur == null) || (cur.pos == null) || !cur.pos.plain) ? LuaValue.NIL
@@ -462,6 +473,7 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "anchor");
                 Sheet.Props cur = r.read(owner);
+                Args.only(a, 1, r.where() + ":anchor");
                 LuaValue v = Args.written(a, 2, r.where() + ":anchor", "anchor");
                 if(v == null) {
                     if((cur == null) || (cur.pos == null) || cur.pos.plain)
@@ -482,6 +494,7 @@ public final class LuaRule {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "size");
+                Args.only(a, 2, r.where() + ":size");
                 Sheet.Props cur = r.read(owner);
                 if(!Args.passed(a, 2))
                     return ((cur == null) || (cur.size == null)) ? LuaValue.NIL

@@ -231,7 +231,8 @@ public final class LuaSegment {
         // simply absent, and present next call: re-walking the rectangle each frame is the intended usage.
         extra.set("list", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "list");
+                LuaCollection.receiver(a.arg1(), "seg:grid()", "list");
+                Args.only(a, 1, "seg:grid():list");
                 LuaValue area = Args.required(a, 2, "seg:grid():list", "area");
                 MapFile file = MapApi.mapfile();
                 MapFile.Segment seg = MapApi.segIn(file, id);

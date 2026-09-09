@@ -227,7 +227,7 @@ public final class LuaBuff {
         // and NOT seconds: the client has no seconds-based buff timer to read.
         m.set("remaining", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Double c = duration(handle(self, "duration").wdg);
+                Double c = duration(handle(self, "remaining").wdg);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.doubleValue());
             }
         });

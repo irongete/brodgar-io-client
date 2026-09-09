@@ -70,8 +70,8 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:path`, even when
 the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the same reason.
-**`h:type()` is what says which of the three you are holding** — ask it before reaching for `:path()` or
-`:dispose()`, which a built-in and a variant have not got. A face is an
+**`h:type()` is what says which of the three you are holding** — ask it before reaching for `:path()`, which a
+built-in and a variant have not got. A face is an
 [object, not a table](asset.md#every-asset), and it prints as what it is:
 
 ```lua

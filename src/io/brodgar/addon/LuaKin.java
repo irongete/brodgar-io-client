@@ -185,7 +185,7 @@ public final class LuaKin {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Refusal.closedIndex("kin", methods(owner),
             "someone on your kin list",
-            ":rename(), :endKin() and :forget() write; everything else reads"));
+            ":rename(name), :group(g), :endKin() and :forget() write; everything else reads"));
         mt.set("__name", LuaValue.valueOf("Kin"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -203,8 +203,9 @@ public final class LuaKin {
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        m.set("id", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("id", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:id");
                 return LuaValue.valueOf(handle(self, "id").id);
             }
         });
@@ -214,25 +215,29 @@ public final class LuaKin {
         // WINDOW by role and the thing inside it is a domain object the selector language cannot address.
         //   nil when that row is not being drawn -- the window is closed, or the kin is scrolled out of the
         // list, which recycles the widgets of rows it is not showing.
-        m.set("widget", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("widget", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:widget");
                 Widget row = kinRow(self, "widget");
                 return (row == null) ? LuaValue.NIL : LuaWidget.of(owner, row);
             }
         });
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:exists");
                 return LuaValue.valueOf(buddy(self, "exists") != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch (the old KinEntry shape), for logging/serialising.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:info");
                 return CharApi.kinSnapshot(buddy(self, "info"));
             }
         });
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:name");
                 BuddyWnd.Buddy b = buddy(self, "name");
                 if(b == null)
                     return LuaValue.NIL;
@@ -247,6 +252,7 @@ public final class LuaKin {
         m.set("group", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                Args.only(a, 1, "kin:group");
                 LuaValue group = Args.written(a, 2, "kin:group", "group");
                 if(group == null) {
                     BuddyWnd.Buddy b = buddy(self, "group");
@@ -275,8 +281,9 @@ public final class LuaKin {
         // ENGINE draws such a kin in the ungrouped colour rather than throwing (BuddyWnd.gcolor), but that
         // fallback is a DRAW, not an answer: nil is the truthful one here, and group() is what tells two
         // groups above the palette apart. Do not route this through gcolor.
-        m.set("color", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("color", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:color");
                 BuddyWnd.Buddy b = buddy(self, "color");
                 if(b == null)
                     return LuaValue.NIL;
@@ -290,8 +297,9 @@ public final class LuaKin {
         });
         // online() — the tri-state (1 online, 0 offline, -1 hearth-secret-only) as the boolean the common
         // "is this kin online" question wants (the deliberate A6 call, kept).
-        m.set("online", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("online", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:online");
                 BuddyWnd.Buddy b = buddy(self, "online");
                 if(b == null)
                     return LuaValue.NIL;
@@ -313,8 +321,9 @@ public final class LuaKin {
         // fall back to another marked gob (typically the hearth fire of a kin who is offline) when no body
         // is loaded. For ALL of them, filter the world by the inverse instead:
         //   s:world():gob():list(function(g) return g:kin() == k end)
-        m.set("gob", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:gob");
                 LuaKin h = handle(self, "gob");
                 Gob other = null;
                 for(Gob g : AddonManager.allGobs(h.user)) {   // THAT session's cache, under its own lock
@@ -330,8 +339,10 @@ public final class LuaKin {
             }
         });
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
-        m.set("rename", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue name) {
+        m.set("rename", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 1, "kin:rename");
+                LuaValue name = Args.required(a, 2, "kin:rename", "name");
                 AddonManager.requirePermission(AddonManager.current(), Permission.KIN_RENAME);
                 Args.str(name, "kin:rename", "name", "the name YOUR list shows this kin under");
                 LuaKin h = handle(self, "rename");
@@ -346,8 +357,9 @@ public final class LuaKin {
             }
         });
         // endKin() = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
-        m.set("endKin", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("endKin", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:endKin");
                 AddonManager.requirePermission(AddonManager.current(), Permission.KIN_END);
                 LuaKin h = handle(self, "endKin");
                 BuddyWnd bw = kinwnd(self, "endKin");
@@ -358,8 +370,9 @@ public final class LuaKin {
             }
         });
         // forget() = FORGET (step 2): drops a memorized (un-kinned) kin from the list entirely.
-        m.set("forget", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("forget", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "kin:forget");
                 AddonManager.requirePermission(AddonManager.current(), Permission.KIN_FORGET);
                 LuaKin h = handle(self, "forget");
                 BuddyWnd bw = kinwnd(self, "forget");
@@ -592,9 +605,18 @@ public final class LuaKin {
                 return LuaValue.NIL;
             }
 
-            /** :get(id) always hands back a Kin; the NAME form is a lookup and answers nil. */
+            /**
+             * NIL, because the name form is a lookup and answers nil for a name nobody on the roster has —
+             * MINT is a promise the collection holds itself to on EVERY key, and this one keeps it for an id
+             * only ({@code :get(id)} always hands back a Kin, whose {@code :exists()} is the question).
+             */
             public LuaCollection.Missing missing() {
-                return LuaCollection.Missing.MINT;
+                return LuaCollection.Missing.NIL;
+            }
+
+            /** {@code :add(secret)}: the other player's hearth secret, not a key of the roster. */
+            public String addName() {
+                return "secret";
             }
 
             /** Both forms come through the one door: the buddy id addresses, an exact name looks up. */

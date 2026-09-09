@@ -164,7 +164,7 @@ public final class LuaCondition {
         // text() — the objective's extra progress string, when the content publishes one.
         m.set("tooltip", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                QuestWnd.Quest.Condition c = live(handle(self, "text"));
+                QuestWnd.Quest.Condition c = live(handle(self, "tooltip"));
                 return ((c == null) || (c.status == null)) ? LuaValue.NIL : LuaValue.valueOf(c.status);
             }
         });
@@ -195,7 +195,7 @@ public final class LuaCondition {
         LuaCondition h = resolve(self);
         if(h == null)
             throw new LuaError("condition:" + method + "() — use a COLON call on a Condition object"
-                + " (" + CharApi.Q + ":selected():conditions()[i])");
+                + " (" + CharApi.Q + ":selected():conditions():list()[i])");
         return h;
     }
 

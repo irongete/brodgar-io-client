@@ -10,6 +10,11 @@ you loaded. You call its verbs with a colon, you cannot write to it, `tostring` 
 not answer raises where you wrote it instead of reading `nil`. A table you build to look like one is not
 one, and the verb you pass it to refuses it.
 
+**A refusal names only verbs that exist.** Every verb a message offers as the one to write instead — a
+replacement for a name that moved, the door a dot call should have used — is one its receiver answers: the
+tree's own check, `tools/refusalverbs.py`, resolves each such promise against that receiver's vocabulary, so
+following a message never lands you on a second one.
+
 ```lua
 local s = hafen.session():current()                        -- the character on screen
 local tree = s:world():gob():nearest("terobjs/tree")       -- a Gob, never an id

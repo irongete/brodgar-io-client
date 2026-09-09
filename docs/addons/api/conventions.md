@@ -46,6 +46,11 @@ w:title("Scout"):size(180, 48)     -- writes, and chains
 There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is one too — written
 `w:visible(true)`, and named as a **bare adjective**, never `isX`: `kin:online()`, `gob:player()`.
 
+**A verb refuses an argument it does not take.** `kin:online(1)` and `b:key("F5", "x")` raise, naming how
+many arguments the verb takes and how many it got, rather than dropping the extra — a surplus argument is a
+call the verb would have answered wrong, silently, and the refusal is what makes the mistake fail where it
+was written.
+
 **Arity binds a verb that names a property.** Three families take arguments without being writes:
 
 | Family | What the argument is | Examples |
@@ -77,8 +82,8 @@ the objects are interned, so `s:party():leader() == member` is the exact test.
 same object on every call. `gob:overlay()` is re-derived from the gob, so two calls are not `==` and
 neither one outlives it. Identity lives on the **members**: `gob:overlay():get("tag")` is one overlay.
 
-> **A collection is an object, not a sequence.** `#coll`, `coll[1]` and `ipairs(coll)` are refused,
-> naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
+> **A collection is an object, not a sequence.** `#coll`, `coll[1]`, `pairs(coll)` and `ipairs(coll)` are
+> refused, naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
 > have: `coll:list()` is the array, and you index that.
 
 ### get: what a key that names nothing answers
@@ -89,7 +94,7 @@ collection and is declared by it:
 | A miss gives you | Which collections |
 |---|---|
 | `nil` | every collection not named below |
-| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:kin():get(id)`, `s:actionbar()`, `keybindings():binding()` |
+| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:actionbar()`, `keybindings():binding()` |
 | an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():display()` |
 
 **A collection whose members have no key has no `:get`, and says what to reach for instead.** Two buffs

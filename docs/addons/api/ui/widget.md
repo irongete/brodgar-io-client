@@ -192,7 +192,7 @@ a borrowed [slider or scrollbar](controls/interactive.md#slider)'s `Changed` can
 
 ```lua
 label:on("Pressed", fn)
--- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy, Dragged, Resized
+-- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Removed, Dragged, Resized
 ```
 
 Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable, or

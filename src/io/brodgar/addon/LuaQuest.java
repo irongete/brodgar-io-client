@@ -209,6 +209,16 @@ public final class LuaQuest {
                         return out;
                     }
 
+                    /** An objective is its description, so a string filter is a substring test over it. */
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String needle(LuaValue member) {
+                        LuaCondition c = LuaCondition.resolve(member);
+                        return (c == null) ? null : c.desc;
+                    }
+
                     public String noGet() {
                         return "an objective's only key is the description text it was minted from:"
                             + " quest:conditions():find(filter) is the search and"
@@ -359,7 +369,7 @@ public final class LuaQuest {
         LuaTable extra = new LuaTable();
         extra.set("selected", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "selected");
+                LuaCollection.receiver(a.arg1(), CharApi.Q, "selected");
                 if(Args.passed(a, 2))
                     throw new LuaError(CharApi.Q + ":selected() takes no arguments — it reads which quest"
                         + " is open in the log, and which one that is is the player's choice");

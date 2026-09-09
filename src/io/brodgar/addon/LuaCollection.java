@@ -82,6 +82,15 @@ public final class LuaCollection {
         public abstract List<LuaValue> members();
 
         /**
+         * How many members there are, for {@code :count()} with no filter — {@link #members()}'s size unless
+         * the source can answer without minting a member per line. A read the page recommends INSTEAD of
+         * {@code :list()} has to cost less than it, and over a scrollback of ten thousand lines it did not.
+         */
+        public int size() {
+            return members().size();
+        }
+
+        /**
          * The text a <b>string</b> filter matches as a substring, or {@code null} when <b>this member's</b>
          * name has not arrived yet — a gob whose {@code Drawable} is still resolving, a pagina whose
          * resource has not loaded. Such a member simply <b>does not match</b>, exactly as
@@ -145,6 +154,17 @@ public final class LuaCollection {
         }
 
         /**
+         * The sentence a {@link Missing#RAISE} collection refuses a key outside its set with — the keys
+         * there are, in the source's own words — or {@code null} where {@link #getMember} raises naming them
+         * itself. Read only where {@link #missing()} is {@code RAISE}: the collection writes the sentence
+         * once, beside the declaration, so the lookup cannot answer {@code nil} and the refusal cannot name a
+         * key the set has lost.
+         */
+        public String keys() {
+            return null;
+        }
+
+        /**
          * Why this collection has no {@code :get}, and what to write instead — the hint the refusal carries,
          * in the {@link Refusal#closedIndex} shape ({@code "<coll> has no verb 'get' — <this>"}). Declared by
          * every collection that is not {@link #addressable()}; {@code null} falls back to the sentence that is
@@ -160,6 +180,15 @@ public final class LuaCollection {
         /** Does {@code :add(…)} apply? */
         public boolean creatable() {
             return false;
+        }
+
+        /**
+         * What {@code :add}'s first argument is called when it is missing — {@link #keyName()} unless the
+         * member is created from something other than its key ({@code "secret"}, {@code "image"}). The
+         * arity refusal is the shared verb's, so the word has to be declared where the verb can read it.
+         */
+        public String addName() {
+            return keyName();
         }
 
         /** Create a member and hand it back. {@code a} starts at argument 2 (argument 1 is the collection). */
@@ -196,7 +225,7 @@ public final class LuaCollection {
      * them cannot name a {@code :get} one of the five has not got.
      */
     static String reach(LuaValue coll) {
-        LuaCollection c = receiver(coll, "reach");
+        LuaCollection c = (LuaCollection)coll.touserdata();
         return c.src.addressable()
             ? (c.name + ":get(" + c.src.keyName() + ") addresses one member of it")
             : c.noGet();
@@ -210,14 +239,20 @@ public final class LuaCollection {
                + ":list()[n] takes a position");
     }
 
-    /** The collection behind a method's {@code self}, or a guiding error (a dot call passes the wrong one). */
-    static LuaCollection receiver(LuaValue v, String method) {
+    /**
+     * The collection behind a method's {@code self}, or a guiding error naming the collection and what the
+     * call handed it instead — a dot call passes its first argument as the receiver, and "got a string" is
+     * what tells the author which mistake they made. {@code coll} is the spelling the message quotes: the
+     * caller has it and the wrong receiver has not.
+     */
+    static LuaCollection receiver(LuaValue v, String coll, String method) {
         if((v != null) && v.isuserdata()) {
             Object o = v.touserdata();
             if(o instanceof LuaCollection)
                 return (LuaCollection)o;
         }
-        throw new LuaError(":" + method + "() — use a COLON call on a collection object");
+        throw new LuaError(coll + ":" + method + "() — use a COLON call on the collection (" + coll + ":"
+            + method + "(…)), got " + ((v == null) ? "nothing" : v.typename()));
     }
 
     // ---- the verbs ---------------------------------------------------------------------------------
@@ -228,25 +263,30 @@ public final class LuaCollection {
         // collection. Empty (never nil) when nothing matches.
         m.set("list", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection c = receiver(a.arg1(), "list");
+                LuaCollection c = receiver(a.arg1(), coll.name, "list");
+                Args.only(a, 1, c.name + ":list");
                 LuaValue filter = a.arg(2);
                 LuaTable t = new LuaTable();
                 int n = 0;
                 for(LuaValue member : c.src.members()) {
-                    if(c.keeps(filter, member, "list"))
+                    if(keeps(filter, member, c.src, c.name, "list"))
                         t.set(++n, member);
                 }
                 return t;
             }
         });
-        // count(filter) — how many, without building the array.
+        // count(filter) — how many, without building the array: with no filter it is the source's own
+        // size(), so the read the page recommends over :list() never mints a member to count it.
         m.set("count", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection c = receiver(a.arg1(), "count");
+                LuaCollection c = receiver(a.arg1(), coll.name, "count");
+                Args.only(a, 1, c.name + ":count");
                 LuaValue filter = a.arg(2);
+                if(filter.isnil())
+                    return LuaValue.valueOf(c.src.size());
                 int n = 0;
                 for(LuaValue member : c.src.members()) {
-                    if(c.keeps(filter, member, "count"))
+                    if(keeps(filter, member, c.src, c.name, "count"))
                         n++;
                 }
                 return LuaValue.valueOf(n);
@@ -255,10 +295,11 @@ public final class LuaCollection {
         // find(filter) — the FIRST member that matches, or nil. The one-result twin of list().
         m.set("find", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection c = receiver(a.arg1(), "find");
+                LuaCollection c = receiver(a.arg1(), coll.name, "find");
+                Args.only(a, 1, c.name + ":find");
                 LuaValue filter = a.arg(2);
                 for(LuaValue member : c.src.members()) {
-                    if(c.keeps(filter, member, "find"))
+                    if(keeps(filter, member, c.src, c.name, "find"))
                         return member;
                 }
                 return LuaValue.NIL;
@@ -269,24 +310,37 @@ public final class LuaCollection {
             // property, which is why the one-name-per-property rule does not reach it.
             m.set("get", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
-                    LuaCollection c = receiver(a.arg1(), "get");
-                    LuaValue v = c.src.getMember(Args.required(a, 2, c.name + ":get", c.src.keyName()));
-                    // The one direction of Missing that is always a defect in the client rather than a fact
-                    // about the game: a set declared CLOSED has no miss to answer nil for. It is what keeps
-                    // the declaration and the lookup from drifting while conventions.md quotes the former.
-                    if(v.isnil() && (c.src.missing() == Missing.RAISE))
-                        throw new LuaError(c.name + ":get(" + c.src.keyName() + "): this set is closed, so a"
-                            + " key outside it says which keys there are — answering nil is a bug in the"
-                            + " client, not an answer");
+                    LuaCollection c = receiver(a.arg1(), coll.name, "get");
+                    Args.only(a, 1, c.name + ":get");
+                    LuaValue key = Args.required(a, 2, c.name + ":get", c.src.keyName());
+                    LuaValue v = c.src.getMember(key);
+                    // The two directions of Missing that are a PROMISE rather than a fact about the game, held
+                    // to here so the declaration and the lookup cannot drift while conventions.md quotes the
+                    // former. A set declared CLOSED refuses the key naming the keys there are, in the
+                    // source's own sentence; a set declared MINT hands back an object for every key, so a
+                    // nil out of either is a defect in the client and is said to be one.
+                    if(v.isnil() && (c.src.missing() == Missing.RAISE)) {
+                        String keys = c.src.keys();
+                        throw new LuaError(c.name + ":get(" + shown(key) + "): " + ((keys != null) ? keys
+                            : ("this set is closed, so a key outside it says which keys there are —"
+                               + " answering nil is a bug in the client, not an answer")));
+                    }
+                    if(v.isnil() && (c.src.missing() == Missing.MINT))
+                        throw new LuaError(c.name + ":get(" + shown(key) + "): this collection mints an object"
+                            + " for every " + c.src.keyName() + " it takes, so :exists() is the question —"
+                            + " answering nil is a bug in the client, not an answer");
                     return v;
                 }
             });
         }
         if(coll.src.creatable()) {
-            // add(...) — create a member and hand back the new entity.
+            // add(...) — create a member and hand back the new entity. The first argument is required here,
+            // under the source's own name for it, so a bare :add() is refused in one shape everywhere and no
+            // source can forget to.
             m.set("add", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
-                    LuaCollection c = receiver(a.arg1(), "add");
+                    LuaCollection c = receiver(a.arg1(), coll.name, "add");
+                    Args.required(a, 2, c.name + ":add", c.src.addName());
                     return c.src.addMember(a);
                 }
             });
@@ -296,7 +350,8 @@ public final class LuaCollection {
             m.set("remove", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     LuaValue me = a.arg1();
-                    LuaCollection c = receiver(me, "remove");
+                    LuaCollection c = receiver(me, coll.name, "remove");
+                    Args.only(a, 1, c.name + ":remove");
                     c.src.removeMember(Args.required(a, 2, c.name + ":remove", "keyOrMember"));
                     return me;
                 }
@@ -330,15 +385,16 @@ public final class LuaCollection {
         return out;
     }
 
-    /** Does {@code member} pass {@code filter}? The canonical filter: nil = all, predicate, or substring. */
-    private boolean keeps(LuaValue filter, LuaValue member, String verb) {
-        return keeps(filter, member, src.named(), src.needle(member), name, verb);
-    }
-
     /**
      * The canonical filter, as one shared decision: {@code nil} keeps everything, a function is a predicate
-     * over the member <b>object</b>, a string is a substring test against {@code needle}, and anything else
-     * is an error naming the three forms.
+     * over the member <b>object</b>, a string is a substring test against the source's {@link Source#needle},
+     * and anything else is an error naming the three forms.
+     *
+     * <p><b>The needle is read inside the string branch and nowhere else.</b> It takes the {@link Source}
+     * rather than a needle already computed, because a needle is a re-scan of the backing list on most
+     * sources, and one computed as an argument was paid per member on every {@code :list()}, {@code :count()}
+     * and {@code :find()} whatever the filter — including none. A filter that never looks at a name costs no
+     * name.
      *
      * <p><b>The two ways a string filter meets a member with no text are different questions.</b> A
      * collection whose <i>kind</i> is nameless ({@code named} false) refuses the string, because matching
@@ -350,8 +406,7 @@ public final class LuaCollection {
      * like {@code s:char():skill():available(filter)} is the same argument over a different set, and it
      * has to behave identically or the filter would mean two things one verb apart.
      */
-    static boolean keeps(LuaValue filter, LuaValue member, boolean named, String needle, String coll,
-                         String verb) {
+    static boolean keeps(LuaValue filter, LuaValue member, Source src, String coll, String verb) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
@@ -367,13 +422,45 @@ public final class LuaCollection {
             }
         }
         if(filter.isstring()) {
-            if(!named)
+            if(!src.named())
                 throw new LuaError(coll + ":" + verb + "(filter): these have no name to match a string"
                     + " against — pass a function, or nothing for all of them");
+            String needle = src.needle(member);
             return (needle != null) && needle.contains(filter.tojstring());
         }
         throw new LuaError(coll + ":" + verb + "(filter): expected nothing, a string or a function, got "
             + filter.typename());
+    }
+
+    /** A key as the caller wrote it, for a refusal: a string in quotes, anything else as it prints. */
+    private static String shown(LuaValue key) {
+        return (key.type() == LuaValue.TSTRING) ? ("\"" + key.tojstring() + "\"") : key.tojstring();
+    }
+
+    /**
+     * {@code pairs(coll)} and {@code ipairs(coll)}, refused in the collection's own words. LuaJ's two
+     * iterators call {@code checktable} before they consult any metamethod, so this refusal cannot hang off
+     * the metatable the way {@code #} and {@code [n]} do below — it stands where the globals are installed,
+     * and the sandbox calls this once per environment for exactly that. Anything that is not a collection
+     * goes through to the iterator it replaced, untouched.
+     */
+    public static void guardIteration(LuaTable g) {
+        for(String fn : new String[] {"pairs", "ipairs"})
+            g.set(fn, iterationGuard(fn, g.get(fn)));
+    }
+
+    private static LuaValue iterationGuard(final String fn, final LuaValue real) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue v = a.arg1();
+                if(v.isuserdata() && (v.touserdata() instanceof LuaCollection)) {
+                    String nm = ((LuaCollection)v.touserdata()).name;
+                    throw new LuaError(fn + " is refused on " + nm + ": it is a collection, not a table — "
+                        + nm + ":list() is the array, and you walk that");
+                }
+                return real.invoke(a);
+            }
+        };
     }
 
     // ---- the metatable: methods by name, and everything else refused -------------------------------
@@ -386,10 +473,10 @@ public final class LuaCollection {
                 if(!m.isnil())
                     return m;
                 // A verb this collection USED TO have throws its own message first, exactly as Section.meta
-                // does and keyed the same way ("session:speed():max"): a collection mounted AS a section object
-                // (§2.1) would otherwise swallow the replacement message under the generic "has no verb",
-                // which says the call is wrong without saying what is right. Additive — no collection had
-                // such a row before 060, so nothing else changes behaviour.
+                // does, and keyed the same way: by the spelling the call site writes ("session:speed():max",
+                // never a hafen. door the collection is not reached through). A collection mounted AS a
+                // section object (§2.1) would otherwise swallow the replacement message under the generic
+                // "has no verb", which says the call is wrong without saying what is right.
                 if(key.isstring()) {
                     String msg = Refusal.message(coll.name + ":" + key.tojstring());
                     if(msg != null)

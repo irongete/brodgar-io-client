@@ -195,11 +195,19 @@ public final class LuaManeuver {
         return out;
     }
 
-    /** Is {@code act} still one of {@code user}'s maneuvers? The predicate {@code :exists()} answers. */
+    /**
+     * Is {@code act} still one of {@code user}'s maneuvers? The predicate {@code :exists()} answers — a scan
+     * under the monitor, never a copy of the list per call.
+     */
     private static boolean known(String user, FightWnd.Action act) {
-        for(FightWnd.Action a : actions(user)) {
-            if(a == act)
-                return true;
+        FightWnd fw = CharApi.fightwnd(user);
+        if(fw == null)
+            return false;
+        synchronized(LuaWidget.monitor(fw)) {
+            for(FightWnd.Action a : fw.acts) {
+                if(a == act)
+                    return true;
+            }
         }
         return false;
     }

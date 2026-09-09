@@ -215,7 +215,7 @@ public final class LuaCraft {
                 Makewindow mw = ActApi.makewindow(user);
                 if("exists".equals(verb))
                     return LuaValue.valueOf(mw != null);
-                if((mw == null) && ("info".equals(verb) || "recipe".equals(verb) || "exists".equals(verb)))
+                if((mw == null) && ("info".equals(verb) || "recipe".equals(verb)))
                     return LuaValue.NIL;
                 if("recipe".equals(verb)) {
                     String nm = mw.rcpnm;

@@ -113,7 +113,7 @@ final class LuaHudOverlay {
             // same key twice is a REPLACE: the old record stops painting and the new one takes its place at
             // the END of the draw order, which is where a painter you just installed belongs.
             public LuaValue addMember(Varargs a) {
-                String k = keyArg(Args.required(a, 2, "hafen.ui():overlay():add", "key"),
+                String k = keyArg(a.arg(2),
                                   "hafen.ui():overlay():add");
                 drop(owner, k);
                 HudOverlay o = new HudOverlay(owner, k);

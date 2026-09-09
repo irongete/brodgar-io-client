@@ -205,7 +205,8 @@ public final class LuaBinding {
         mt.set("__name", LuaValue.valueOf("Binding"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "tostring").toString());
+                LuaBinding h = resolve(self);
+                return LuaValue.valueOf((h == null) ? "Binding(?)" : h.toString());
             }
         });
         return mt;
@@ -214,8 +215,9 @@ public final class LuaBinding {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // id() — the registry id, its identity. Your own hotkeys read addon/<your addon id>/<name>.
-        m.set("id", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("id", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:id");
                 return LuaValue.valueOf(handle(self, "id").id);
             }
         });
@@ -237,6 +239,7 @@ public final class LuaBinding {
                 if(Args.passed(a, 2))
                     AddonManager.requirePermission(AddonManager.current(), Permission.CLIENT_SETTINGS, "binding:key");
                 LuaBinding h = handle(self, "key");
+                Args.only(a, 1, "binding:key");
                 KeyBinding b = h.binding();
                 if(!Args.passed(a, 2))
                     return (b == null) ? LuaValue.NIL : keyName(b.key());
@@ -260,16 +263,18 @@ public final class LuaBinding {
         });
         // default() — the key the CLIENT gives this binding, as a display string, or nil where its default
         // is unbound (which every addon hotkey's is). It is what key(nil) puts back.
-        m.set("default", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("default", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:default");
                 KeyBinding b = handle(self, "default").binding();
                 return (b == null) ? LuaValue.NIL : keyName(b.defkey);
             }
         });
         // assigned() — is the current key the USER's or the client's? The state a display string cannot
         // carry: "None" is an assignment too, and an unbound default reads the same way.
-        m.set("assigned", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("assigned", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:assigned");
                 KeyBinding b = handle(self, "assigned").binding();
                 return LuaValue.valueOf((b != null) && b.set());
             }
@@ -284,22 +289,25 @@ public final class LuaBinding {
         //   Unbound reads false, and so does a binding nothing has declared -- neither can fire, so neither
         // can be held. It answers for the key rather than for the handler, so it is true while a text field
         // has the focus and the hotkey itself is not firing: the question is which keys are down.
-        m.set("down", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("down", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:down");
                 KeyBinding b = handle(self, "down").binding();
                 return LuaValue.valueOf((b != null) && KeyHeld.matches(b.key()));
             }
         });
         // exists() — has anything declared this id yet? The registry fills in as the client's classes load
         // and as addons declare their hotkeys, so an id can be addressed before it is there.
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:exists");
                 return LuaValue.valueOf(handle(self, "exists").binding() != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch, and nil for a binding nothing has declared.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "binding:info");
                 LuaBinding h = handle(self, "info");
                 KeyBinding b = h.binding();
                 if(b == null)

@@ -4511,6 +4511,26 @@ public final class AddonManager {
     // ------------------------------------------------------------- the hafen facade
 
     /** Install the stable {@code hafen.*} facade into an owner's Lua env (addons and the REPL). */
+    /**
+     * What a string filter over {@code hafen.event():list(f)} matches: the subscription's key. The list is
+     * not a collection (see {@code event.set("list", …)}), so the canonical filter is handed this in place
+     * of a collection's own source — the filter reads it the same way, and only inside the string branch.
+     */
+    private static final LuaCollection.Source SUB_NEEDLE = new LuaCollection.Source() {
+        public List<LuaValue> members() {
+            return java.util.Collections.emptyList();
+        }
+
+        public boolean named() {
+            return true;
+        }
+
+        public String needle(LuaValue member) {
+            LuaSub s = LuaSub.resolve(member);
+            return (s == null) ? null : s.key;
+        }
+    };
+
     static void installHafen(Globals g, final Addon owner) {
         LuaTable hafen = new LuaTable();
 
@@ -4594,8 +4614,8 @@ public final class AddonManager {
         // OFF the UI thread (loader.defer, mirroring GobIcon.resnotif) so a not-yet-loaded resource never
         // throws Loading into Lua. Client-bundled names resolve locally ("sfx/msg").
         Section.mount(hafen, "sound", LuaSound.collection(owner),
-                      "hafen.sound(name) is now hafen.sound():get(name), and hafen.sound() is"
-                      + " hafen.sound():list()");
+                      "hafen.sound(name) is now hafen.sound():get(name), and the clips of yours in the air"
+                      + " are hafen.sound():playing(filter)");
 
         // hafen.music is DELIBERATELY ABSENT (024.3, maintainer 2026-08-01). haven.Music is the client's MIDI
         // player, driven by exactly one thing — RootWidget's "bgm" server message — and this server never
@@ -4810,6 +4830,7 @@ public final class AddonManager {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 Section.self(self, "log", "write");
+                Args.only(a, 1, "hafen.log():write");
                 String msg = Args.required(a, 2, "hafen.log():write", "msg").tojstring();
                 // audit2 B08 (lg-03): A LINE IS SIGNED BY WHOEVER WROTE IT. The in-game half renders
                 // `<id>: <msg>`, so a message opening with another loaded addon's id and a colon reads as
@@ -4950,12 +4971,13 @@ public final class AddonManager {
         event.set("list", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "event", "list");
+                Args.only(a, 1, "hafen.event():list");
                 LuaValue filter = a.arg(2);
                 LuaTable t = new LuaTable();
                 int n = 0;
                 for(LuaSub s : hubSubs(owner)) {
                     LuaValue h = s.handle();
-                    if(LuaCollection.keeps(filter, h, true, s.key, "hafen.event()", "list"))
+                    if(LuaCollection.keeps(filter, h, SUB_NEEDLE, "hafen.event()", "list"))
                         t.set(++n, h);
                 }
                 return t;
@@ -4964,10 +4986,11 @@ public final class AddonManager {
         event.set("count", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "event", "count");
+                Args.only(a, 1, "hafen.event():count");
                 LuaValue filter = a.arg(2);
                 int n = 0;
                 for(LuaSub s : hubSubs(owner)) {
-                    if(LuaCollection.keeps(filter, s.handle(), true, s.key, "hafen.event()", "count"))
+                    if(LuaCollection.keeps(filter, s.handle(), SUB_NEEDLE, "hafen.event()", "count"))
                         n++;
                 }
                 return LuaValue.valueOf(n);
@@ -4983,13 +5006,13 @@ public final class AddonManager {
         LuaTable timerVerbs = new LuaTable();
         timerVerbs.set("after", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "after");
+                LuaCollection.receiver(a.arg1(), "hafen.timer()", "after");
                 return newTimer(owner, a, false);
             }
         });
         timerVerbs.set("every", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "every");
+                LuaCollection.receiver(a.arg1(), "hafen.timer()", "every");
                 return newTimer(owner, a, true);
             }
         });
@@ -5138,7 +5161,8 @@ public final class AddonManager {
         mt.set("__name", LuaValue.valueOf("Timer"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(timer(self, "tostring").toString());
+                Object o = self.isuserdata() ? self.touserdata() : null;
+                return LuaValue.valueOf((o instanceof Timer) ? o.toString() : "Timer(?)");
             }
         });
         owner.timerMeta = mt;

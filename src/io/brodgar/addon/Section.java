@@ -21,9 +21,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>The section itself stays a callable TABLE, never a bare function.</b> A function would make
  * {@code hafen.time.clock} fail as <i>"attempt to index a function"</i>; a table with {@code __call} makes
- * the field read reach {@link Refusal} instead, which is where a dotted spelling would be answered. Today
- * none is: {@code Refusal.MOVED} carries no rows, so the read is plain {@code nil} — and the reason for the
- * table holds either way. It also keeps {@code pcall(hafen.x, …)} working, which several addons rely on.
+ * the field read reach {@link Refusal} instead, which is where a dotted spelling is answered: a moved
+ * one names its replacement and any other reads as plain {@code nil}, so a feature probe keeps working.
+ * It also keeps {@code pcall(hafen.x, …)} working, which several addons rely on.
  *
  * <p><b>Arguments are refused, and that is §2.9's discipline at the door.</b> {@code hafen.time(nil)} throws
  * rather than quietly answering the section object, because an explicit {@code nil} is an accident
@@ -181,15 +181,16 @@ public final class Section {
     /**
      * The per-section metatable: methods by name, an unknown verb throws, and a readable {@code tostring}.
      *
-     * <p>A spelling {@link Refusal} answers for throws its own message first, keyed
-     * {@code "hafen.<section>():<verb>"}. What it answers for is {@code Refusal.MISPLACED}: a verb that is
-     * <b>live on another door</b> — {@code hafen.console():run}, which belongs to the session's console —
-     * and would otherwise fail with the generic "has no verb", which says the call is wrong without saying
-     * what is right. Those rows fire. <b>Moved</b> ones do not: {@code Refusal.MOVED} carries none, so a verb
-     * this API renamed meets the generic refusal here, and the dotted spelling of it ({@code hafen.time.clock},
-     * answered by the callable table's own {@code __index}) reads as plain {@code nil}. Both doors stand
-     * unguarded on purpose — nothing is published, so a hard cut needs no row and the row would be a message
-     * for a caller that never existed.
+     * <p>A spelling {@link Refusal} answers for throws its own message first, keyed by <b>{@code how}</b> —
+     * {@code "hafen.ui():window"}, {@code "session:study():slot"} — the spelling the call site actually
+     * writes, which is the same keying {@link LuaCollection} uses. A section reached through another object
+     * is never spelled {@code hafen.<name>()}, so a row keyed that way could neither be declared for it nor
+     * name a door the author wrote. What the rows answer for is a verb this API <b>moved</b>
+     * ({@code Refusal.MOVED}, naming the replacement) and a verb that is <b>live on another door</b>
+     * ({@code Refusal.MISPLACED} — {@code hafen.console():run}, which belongs to the session's console);
+     * either would otherwise fail with the generic "has no verb", which says the call is wrong without saying
+     * what is right. The dotted spelling ({@code hafen.time.clock}) is answered by the callable table's own
+     * {@code __index}, keyed {@code "hafen.<section>.<verb>"}.
      */
     private static LuaValue meta(final String nm, final LuaTable methods, final String how) {
         LuaTable mt = new LuaTable();
@@ -199,7 +200,7 @@ public final class Section {
                 if(!m.isnil())
                     return m;
                 if(key.isstring()) {
-                    String msg = Refusal.message("hafen." + nm + "():" + key.tojstring());
+                    String msg = Refusal.message(how + ":" + key.tojstring());
                     if(msg != null)
                         throw new LuaError(msg);
                 }

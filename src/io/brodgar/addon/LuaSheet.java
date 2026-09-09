@@ -192,6 +192,7 @@ public final class LuaSheet {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 LuaSheet s = handle(me, "load");
+                Args.only(a, 1, "sheet:load");
                 LuaValue t = Args.required(a, 2, "sheet:load", "rules");
                 if(!t.istable())
                     throw new LuaError("sheet:load(rules): expected a table of [\"selector\"] = { font = h }"
@@ -203,8 +204,9 @@ public final class LuaSheet {
         // install() — apply what this sheet says, replacing whatever this addon had installed before (whole,
         // not rule by rule: a surface the sheet no longer names falls back on the spot). Live, and OWNED — a
         // :reload or disable drops it, so the stock client is always restorable.
-        m.set("install", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("install", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sheet:install");
                 handle(self, "install").apply();
                 return self;
             }
@@ -213,8 +215,9 @@ public final class LuaSheet {
         // stock. The same act rule:release() is, one level up: a sheet is the set of layers this addon took
         // over the client's look, and this gives them back. The document is untouched, so :install() puts it
         // back. Inert when nothing was installed.
-        m.set("release", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("release", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sheet:release");
                 handle(self, "release");
                 Sheet.dropSheet(owner);
                 return self;
@@ -240,8 +243,9 @@ public final class LuaSheet {
         });
         // info() — the snapshot hatch: whether the sheet is applied right now, and the selectors it names, in
         // the order it named them (which is the order that breaks an equal-specificity tie).
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "sheet:info");
                 LuaSheet s = handle(self, "info");
                 LuaTable t = new LuaTable();
                 t.set("installed", LuaValue.valueOf(Sheet.applied(owner)));

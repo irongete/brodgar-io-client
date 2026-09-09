@@ -1082,8 +1082,9 @@ final class CharApi {
         // session at all: a body is one object, and this says which one rather than whose copy.
         //   076.3: off the session's own HUD (GameUI.plid) rather than off a map view, so it needs no widget
         // walk and answers a beat earlier — the HUD arrives before its map view is parented.
-        methods.set("gob", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        methods.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "session:player():gob");
                 long id = plgob(user);
                 return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
@@ -1123,8 +1124,9 @@ final class CharApi {
         // (D-046). The nil is the point — it is what makes the held-item gesture guardable, where the two
         // verbs it replaces fired blind with an empty cursor. What it hands back carries hand:item() and the
         // protected hand:use(target, mods); see LuaHand.
-        methods.set("hand", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        methods.set("hand", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "session:player():hand");
                 return LuaHand.of(owner, mark(self));
             }
         });
@@ -1218,6 +1220,7 @@ final class CharApi {
         chr.set("lp", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "char", "lp", C);
+                Args.only(a, 0, C + ":lp");
                 CharWnd c = charwnd(user);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.exp);
             }
@@ -1226,6 +1229,7 @@ final class CharApi {
         chr.set("weight", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "char", "weight", C);
+                Args.only(a, 0, C + ":weight");
                 CharWnd c = charwnd(user);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.enc);
             }
@@ -1235,6 +1239,7 @@ final class CharApi {
         chr.set("food", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "char", "food", C);
+                Args.only(a, 0, C + ":food");
                 return LuaFood.of(owner, battrwnd(user));
             }
         });
