@@ -1,9 +1,0 @@
-{
-  "id": "R06-one-entry-into-lua.1",
-  "name": "R06 One entry into Lua",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "Verification suite for refactor block R06: every entry into an addon's Lua goes through the one door, a handler answering inside a tree reaches that tree and refuses a second one at every verb read or written, and the reads a painter, a timer and the step share answer without raising. Run it with :tR06.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

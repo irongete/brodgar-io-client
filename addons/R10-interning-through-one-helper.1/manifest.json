@@ -1,9 +1,0 @@
-{
-  "id": "R10-interning-through-one-helper.1",
-  "name": "R10 interning through one helper",
-  "version": "1",
-  "author": "brodgar",
-  "description": "Self-checking suite for audit2 refactor block B10: a font handle, a subscription, a widget's Rule alive and destroyed, the Widget and marker collections, the FEP bar and its food events, the Player and its Hand, and a ring's petals against the FlowerMenuAdded payload are each one object every call.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

@@ -1,9 +1,0 @@
-{
-  "id": "R08-the-permission-tiers-open-doors.1",
-  "name": "R08 the permission tier's open doors",
-  "version": "1",
-  "author": "brodgar",
-  "description": "Self-checking suite for audit2 refactor block B08: the gate keys on the running addon, the three new keys, the credential rule, the log line and the quoted chat read.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

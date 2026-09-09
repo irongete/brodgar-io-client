@@ -1,9 +1,0 @@
-{
-  "id": "R05-the-session-a-handle-was-minted-from.1",
-  "name": "R05 The session a handle was minted from",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "Verification suite for refactor block R05: a handle knows the login it was minted through and every read on it resolves in that login, a place with no anchor keeps the login it was read in, and the two trees the client draws are both walked. Run it with :tR05.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

@@ -1,9 +1,0 @@
-{
-  "id": "R09-the-checker-and-the-collection.1",
-  "name": "R09 the checker and the collection",
-  "version": "1",
-  "author": "brodgar",
-  "description": "Self-checking suite for audit2 refactor block B09: a verb refuses a surplus argument naming the count, pairs over a collection is refused in its own words, a dot call names the collection, a closed set names its keys, a moved spelling names its replacement, and :count() is the size.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

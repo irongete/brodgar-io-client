@@ -1,8 +1,0 @@
-{
-  "id": "R01-nothing-process-wide.1",
-  "name": "R01 nothing process-wide",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "Verification suite for refactor block R01: every piece of state an addon owns now lives on the addon or on the login it was made in. Run it with :tR01.",
-  "files": ["main.lua"]
-}
