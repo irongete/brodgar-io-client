@@ -265,10 +265,11 @@ final class FlowerMenuApi {
 
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                String[] ns = names(open(user));
+                FlowerMenu fm = open(user);
+                String[] ns = names(fm);
                 seen = ns;
                 for(int i = 0; i < ns.length; i++)
-                    out.add(LuaPetal.of(owner, user, i));
+                    out.add(LuaPetal.of(owner, user, fm, i));
                 return out;
             }
 
@@ -291,8 +292,9 @@ final class FlowerMenuApi {
             public LuaValue getMember(LuaValue key) {
                 int n = Args.integer(key, FM + ":get", "n", "a petal's 1-based position, the same number"
                                      + " petal:index() answers and the 1..9 key the ring is picked with");
-                String[] ns = names(open(user));
-                return ((n < 1) || (n > ns.length)) ? LuaValue.NIL : LuaPetal.of(owner, user, n - 1);
+                FlowerMenu fm = open(user);
+                String[] ns = names(fm);
+                return ((n < 1) || (n > ns.length)) ? LuaValue.NIL : LuaPetal.of(owner, user, fm, n - 1);
             }
 
             /** The key is a petal's 1-based position on the open ring. */
@@ -338,9 +340,13 @@ final class FlowerMenuApi {
         return ((i < 0) || (i >= ns.length)) ? null : ns[i];
     }
 
-    /** Pick the petal at 0-based {@code i} on {@code user}'s ring — {@code petal:select()}'s own door. */
-    static void selectPetal(Addon owner, String user, int i) {
-        selectOn(owner, user, required(user, FM + ":select"), LuaValue.valueOf(i + 1));
+    /**
+     * Pick the petal at 0-based {@code i} <b>on the ring {@code fm}</b> — {@code petal:select()}'s own door.
+     * The menu is passed rather than looked up: the caller holds the very ring its petal is on, and looking
+     * one up here would be how a petal of a closed menu came to pick from whatever went up after it.
+     */
+    static void selectPetal(Addon owner, String user, FlowerMenu fm, int i) {
+        selectOn(owner, user, fm, LuaValue.valueOf(i + 1));
     }
 
     static String[] names(FlowerMenu fm) {
@@ -498,7 +504,7 @@ final class FlowerMenuApi {
             clicked.put(fm, Long.valueOf(g));
         // 079.4: whose ring it is, as the two events' last argument — the tree the menu went up in and
         // not the one on screen, because a ring stays up, and readable, when the player tabs away from it.
-        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuAdded", names(fm), null);
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuAdded", fm, names(fm), null);
     }
 
     /**
@@ -526,7 +532,7 @@ final class FlowerMenuApi {
         if((fm == null) || !live.containsKey(fm))
             return;
         String chosen = live.remove(fm);
-        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuRemoved", null,
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuRemoved", fm, null,
                                     (label != null) ? label : chosen);
     }
 }

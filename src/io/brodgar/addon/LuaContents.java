@@ -257,12 +257,15 @@ public final class LuaContents {
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.doubleValue());
             }
         });
-        // level() — the fill meter's {cur, max}, read off the adopted ui/tt/level class, or nil for a container
+        // fill() — the fill meter's {cur, max}, read off the adopted ui/tt/level class, or nil for a container
         // that draws none. Two ABSOLUTE counts: the engine itself only ever asks that class for the bare fraction
         // it paints over the icon, so this is the one place the numbers behind the bar are reachable.
+        //   The label handle() is given is the VERB, not the snapshot key it files under: a bad-receiver
+        // refusal names a verb the reader is to write, so naming `level` there promised a verb that does not
+        // exist and for which nothing can offer a replacement.
         m.set("fill", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return level(handle(self, "level").cont);
+                return level(handle(self, "fill").cont);
             }
         });
         // info() — the one SNAPSHOT escape hatch, and it carries NO items: a snapshot holds no live objects, so

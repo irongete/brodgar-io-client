@@ -61,8 +61,8 @@ is no longer a tab to read. The object stays the key your own table is under —
 after it goes is indexed while it is there.
 
 `channel:name()` is also `nil` for a moment on a **private** conversation that has just opened: the client
-names that tab after the other person, resolved through this character's own kin roster, and answers `???`
-until the roster carries them. Read the name when you use it rather than when the channel arrives.
+names that tab after the other person, resolved through this character's own kin roster, and has no name to
+give until the roster carries them. Read the name when you use it rather than when the channel arrives.
 
 ### The four kinds
 

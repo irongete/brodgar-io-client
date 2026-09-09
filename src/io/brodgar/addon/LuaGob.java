@@ -42,7 +42,7 @@ import java.util.List;
  * session that has loaded it, and every read here answers about that thing: {@code name}, {@code health} and
  * {@code overlay} come off the server's object, and {@code position()} hands back a {@link LuaPosition} whose
  * anchor is a <b>server</b> grid id, so whichever session computes it the answer matches. What each session
- * holds is its own {@link Gob} — placed against its own map, with {@code Gob.rc} in its own frame — so a read
+ * holds is its own {@link Gob} — placed against its own map, in its own frame — so a read
  * still has to say which one computes it.
  *
  * <p><b>And the handle says it: a Gob knows the login it was minted through</b> (audit2 B05). The account
@@ -275,19 +275,17 @@ public final class LuaGob {
         // position() — where the gob is, as a Position (039.2): computable (p:offset(dx, dy) crosses grid
         // boundaries) and durable (p:info() is the {gridId, x, y} form hafen.store keeps). nil once the gob is
         // gone, or before it has a position at all.
-        //   Gob.rc is in ONE session's frame, so the durable anchor is derived through the session this read
-        // resolves through, here, where it is known — and what is handed back is an ordinary Position with no
-        // session in it, anchored on a SERVER grid id. So two characters looking at one object compute the
-        // same place out of two different frames, which is what lets the object itself be the handle.
+        //   A gob's point is in ONE session's frame, so the durable anchor is derived through the session this
+        // read resolves through, here, where it is known — and what is handed back is an ordinary Position
+        // with no session in it, anchored on a SERVER grid id. So two characters looking at one object compute
+        // the same place out of two different frames, which is what lets the object itself be the handle.
+        //   The point is AddonManager.gobPoint: the drawn one, which moves through a walk, and not the last
+        // one the server sent, which does not.
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "position");
-                Gob g = AddonManager.getgob(h.user, h.id);
-                if(g == null)
-                    return LuaValue.NIL;
-                Coord2d rc;
-                synchronized(g) { rc = g.rc; }
-                return LuaPosition.of(owner, h.user, rc);
+                Coord2d rc = AddonManager.gobPoint(AddonManager.getgob(h.user, h.id));
+                return (rc == null) ? LuaValue.NIL : LuaPosition.of(owner, h.user, rc);
             }
         });
         m.set("facing", new OneArgFunction() {
@@ -573,7 +571,7 @@ public final class LuaGob {
             }
         });
         // distance([other]) — world distance to another Gob; `other` defaults to the character measuring.
-        //   Gob.rc is one session's frame, so subtracting two of them across sessions measures nothing: the
+        //   A gob's point is one session's frame, so subtracting two across sessions measures nothing: the
         // pair is measured inside the login THIS handle was minted through, which is the character whose eyes
         // the receiver is being seen with. An `other` that character cannot see has no distance from it and
         // answers nil — the same nothing an object that has despawned answers — whoever minted `other`.
@@ -592,13 +590,13 @@ public final class LuaGob {
         return m;
     }
 
-    /** World distance between two of one session's gobs, or {@code nil} while either has no position. */
+    /**
+     * World distance between two of one session's gobs, or {@code nil} while either has no position. Both
+     * points are {@link AddonManager#gobPoint}, the drawn ones, so the distance closes while either of them
+     * walks instead of stepping once a server message.
+     */
     private static LuaValue between(Gob a, Gob b) {
-        if((a == null) || (b == null))
-            return LuaValue.NIL;
-        Coord2d ra, rb;
-        synchronized(a) { ra = a.rc; }
-        synchronized(b) { rb = b.rc; }
+        Coord2d ra = AddonManager.gobPoint(a), rb = AddonManager.gobPoint(b);
         if((ra == null) || (rb == null))
             return LuaValue.NIL;
         return LuaValue.valueOf(ra.dist(rb));

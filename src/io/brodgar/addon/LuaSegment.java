@@ -310,8 +310,12 @@ public final class LuaSegment {
         int ih = Args.integer(h, "seg:grid():list(area)", "area.h", "a count of grids");
         if((iw < 1) || (ih < 1))
             throw new LuaError("seg:grid():list(area): w and h are counts of GRIDS and must be at least 1");
-        if((iw * ih) > MAX_AREA_GRIDS)
-            throw new LuaError("seg:grid():list(area): " + iw + "x" + ih + " is " + (iw * ih) + " grids, over"
+        // The product in `long`: both sides are any int the caller passed, so an int multiply here wraps —
+        // 65536x65536 is 0 and 46341x46341 is negative, and both slid under the cap into the walk it exists
+        // to refuse. The area is also what the refusal prints, so it has to be the true one.
+        long grids = (long)iw * (long)ih;
+        if(grids > MAX_AREA_GRIDS)
+            throw new LuaError("seg:grid():list(area): " + iw + "x" + ih + " is " + grids + " grids, over"
                 + " the "
                 + MAX_AREA_GRIDS + " a single call may walk — ask for the rectangle you are drawing");
         return Coord.of(iw, ih);

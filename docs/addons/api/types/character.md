@@ -11,6 +11,12 @@ From [`attr:info()`](../char.md#attributes). `{ base = number, comp = number }` 
 the computed, buffed value. `s:char():attr()` hands out live [`Attr` objects](../char.md#attributes),
 not this table.
 
+`nil` while the server has published nothing for that attribute, and **an attribute of exactly zero on both
+halves reads as that same nothing**: the client keeps no published flag and builds a zero record for any
+name it is asked about, so the two cannot be told apart. A living character carries no attribute of zero, so
+what this costs in practice is nothing; what it buys is that a name the server never sent reads `nil` rather
+than as a real zero.
+
 ## Food
 
 From [`food:info()`](../char.md#food), the one snapshot escape hatch. `s:char():food()` and the
@@ -92,7 +98,7 @@ What `w:info()` hands back on [`session:wound`](../wound.md)'s objects. Wounds f
 |---|---|---|
 | `id` | number | wound id |
 | `name`, `res` | string | wound type; optional |
-| `severity` | string | the magnitude as the client spells it, `w:label()`; **not** seconds; optional |
+| `severity` | number | the magnitude, `w:severity()`; **not** seconds; absent where the client spells it as a word, which is what `w:label()` answers |
 | `parentid` | number | parent wound id, or `-1` for a root wound |
 | `level` | number | tree depth (indent) |
 

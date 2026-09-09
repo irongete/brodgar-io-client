@@ -120,12 +120,17 @@ final class WorldApi {
             }
         });
         // tile(p) — the tileset id + resource name under a Position; nil off-stream.
+        //   THE MISS IS ANSWERED BEFORE THE READ. MCache.getgrid REQUESTS a grid it does not hold before it
+        // throws LoadingMap, so reaching off-stream ground and catching the throw is a map request on the
+        // wire per call — traffic a read this page documents as a quiet nil has no business making, and the
+        // very traffic LuaPosition.anchorAt is shaped to avoid. mc.tileheld/mc.groundheld are the same
+        // lookup without the request, so a point that has not streamed in is nil and nothing is asked for.
         m.set("tile", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "tile", W);
                 Coord2d rc = here(a, 2, W + ":tile", user);
                 MCache mc = mcache(user);
-                if((mc == null) || (rc == null))
+                if((mc == null) || (rc == null) || !mc.tileheld(rc.floor(MCache.tilesz)))
                     return LuaValue.NIL;
                 try {
                     int id = mc.gettile(rc.floor(MCache.tilesz));
@@ -146,8 +151,8 @@ final class WorldApi {
                 Section.self(a.arg1(), "world", "height", W);
                 Coord2d rc = here(a, 2, W + ":height", user);
                 MCache mc = mcache(user);
-                if((mc == null) || (rc == null))
-                    return LuaValue.NIL;
+                if((mc == null) || (rc == null) || !mc.groundheld(rc))
+                    return LuaValue.NIL;               // off-stream: nil, and nothing asked for (see :tile)
                 try {
                     return LuaValue.valueOf(mc.getcz(rc.x, rc.y));
                 } catch(RuntimeException e) {
@@ -266,8 +271,8 @@ final class WorldApi {
                 Coord2d rc = here(a, 2, W + ":worldToScreen", user);
                 MapView mv = drawn(user) ? screenView() : null;
                 MCache mc = mcache(user);
-                if((rc == null) || (mv == null) || (mc == null))
-                    return LuaValue.NIL;
+                if((rc == null) || (mv == null) || (mc == null) || !mc.groundheld(rc))
+                    return LuaValue.NIL;               // off-stream: nil, and nothing asked for (see :tile)
                 try {
                     Coord3f sc = Eye.view(mv, mc.getzp(rc));
                     if(sc == null)
@@ -472,8 +477,10 @@ final class WorldApi {
                     throw new LuaError(W + ":click: that character cannot see that object — it left view,"
                         + " despawned, or was never in this character's world (gob:sessions() says who has"
                         + " it). Nothing was sent.");
-                Coord2d rc;
-                synchronized(g) { rc = g.rc; }              // OCache discipline: copy under the gob lock
+                // The DRAWN point, as a real click carries: the mouse lands where the player sees the
+                // object, so the coordinate on the wire is where it is being drawn and not where the last
+                // server message put it.
+                Coord2d rc = AddonManager.gobPoint(g);
                 if(rc == null)
                     throw new LuaError(W + ":click: the gob has no position yet");
                 Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick

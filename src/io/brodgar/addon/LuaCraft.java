@@ -226,8 +226,12 @@ public final class LuaCraft {
                 if("qualityInputs".equals(verb))  return resColl(owner, user, verb, true);
                 if("tools".equals(verb))          return resColl(owner, user, verb, false);
                 LuaTable t = new LuaTable();      // info()
+                // No `recipe` key where the window carries no name: the verb states that absence with nil,
+                // and a snapshot field that invents an empty string where its verb says "nothing" is the
+                // two of them disagreeing about one fact.
                 String nm = mw.rcpnm;
-                t.set("recipe", LuaValue.valueOf((nm == null) ? "" : nm));
+                if(nm != null)
+                    t.set("recipe", LuaValue.valueOf(nm));
                 t.set("inputs", specList(mw, true));
                 t.set("outputs", specList(mw, false));
                 t.set("qmod", resList(mw, true));

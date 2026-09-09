@@ -31,10 +31,11 @@ import java.util.List;
  * 3 on two characters is two different places, and a handle that carried the index alone would call them
  * one. Two levels of intern map, on {@code (account, slot)}: the {@link LuaGob} shape.
  *
- * <p><b>{@code :exists()} means the slot is filled.</b> An emptied hotkey keeps answering {@code :slot()} and
+ * <p><b>{@code :exists()} means the slot is filled.</b> An emptied hotkey keeps answering {@code :wire()} and
  * {@code :key()} — they are properties of the place — while {@code :res()}, {@code :name()} and
  * {@code :maneuver()} go {@code nil}. {@code s:fight():deck()} lists only the filled slots, so an empty one
- * is reachable solely through a card you were already holding.
+ * is reachable solely through a card you were already holding — and {@code :index()}, which is a position in
+ * that list, goes {@code nil} with it.
  *
  * <p>The deck is a <b>plain array</b> rather than a collection (§2.3): it is a layout, addressed by nothing but
  * its own order, and there is nothing to search it by that {@code s:fight():maneuver()} does not already
@@ -154,10 +155,15 @@ public final class LuaDeckCard {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // index() — the 1-based position in s:fight():deck(), so deck()[n]:index() == n (090, A-071).
+        // index() — its 1-based position in s:fight():deck():list(), so deck():list()[n]:index() == n
+        // (090, A-071). It is the position in the LIST and not the raw slot: :list() omits an empty hotkey,
+        // so one gap before a card made the two disagree silently. An emptied hotkey is in no list and has
+        // no position, so this answers nil there; the place itself is still :wire() and :key().
         m.set("index", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "index").slot + 1);
+                LuaDeckCard h = handle(self, "index");
+                int n = position(h.user, h.slot);
+                return (n < 1) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
         // wire() — the raw 0-based deck index, the same one the write path takes.
@@ -255,6 +261,26 @@ public final class LuaDeckCard {
             FightWnd.Action[] order = fw.order;
             return ((slot < 0) || (slot >= order.length)) ? null : order[slot];
         }
+    }
+
+    /**
+     * The 1-based position of {@code slot} in {@code s:fight():deck():list()} — how many filled slots there
+     * are up to and including it — or {@code 0} for a slot that is empty and therefore in no list.
+     *
+     * <p>The two counts of the layout meet here and nowhere else: {@link #deck}'s {@code members()} adds a
+     * card only for a filled slot, so counting the filled ones is what makes
+     * {@code deck():list()[n]:index() == n} true rather than true only for a deck with no gaps in it.
+     */
+    private static int position(String user, int slot) {
+        FightWnd.Action[] order = order(user);
+        if((slot < 0) || (slot >= order.length) || (order[slot] == null))
+            return 0;
+        int n = 0;
+        for(int i = 0; i <= slot; i++) {
+            if(order[i] != null)
+                n++;
+        }
+        return n;
     }
 
     /** The hotkey label for a deck slot (the game's own table), or a 1-based fallback beyond it. */

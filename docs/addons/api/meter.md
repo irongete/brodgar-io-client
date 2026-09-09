@@ -94,11 +94,16 @@ A bar is genuinely multi-segment in the engine, and the first segment is what a 
 `meter:segment():list()[1]`. The vital bars use one segment each, so the two shorthands are all you normally need, but a
 bar with more shows them all in `:segment():list()`.
 
+The engine leaves a bar slot empty while the server has published nothing into it, and an empty slot is not
+a segment: it carries no fill and no colour and there is nothing for it to answer. So the bar reads
+**compacted** — `:segment():list()` and the `segments` array in `meter:info()` are both gap-free, `ipairs`
+walks every entry of either, and the place a segment reports is its place in that list.
+
 ## A segment
 
 | Method | Returns | Description |
 |---|---|---|
-| `seg:index()` | number | its 1-based place in the bar |
+| `seg:index()` | number | its 1-based place in `meter:segment():list()`, so `list()[n]:index()` is `n` |
 | `seg:value()` | number \| nil | its fill fraction, `0..1` |
 | `seg:color()` | [colour](shapes.md#colours) \| nil | its colour, `{r=, g=, b=, a=}` |
 | `seg:info()` | table \| nil | a plain-table **snapshot** |

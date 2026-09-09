@@ -489,7 +489,12 @@ public final class LuaSpeed {
                 // unlocked them -- a collection that answered a different question from every other :list()
                 // in the API. Which of them can be picked right now is sp:available(), and the partition is
                 // s:speed():available(filter).
+                //   ...and all four ONLY WHERE THERE IS A SELECTOR. getMember answers nil without one, so a
+                // members() that never asked made :list() four entries long while :get(n) was nil for every
+                // one of them -- the one asymmetry this collection's own page rules out.
                 List<LuaValue> out = new ArrayList<LuaValue>(SPEEDS);
+                if(speedget(user) == null)
+                    return out;
                 for(int i = 0; i < SPEEDS; i++)
                     out.add(of(owner, user, i));
                 return out;

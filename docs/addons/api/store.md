@@ -120,6 +120,15 @@ it degraded, so a variable that quietly turned into text is reported whether or 
 A file the engine cannot read or parse leaves your tables as they are, and the failure is logged rather than
 raised: your addon starts with empty settings instead of not starting.
 
+> **A scope whose file could not be read is read-only for the rest of the session.** The tables are empty
+> because the client could not read the file, not because you have saved nothing — and a write is a whole,
+> atomic replacement, so the first changed value would replace the only copy of your data with that empty
+> set. So nothing is written back to that file: the timer, `flush()` and the teardown all skip it, and the
+> log names the file and says the scope is read-only. A successful load lifts it, which is a `:reload` or
+> the next launch once the file is readable again. A file that is simply **not there yet** is not this
+> case — nothing has been saved, an empty scope is the whole truth, and the first write creates it. The
+> [remembered placements](#the-one-thing-saved-without-being-declared) beside it are kept the same way.
+
 ## The one thing saved without being declared
 
 [`w:remember(name)`](ui/native.md#remembering-where-the-user-put-it-unprotected) keeps where a widget sits

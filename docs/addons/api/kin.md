@@ -144,8 +144,8 @@ an addon that did not declare it, each raises an error naming that key; see
 | `s:kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes. It returns **nothing**: the server decides whether that secret names anyone, so there is no `Kin` yet — watch `KinChanged` for the roster |
 | `kin:rename(name)` | `kin.rename` | set the kin's nickname: one typed line, 1 to 64 characters, no newline or tab |
 | `kin:group(group)` | `kin.group` | move the kin to group `0..254` — the write half of `kin:group()` |
-| `kin:endKin()` | `kin.end` | end the kinship; the kin stays *memorized* in the list |
-| `kin:forget()` | `kin.forget` | drop a memorized, un-kinned kin from the list entirely |
+| `kin:endKin()` | `kin.end` | end the kinship; the kin stays *memorized* in the list. Raises on an entry that is already un-kinned |
+| `kin:forget()` | `kin.forget` | drop a memorized, un-kinned kin from the list entirely. Raises while the kinship is still live |
 
 **A key covers every character.** These act on whichever character you addressed, drawn or not, and the
 key you declared is the whole of what they need — one grant, not one per login. That is the rule for the
@@ -160,9 +160,15 @@ the only thing that tells two groups above the palette apart. The Kin window's o
 and nothing above it, so a group past the palette is one only an addon sets, and the user clears it by
 picking a colour.
 
-**Removing is two steps.** The game drops a kin in two stages: `kin:endKin()` ends the kinship, after
-which the kin is memorized but still listed, then `kin:forget()` drops the memorized entry. To fully
-remove an active kin, call both.
+**Removing is two steps, and each verb does only its own.** The game drops a kin in two stages:
+`kin:endKin()` ends the kinship, after which the kin is memorized but still listed, then `kin:forget()`
+drops the memorized entry. To fully remove an active kin, call both, in that order.
+
+Each refuses the other's step, and that is what makes the two keys mean two different things. The message
+the client sends is the **same** for both — one act, and the server picks the stage from the entry's own
+state — so a verb that took either stage would let `kin.end` forget an entry and `kin.forget` end a
+kinship. Call one on the wrong stage and it raises naming the other, which is also how you find out which
+stage an entry is at.
 
 There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
 which is [`s:world():click(gob, 3)`](world.md#write-protected) followed by

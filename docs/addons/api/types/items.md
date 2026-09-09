@@ -22,7 +22,7 @@ is optional.
 | `quality` | number | the quality the tooltip shows (absent for an item that has none) |
 | `contents` | table | what it holds, as the [Contents](#contents) snapshot (absent for an item holding nothing) |
 | `handle` | number | its server widget id, the number it is addressed by on the wire (absent once the item is gone) |
-| `cell` | table | the `{x, y}` grid cell it sits in (absent for a worn or cursor item, and for one inside another item) |
+| `cell` | table | the **1-based** `{x, y}` grid cell it sits in, `item:cell()` (absent for a worn or cursor item, and for one inside another item) |
 | `slots` | string[] | the equipment slots it fills, by name (absent when it is not worn) |
 
 A snapshot holds no live objects. That is why there is no `container` field here, though
@@ -36,8 +36,8 @@ From [`contents:info()`](../ui/items.md#what-an-item-holds), the snapshot of wha
 [Item objects](../ui/items.md#the-item-object) are read off that with `contents:items()`.
 `{ name = string?, text = string?, quality = number?, level = table? }` — the caption the server gave this
 inside, the line its tooltip states about what is in there, the **content's** own quality, and the fill
-meter's `{cur, max}`. A container carrying items states the first, one that states what it holds states the
-rest, so which fields are present is what tells the two apart.
+meter's `{cur, max}`, which the live `contents:fill()` reads. A container carrying items states the first,
+one that states what it holds states the rest, so which fields are present is what tells the two apart.
 
 ## See also
 

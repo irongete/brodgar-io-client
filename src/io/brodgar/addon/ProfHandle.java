@@ -415,15 +415,22 @@ public final class ProfHandle {
             t.set("allocPerFrame", LuaValue.valueOf((double)alloc));
         try {
             long n = 0, ms = 0;
+            boolean counted = false, timed = false;
             List<GarbageCollectorMXBean> gcs = ManagementFactory.getGarbageCollectorMXBeans();
             for(int i = 0; i < gcs.size(); i++) {
                 GarbageCollectorMXBean gc = gcs.get(i);
                 long c = gc.getCollectionCount(), d = gc.getCollectionTime();
-                if(c > 0) n += c;               // -1 means "this collector does not count"
-                if(d > 0) ms += d;
+                // -1 means "this collector does not count", which is not the same fact as a count of zero:
+                // summing it as nothing reports a JVM where NO collector counts as one that has never
+                // collected, which is precisely what the catch below refuses to do. So each key is written
+                // only where at least one collector actually answered.
+                if(c >= 0) {counted = true; n += c;}
+                if(d >= 0) {timed = true; ms += d;}
             }
-            t.set("gcCount", LuaValue.valueOf((double)n));
-            t.set("gcMs", LuaValue.valueOf((double)ms));
+            if(counted)
+                t.set("gcCount", LuaValue.valueOf((double)n));
+            if(timed)
+                t.set("gcMs", LuaValue.valueOf((double)ms));
         } catch(Throwable e) {
             /* No management beans: leave both keys absent rather than report a zero that would read as
              * "the JVM has never collected". */

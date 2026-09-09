@@ -17,20 +17,33 @@ table.
 | `index` | number | its 1-based HUD position; absent once the meter is gone |
 | `value` | number | the **first** segment's fill fraction, 0..1; optional |
 | `color` | [colour](../shapes.md#colours) | the **first** segment's colour; optional (content-defined) |
-| `segments` | `{value, color?}[]` | the whole bar, 1-based — always present, may be empty |
+| `segments` | `{value, color?}[]` | the whole bar, 1-based and gap-free — always present, may be empty |
 
 ## Craft and CraftSpec
 
-What `c:info()` hands back on [`session:craft`](../craft.md)'s Craft; the reads themselves are verbs on it,
-where `qmod` is `c:qualityInputs()`.
+What `s:craft():info()` hands back on [`session:craft`](../craft.md); the live reads are the verbs beside
+it, where `qmod` is `s:craft():qualityInputs()`. The four slot reads on the section hand back
+[spec objects](../craft.md#a-spec), not these tables.
 
 **Craft** —
-`{ recipe = string, inputs = CraftSpec[], outputs = CraftSpec[], qmod = ResRef[], tools = ResRef[] }`,
-where a `ResRef` is `{ res = string?, name = string? }`.
+`{ recipe = string?, inputs = CraftSpec[], outputs = CraftSpec[], qmod = ResRef[], tools = ResRef[] }`,
+where a `ResRef` is `{ res = string?, name = string? }`. `recipe` is absent while the window carries no
+name, which is the absence `s:craft():recipe()` states with `nil`.
 
-**CraftSpec** — `{ res = string?, name = string?, num = number, opt = bool }`. `num` is the required
-or produced count, and `-1` means unspecified, which behaves as 1. `opt` marks an optional ingredient
-or a chance byproduct.
+**CraftSpec** — `{ res = string?, name = string?, num = number?, opt = bool? }`, what
+[`spec:info()`](../craft.md#a-spec) copies. `num` is the required or produced count in the server's own
+spelling, where `-1` means unspecified and behaves as 1 — `spec:count()` answers that `1`. `opt` marks an
+optional ingredient or a chance byproduct. Both are absent on a quality input and a tool, which carry
+neither.
+
+## Petal
+
+From [`petal:info()`](../flowermenu.md#a-petal), the snapshot escape hatch for one petal of a radial menu.
+
+`{ index = number, wire = number, label = string? }` — `index` is the 1-based place on the ring and
+`wire` the 0-based number the menu itself sends, both always present because both are properties of the
+object. `label` is absent once that petal's ring has closed, which is the absence `petal:label()` states
+with `nil`. The live reads are `petal:index()`, `:wire()` and `:label()`.
 
 ## ActionbarSlot
 

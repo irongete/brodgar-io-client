@@ -1329,6 +1329,13 @@ public final class Addon {
     public LuaTable store;
     /** Write-skip cache: the last JSON serialized for the account scope, so an unchanged flush skips disk I/O. */
     public String lastAccountJson;
+    /**
+     * <b>The account scope is read-only until a load succeeds</b> — set when the file was there and could
+     * not be read or parsed. What {@link #store} then holds is empty because the client could not read the
+     * file, and writing that back is an atomic replacement of the only copy. Cleared by the next successful
+     * load, which is a {@code :reload} or the next launch once the file is readable again.
+     */
+    public boolean accountReadOnly;
 
     /**
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this
@@ -1551,7 +1558,23 @@ public final class Addon {
                     } finally {
                         Sandbox.disarm(env, budget);
                     }
-                } catch(Exception e) {
+                } catch(Throwable e) {
+                    // AND AN Error, which is the half of this path that was contained nowhere. A file body is
+                    // addon Lua exactly as a handler is, and deep Lua recursion under it raises
+                    // StackOverflowError -- neither an Exception nor a LuaError, so it left this catch, left
+                    // AddonRegistry.loadAll's, left the layer step's catch(RuntimeException) and ended the UI
+                    // thread, taking the client with the addon that failed. The addon's own pcall cannot see
+                    // one either (LuaJ's pcall catches LuaError and Exception), so this is the only place.
+                    //   It is reported as the manifest's failure, which is what a load error IS: the panel
+                    // names the file and the addon does not run. ThreadDeath and an interrupted thread are
+                    // rethrown for the reason AddonManager.callLua states -- the quit path interrupts the
+                    // thread it is waiting on, and a containment that swallowed that would outlive the exit.
+                    if((e instanceof ThreadDeath) || Thread.currentThread().isInterrupted()) {
+                        if(e instanceof Error)
+                            throw (Error)e;
+                        if(e instanceof RuntimeException)
+                            throw (RuntimeException)e;
+                    }
                     error = file + ": " + e.getMessage();
                     return;
                 }

@@ -4307,18 +4307,25 @@ public final class AddonManager {
      * actually subscribes, and it is built <i>per owner</i> even though nothing here is interned — a table
      * handed to Lua is mutable, and one addon must not be able to edit another's petal list.
      */
-    static void fireFlowerMenu(String user, String event, String[] petals, String label) {
+    static void fireFlowerMenu(String user, String event, FlowerMenu fm, String[] petals, String label) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, flowerPayload(a, user, petals, label), sessionArg(a, user));
+                fireTo(a, event, flowerPayload(a, user, fm, petals, label), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, flowerPayload(c, user, petals, label), sessionArg(c, user));
+            fireTo(c, event, flowerPayload(c, user, fm, petals, label), sessionArg(c, user));
     }
 
-    /** One owner's radial-menu payload: the captions on an open, the label (or nil) on a close. */
-    private static LuaValue flowerPayload(Addon owner, String user, String[] petals, String label) {
+    /**
+     * One owner's radial-menu payload: the captions on an open, the label (or nil) on a close.
+     *
+     * <p>The RING is passed in and never looked up. A Petal is a position on one menu, so the payload of
+     * <i>this</i> menu's event has to be minted on it — asking which ring is open would mint the payload of
+     * whichever one is up by the time a handler runs.
+     */
+    private static LuaValue flowerPayload(Addon owner, String user, FlowerMenu fm, String[] petals,
+                                          String label) {
         if(petals == null)
             return (label == null) ? LuaValue.NIL : LuaValue.valueOf(label);
         // 091/A-083: the PETALS, as the objects s:flowermenu() hands back one call away. It was an array of
@@ -4326,7 +4333,7 @@ public final class AddonManager {
         // failed as "attempt to index a string".
         LuaTable t = new LuaTable();
         for(int i = 0; i < petals.length; i++)
-            t.set(i + 1, LuaPetal.of(owner, user, i));
+            t.set(i + 1, LuaPetal.of(owner, user, fm, i));
         return t;
     }
 
@@ -5673,10 +5680,17 @@ public final class AddonManager {
     }
 
     // ------------------------------------------------------------- shared read helpers (item / resource-name)
-    /** The inventory grid cell {@code {x,y}} of an inventory {@link WItem} (reverses the placement). */
+    /**
+     * The inventory grid cell {@code {x,y}} of an inventory {@link WItem} (reverses the placement),
+     * <b>1-based</b>: the top-left cell of a container is {@code {1, 1}}.
+     *
+     * <p>The placement arithmetic is the widget's own and is 0-based, which is the wire's count and not this
+     * API's — every index this API answers is 1-based, so the conversion happens here, once, where the cell
+     * is minted. There is no verb for the 0-based one: an inventory cell is never sent anywhere.
+     */
     static LuaValue cellPos(WItem w) {
         Coord cell = w.c.sub(1, 1).div(Inventory.sqsz);
-        return xy(cell.x, cell.y);
+        return xy(cell.x + 1, cell.y + 1);
     }
 
     /**
@@ -5775,12 +5789,7 @@ public final class AddonManager {
 
     /** The player's live world position, or {@code null} before the player gob is up (no world / streaming). */
     static Coord2d playerPos() {
-        Gob g = playerGob();
-        if(g == null)
-            return null;
-        synchronized(g) {
-            return g.rc;
-        }
+        return gobPoint(playerGob());
     }
 
     // ------------------------------------------------------------- one NAMED session's world (076.3)
@@ -5996,12 +6005,7 @@ public final class AddonManager {
 
     /** That character's live world position, or {@code null} before its gob is up. */
     static Coord2d playerPos(String user) {
-        Gob g = playerGob(user);
-        if(g == null)
-            return null;
-        synchronized(g) {
-            return g.rc;
-        }
+        return gobPoint(playerGob(user));
     }
 
     /** Is that session the one on screen? {@code false} for a session the client no longer holds. */
@@ -6114,10 +6118,40 @@ public final class AddonManager {
         return true;
     }
 
-    /** Distance from {@code from} to a gob's live position, or NaN if it has none yet. */
+    /**
+     * <b>WHERE A GOB IS</b> — the point the client draws it at, in its own session's frame, or {@code null}
+     * before it has one. <b>The one spatial read of a game object there is</b>: every verb that answers a
+     * place, a distance or a pixel for a gob goes through here.
+     *
+     * <p>{@code Gob.rc} is the last point the server sent (an {@code OD_MOVE}), and the server sends one a
+     * few times a second while the client interpolates between them at frame rate. So a read of {@code rc}
+     * alone holds the start of a walk for the whole of it: {@code gob:position()} froze, {@code :distance()}
+     * measured from where the thing had been, {@code :nearest} ranked stale, and a click carried a
+     * coordinate the player could see was wrong — all while {@code gob:moving()} answered true.
+     * {@link Gob#getc()} is the interpolated point, which is the one the client itself draws and picks with.
+     *
+     * <p>Taken with no monitor held, as the renderer takes it: {@code Gob.attr} is a
+     * {@link java.util.concurrent.ConcurrentHashMap} and the {@code Moving} it finds reads its own fields.
+     * {@code getc()} runs the gob's <b>placer</b>, whose only job is the Z it reads off the terrain, and
+     * that read throws while the ground under the object has not streamed in — so the fallback is the
+     * server's own last point, which is where the object was and is a better answer than none.
+     */
+    static Coord2d gobPoint(Gob g) {
+        if(g == null)
+            return null;
+        try {
+            Coord3f c = g.getc();
+            if(c != null)
+                return Coord2d.of(c.x, c.y);
+        } catch(RuntimeException e) {
+            /* Loading: no ground under it yet, so the placer has no Z and the drawn point cannot be had. */
+        }
+        synchronized(g) { return g.rc; }
+    }
+
+    /** Distance from {@code from} to a gob's drawn position, or NaN if it has none yet. */
     static double distTo(Gob g, Coord2d from) {
-        Coord2d rc;
-        synchronized(g) { rc = g.rc; }
+        Coord2d rc = gobPoint(g);
         return (rc == null) ? Double.NaN : from.dist(rc);
     }
 
@@ -6218,8 +6252,8 @@ public final class AddonManager {
      * polygons, each an array of {@link LuaPosition}s, rotated by the object's facing and anchored at
      * its place. The rotation is the same arithmetic {@link Gob.BasePlace#getz} already does to place
      * the object on the terrain: each {@code Obstacle.p} point turned by {@code Gob.a} about the
-     * origin, then offset by {@code Gob.rc}. {@code nil} once the gob is gone, its resource has not
-     * resolved, or its resource carries no {@code obst} layer or an empty one.
+     * origin, then offset by the point the object is drawn at. {@code nil} once the gob is gone, its
+     * resource has not resolved, or its resource carries no {@code obst} layer or an empty one.
      */
     static LuaValue gobHitbox(Addon owner, String user, long id) {
         return hitboxOf(owner, user, getgob(user, id));
@@ -6258,9 +6292,9 @@ public final class AddonManager {
                 rings = sdtRings(res, g);      // ...and the one the SERVER sent, for a resource built that way
             if(rings == null)
                 return LuaValue.NIL;
-            rc = g.rc;
             ra = g.a;
         }
+        rc = gobPoint(g);            // the DRAWN point: the rings are the outline the player sees
         if(rc == null)
             return LuaValue.NIL;
         double s = Math.sin(ra), c = Math.cos(ra);
@@ -6418,10 +6452,12 @@ public final class AddonManager {
         if(g == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
+        // Before the monitor: gobPoint reads the terrain under the object to place it, and a gob's monitor
+        // is not held over the map cache's anywhere else in the client.
+        Coord2d rc = gobPoint(g);                    // what gob:position() answers, and for the same reason
         try {
             synchronized(g) {
                 t.set("id", LuaValue.valueOf((double)g.id));
-                Coord2d rc = g.rc;
                 if(rc != null) {
                     t.set("x", LuaValue.valueOf(rc.x));
                     t.set("y", LuaValue.valueOf(rc.y));
@@ -6464,6 +6500,10 @@ public final class AddonManager {
                 // 114.3: whether the client draws this object at all. Always present, like `moving`: an
                 // object nobody hid answers true, and the two are different facts rather than one absence.
                 t.set("visible", LuaValue.valueOf(!g.addoninvis));
+                // ...and how big it is drawn, which is the other half of the same client-local state: a gob
+                // an addon sized and hid serialises whole, or the copy that comes back is a different object
+                // from the one that went in. Always present too — an object nobody sized answers 1.
+                t.set("scale", LuaValue.valueOf((double)GobScale.value(g)));
                 // 135.1: the colour laid over it, keyed — and no key at all for an object nobody tinted,
                 // because a key is absent when the thing it names is.
                 java.awt.Color tint = GobTint.value(g);

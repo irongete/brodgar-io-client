@@ -49,6 +49,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `Meter` | [the widget layer](ui.md#meter) |
 | `Pagina` | [the widget layer](ui.md#pagina) |
 | `PartyMember` | [the session and the world](world.md#partymember) |
+| `Petal` | [the widget layer](ui.md#petal) |
 | `Position` | [the session and the world](world.md#position) |
 | `Quest` | [the character sheet](character.md#quest-and-condition) |
 | `ResRef` | [the widget layer](ui.md#craft-and-craftspec) |

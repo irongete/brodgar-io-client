@@ -19,6 +19,13 @@ cache, so a handle you keep in a variable is always fresh: it tracks a gob as it
 `nil` once the gob is gone. Nothing is cached and nothing goes stale — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
+**Where a gob is, is where it is drawn.** The server names a place a few times a second and the client
+interpolates between those messages at frame rate, so every spatial read here — `gob:position()`,
+`:distance()`, `:hitbox()`, the ranking `:nearest` and `:within` do, and the coordinate
+[`s:world():click(gob)`](world.md#write-protected) sends — takes the drawn point, and moves through a walk
+instead of stepping once a message. On ground that has not streamed in it is the last place the server
+named, because the drawn point needs the terrain under it.
+
 `:get(id)` always returns a Gob, even for an id no character has loaded or that never existed. That is what
 lets you anchor to a gob before it streams in; `:exists()` is the liveness test. An id that is not a
 [whole, finite number](conventions.md#a-number-is-finite-and-an-index-is-whole) raises: an unknown id is a

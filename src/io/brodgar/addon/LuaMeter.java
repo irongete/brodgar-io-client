@@ -220,19 +220,10 @@ public final class LuaMeter {
                 final IMeter wdg = handle(self, "segment").wdg;
                 return LuaCollection.create("meter:segment()", new LuaCollection.Source() {
                     public List<LuaValue> members() {
-                        List<LuaValue> out = new ArrayList<LuaValue>();
-                        List<LayerMeter.Meter> ms;
-                        try {
-                            ms = (wdg == null) ? null : AddonWidgets.meters(wdg);
-                        } catch(RuntimeException e) {
-                            return out;
-                        }
-                        if(ms == null)
-                            return out;
-                        for(int i = 0; i < ms.size(); i++) {
-                            if(ms.get(i) != null)
-                                out.add(LuaMeterSegment.of(owner, wdg, i));
-                        }
+                        List<LayerMeter.Meter> ms = bar(wdg);
+                        List<LuaValue> out = new ArrayList<LuaValue>(ms.size());
+                        for(int i = 0; i < ms.size(); i++)
+                            out.add(LuaMeterSegment.of(owner, wdg, i));
                         return out;
                     }
 
@@ -331,31 +322,18 @@ public final class LuaMeter {
         return (m == null) ? null : AddonManager.resIdent(m.bg);
     }
 
-    /** Bar segment {@code i} of a meter, or {@code null} (none published yet / out of range). */
-    static LayerMeter.Meter segmentAt(IMeter m, int i) {
-        return segment(m, i);
-    }
-
-    private static LayerMeter.Meter segment(IMeter m, int i) {
-        if(m == null)
-            return null;
-        try {
-            List<LayerMeter.Meter> ms = AddonWidgets.meters(m);
-            return ((ms == null) || (ms.size() <= i)) ? null : ms.get(i);
-        } catch(RuntimeException e) {
-            return null;
-        }
-    }
-
-    /** The first bar segment's fraction (0..1), or {@code null} (empty / still resolving) — {@code :value()}. */
-    static Double value(IMeter m) {
-        LayerMeter.Meter s = segment(m, 0);
-        return (s == null) ? null : Double.valueOf(s.a);
-    }
-
-    /** The whole bar as a 1-based array of {@code {value,color}} — {@code :segments()}. Never nil (may be empty). */
-    static LuaValue segments(IMeter m) {
-        LuaTable out = new LuaTable();
+    /**
+     * <b>The bar</b> — this meter's segments in bar order, with the empty slots dropped. Never {@code null}
+     * (may be empty), and the one reading of a meter's bar there is.
+     *
+     * <p>{@link LayerMeter} leaves a slot {@code null} while the server has published nothing into it, and a
+     * null is not a segment: it has no fill, no colour and nothing to answer. Dropping it here, once, is what
+     * makes the three answers agree — {@code meter:segment():list()[n]} is the n-th segment,
+     * {@code segment:index()} answers that same {@code n} back, and {@code info().segments} is a 1-based
+     * array with no hole for {@code ipairs} to stop at.
+     */
+    static List<LayerMeter.Meter> bar(IMeter m) {
+        List<LayerMeter.Meter> out = new ArrayList<LayerMeter.Meter>();
         if(m == null)
             return out;
         List<LayerMeter.Meter> ms;
@@ -367,9 +345,34 @@ public final class LuaMeter {
         if(ms == null)
             return out;
         for(int i = 0; i < ms.size(); i++) {
+            if(ms.get(i) != null)
+                out.add(ms.get(i));
+        }
+        return out;
+    }
+
+    /** Bar segment {@code i}, 0-based into {@link #bar}, or {@code null} past its end. */
+    static LayerMeter.Meter segmentAt(IMeter m, int i) {
+        List<LayerMeter.Meter> ms = bar(m);
+        return ((i < 0) || (i >= ms.size())) ? null : ms.get(i);
+    }
+
+    /** The first bar segment's fraction (0..1), or {@code null} (empty / still resolving) — {@code :value()}. */
+    static Double value(IMeter m) {
+        LayerMeter.Meter s = segmentAt(m, 0);
+        return (s == null) ? null : Double.valueOf(s.a);
+    }
+
+    /**
+     * The whole bar as a 1-based array of {@code {value,color}} — {@code :segments()}. Never nil (may be
+     * empty), and never sparse: it walks {@link #bar}, so entry {@code n} is the same segment
+     * {@code meter:segment():list()[n]} is and {@code ipairs} reaches every one of them.
+     */
+    static LuaValue segments(IMeter m) {
+        LuaTable out = new LuaTable();
+        List<LayerMeter.Meter> ms = bar(m);
+        for(int i = 0; i < ms.size(); i++) {
             LayerMeter.Meter s = ms.get(i);
-            if(s == null)
-                continue;
             LuaTable e = new LuaTable();
             e.set("value", LuaValue.valueOf(s.a));
             if(s.c != null)
@@ -397,7 +400,7 @@ public final class LuaMeter {
         Double v = value(m);
         if(v != null)
             t.set("value", LuaValue.valueOf(v.doubleValue()));
-        LayerMeter.Meter s = segment(m, 0);
+        LayerMeter.Meter s = segmentAt(m, 0);
         if((s != null) && (s.c != null))
             t.set("color", AddonManager.color(s.c));
         t.set("segments", segments(m));

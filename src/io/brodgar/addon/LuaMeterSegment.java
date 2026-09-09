@@ -21,11 +21,15 @@ import org.luaj.vm2.lib.OneArgFunction;
  * ticks reads what the bar says now. It is not interned: two reads of the same segment are two Lua values,
  * because there is nothing here to address by &mdash; a segment has no key, and {@code :remove} is not a
  * verb any meter carries. Named {@code LuaMeterSegment} because {@code LuaSegment} is the map's.
+ *
+ * <p><b>Its position is a position in {@code meter:segment():list()}</b>, which is what
+ * {@link LuaMeter#bar} makes it: a meter's raw slots may be empty and an empty slot is not a segment, so
+ * the bar is read compacted and the place a Segment holds counts the segments that are there.
  */
 final class LuaMeterSegment {
     /** The meter this segment is one of. */
     private final IMeter wdg;
-    /** Its 0-based place in the bar; {@code :index()} answers the 1-based position (090). */
+    /** Its 0-based place in {@link LuaMeter#bar}; {@code :index()} answers the 1-based position (090). */
     private final int i;
 
     private LuaMeterSegment(IMeter wdg, int i) {

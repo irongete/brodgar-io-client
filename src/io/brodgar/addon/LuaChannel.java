@@ -108,19 +108,31 @@ public final class LuaChannel {
      * the other person through {@code GameUI.buddies}, so it walks up to the HUD — a channel that has left the
      * tree has no such walk, and asking anyway is a null dereference in upstream code.
      *
+     * <p><b>The client's placeholder is not a name.</b> {@code PrivChat.name()} answers the literal
+     * {@code "???"} for a conversation whose other person this character's kin roster does not carry, which
+     * is a caption for the tab and a sentinel for a reader: it names nobody, it is the same three characters
+     * for every such tab, and it would make {@code channel:name()} answer a string in exactly the case the
+     * page promises {@code nil}. A sentinel stops here rather than being passed on, as a recipe slot's
+     * {@code -1} does.
+     *
      * <p>It is also the string a filter matches, which is why it is package-visible.
      */
     static String nameOf(ChatUI.Channel c) {
         if(c == null)
             return null;
+        String nm;
         // audit2 B06: under that tree's monitor. The walk up to the HUD follows parent links a Loader thread
         // re-points, and PrivChat.name() then reads GameUI.buddies, which the network thread rewrites.
         synchronized(LuaWidget.monitor(c)) {
             if(c.getparent(GameUI.class) == null)
                 return null;
-            return c.name();
+            nm = c.name();
         }
+        return UNNAMED.equals(nm) ? null : nm;
     }
+
+    /** The caption {@code PrivChat.name()} paints while the kin roster carries nobody for that conversation. */
+    private static final String UNNAMED = "???";
 
     /**
      * How many lines this channel holds, or {@code 0} once it has gone. Under {@code rmsgs}' own monitor,

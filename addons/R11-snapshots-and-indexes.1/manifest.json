@@ -1,0 +1,9 @@
+{
+  "id": "R11-snapshots-and-indexes.1",
+  "name": "R11 snapshots and indexes",
+  "version": "1",
+  "author": "brodgar",
+  "description": "Self-checking suite for audit2 refactor block B11: every index this API answers is 1-based and the wire's own number is its own verb, every snapshot field carries what its verb carries, a terrain read off streamed ground asks the server for nothing, a gob's place is the place it is drawn, and the area cap counts in long.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

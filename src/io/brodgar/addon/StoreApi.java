@@ -98,6 +98,12 @@ final class StoreApi {
         String scope;
         /** The last JSON written for this scope, so an unchanged file is not rewritten. */
         String lastJson;
+        /**
+         * <b>Read-only until a load succeeds</b> — set when this character's file was there and could not be
+         * read. See {@link StoreApi#loadInto}: what is held is then empty because the client could not read
+         * it, not because the character has saved nothing, and writing that back destroys the only copy.
+         */
+        boolean readOnly;
     }
 
     /**
@@ -763,7 +769,7 @@ final class StoreApi {
     private static void loadAccount(Addon a) {
         if((a.store == null) || !hasScope(a, true))
             return;
-        loadInto(a, a.store, true, accountFile(a));
+        a.accountReadOnly = !loadInto(a, a.store, true, accountFile(a));
         a.lastAccountJson = scopeJson(a, a.store, true);
     }
 
@@ -771,20 +777,33 @@ final class StoreApi {
     private static void loadChar(Addon a, CharStore cs) {
         if((cs.scope == null) || !hasScope(a, false))
             return;
-        loadInto(a, cs.vars, false, charFile(a, cs.scope));
+        cs.readOnly = !loadInto(a, cs.vars, false, charFile(a, cs.scope));
         cs.lastJson = scopeJson(a, cs.vars, false);
     }
 
     /**
      * Load one scope's saved variables from disk into the tables that hold them, filling them in place so
-     * that table identity is preserved. A missing or malformed file leaves the tables as they are. The
-     * caller primes the write-skip cache with the canonical serialization of what is now held, so an
-     * unchanged first flush writes nothing.
+     * that table identity is preserved. The caller primes the write-skip cache with the canonical
+     * serialization of what is now held, so an unchanged first flush writes nothing.
+     *
+     * <p><b>It answers whether the scope on disk is now held</b>, which is the fact the write half needs and
+     * the one nothing here used to state. A file that is not there is a clean load — nothing has been saved
+     * yet and an empty scope is the whole truth. A file that IS there and cannot be read or parsed is not:
+     * the tables are left empty, an empty scope is what the addon then goes on to write, and the write is
+     * atomic, so the recovery both pages call harmless replaced the only copy of the data with nothing.
+     * {@code false} makes that scope read-only for the rest of the session — see {@link #writeAccount} and
+     * {@link #writeChar} — and it is a successful load that lifts it, which is the next login or a
+     * {@code :reload} after the file has been repaired.
      */
-    private static void loadInto(Addon a, LuaTable dst, boolean account, File f) {
+    private static boolean loadInto(Addon a, LuaTable dst, boolean account, File f) {
+        if(!f.isFile())
+            return true;
         String text = readFile(f);
-        if(text == null)
-            return;
+        if(text == null) {
+            log(a, "store: " + f.getName() + " is there and could not be read — this addon's "
+                + (account ? ACC : SS) + " is READ-ONLY for this session, and the file is left as it is");
+            return false;
+        }
         try {
             Object root = Json.parse(text);
             if(root instanceof Map) {
@@ -806,8 +825,11 @@ final class StoreApi {
                 }
             }
         } catch(RuntimeException e) {
-            log(a, "store: could not read " + f.getName() + ": " + e);
+            log(a, "store: could not read " + f.getName() + ": " + e + " — this addon's "
+                + (account ? ACC : SS) + " is READ-ONLY for this session, and the file is left as it is");
+            return false;
         }
+        return true;
     }
 
     /**
@@ -885,6 +907,10 @@ final class StoreApi {
     static final class PlaceSet {
         final Map<String, Placement> byName = new ConcurrentHashMap<String, Placement>();
         String lastJson;
+        /** <b>Read-only until a load succeeds</b> — the same rule the variable scopes keep; see
+         *  {@link StoreApi#loadInto}. A layout file that could not be read is not overwritten by the empty
+         *  set that failure leaves behind. */
+        boolean readOnly;
     }
 
     /**
@@ -985,9 +1011,20 @@ final class StoreApi {
         return Inside.inside(saveDir().toPath(), scope + "/" + a.manifest.id + ".layout.json", "store").toFile();
     }
 
-    /** Read one scope's placements off disk into a freshly minted set. */
+    /**
+     * Read one scope's placements off disk into a freshly minted set. A file that is there and cannot be
+     * read or parsed makes the set read-only for the session, exactly as a scope's own file does
+     * ({@link #loadInto}): what is held is empty because the client could not read it, and writing that
+     * back is a whole replacement of the only copy.
+     */
     private static void loadPlacements(Addon a, String scope, PlaceSet ps) {
-        String text = readFile(placementFile(a, scope));
+        File f = placementFile(a, scope);
+        String text = f.isFile() ? readFile(f) : null;
+        if(f.isFile() && (text == null)) {
+            ps.readOnly = true;
+            log(a, "store: " + f.getName() + " is there and could not be read — this addon's remembered"
+                + " placements in that folder are READ-ONLY for this session");
+        }
         if(text != null) {
             try {
                 Object root = Json.parse(text);
@@ -1003,7 +1040,9 @@ final class StoreApi {
                     }
                 }
             } catch(RuntimeException e) {
-                log(a, "store: could not read " + placementFile(a, scope).getName() + ": " + e);
+                ps.readOnly = true;
+                log(a, "store: could not read " + f.getName() + ": " + e + " — this addon's remembered"
+                    + " placements in that folder are READ-ONLY for this session");
             }
         }
         ps.lastJson = placementsJson(ps);   // prime the write-skip cache, as a scope load does
@@ -1050,6 +1089,8 @@ final class StoreApi {
         String out = placementsJson(ps);
         if(out.equals(ps.lastJson))
             return;
+        if(ps.readOnly)
+            return;                                     // the load failed: what is held is not the file
         if(writeFile(placementFile(a, scope), out))
             ps.lastJson = out;
     }
@@ -1087,6 +1128,8 @@ final class StoreApi {
         String out = scopeJson(a, a.store, true);
         if((out == null) || out.equals(a.lastAccountJson))
             return;                                     // no account vars, or unchanged → skip disk I/O
+        if(a.accountReadOnly)
+            return;                                     // the load failed: what is held is not the file
         degraded(a, a.store, true, ACC);                // 084.5: say what is about to be written as text
         if(writeFile(accountFile(a), out))
             a.lastAccountJson = out;
@@ -1099,6 +1142,8 @@ final class StoreApi {
         String out = scopeJson(a, cs.vars, false);
         if((out == null) || out.equals(cs.lastJson))
             return;
+        if(cs.readOnly)
+            return;                                     // the load failed: what is held is not the file
         degraded(a, cs.vars, false, SS);                // 084.5: say what is about to be written as text
         if(writeFile(charFile(a, cs.scope), out))
             cs.lastJson = out;

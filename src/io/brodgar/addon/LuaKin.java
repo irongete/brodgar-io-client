@@ -364,6 +364,10 @@ public final class LuaKin {
                 LuaKin h = handle(self, "endKin");
                 BuddyWnd bw = kinwnd(self, "endKin");
                 BuddyWnd.Buddy b = require(self, "endKin");
+                if(!kinned(b))
+                    throw new LuaError("kin:endKin(): that kinship has already ended — the entry is only"
+                        + " memorized now, and dropping a memorized entry is kin:forget(), which asks for"
+                        + " its own permission key");
                 Wire.send(owner, h.user, "kin:endKin", bw, "rm",   // "End kinship" → wdgmsg("rm", id)
                           new Object[] {Integer.valueOf(h.id)}, () -> b.endkin());
                 return self;
@@ -377,12 +381,34 @@ public final class LuaKin {
                 LuaKin h = handle(self, "forget");
                 BuddyWnd bw = kinwnd(self, "forget");
                 BuddyWnd.Buddy b = require(self, "forget");
+                if(kinned(b))
+                    throw new LuaError("kin:forget(): that kinship is still live — forgetting drops an entry"
+                        + " that is already un-kinned, and ending the kinship first is kin:endKin(), which"
+                        + " asks for its own permission key");
                 Wire.send(owner, h.user, "kin:forget", bw, "rm",   // "Forget" → wdgmsg("rm", id)
                           new Object[] {Integer.valueOf(h.id)}, () -> b.forget());
                 return self;
             }
         });
         return m;
+    }
+
+    /**
+     * <b>Which of the two removal steps this entry is at</b> — {@code true} while the kinship is live,
+     * {@code false} for a memorized, un-kinned entry. The client's own test, from the context menu
+     * {@code BuddyWnd.Buddy} builds: a live kinship offers <i>End kinship</i> and a memorized entry offers
+     * <i>Forget</i>, and the two are told apart by {@code online} being negative.
+     *
+     * <p><b>It is where the permission split actually lives.</b> {@code Buddy.endkin()} and
+     * {@code Buddy.forget()} compose the identical {@code wdgmsg("rm", id)} — one act, and the server picks
+     * the step from the entry's own state — so two verbs behind two keys buy exactly the same thing on the
+     * wire. Either each verb refuses the step it does not name, or {@code kin.end} silently forgets and
+     * {@code kin.forget} silently ends kinships, and the declared split is a fiction.
+     */
+    private static boolean kinned(BuddyWnd.Buddy b) {
+        synchronized(b) {                          // audit2 B06: the network thread rewrites this field
+            return b.online >= 0;
+        }
     }
 
     /** The highest group the server accepts (confirmed by the H&amp;H developers) — NOT the palette's 0..7. */

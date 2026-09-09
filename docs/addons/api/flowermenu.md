@@ -81,21 +81,27 @@ end)
 
 ## A petal
 
-A petal is an object like every other member of a set here, and it re-resolves: one held past the close
-reports `:exists()` false rather than pointing at whatever is on screen now.
+A petal is an object like every other member of a set here, and it **belongs to the ring it came off**: a
+petal carries that menu, so one held past the close reports `:exists()` false rather than pointing at
+whatever is on screen now, and picking it raises rather than committing another ring's petal at the same
+place. A right-click puts a new menu up about a second later, so that difference is a whole second wide.
 
 | Method | Returns | Description |
 |---|---|---|
-| `petal:label()` | string | the caption the ring paints |
-| `petal:index()` | number | its **1-based** place in the ring |
-| `petal:select()` | the petal | pick it — **protected**, `flowermenu.select` |
-| `petal:exists()` | boolean | whether that menu is still up |
-| `petal:info()` | table | a plain-table **snapshot** |
+| `petal:label()` | string \| nil | the caption its ring paints; `nil` once that ring has closed |
+| `petal:index()` | number | its **1-based** place on the ring — always answers |
+| `petal:wire()` | number | the **0-based** number the menu itself sends for it — always answers |
+| `petal:select()` | the petal | pick it — **protected**, `flowermenu.select`; raises once its ring has closed |
+| `petal:exists()` | boolean | whether the ring this petal is on is still the open one |
+| `petal:info()` | [`Petal`](types/ui.md#petal) | a plain-table **snapshot** |
 
-A petal's **position** is real identity here, not an artefact of one call's ordering: it is the number the
-client sends when you pick that petal, and it is the `1`–`9` key the menu itself accepts from the keyboard.
-This is the opposite of [`session:menugrid`](menugrid.md), where a position means nothing and is refused —
-there the catalogue grows as you play, and here the ring is frozen the instant it opens.
+A petal's **position** is real identity here, not an artefact of one call's ordering: it is the `1`–`9` key
+the menu itself accepts from the keyboard, and the number
+[`s:flowermenu():select(n)`](#write-protected) takes. The wire counts the ring from zero, so
+`petal:wire()` is the number the client puts in the message and `petal:index()` is the one everything in
+this API is written in. This is the opposite of
+[`session:menugrid`](menugrid.md), where a position means nothing and is refused — there the catalogue grows
+as you play, and here the ring is frozen the instant it opens.
 
 The ring is fixed from the moment it appears and lives about as long as it takes to decide, so a petal is
 worth reading rather than keeping — but it is a handle, so keeping one is safe and says so.

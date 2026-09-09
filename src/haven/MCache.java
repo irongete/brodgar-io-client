@@ -1109,6 +1109,31 @@ public class MCache implements MapSource {
 	}
     }
 
+    /* addon: (audit2 B11) IS THE GROUND HERE ALREADY HELD, without asking the server for it?
+     *
+     * getgrid() on a miss does `request(gc); throw(new LoadingMap(...))` -- the request goes on the wire
+     * BEFORE the throw -- and gettile(), getfz(), getcz() and getzp() all reach the grid through it. So a
+     * reader that catches LoadingMap and answers a quiet nil, which is what an addon terrain read is, still
+     * put a map request on the wire per call; getcz() interpolates four tile corners, so one miss could ask
+     * for four grids. These two are the same lookup with neither the request nor the throw: an absent grid
+     * is an answer, and the caller gates on it and never enters the loud path on a miss.
+     *
+     * tileheld(tc) is the one grid gettile(tc) reads. groundheld(pc) is the four corners getcz(pc)
+     * interpolates -- the tile the point is in and its three neighbours -- which is also what getzp() and
+     * every placer built on it read. */
+    public boolean tileheld(Coord tc) {
+	Coord gc = tc.div(cmaps);
+	synchronized(grids) {
+	    Grid g = grids.get(gc);
+	    return((g != null) && !g.removed);
+	}
+    }
+
+    public boolean groundheld(Coord2d pc) {
+	Coord ul = Coord.of(Utils.floordiv(pc.x, tilesz.x), Utils.floordiv(pc.y, tilesz.y));
+	return(tileheld(ul) && tileheld(ul.add(1, 0)) && tileheld(ul.add(0, 1)) && tileheld(ul.add(1, 1)));
+    }
+
     /* addon: (068.1) how many of this cache's cuts hold a built mesh right now. `cuts` and `Deferred`
      * are private to Grid, so nothing outside this class can count them -- and for a cache that is
      * filled from disk rather than from the wire this IS the cost of it: a grid is an array copy,

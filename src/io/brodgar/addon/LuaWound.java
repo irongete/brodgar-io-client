@@ -366,9 +366,14 @@ public final class LuaWound {
         String r = AddonManager.resIdent(w.res);
         if(r != null)
             t.set("res", LuaValue.valueOf(r));
+        // `severity` carries what w:severity() carries — the magnitude as a NUMBER. The key names a verb of
+        // this type, so it has to answer what that verb answers; it held w:label()'s string, which is a
+        // second type under one name and the other verb's value. No key where the content chose a word,
+        // because that is the absence :severity() states.
         String sev = severityOf(w);
-        if(sev != null)
-            t.set("severity", LuaValue.valueOf(sev));
+        LuaValue num = (sev == null) ? LuaValue.NIL : LuaValue.valueOf(sev).tonumber();
+        if(!num.isnil())
+            t.set("severity", num);
         t.set("parentid", LuaValue.valueOf(w.parentid));
         t.set("level", LuaValue.valueOf(w.level));
         return t;

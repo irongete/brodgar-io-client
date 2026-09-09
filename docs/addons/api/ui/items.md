@@ -51,7 +51,7 @@ just as well as the one on screen.
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
 | `:contents()` | [`Contents`](#what-an-item-holds) \| nil | what it holds; `nil` for an item holding nothing |
 | `:container()` | [`Item`](#the-item-object) \| nil | the item it sits **inside**; `nil` for one sitting in a container widget |
-| `:cell()` | table \| nil | the `{x, y}` grid cell it sits **in** — a place, where a grid control's [`:cellSize()`](widget.md#read) is a size |
+| `:cell()` | table \| nil | the **1-based** `{x, y}` grid cell it sits **in** — a place, where a grid control's [`:cellSize()`](widget.md#read) is a size |
 | `:slots()` | string[] | the equipment slots it fills, by name; empty for anything not worn |
 | `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
 | `:exists()` | boolean | is this still a live item |

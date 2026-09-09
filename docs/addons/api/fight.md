@@ -57,8 +57,9 @@ the display name. **There is no `:get`**: a maneuver is addressed by nothing you
 *search* and a position is `:list()[n]`.
 
 The deck is a **plain array**, not a collection: it is a layout, ordered by hotkey, and there is nothing
-to search it by that the maneuvers do not already answer. Empty slots are left out — each card carries
-its own `:index()` and `:key()`, so the gap is never ambiguous.
+to search it by that the maneuvers do not already answer. Empty slots are left out, and the two numbers say
+so between them: `card:index()` is the position **in that list**, so `deck():list()[n]:index()` is `n`
+whatever the gaps, and `card:wire()` is the hotkey's own place in the school, gaps counted.
 
 ## A maneuver
 
@@ -73,13 +74,13 @@ its own `:index()` and `:key()`, so the gap is never ambiguous.
 
 ## A deck card
 
-A card is a **place** in the layout, not the maneuver in it. It keeps answering `:index()` and `:key()`
+A card is a **place** in the layout, not the maneuver in it. It keeps answering `:wire()` and `:key()`
 when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` goes `false`.
 
 | Method | Returns | Description |
 |---|---|---|
-| `card:index()` | number | its **1-based** position in `:deck():list()` — always answers |
-| `card:wire()` | number | the raw 0-based deck index the write path takes |
+| `card:index()` | number \| nil | its **1-based** position in `:deck():list()`; `nil` for an emptied slot, which that list leaves out |
+| `card:wire()` | number | the raw 0-based deck index the write path takes — always answers |
 | `card:key()` | string | the hotkey label the window paints — always answers |
 | `card:maneuver()` | `Maneuver` \| nil | the maneuver dealt here |
 | `card:res()` | string \| nil | that maneuver's resource name |
