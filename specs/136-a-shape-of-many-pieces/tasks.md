@@ -20,7 +20,7 @@
       `[manual]`: two overlapping quads laid as one patch under a white border — expect one L outlined only
       round the outside, with no line across the join where the two meet.
 
-- [ ] **136.2 — a piece is taken up, and the snapshot says pieces.** `patch:piece():remove(p)` ends one
+- [x] **136.2 — a piece is taken up, and the snapshot says pieces.** `patch:piece():remove(p)` ends one
       piece and leaves the rest drawn; the removed piece reads `:exists()` false and every verb on it goes
       on answering. A patch whose last piece is taken up still exists, still holds its place and draws
       nothing, so `:drawn()` reads false — ending the patch is still

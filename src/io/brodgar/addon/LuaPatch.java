@@ -68,8 +68,12 @@ public final class LuaPatch extends LuaWorldEntity {
      *
      * <p><b>Every member carries a handle</b>, because one door mints both ({@code VirtualApi.mintPiece}) —
      * which is what lets {@code patch:piece():list()} hand the list straight out without a hole in it. The
-     * first piece is laid by {@code hafen.virtual():patch():add} through that same door, so a patch is never
-     * seen with none.
+     * first piece is laid by {@code hafen.virtual():patch():add} through that same door.
+     *
+     * <p><b>It may run empty</b> (136.2). {@code patch:piece():remove(p)} takes a piece up, and taking the
+     * last one up leaves a patch that still exists and still holds its place with nothing to draw — which
+     * {@link #lay} answers by taking the overlay off the ground, so {@code patch:drawn()} reads false until a
+     * piece is laid back into it.
      */
     final List<Piece> pieces = new ArrayList<Piece>();
 
@@ -304,8 +308,18 @@ public final class LuaPatch extends LuaWorldEntity {
      * sequence and so re-lays the cuts it covers and nobody else's (119.2); anything else — a colour, a turn
      * inside the tiles it already covers — is a new material pushed through the slot the {@code // addon:}
      * seam on {@code MapView.Overlay} keeps.
+     *
+     * <p><b>A patch of no pieces is off the ground</b> (136.2). There is nothing to carve and nothing to
+     * mask, and an overlay registered with an empty mask is still walked by {@code MCache.getols} and tested
+     * per cut by {@code MapView.oltick} every frame, for a shape nobody can see. So the last piece taken up
+     * lifts it and the next one laid puts it back — which is also what makes {@code patch:drawn()} answer
+     * false for a patch that draws nothing, through {@link #laid} and with no second rule to keep in step.
      */
     void lay() {
+        if(pieces.isEmpty()) {
+            lift();                                    // nothing left to draw: and :drawn() reads that
+            return;
+        }
         MapView view = this.mv;
         MCache map = mapOf(view);
         if(map == null)
@@ -408,10 +422,18 @@ public final class LuaPatch extends LuaWorldEntity {
     String kind() { return "patch"; }
 
     /**
-     * A patch's own contribution to {@code :info()}: its {@code border}, and the ring it was laid with as the
-     * durable {@code {gridId, x, y}} snapshot each point would answer — the shape a live object inside a
-     * snapshot must not be. Every piece's own ring is read off that piece. Either is absent when the thing it names is: no border laid, or a session that cannot locate the
-     * patch at all. That is the shape every other {@code info()} in the API has: present means known.
+     * A patch's own contribution to {@code :info()}: its {@code border}, and {@code pieces} — every piece's
+     * ring in the order they were laid, each as the durable {@code {gridId, x, y}} snapshot its points would
+     * answer, which is the shape a live object inside a snapshot must not be. <b>The whole shape rather than
+     * one ring of it</b> (136.2): a patch is the union of its pieces, so a snapshot naming a single ring
+     * would be the one piece it happened to be laid with. A piece's own is {@code piece:info()}, and both go
+     * through {@link #ringInfo} so the two cannot come to disagree about what a ring looks like written down.
+     *
+     * <p>Either key is absent when the thing it names is: no border laid, or a session that cannot locate the
+     * patch at all — and <b>one</b> piece it cannot locate drops the whole of {@code pieces}, for the very
+     * reason {@link #ringInfo} drops a ring rather than shortening it. A patch holding no pieces has an empty
+     * {@code pieces}: that is a shape known and empty, which is not the same as one not known. That is the
+     * shape every other {@code info()} in the API has: present means known.
      *
      * <p>{@code border} is the <b>two</b> values {@code patch:border()} hands back, under the names the
      * stylesheet's own rule gives them — a snapshot is a document, which is the very distinction that keeps
@@ -437,8 +459,14 @@ public final class LuaPatch extends LuaWorldEntity {
                 return;
             shape = worldPieces();
         }
-        LuaTable pts = ringInfo(shape.get(0));
-        if(pts != null)
-            t.set("ring", pts);
+        LuaTable ps = new LuaTable();
+        int n = 0;
+        for(List<Coord2d> ring : shape) {
+            LuaTable pts = ringInfo(ring);
+            if(pts == null)
+                return;                                // a piece nobody can place: the SHAPE is not known
+            ps.set(++n, pts);
+        }
+        t.set("pieces", ps);
     }
 }

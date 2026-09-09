@@ -94,13 +94,13 @@ is not durable, and it is what `s:world():position(saved)` rebuilds from.
 
 ## WorldEntity
 
-From [`e:info()`](../virtual/README.md#the-snapshot), the snapshot escape hatch for a ghost, sprite, object or
-panel you have standing in the world. The live reads are `e:position()`, `:alpha()`, `:drawn()` and the
+From [`e:info()`](../virtual/README.md#the-snapshot), the snapshot escape hatch for a ghost, sprite, object,
+panel or patch you have out in the world. The live reads are `e:position()`, `:alpha()`, `:drawn()` and the
 rest, each spelled the way its field here is.
 
 | Field | Type | Notes |
 |---|---|---|
-| `kind` | string | `"ghost"`, `"sprite"`, `"object"` or `"panel"` |
+| `kind` | string | `"ghost"`, `"sprite"`, `"object"`, `"panel"` or `"patch"` |
 | `position` | `{gridId, x, y}` | the [Position snapshot](#position) — the place to store |
 | `rotate` | number | its own facing, radians |
 | `scale` | number | uniform scale, `1` being original size |
@@ -116,6 +116,12 @@ rest, each spelled the way its field here is.
 | `mesh` | string | objects only |
 | `image` | string | sprites only |
 | `facing` | string | sprites and panels — `"fixed"`, `"camera"` or `"screen"` |
+| `pieces` | `{gridId, x, y}[][]` | [patches](../virtual/patches.md#the-snapshot) only — one ring per [piece](../virtual/pieces.md), in the order they were laid; optional |
+| `border` | `{color, width}` | patches only — the line round the shape; optional |
+| `occluded` | bool | patches only — whether the world may hide it |
+
+A patch lies on the ground rather than standing on it, so it has no `facing`; `pieces` is absent while the
+character on screen cannot locate that ground, and empty for a patch holding no pieces.
 
 `panel:screen(x, y)` has no field: it projects a point you pass in, so there is no value of it to snapshot.
 

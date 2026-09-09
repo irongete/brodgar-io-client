@@ -2387,9 +2387,15 @@ final class VirtualApi {
      * own anchor, which is what makes the shape one thing — {@code :position}, {@code :rotate}, {@code :scale}
      * and {@code :offset} move every piece of it together.
      *
+     * <p>{@code :remove(p)} takes one piece up and leaves the rest of the shape drawn (136.2); the last one
+     * taken up leaves a patch that still exists, still holds its place and draws nothing. Ending the PATCH is
+     * {@code hafen.virtual():patch():remove(p)}, one collection up, exactly as it is for the four kinds that
+     * stand.
+     *
      * <p><b>Keyless and nameless.</b> A piece is a region rather than a picture of something, so there is
      * nothing for a string filter to match and nothing to address it by: {@code :list()} in the order they
-     * were laid, {@code :find(fn)} over the objects, and the piece {@code :add} handed back.
+     * were laid, {@code :find(fn)} over the objects, and the piece {@code :add} handed back — which is also
+     * the whole address {@code :remove} takes.
      */
     private static LuaValue pieceCollection(final LuaPatch p) {
         return LuaCollection.create("patch:piece()", new LuaCollection.Source() {
@@ -2420,6 +2426,14 @@ final class VirtualApi {
             public LuaValue addMember(Varargs a) {
                 Args.only(a, 1, PIECE_ADD);            // no anchor here: a piece is held by the patch's own
                 return addPiece(p, ringArg(a, 2, PIECE_ADD));
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                removePiece(p, x);
             }
 
             public String noGet() {
@@ -2461,6 +2475,43 @@ final class VirtualApi {
             refreshEntityScene(p);                     // a fresh carve, and a re-cut only if the mask moved
         }
         return pc.handle;
+    }
+
+    /** The one spelling of the verb that takes a piece up, so every refusal below names it the same way. */
+    private static final String PIECE_REMOVE = "patch:piece():remove";
+
+    /**
+     * Take one piece up — the body of {@code patch:piece():remove(p)} (136.2). What is left is re-derived
+     * through the very path {@code :add} pushes a new piece down, so the carve, the mask and the cut are the
+     * ones {@link LuaPatch#lay} already builds, and taking the LAST piece up takes the patch off the ground
+     * rather than leaving an overlay behind that masks nothing.
+     *
+     * <p><b>The piece is the whole address.</b> A piece has no key, so what is removed is the object
+     * {@code :add} handed back, and the three ways that is not one are each refused by their own name: not a
+     * piece at all, a piece of another patch — a shape is only ever taken apart by the patch that holds it —
+     * and one this patch has already let go of. Resolved off the monitor, since the argument is the caller's
+     * and touches nothing the patch holds.
+     */
+    private static void removePiece(LuaPatch p, LuaValue x) {
+        Object u = x.touserdata();
+        if(!(u instanceof LuaPatch.Piece))
+            throw new LuaError(PIECE_REMOVE + "(p) expects a piece of this patch — the value"
+                + " patch:piece():add(ring) hands back, or one out of patch:piece():list(). Got "
+                + x.typename());
+        LuaPatch.Piece pc = (LuaPatch.Piece)u;
+        if(pc.patch != p)
+            throw new LuaError(PIECE_REMOVE + "(p): that piece belongs to another patch, and a shape is only"
+                + " taken apart by the patch that holds it — take it up through that patch's own"
+                + " patch:piece():remove(p)");
+        synchronized(p) {
+            if(p.dead)
+                throw new LuaError(PIECE_REMOVE + "(p): that patch is gone, and its pieces went with it —"
+                    + " patch:exists() is the test");
+            if(!p.pieces.remove(pc))
+                throw new LuaError(PIECE_REMOVE + "(p): that piece has already been taken up —"
+                    + " piece:exists() is the test, and patch:piece():add(ring) lays a new one");
+            refreshEntityScene(p);                     // a fresh carve, and the ground it covered back
+        }
     }
 
     /**

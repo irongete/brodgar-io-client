@@ -28,12 +28,13 @@ patch:border({255, 255, 255}, 0)                   -- ...and outlined round the 
 | `patch:piece():list(filter)` | unprotected | every live piece, in the order they were laid |
 | `patch:piece():count(filter)` | unprotected | how many, without building the array |
 | `patch:piece():find(filter)` | unprotected | the first one that matches |
+| `patch:piece():remove(p)` | unprotected | [take one piece up](#taking-one-up), and hand the collection back |
 
-It is the whole [collection shape](README.md#the-collections-unprotected) minus the two verbs a piece has no
-answer for. `filter` is the canonical [filter](../conventions.md#the-filter-argument), except that **a piece
-is a region and not a picture of something**, so it has no name: a string raises naming the two forms that
-work, exactly as a string on `hafen.virtual():patch()` does. There is no `:get(key)` either — a piece has
-nothing to be addressed by, and the refusal says so.
+It is the [collection shape](README.md#the-collections-unprotected) without a `:get(key)`: a piece has
+nothing to be addressed by, and the refusal says so. `filter` is the canonical
+[filter](../conventions.md#the-filter-argument), except that **a piece is a region and not a picture of
+something**, so it has no name: a string raises naming the two forms that work, exactly as a string on
+`hafen.virtual():patch()` does.
 
 **`:add(ring)` takes no anchor.** A piece is held as offsets from the *patch's* own
 [anchor](README.md#the-anchor-is-an-argument), which is what makes the shape one thing: `patch:position(p)`,
@@ -111,6 +112,41 @@ does.
 The same is true of the [border](patches.md#the-border): it is a band off the *union's* own edge, so it runs
 round the outside of the whole shape and lays no line where two pieces meet.
 
+## Taking one up
+
+`patch:piece():remove(p)` takes one piece out of the shape and leaves the rest of it drawn. What it takes is
+the piece `:add` handed back — a piece has no key, so there is nothing else to name one by — and it hands
+the collection back, so removals chain.
+
+```lua
+local middle = patch:piece():list()[2]
+patch:piece():remove(middle)                      -- the shape is the other pieces now
+hafen.log():write(tostring(middle:exists()))      -- false
+```
+
+**A piece that has been taken up goes on answering.** `piece:exists()` reads `false`, and
+[`piece:info()`](#the-piece) still reads back the ring it holds and where that ring stands — it is a handle
+to a shape the patch no longer draws, not a dead object. A piece of a patch that has **ended** reads the
+same `false`, since a patch that is gone holds nothing.
+
+Every way `p` is not a piece of this patch raises naming itself: a value that is not a piece at all, a piece
+belonging to **another** patch — a shape is only taken apart by the patch that holds it — and one this patch
+has already let go of. Taking a piece out of a patch that is gone raises as laying one into it does, naming
+`patch:exists()`.
+
+**A patch with no pieces left is still a patch.** It exists, it holds its place, it keeps its tint, its
+border and everything else you told it, and it draws nothing: [`patch:drawn()`](patches.md#the-patch) reads
+`false` until a piece is laid back into it, and [`patch:info().pieces`](patches.md#the-snapshot) is an empty
+array. Ending the patch itself is `hafen.virtual():patch():remove(patch)`, one collection up — the
+[ending is the collection's](../conventions.md#endings-the-receivers-kind-picks-the-word), and these are two
+collections that end two different things.
+
+**A piece laid or taken up re-cuts the ground the shape covers.** Everything that is a *look* — the tint,
+the [border](patches.md#the-border), a turn, a scale — pushes new colours through terrain already laid and
+costs no terrain work; the set of pieces is what decides which tiles the shape masks, so changing it re-lays
+them. Build the shape out of the pieces you want: laying and taking up a piece every frame costs what
+[moving a patch](patches.md#the-patch) costs.
+
 ## The piece
 
 | Method | Permission | Description |
@@ -126,7 +162,8 @@ round the outside of the whole shape and lays no line where two pieces meet.
 `ring` is absent while the character on screen cannot locate the ground the piece lies on, exactly as
 [`patch:info()`](patches.md#the-snapshot)'s is — present means known.
 
-**Two verbs, and they are the whole of a piece.** Where it is, how big it is, what colour it is, whether it
+**Two verbs, and they are the whole of a piece.** It has no ending of its own — it is taken up through the
+collection that holds it, above. Where it is, how big it is, what colour it is, whether it
 is drawn and whether the world may hide it are all the *patch's*: a piece is part of one shape, and a second
 set of the same verbs on the part would be two owners of one look. A verb no piece has raises naming `piece`
 and listing the two it does have; `tostring(piece)` is `Piece`.

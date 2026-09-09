@@ -11,8 +11,8 @@ until you say [the world may not hide it](#drawing-through-the-world). Its outli
 every zoom, rather than a staircase of square tiles, and [a line can be drawn along it](#the-border).
 
 The shape is the union of convex [pieces](pieces.md), and `:add(ring, anchor)` lays a patch of one. That is
-the whole of the difference between a patch and a ring: a footprint or a field is one piece and reads as the
-ring it was laid with, and anything that is not convex is the same patch carrying more of them.
+the whole of the difference between a patch and a ring: a footprint or a field is one piece and is the ring
+it was laid with, and anything that is not convex is the same patch carrying more of them.
 
 `hafen.virtual():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays
 one and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
@@ -80,24 +80,30 @@ can see through.
 
 `patch:info()` carries the [shared keys](README.md#the-snapshot) — `kind` (`"patch"`), `scale`, `rotate`,
 `alpha`, `visible`, `clickable`, `exists`, `drawn`, `position`, `tint` when one is laid over it, and
-`anchor` with `offset` only on one that follows — plus the one a patch has of its own:
+`anchor` with `offset` only on one that follows — plus the keys a patch has of its own:
 
 | Key | What it holds |
 |---|---|
 | `border` | `{color = c, width = w}` — the pair [`patch:border()`](#the-border) hands back |
 | `occluded` | whether the world may hide it, the boolean [`patch:occluded()`](#drawing-through-the-world) reads |
-| `ring` | the ring it was laid with, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with — every piece's own is [`piece:info()`](pieces.md#the-piece) |
+| `pieces` | the shape: one ring per [piece](pieces.md) in the order they were laid, each an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with |
 
-`border` is absent while no line is laid and `ring` while the character on screen cannot locate the patch at
-all — `hafen.virtual()` stands its things in the scene being drawn, so `ring` is that character's reading of
-the ground, whichever character laid the patch. It is absent exactly as a key is absent everywhere in this
-API when the thing it names is not known; `occluded` is always
-there, since a boolean property has a value at every moment. The snapshot names the two halves of a border
-where the call counts them, because a snapshot is a document and a call is not.
+`pieces` is the whole shape rather than one ring of it, because a patch **is** the union of its pieces: a
+single ring would be whichever one it happened to be laid with. One piece's own is
+[`piece:info()`](pieces.md#the-piece), in the same form.
+
+`border` is absent while no line is laid, and `pieces` while the character on screen cannot locate the ground
+the patch lies on — `hafen.virtual()` stands its things in the scene being drawn, so `pieces` is that
+character's reading of the ground, whichever character laid the patch. Either is absent exactly as a key is
+absent everywhere in this API when the thing it names is not known, and a patch
+[holding no pieces](pieces.md#taking-one-up) has an **empty** `pieces`, which is a shape known and empty
+rather than one not known. `occluded` is always there, since a boolean property has a value at every moment.
+The snapshot names the two halves of a border where the call counts them, because a snapshot is a document
+and a call is not.
 
 ```lua
 local i = patch:info()
-hafen.log():write(i.kind .. ": " .. #i.ring .. " point(s), alpha " .. i.alpha)
+hafen.log():write(i.kind .. ": " .. #i.pieces .. " piece(s), alpha " .. i.alpha)
 ```
 
 ## The border

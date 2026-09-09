@@ -1,0 +1,9 @@
+{
+  "id": "136-a-shape-of-many-pieces.2",
+  "name": "136.2 — a piece is taken up, and the snapshot says pieces",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 136.2: patch:piece():remove(p) takes one piece up and leaves the rest drawn, a patch with no pieces left exists and draws nothing, and patch:info() carries pieces and no ring. Run it with :t136-2.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

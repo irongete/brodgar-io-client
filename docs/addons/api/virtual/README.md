@@ -112,8 +112,8 @@ Every entity of every kind answers the same verbs, each a read/write pair on one
 Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the-ghost),
 [`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object),
 [`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget),
-[`p:border`](patches.md#the-border) and [`p:piece`](pieces.md) for a patch, whose ring is not among them: it
-is the shape a piece was laid as, and it is read from `:info()`.
+[`p:border`](patches.md#the-border) and [`p:piece`](pieces.md) for a patch, whose shape is not among them:
+it is what its pieces were laid as, and it is read from `:info()`.
 
 | Method | Description |
 |---|---|
@@ -165,7 +165,7 @@ end
 [colour](../shapes.md#colours). **A key is absent when the thing it names is** — no `tint` when none is
 laid over it, and no `anchor`/`offset` for one that stands still, exactly as `:offset()` itself raises
 there. Each kind adds its own: `res` for a ghost, `mesh` for an object, `image` and `facing` for a sprite,
-`facing` for a panel, `ring` for a patch.
+`facing` for a panel, `pieces` for a patch.
 
 It is a **snapshot**, so nothing in it goes on updating and nothing in it is a live object — that is what
 the verbs beside it are for. `panel:screen(x, y)` has no entry: it projects a point you pass in, so there
@@ -337,7 +337,7 @@ which also depends on where the camera is pointing.
 | [models](models.md) | glTF: the supported subset, the object's verbs, clicks |
 | [widgets](widgets.md) | a window standing in the world: its facing, its clicks, and the client's own |
 | [patches](patches.md) | a shape lying flat on the terrain: its place, its look, its border, its clicks |
-| [pieces](pieces.md) | the convex rings a patch is the union of: what a ring may be, and the edge budget |
+| [pieces](pieces.md) | the convex rings a patch is the union of: what a ring may be, the budget, taking one up |
 
 ## See also
 
