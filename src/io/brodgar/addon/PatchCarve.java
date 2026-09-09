@@ -11,8 +11,10 @@ import haven.render.Pipe;
 import haven.render.State;
 import haven.render.gl.UniformApplier;
 import haven.render.sl.Array;
+import haven.render.sl.Block;
 import haven.render.sl.Expression;
 import haven.render.sl.For;
+import haven.render.sl.If;
 import haven.render.sl.Function;
 import haven.render.sl.LValue;
 import haven.render.sl.Return;
@@ -25,41 +27,50 @@ import static haven.render.sl.Cons.*;
 
 /**
  * <b>The silhouette of a patch, carved per fragment</b> (118) — the {@link State} that turns the engine's
- * whole-tile ground overlay ({@link PatchOverlay}) into the ring's own shape.
+ * whole-tile ground overlay ({@link PatchOverlay}) into the patch's own shape.
  *
- * <p>The mask {@code PatchOverlay} hands the engine is the ring's bounding box in whole tiles, because
+ * <p>The mask {@code PatchOverlay} hands the engine is a box per piece in whole tiles, because
  * {@code MCache.LocalOverlay.fill} cannot say anything finer; a tile is 11 world units, so a mask used as the
  * shape would be an 11-unit staircase. The shape is therefore decided <b>here</b>, on the fragment, against
  * {@link Homo3D#fragmapv} — the fragment's own place in map space, which is world space with {@code y}
  * negated ({@code Gob.Placed} negates it before {@code Transform.makexlate}).
  *
- * <p><b>Half-planes, which is why the ring must be convex.</b> A convex polygon is exactly the intersection of
+ * <p><b>Half-planes, which is why a piece must be convex.</b> A convex polygon is exactly the intersection of
  * its edges' half-planes, so each edge contributes the signed distance {@code dot(p, n) - d} — positive inside
  * — and the polygon's own signed distance is the <b>minimum</b> across the edges. One {@code smoothstep} over
  * that minimum's own {@code fwidth} then antialiases every edge and every corner at once, and does it in
  * SCREEN derivatives rather than world units: the rim is one pixel at every zoom rather than a slab of world
  * that thickens as you pull the camera back. It is exact and resolution-independent — there is no rasterised
- * approximation of the ring anywhere.
+ * approximation of the shape anywhere.
+ *
+ * <p><b>A patch is SEVERAL such pieces, and it is drawn as their union</b> (136.1). The union of regions is the
+ * <b>maximum</b> of their signed distances, exactly as the intersection of half-planes is the minimum of theirs,
+ * so the fragment folds one into the other in the loop it already had: each row carries its piece's index in the
+ * {@code .w} the half-plane leaves free, the rows are ordered by it, and where the index rises the piece that
+ * just ended is folded into the running maximum and the minimum reseeded. What comes out is one signed distance
+ * for the whole shape — so the border band and the silhouette below it are the SHAPE'S, and two pieces that
+ * overlap carry no line and no rim along the join where they meet.
  *
  * <p><b>The inward normal is chosen by the centroid</b>, per edge, so a ring may be wound either way: an
  * addon feeding {@code gob:hitbox()} straight in does not have to know which direction the resource happened
  * to record its {@code obst} points in.
  *
  * <p><b>The edges are ONE array uniform, walked by a {@code for}</b> — not one uniform per edge. GLSL declares
- * that array at a fixed length, so a limit exists and is {@link #EDGES}; a longer ring is refused by name
- * rather than truncated to the wrong shape. {@code haven.render.sl} carries {@link Array}, {@code Index} and
+ * that array at a fixed length, so two limits exist: {@link #RING_EDGES} on one piece and {@link #EDGES} on the
+ * patch, which is the array's own length. A shape past either is refused by name rather than truncated to the
+ * wrong shape. {@code haven.render.sl} carries {@link Array}, {@code Index} and
  * {@link For}, and {@code UniformApplier.TypeMapping.register} is public, so mapping {@code float[][]} onto an
  * array of {@code vec4} is the static initialiser below and no core edit.
  *
- * <p><b>The border is a second band off the very same minimum</b> (121.1). {@code m} is the ring's own signed
- * distance, so the fragments whose {@code m} lies between {@code 0} and the border's width are the ones inside
+ * <p><b>The border is a second band off the very same distance</b> (121.1). {@code u} is the union's own signed
+ * distance, so the fragments whose {@code u} lies between {@code 0} and the border's width are the ones inside
  * the edge — a band, in the same expression, on the same fragment, with no second overlay, no second mesh and
  * no tile re-laid. The band is mixed over what {@code BaseColor} wrote <b>before</b> the silhouette scales the
  * alpha, so {@code mix} carries the two opacities across with the two colours and the line comes out at its
  * own while the interior stays at the fill's — which is the one thing two concentric patches cannot do.
  *
  * <p><b>The width is world units with a one-pixel floor</b>, and the floor is what lets it be world units:
- * {@code fwidth(m)} is how much world one pixel spans, so {@code max(width, fwidth(m))} is the silhouette's
+ * {@code fwidth(u)} is how much world one pixel spans, so {@code max(width, fwidth(u))} is the silhouette's
  * own pixel and a border never thins below it as the camera pulls back. A width of {@code 0} is therefore
  * legal and means exactly that hairline. <b>No border at all is {@code width < 0}</b> — a sentinel derived
  * from {@code LuaPatch.border == null} and never seen from Lua — which {@code step(0, width)} switches the
@@ -73,17 +84,30 @@ import static haven.render.sl.Cons.*;
  */
 public class PatchCarve extends State {
     /**
-     * <b>How many edges a patch's ring may have.</b> The array is declared at this length in the fragment
-     * stage, where {@code GL_MAX_FRAGMENT_UNIFORM_COMPONENTS} is guaranteed to be at least 1024: 32 half-planes
-     * is 128 of those components, an eighth of the floor, leaving the terrain program's own uniforms — its
-     * matrices, its lights — the rest. A 32-gon is a circle to the eye, and the footprints this exists to take
-     * ({@code gob:hitbox()}'s {@code obst} rings) are four to eight points.
+     * <b>How many edges one PIECE of a patch may have.</b> A 32-gon is a circle to the eye, and the footprints
+     * this exists to take ({@code gob:hitbox()}'s {@code obst} rings) are four to eight points, so nothing asks
+     * for a 33-gon; a shape that needs more detail than this is more than one convex piece and is laid as
+     * several. The budget that actually binds a patch is {@link #EDGES} below.
      */
-    public static final int EDGES = 32;
+    public static final int RING_EDGES = 32;
+
+    /**
+     * <b>How many edges a patch carries across ALL its pieces</b>, and the length the array is declared at in
+     * the fragment stage. {@code GL_MAX_FRAGMENT_UNIFORM_COMPONENTS} is guaranteed to be at least 1024, and 128
+     * half-planes is 512 of those components — half the floor, against a ground-overlay program that is
+     * {@code BaseColor} + {@code States.maskdepth} + {@code MapMesh.OLOrder} + this carve, so a couple of
+     * matrices and {@code FrameInfo} and <b>no {@code Light.PhongLight}</b>: a ground overlay is drawn flat and
+     * unlit, and carries no light array at all.
+     */
+    public static final int EDGES = 128;
 
     public static final Slot<PatchCarve> slot = new Slot<>(Slot.Type.DRAW, PatchCarve.class);
 
-    /** One {@code (nx, ny, d, _)} inward half-plane per edge, in MAP space. Never mutated after construction. */
+    /**
+     * One {@code (nx, ny, d, piece)} inward half-plane per edge, in MAP space, <b>ordered by piece</b> — the
+     * fourth component is the 0-based index of the piece the row belongs to, and it is what the fragment's fold
+     * reads to know where one piece ends and the next begins. Never mutated after construction.
+     */
     public final float[][] e;
 
     /**
@@ -140,36 +164,56 @@ public class PatchCarve extends State {
 
     /**
      * <b>The fill, the border and the silhouette, in one expression</b> — the fragment's incoming colour in,
-     * the finished colour out. {@code fwidth} is taken on the finished minimum, after the loop, where the
-     * control flow is uniform across the quad (the bound is a uniform) and the derivative is therefore
-     * defined; every later term is that one {@code fw}, so the band and the silhouette are measured against
-     * the very same pixel.
+     * the finished colour out. {@code fwidth} is taken on the finished union, after the loop, where the
+     * control flow is uniform across the quad (the bound is a uniform, and so is every row the fold branches
+     * on) and the derivative is therefore defined; every later term is that one {@code fw}, so the band and
+     * the silhouette are measured against the very same pixel.
      *
-     * <p>Both halves are ONE function rather than two, because both are read off {@code m} and a second call
+     * <p>Both halves are ONE function rather than two, because both are read off {@code u} and a second call
      * would walk the edge loop a second time. They are one {@code mod} for the same reason the mix sits
      * inside it: a mod above this one would be handed the mixed colour with no way left to tell the fill from
      * the line.
+     *
+     * <p><b>The fold is an {@code If} rather than arithmetic</b> (136.1). The loop's bound and the row it
+     * reads are both uniforms, so its control flow is uniform across the quad and a branch inside it is
+     * legal; it reads as the thing it does, and costs a compare the branchless spelling would have paid in
+     * multiplies anyway.
      */
     private static final Function.Def carve = new Function.Def(Type.VEC4, "patchcarve") {{
         Expression in = param(Function.PDir.IN, Type.VEC4).ref();
         Expression p = pick(Homo3D.fragmapv.ref(), "xy");
         /* Bigger than any distance a fragment inside the mask can be from an edge, and written so that
-         * Double.toString emits it without an exponent -- the loop always runs (a patch has three edges at
-         * the least), so it is only ever the seed of the minimum. */
+         * Double.toString emits it without an exponent -- the loop always runs (a piece has three edges at
+         * the least), so it is only ever the seed of the current piece's minimum. */
         LValue m = code.local(Type.FLOAT, l(1000000.0)).ref();
+        /* The union of the pieces already closed. Every piece is closed -- the last one just below the loop
+         * -- so this seed never reaches the smoothstep; where it ever did it would read as "outside", which
+         * is what a patch of no pieces at all draws. */
+        LValue best = code.local(Type.FLOAT, l(-1000000.0)).ref();
+        /* Which piece the rows being read belong to. The rows are ordered by it, so it only ever rises. */
+        LValue cur = code.local(Type.FLOAT, l(0.0)).ref();
         LValue i = code.local(Type.INT, null).ref();
         Expression edge = idx(u_edge.ref(), i);
-        code.add(new For(ass(i, l(0)), lt(i, u_edges.ref()), linc(i),
-                         stmt(ass(m, min(m, sub(dot(p, pick(edge, "xy")), pick(edge, "z")))))));
-        LValue fw = code.local(Type.FLOAT, fwidth.call(m)).ref();
+        /* A piece just ended: fold its minimum into the union, and seed the next one's. */
+        Block closed = new Block();
+        closed.add(stmt(ass(best, max(best, m))));
+        closed.add(stmt(ass(m, l(1000000.0))));
+        closed.add(stmt(ass(cur, pick(edge, "w"))));
+        Block body = new Block();
+        body.add(new If(gt(pick(edge, "w"), cur), closed));
+        body.add(stmt(ass(m, min(m, sub(dot(p, pick(edge, "xy")), pick(edge, "z"))))));
+        code.add(new For(ass(i, l(0)), lt(i, u_edges.ref()), linc(i), body));
+        /* The last piece, which no row after it closed: the union is the whole shape's signed distance. */
+        LValue u = code.local(Type.FLOAT, max(best, m)).ref();
+        LValue fw = code.local(Type.FLOAT, fwidth.call(u)).ref();
         /* The floor: one screen pixel of world, so a world-unit width never thins out of sight at distance. */
         LValue w = code.local(Type.FLOAT, max(u_rimw.ref(), fw)).ref();
-        /* Inside the band, and switched on at all: 1 at the ring's own edge, 0 once m has run w past it. */
+        /* Inside the band, and switched on at all: 1 at the shape's own edge, 0 once u has run w past it. */
         Expression rim = mul(step(l(0.0), u_rimw.ref()),
-                             sub(l(1.0), smoothstep(sub(w, fw), add(w, fw), m)));
+                             sub(l(1.0), smoothstep(sub(w, fw), add(w, fw), u)));
         /* The line over the fill, each at its own opacity, and then the silhouette over the pair. */
         code.add(new Return(mul(mix(in, u_rim.ref(), rim),
-                                vec4(l(1.0), l(1.0), l(1.0), smoothstep(neg(fw), fw, m)))));
+                                vec4(l(1.0), l(1.0), l(1.0), smoothstep(neg(fw), fw, u)))));
     }};
 
     private static final ShaderMacro shader = prog -> {
@@ -186,28 +230,40 @@ public class PatchCarve extends State {
     }
 
     /**
-     * <b>The inward half-planes of a convex ring given in WORLD coordinates.</b> Every point crosses into map
-     * space here and once ({@code y} negated), the inward side is decided per edge by which side the centroid
-     * falls on — so the winding does not matter — and a repeated point contributes no edge, because a
-     * zero-length segment constrains nothing.
+     * <b>The inward half-planes of a patch's convex pieces, given in WORLD coordinates.</b> Every point crosses
+     * into map space here and once ({@code y} negated), the inward side is decided per edge by which side that
+     * piece's centroid falls on — so a piece may be wound either way — and a repeated point contributes no
+     * edge, because a zero-length segment constrains nothing.
      *
-     * <p>Its length is therefore the number of edges the ring really has, which is what
-     * {@link #u_edges} publishes and what {@link #tooMany} is measured against.
+     * <p><b>Concatenated in piece order, each row stamped with its piece</b> (136.1), which is the whole of
+     * what the fragment needs to fold the pieces into their union: the index goes into the {@code .w} a
+     * half-plane leaves free, so a piece costs its own edges and not one row more.
+     *
+     * <p>Its length is therefore the number of edges the whole patch really has, which is what
+     * {@link #u_edges} publishes and what {@link #overBudget} is measured against.
      */
-    static float[][] of(List<Coord2d> ring) {
-        int n = ring.size();
-        double[] px = new double[n], py = new double[n];
-        for(int i = 0; i < n; i++) {
-            px[i] = ring.get(i).x;
-            py[i] = -ring.get(i).y;                    /* into map space, once, here */
+    static float[][] of(List<List<Coord2d>> pieces) {
+        List<float[]> out = new ArrayList<float[]>();
+        for(int pi = 0; pi < pieces.size(); pi++) {
+            List<Coord2d> ring = pieces.get(pi);
+            int n = ring.size();
+            double[] px = new double[n], py = new double[n];
+            for(int i = 0; i < n; i++) {
+                px[i] = ring.get(i).x;
+                py[i] = -ring.get(i).y;                /* into map space, once, here */
+            }
+            for(float[] e : planes(px, py, n)) {
+                e[3] = pi;                             /* which piece this row belongs to */
+                out.add(e);
+            }
         }
-        return planes(px, py, n);
+        return out.toArray(new float[0][]);
     }
 
     /**
      * <b>The inward half-planes of a convex ring whose points are already in the space they are wanted in</b>
-     * — the body {@link #of} is the map-space caller of, and the one {@link PatchClick} is the SCREEN-space
-     * caller of (118.3). Nothing here knows which space it is in: the inward side is decided per edge by
+     * — the body {@link #of} is the map-space caller of, once per piece, and the one {@link PatchClick} is
+     * the SCREEN-space caller of (118.3). Nothing here knows which space it is in: the inward side is decided per edge by
      * which side the centroid falls on, so a ring may be wound either way and a space whose {@code y} grows
      * the other way is simply a ring wound the other way.
      */
@@ -279,9 +335,19 @@ public class PatchCarve extends State {
         return true;
     }
 
-    /** Does this ring carry more edges than the fragment stage holds ({@link #EDGES})? */
+    /** Does this ONE piece carry more edges than a piece may ({@link #RING_EDGES})? */
     static boolean tooMany(float[][] e) {
-        return e.length > EDGES;
+        return e.length > RING_EDGES;
+    }
+
+    /**
+     * <b>Does this patch carry more edges than the fragment stage's array holds ({@link #EDGES})?</b> — the
+     * budget that binds the shape rather than the piece, asked of the total across every piece laid. A patch
+     * past it is refused rather than truncated, exactly as an over-long piece is: half a shape drawn is the
+     * wrong shape, and the caller is the only one who knows which half to drop.
+     */
+    static boolean overBudget(int edges) {
+        return edges > EDGES;
     }
 
     /**

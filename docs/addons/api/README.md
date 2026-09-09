@@ -140,7 +140,8 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [sprites](virtual/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
 | [models](virtual/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
 | [widgets](virtual/widgets.md) | a window standing in the world: its facing, its clicks, and standing the client's own |
-| [patches](virtual/patches.md) | a convex ring lying flat on the terrain: what a ring may be, and clicks |
+| [patches](virtual/patches.md) | a shape lying flat on the terrain: its place, its look, its border, its clicks |
+| [pieces](virtual/pieces.md) | the convex rings a patch is the union of: what a ring may be, and the edge budget |
 
 ## The client itself
 

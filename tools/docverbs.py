@@ -79,6 +79,10 @@ RECEIVERS = {
     # a `kind` VARIABLE rather than a literal, so no vocabulary is extractable for any of them and the
     # whole family is skipped here. `patch` is spelled out because `p` is a Position everywhere else.
     "patch": None,
+    # A piece of a patch. Its closedIndex IS a literal, but `bridge_vocabularies` unions a file's verbs, and
+    # VirtualApi.java sets thirty of them for the five kinds beside it -- so `piece` would resolve `:border()`
+    # and `:ring()`, which no piece answers. A miss costs a check; a false positive costs trust.
+    "piece": None,
     "seg2": None, "g": None, "s": None, "t": None, "v": None, "x": None,
 }
 

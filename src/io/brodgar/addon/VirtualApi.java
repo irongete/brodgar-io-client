@@ -437,6 +437,10 @@ final class VirtualApi {
      * back, one ring at a time, with no projection and no conversion by the caller: that is the whole reason
      * this takes a ring of places rather than a named primitive.
      *
+     * <p><b>What it lays is a patch of ONE piece</b> (136.1), and {@code patch:piece()} is the collection of
+     * that patch's pieces: a shape that needs more than one convex region is one patch with several, drawn as
+     * their union through the one overlay, rather than several patches with a seam between them.
+     *
      * <p><b>The anchor is a Position or a Gob</b>, read through the very {@link #anchorArg} the other four kinds
      * read. The ring is held as offsets from it either way — so a patch survives the coordinate space being
      * re-based under it, one laid at a place this character cannot locate waits whole rather than drawing part
@@ -2146,12 +2150,12 @@ final class VirtualApi {
                 + rv.typename());
         int n = rv.length();
         // The cap FIRST, before a point of it is read: a point contributes at most one edge, so a ring
-        // longer than the fragment stage's array cannot be carved whatever the points turn out to be — and
-        // asking last meant a table of a million cost a million resolutions, a million subtractions and a
+        // longer than one piece may be cannot be carved whatever the points turn out to be — and asking
+        // last meant a table of a million cost a million resolutions, a million subtractions and a
         // convexity pass before the refusal that names 32.
-        if(n > PatchCarve.EDGES)
+        if(n > PatchCarve.RING_EDGES)
             throw new LuaError(verb + ": that ring has " + n + " points and a patch carries at most "
-                + PatchCarve.EDGES + " edges — the half-planes are one array uniform, declared at that"
+                + PatchCarve.RING_EDGES + " edges — the half-planes are one array uniform, declared at that"
                 + " length in the fragment stage. Refused rather than truncated to the wrong shape");
         List<LuaPosition> out = new ArrayList<LuaPosition>(n);
         for(int k = 1; k <= n; k++) {
@@ -2190,6 +2194,46 @@ final class VirtualApi {
         return out;
     }
 
+    /**
+     * <b>One convex piece, refused by name or turned into the offsets a patch holds</b> (136.1) — the door
+     * {@code hafen.virtual():patch():add(ring, anchor)} and {@code patch:piece():add(ring)} both go through,
+     * so a ring that is refused laying a patch is refused the same way laying a piece into one.
+     *
+     * <p><b>The ways a ring is not a piece are refused here, by name</b>, because each of them would otherwise
+     * be drawn as a different shape than the one asked for — which is the one outcome a drawing API must never
+     * have. Fewer than three real points is a line; a concave ring's half-planes intersect in its hull rather
+     * than in itself; and a ring longer than a piece may be would be truncated. <b>NaN is asked before
+     * convexity</b>: a ring that is not made of places has no shape to be convex or concave, and a NaN edge
+     * survives normalisation into a silhouette that answers every click on the map.
+     */
+    private static Coord2d[] pieceLocal(Anchor an, List<LuaPosition> ring, String verb) {
+        if(ring.size() < 3)
+            throw new LuaError(verb + ": a patch needs at least three points — a ring of " + ring.size()
+                + " is a line, and a line has no ground under it");
+        Coord2d[] local = ringLocal(an, ring, verb);
+        List<Coord2d> shape = java.util.Arrays.asList(local);
+        int bad = PatchCarve.nonFinite(shape);
+        if(bad != 0)
+            throw new LuaError(verb + ": ring[" + bad + "] is not a place — its distance from the"
+                + " anchor is not a finite number, and a ring with one such point carves a silhouette that"
+                + " answers every click on the map. Build the ring from places the session can locate");
+        if(!PatchCarve.convex(shape))
+            throw new LuaError(verb + ": that ring is concave, and a piece of a patch is convex — the"
+                + " silhouette is carved as the intersection of the ring's edge half-planes, so a concave one"
+                + " would be drawn as its hull rather than as itself. Split it into convex rings and lay one"
+                + " piece each with patch:piece():add(ring)");
+        float[][] e = PatchCarve.of(java.util.Collections.singletonList(shape));
+        if(e.length < 3)
+            throw new LuaError(verb + ": a patch needs at least three points that are not the same place"
+                + " — that ring has " + ring.size() + " of them but only " + e.length + " edges, so it"
+                + " encloses no ground");
+        if(PatchCarve.tooMany(e))
+            throw new LuaError(verb + ": that ring has " + e.length + " edges and a patch carries at most "
+                + PatchCarve.RING_EDGES + " — the half-planes are one array uniform, declared at that length"
+                + " in the fragment stage. Refused rather than truncated to the wrong shape");
+        return local;
+    }
+
     /** One point of {@link #ringLocal}: the grid arithmetic first, the session's coordinates as the fallback. */
     private static Coord2d localOf(Anchor an, LuaPosition p) {
         if(an.place != null) {
@@ -2207,10 +2251,9 @@ final class VirtualApi {
      * that gob; otherwise it holds the durable place {@code an.place} names. Returns {@code null} when there is
      * no map view (not in the world), which is {@link #born}'s refusal.
      *
-     * <p><b>The three ways a ring is not a patch are refused here, by name</b>, because each of them would
-     * otherwise be drawn as a different shape than the one asked for — which is the one outcome a drawing API
-     * must never have. Fewer than three real points is a line; a concave ring's half-planes intersect in its
-     * hull rather than in itself; and a ring longer than the fragment stage's array would be truncated.
+     * <p><b>The ways a ring is not a piece are refused by {@link #pieceLocal}</b>, which is the very door
+     * {@code patch:piece():add(ring)} lays a further one through — so the first piece of a patch and the
+     * second are the same act with the same refusals.
      *
      * <p><b>Either anchor</b> (118.2): a Position holds it where it was laid, a Gob makes it follow and die with
      * that object. The ring is the same ring either way — it is kept as offsets from the anchor — which is what
@@ -2222,30 +2265,9 @@ final class VirtualApi {
         final Glob g = glob();
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no ground to lie on
-        if(ring.size() < 3)
-            throw new LuaError(PATCH_ADD + ": a patch needs at least three points — a ring of " + ring.size()
-                + " is a line, and a line has no ground under it");
-        Coord2d[] local = ringLocal(an, ring, PATCH_ADD);
-        List<Coord2d> shape = java.util.Arrays.asList(local);
-        int bad = PatchCarve.nonFinite(shape);
-        if(bad != 0)
-            throw new LuaError(PATCH_ADD + ": ring[" + bad + "] is not a place — its distance from the"
-                + " anchor is not a finite number, and a ring with one such point carves a silhouette that"
-                + " answers every click on the map. Build the ring from places the session can locate");
-        if(!PatchCarve.convex(shape))
-            throw new LuaError(PATCH_ADD + ": that ring is concave, and a patch is convex — the silhouette is"
-                + " carved as the intersection of the ring's edge half-planes, so a concave one would be drawn"
-                + " as its hull rather than as itself. Split it into convex rings and lay one patch each");
-        float[][] e = PatchCarve.of(shape);
-        if(e.length < 3)
-            throw new LuaError(PATCH_ADD + ": a patch needs at least three points that are not the same place"
-                + " — that ring has " + ring.size() + " of them but only " + e.length + " edges, so it"
-                + " encloses no ground");
-        if(PatchCarve.tooMany(e))
-            throw new LuaError(PATCH_ADD + ": that ring has " + e.length + " edges and a patch carries at most "
-                + PatchCarve.EDGES + " — the half-planes are one array uniform, declared at that length in the"
-                + " fragment stage. Refused rather than truncated to the wrong shape");
-        LuaPatch p = new LuaPatch(owner, an.rc, local);
+        Coord2d[] local = pieceLocal(an, ring, PATCH_ADD);
+        LuaPatch p = new LuaPatch(owner, an.rc);
+        p.pieces.add(mintPiece(p, local));             // the first piece, through the door every one takes
         p.followTgt = an.tgt;                          // 043.2: the ANCHOR, an argument of :add(ring, anchor)
         owner.patches.add(p);
         entityRegister(mv.ui, p, an.place);            // dies with its gob, or holds its own place and waits
@@ -2334,7 +2356,205 @@ final class VirtualApi {
                 return self;
             }
         });
-        return entityHandle(p, "patch", "patch", x, ", :border() and :occluded()");
+        // piece() -- the convex pieces this one shape is the union of (136.1). A VIEW, as gob:overlay() is:
+        // derived from the patch on every call and holding nothing between them, so it cannot outlive the
+        // patch and needs no pruning of its own. Arity 0: what it holds is the patch's, and there is nothing
+        // to address it by.
+        x.set("piece", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "patch:piece");
+                return pieceCollection(p);
+            }
+        });
+        return entityHandle(p, "patch", "patch", x, ", :border(), :occluded() and :piece()");
+    }
+
+    /** The one spelling of the verb that lays a further piece, so every refusal below names it the same way. */
+    private static final String PIECE_ADD = "patch:piece():add";
+
+    /** Laying a piece into a patch that has ended, said once for the two places {@link #addPiece} asks. */
+    private static final String GONE = PIECE_ADD + ": that patch is gone, so there is no shape to lay a piece"
+        + " into — patch:exists() is the test, and hafen.virtual():patch():add(ring, anchor) lays a new one";
+
+    /**
+     * {@code patch:piece()} — <b>the convex pieces one patch is the union of</b> (136.1). A patch is drawn as
+     * the union of its pieces through a single ground overlay, so a shape that needs more than one convex
+     * region is one patch with several pieces rather than several patches: one handle, one place, one look,
+     * one mask, and no seam where two of them meet.
+     *
+     * <p>{@code :add(ring)} takes the same convex ring of {@link LuaPosition}s {@code hafen.virtual():patch()}
+     * takes and hands back the piece it laid. It takes no anchor: a piece is held as offsets from the PATCH'S
+     * own anchor, which is what makes the shape one thing — {@code :position}, {@code :rotate}, {@code :scale}
+     * and {@code :offset} move every piece of it together.
+     *
+     * <p><b>Keyless and nameless.</b> A piece is a region rather than a picture of something, so there is
+     * nothing for a string filter to match and nothing to address it by: {@code :list()} in the order they
+     * were laid, {@code :find(fn)} over the objects, and the piece {@code :add} handed back.
+     */
+    private static LuaValue pieceCollection(final LuaPatch p) {
+        return LuaCollection.create("patch:piece()", new LuaCollection.Source() {
+            public String addName() {
+                return "ring";
+            }
+
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                synchronized(p) {
+                    if(p.dead)
+                        return out;                    // a patch that is gone holds nothing
+                    for(LuaPatch.Piece pc : p.pieces)
+                        out.add(pc.handle);
+                }
+                return out;
+            }
+
+            /** A piece is a region, not a picture of something: there is no name for a string to match. */
+            public boolean named() {
+                return false;
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                Args.only(a, 1, PIECE_ADD);            // no anchor here: a piece is held by the patch's own
+                return addPiece(p, ringArg(a, 2, PIECE_ADD));
+            }
+
+            public String noGet() {
+                return "a piece has no key: patch:piece():add(ring) hands you the piece it lays, and"
+                    + " patch:piece():list()[n] takes a position in the order you laid them";
+            }
+        }, null);
+    }
+
+    /**
+     * Lay one more convex piece into a live patch — the body of {@code patch:piece():add(ring)}. The ring goes
+     * through the very {@link #pieceLocal} the first one did, against the anchor the patch is holding, so the
+     * second piece of a shape is the same act as the first with the same refusals.
+     *
+     * <p><b>The budget is the patch's, and it is checked against what the patch already carries</b>: the
+     * half-planes of every piece share one array uniform, so the number that binds is the total and the
+     * refusal names it. Validated outside the monitor — resolving a Position reads the drawn session's map —
+     * and appended under it, with the patch's own liveness asked on both sides of that gap.
+     */
+    private static LuaValue addPiece(LuaPatch p, List<LuaPosition> ring) {
+        Anchor an;
+        synchronized(p) {
+            if(p.dead)
+                throw new LuaError(GONE);              // asked FIRST: a dead patch has no anchor to measure
+            an = pieceAnchor(p);                       //   a ring against, and would refuse the ring instead
+        }
+        Coord2d[] local = pieceLocal(an, ring, PIECE_ADD);
+        LuaPatch.Piece pc = mintPiece(p, local);
+        synchronized(p) {
+            if(p.dead)
+                throw new LuaError(GONE);              // ...and again, for the gap the validation opened
+            int was = p.edgeCount();
+            if(PatchCarve.overBudget(was + pc.edges))
+                throw new LuaError(PIECE_ADD + ": this patch already carries " + was + " edges and that ring"
+                    + " adds " + pc.edges + ", which is past the " + PatchCarve.EDGES + " one patch holds —"
+                    + " the half-planes of every piece are one array uniform, declared at that length in the"
+                    + " fragment stage. Lay the rest of the shape as a second patch");
+            p.pieces.add(pc);
+            refreshEntityScene(p);                     // a fresh carve, and a re-cut only if the mask moved
+        }
+        return pc.handle;
+    }
+
+    /**
+     * <b>The anchor a live patch is holding</b>, in the shape {@link #pieceLocal} measures a ring against — so
+     * a piece laid into a patch is held from the very place the patch's first ring is. Caller holds the
+     * monitor.
+     *
+     * <p>Two anchors, exactly as {@code :add(ring, anchor)} has them. A free patch hands back its durable
+     * place, which is what lets a piece be laid into one standing on ground this character cannot locate: the
+     * grid arithmetic needs no session. One that follows a gob has no durable place of its own, so the anchor
+     * is where it is being drawn right now — its point plus the offset it sits at, which is the base its own
+     * rings are measured from.
+     */
+    private static Anchor pieceAnchor(LuaPatch p) {
+        if(p.followTgt != 0) {
+            Coord2d rc = p.rc;
+            if((rc != null) && (p.followOff != null))
+                rc = Coord2d.of(rc.x + p.followOff.x, rc.y + p.followOff.y);
+            return new Anchor(rc, p.followTgt, null);
+        }
+        return new Anchor(p.rc, 0, new LuaPosition.Anchor(p.anchorGrid, p.agx, p.agy));
+    }
+
+    /**
+     * <b>A piece and the Lua object it is handed out as, minted together</b> — the one place a
+     * {@link LuaPatch.Piece} is built, so a member of {@code patch:piece()} carries its handle by
+     * construction and the collection can never hand back a hole. Called off the monitor: it reads the ring
+     * it is given and touches nothing the patch holds.
+     */
+    private static LuaPatch.Piece mintPiece(LuaPatch p, Coord2d[] local) {
+        LuaPatch.Piece pc = new LuaPatch.Piece(p, local);
+        pc.handle = pieceHandle(pc);
+        return pc;
+    }
+
+    /**
+     * The Lua handle for one {@link LuaPatch.Piece} — <b>two verbs, and they are the whole of what a piece
+     * is</b> (136.1). Where it is, how big it is, what colour it is, whether it is drawn and whether the world
+     * may hide it are all the PATCH'S: a piece is part of one shape, and giving it a second set of the same
+     * verbs would be two owners of one look.
+     *
+     * <p>{@code :info()} is the snapshot every live object in this API carries, and a piece's whole state is
+     * its ring; {@code :exists()} is whether its patch still holds it. Minted once, at birth, so a piece read
+     * twice is one object.
+     */
+    private static LuaValue pieceHandle(final LuaPatch.Piece pc) {
+        LuaTable m = new LuaTable();
+        // exists() -- is the patch still holding this piece? A piece has no ending of its own: it is taken up
+        // with patch:piece():remove(p), and it goes with the patch that held it.
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "piece:exists");
+                return LuaValue.valueOf(pc.exists());
+            }
+        });
+        // info() -- the one snapshot: the ring, as the durable {gridId, x, y} tables a Position answers with,
+        // and `exists`. The ring is ABSENT where the character on screen cannot locate the ground it lies on,
+        // which is the shape every info() in this API has: present means known.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "piece:info");
+                return pieceInfo(pc);
+            }
+        });
+        LuaValue h = LuaValue.userdataOf(pc);
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("piece", m, "one convex piece of a patch",
+            "where it is, how big it is and how it is coloured are the PATCH'S, since a piece is part of one"
+            + " shape"));
+        mt.set("__name", LuaValue.valueOf("Piece"));
+        mt.set("__tostring", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf("Piece");      // a piece is a picture of nothing, like the patch
+            }
+        });
+        h.setmetatable(mt);
+        return h;
+    }
+
+    /** {@code piece:info()} — the ring where it stands, and whether the patch still holds it. */
+    private static LuaTable pieceInfo(LuaPatch.Piece pc) {
+        LuaPatch p = pc.patch;
+        LuaTable t = new LuaTable();
+        t.set("exists", LuaValue.valueOf(pc.exists()));
+        List<Coord2d> ring;
+        synchronized(p) {
+            if(p.rc == null)
+                return t;                              // the session cannot locate the ground it lies on
+            ring = p.worldPiece(pc);
+        }
+        LuaTable pts = p.ringInfo(ring);
+        if(pts != null)
+            t.set("ring", pts);
+        return t;
     }
 
     /**

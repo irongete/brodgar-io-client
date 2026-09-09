@@ -2,6 +2,8 @@ package io.brodgar.addon;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import haven.Coord2d;
@@ -13,10 +15,16 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
- * A client-only <b>patch</b> (118) — the Java half of {@code hafen.virtual():patch():add(ring, anchor)}: a convex
- * ring of {@link LuaPosition}s lying exactly on the terrain, occluded by whatever stands on it unless
+ * A client-only <b>patch</b> (118) — the Java half of {@code hafen.virtual():patch():add(ring, anchor)}: a
+ * shape of convex {@link Piece}s lying exactly on the terrain, occluded by whatever stands on it unless
  * {@link #occluded} says otherwise. The fifth kind of {@code hafen.virtual()}, and the first that lies
  * <b>down</b>: the four before it — a prop, a picture, a model, a window — all stand up.
+ *
+ * <p><b>One patch, several pieces, one overlay</b> (136.1). A convex ring is what the carve can cut and what
+ * the click can solve; a shape is the <b>union</b> of any number of them, drawn through the single
+ * {@link PatchOverlay} below. {@code :add(ring, anchor)} lays a patch of one piece, {@code patch:piece():add}
+ * lays another into the same shape, and everything between the handle and the ground — the anchor, the
+ * durable place, the follow poll, the look, the teardown — is the one patch's throughout.
  *
  * <p><b>It is the one kind that is not a {@link haven.Gob}.</b> The drawn terrain surface cannot be reproduced
  * from outside ({@code MapMesh.MapSurface} is per cut and per tiler), so independently tessellated geometry
@@ -28,8 +36,8 @@ import org.luaj.vm2.LuaValue;
  * {@link #ol} and {@link #laid} instead; everything else — the anchors, the durable place, the ground test,
  * the visibility switches, the teardown — is the shared core unchanged.
  *
- * <p><b>The ring is held as offsets, not as points.</b> What {@code :add(ring, anchor)} is given is a ring of
- * places and a place to hold it by; what a patch keeps is {@link #local}, each point as a displacement from
+ * <p><b>A piece is held as offsets, not as points.</b> What {@code :add(ring, anchor)} is given is a ring of
+ * places and a place to hold it by; what a patch keeps is {@link #pieces}, each point as a displacement from
  * that anchor in world units. That is what lets it outlive the coordinate space — it re-derives its place
  * every time the world moves under it ({@code VirtualApi.reground}) and the ring simply comes along — and it is why
  * a ring straight out of {@code gob:hitbox()} lands exactly on that object's footprint, whether the anchor it
@@ -52,14 +60,59 @@ import org.luaj.vm2.LuaValue;
  */
 public final class LuaPatch extends LuaWorldEntity {
     /**
-     * The ring, as offsets from this patch's own place, in world units (x east, y south). Never mutated: a
-     * patch that is scaled or turned recomputes its world ring from these, so the shape it was given stays the
-     * shape it holds.
+     * <b>The pieces this shape is the union of</b>, in the order they were laid, each a ring of offsets from
+     * this patch's own place in world units (x east, y south). The list is written by
+     * {@code patch:piece():add}; a piece's own points never are, so a patch that is scaled or turned
+     * recomputes its world rings from these and the shape it was given stays the shape it holds. Guarded by
+     * {@code this}.
+     *
+     * <p><b>Every member carries a handle</b>, because one door mints both ({@code VirtualApi.mintPiece}) —
+     * which is what lets {@code patch:piece():list()} hand the list straight out without a hole in it. The
+     * first piece is laid by {@code hafen.virtual():patch():add} through that same door, so a patch is never
+     * seen with none.
      */
-    final Coord2d[] local;
+    final List<Piece> pieces = new ArrayList<Piece>();
 
     /**
-     * <b>The line round the ring</b> ({@code patch:border(c, w)}, 121.1) — its colour, or {@code null} while
+     * <b>One convex piece of a patch</b> (136.1) — the member {@code patch:piece()} is the collection of, and
+     * the smallest thing this API lays on the ground. It carries the ring it was made from and nothing else:
+     * where it is, how big, how it is coloured and whether it is drawn are all the PATCH'S, because a piece
+     * has no ground, no anchor and no look of its own — it is part of one shape.
+     *
+     * <p>Its handle is minted once and kept, so {@code patch:piece():list()} hands back the same object every
+     * call and a piece read twice is one piece. It has no {@code dead} flag beside the patch's: a piece exists
+     * exactly while its patch holds it, which is the one fact {@code piece:exists()} answers.
+     */
+    static final class Piece {
+        /** The shape this piece is part of — what it is read, drawn and ended through. */
+        final LuaPatch patch;
+        /** This piece's ring, as offsets from {@link #patch}'s own place. Never mutated after construction. */
+        final Coord2d[] local;
+        /**
+         * How many half-planes this ring really has — its points less the repeated ones, which constrain
+         * nothing. Taken at birth, because it is what the patch's own budget is counted in and the ring it is
+         * counted from never changes.
+         */
+        final int edges;
+        /** The Lua object handed out for it, minted at birth. Read on every thread; never rewritten. */
+        LuaValue handle;
+
+        Piece(LuaPatch patch, Coord2d[] local) {
+            this.patch = patch;
+            this.local = local;
+            this.edges = PatchCarve.of(Collections.singletonList(Arrays.asList(local))).length;
+        }
+
+        /** Does the patch still hold this piece? — {@code piece:exists()}, and the one fact a piece has. */
+        boolean exists() {
+            synchronized(patch) {
+                return !patch.dead && patch.pieces.contains(this);
+            }
+        }
+    }
+
+    /**
+     * <b>The line round the shape</b> ({@code patch:border(c, w)}, 121.1) — its colour, or {@code null} while
      * nothing is drawn there, and its thickness in world units, {@code 0} meaning the thinnest line the screen
      * draws. They are the patch's own, not the shared core's: the four kinds that stand up are gobs with their
      * own materials and an edge on one of those is a different mechanism entirely. Guarded by {@code this}.
@@ -70,7 +123,7 @@ public final class LuaPatch extends LuaWorldEntity {
     /**
      * <b>Whether the world is allowed to hide it</b> ({@code patch:occluded(b)}, 132.1). {@code true} — the
      * default, and what a patch that never names it does — is the depth test the terrain and everything
-     * standing on it are drawn against, so a wall in front of the ring cuts it. {@code false} takes that test
+     * standing on it are drawn against, so a wall in front of the shape cuts it. {@code false} takes that test
      * off and nothing else: the shape is still carved the same way, still lies on the slope, and is still
      * covered by the interface, which is drawn after the world rather than in it. Guarded by {@code this}.
      */
@@ -111,50 +164,103 @@ public final class LuaPatch extends LuaWorldEntity {
     private MCache laid;
 
     /**
-     * What the ground is showing right now — the world ring, the two colours and the width {@link #lay} last
+     * What the ground is showing right now — the world pieces, the two colours and the width {@link #lay} last
      * built from. The
      * ground pass re-asks every free entity about its place whenever a cut comes or goes, and for a patch that
      * has not moved the honest answer is that there is nothing to do: without this, standing still would build
      * a fresh carve and push a fresh draw state several times a minute. Guarded by {@code this}.
      */
-    private List<Coord2d> shown;
+    private List<List<Coord2d>> shown;
     private Color shownFill;
     private Color shownEdge;
     private float shownWidth;
     private boolean shownOccluded;
 
-    LuaPatch(Addon owner, Coord2d rc, Coord2d[] local) {
+    LuaPatch(Addon owner, Coord2d rc) {
         super(owner, rc, 0.0);
-        this.local = local;
     }
 
     void unregister() { owner.patches.remove(this); }
 
     /**
-     * <b>Where the ring's points are right now</b>, in world coordinates: this patch's place plus each held
-     * offset, turned by its facing and taken out to its scale. Caller holds the monitor; {@link #rc} must not
-     * be null (nothing is laid without a coordinate).
+     * <b>How many half-planes this patch carries across every piece it holds</b> — the number
+     * {@link PatchCarve#EDGES} is the ceiling on, and what a piece about to be laid is added to. Caller holds
+     * the monitor.
+     */
+    int edgeCount() {
+        int n = 0;
+        for(Piece pc : pieces)
+            n += pc.edges;
+        return n;
+    }
+
+    /**
+     * <b>Where every piece's points are right now</b>, in world coordinates: this patch's place plus each held
+     * offset, turned by its facing and taken out to its scale, one ring per piece in the order they were laid.
+     * Caller holds the monitor; {@link #rc} must not be null (nothing is laid without a coordinate).
      *
      * <p><b>The four verbs that change the shape all come to here</b> (118.2). {@code :scale(s)} and
      * {@code :rotate(a)} are read out of the held offsets on the spot, so turning a patch or taking it out
      * recomputes half-planes and pushes a carve state — no mesh is rebuilt and no tile is re-laid, because the
-     * shape the engine lays is the whole masked box either way. {@code :offset(x, y)} slides the whole ring on
+     * shape the engine lays is the whole masked box either way. {@code :offset(x, y)} slides the whole shape on
      * the ground relative to the gob it follows; a free patch is offset from nothing and moves with
      * {@code :position(p)}, which writes {@link #rc} itself.
+     *
+     * <p><b>One transform, every piece</b> (136.1): each piece is offsets from the same anchor, so the four
+     * verbs above move the shape rather than a member of it, and a piece laid into a patch that was already
+     * turned lands where the turned shape is.
      */
-    List<Coord2d> worldRing() {
+    List<List<Coord2d>> worldPieces() {
+        List<List<Coord2d>> out = new ArrayList<List<Coord2d>>(pieces.size());
+        for(Piece pc : pieces)
+            out.add(worldPiece(pc));
+        return out;
+    }
+
+    /**
+     * <b>Where ONE piece's points are right now</b> — the arithmetic above, run over a single piece, and the
+     * only copy of it. Caller holds the monitor; {@link #rc} must not be null.
+     *
+     * <p>A piece this patch no longer holds still answers: the offsets are the piece's own and where the shape
+     * stands is the patch's, so a piece taken up reads back the ring it would be drawn at.
+     */
+    List<Coord2d> worldPiece(Piece pc) {
         double bx = rc.x, by = rc.y;
         if((followTgt != 0) && (followOff != null)) {
             bx += followOff.x;                         // on the ground, in world units: a patch has no height
             by += followOff.y;
         }
         double s = Math.sin(a), c = Math.cos(a);
-        List<Coord2d> out = new ArrayList<Coord2d>(local.length);
-        for(Coord2d p : local) {
+        List<Coord2d> out = new ArrayList<Coord2d>(pc.local.length);
+        for(Coord2d p : pc.local) {
             double x = p.x * scale, y = p.y * scale;
             out.add(Coord2d.of(bx + ((x * c) - (y * s)), by + ((y * c) + (x * s))));
         }
         return out;
+    }
+
+    /**
+     * <b>One world ring as the durable {@code {gridId, x, y}} tables its points answer with</b>, or
+     * {@code null} where the drawn character cannot locate one of them — <b>a ring half-answered is worse than
+     * one not answered</b>, which is why a single miss drops the whole ring rather than shortening it. Read by
+     * {@link #infoInto} and by {@code piece:info()}, so the patch's snapshot and a piece's cannot come to
+     * disagree about what a ring looks like written down. Caller must NOT hold the monitor: this reads the
+     * drawn session's map rather than this patch.
+     */
+    LuaTable ringInfo(List<Coord2d> ring) {
+        String user = AddonManager.drawnUser();
+        LuaTable pts = new LuaTable();
+        int n = 0;
+        for(Coord2d p : ring) {
+            LuaValue pos = LuaPosition.of(owner, user, p);
+            if(pos.isnil())
+                return null;
+            LuaValue pi = pos.get("info").call(pos);
+            if(pi.isnil())
+                return null;
+            pts.set(++n, pi);
+        }
+        return pts;
     }
 
     /**
@@ -204,32 +310,32 @@ public final class LuaPatch extends LuaWorldEntity {
         MCache map = mapOf(view);
         if(map == null)
             return;                                    // no world to lie on: reground puts it here when there is
-        List<Coord2d> ring = worldRing();
+        List<List<Coord2d>> shape = worldPieces();
         Color fill = fillColour();
         Color edge = edgeColour();
         float bw = borderWidth;
         boolean occ = occluded;
         if(ol == null) {
-            ol = new PatchOverlay(ring, fill, edge, bw, occ);
+            ol = new PatchOverlay(shape, fill, edge, bw, occ);
             map.add(ol);
             laid = map;
-            shown = ring;
+            shown = shape;
             shownFill = fill;
             shownEdge = edge;
             shownWidth = bw;
             shownOccluded = occ;
             return;
         }
-        if((laid == map) && ring.equals(shown) && fill.equals(shownFill)
+        if((laid == map) && shape.equals(shown) && fill.equals(shownFill)
            && ((edge == null) ? (shownEdge == null) : edge.equals(shownEdge)) && (bw == shownWidth)
            && (occ == shownOccluded))
             return;                                    // nothing about it changed: no cut, and no state
-        shown = ring;
+        shown = shape;
         shownFill = fill;
         shownEdge = edge;
         shownWidth = bw;
         shownOccluded = occ;
-        boolean moved = ol.set(ring, fill, edge, bw, occ);
+        boolean moved = ol.set(shape, fill, edge, bw, occ);
         if(laid != map) {
             if(laid != null)
                 laid.remove(ol);
@@ -240,7 +346,7 @@ public final class LuaPatch extends LuaWorldEntity {
             map.add(ol);                               //   and add() takes the drop back (119.2), so it
                                                        //   costs this overlay's cuts and nothing more
         }
-        // ...and the material changed on every path, because the carve is derived from the very ring above.
+        // ...and the material changed on every path, because the carve is derived from the very shape above.
         // A uniform is baked at slot construction and never re-read, so this is the only way a changed one
         // reaches the screen: the // addon: seam on MapView.Overlay, which is a state push and not a tile.
         view.rematerial(ol);
@@ -302,9 +408,9 @@ public final class LuaPatch extends LuaWorldEntity {
     String kind() { return "patch"; }
 
     /**
-     * A patch's own contribution to {@code :info()}: its {@code border}, and its ring as the durable
-     * {@code {gridId, x, y}} snapshot each point would answer — the shape a live object inside a snapshot must
-     * not be. Either is absent when the thing it names is: no border laid, or a session that cannot locate the
+     * A patch's own contribution to {@code :info()}: its {@code border}, and the ring it was laid with as the
+     * durable {@code {gridId, x, y}} snapshot each point would answer — the shape a live object inside a
+     * snapshot must not be. Every piece's own ring is read off that piece. Either is absent when the thing it names is: no border laid, or a session that cannot locate the
      * patch at all. That is the shape every other {@code info()} in the API has: present means known.
      *
      * <p>{@code border} is the <b>two</b> values {@code patch:border()} hands back, under the names the
@@ -315,7 +421,7 @@ public final class LuaPatch extends LuaWorldEntity {
      * moment rather than a thing that may or may not be laid, so an absent key would say nothing.
      */
     void infoInto(LuaTable t) {
-        List<Coord2d> ring;
+        List<List<Coord2d>> shape;
         synchronized(this) {
             t.set("occluded", LuaValue.valueOf(occluded));
             if(border != null) {
@@ -329,20 +435,10 @@ public final class LuaPatch extends LuaWorldEntity {
             }
             if(rc == null)
                 return;
-            ring = worldRing();
+            shape = worldPieces();
         }
-        String user = AddonManager.drawnUser();
-        LuaTable pts = new LuaTable();
-        int n = 0;
-        for(Coord2d p : ring) {
-            LuaValue pos = LuaPosition.of(owner, user, p);
-            if(pos.isnil())
-                return;                                // a ring half-answered is worse than one not answered
-            LuaValue pi = pos.get("info").call(pos);
-            if(pi.isnil())
-                return;
-            pts.set(++n, pi);
-        }
-        t.set("ring", pts);
+        LuaTable pts = ringInfo(shape.get(0));
+        if(pts != null)
+            t.set("ring", pts);
     }
 }

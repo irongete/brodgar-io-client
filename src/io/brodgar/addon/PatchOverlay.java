@@ -32,9 +32,15 @@ import haven.render.States;
  * everything else exactly where it is. It needs no {@code .res}: {@code OverlayInfo} is a plain interface, and
  * {@code MapView.selol} is the precedent for an anonymous one.
  *
- * <p><b>The mask is generous; the silhouette is carved.</b> {@link #fill} marks every tile the ring's bounding
- * box touches, so the mask never decides the shape — a tile is 11 world units and the ring is not on that
+ * <p><b>The mask is generous; the silhouette is carved.</b> {@link #fill} marks every tile a piece's bounding
+ * box touches, so the mask never decides the shape — a tile is 11 world units and a piece is not on that
  * grid. What decides the shape is {@link PatchCarve}, per fragment, in the material below.
+ *
+ * <p><b>A box per piece, and one that bounds them all</b> (136.1). A patch of many pieces asked as one box is
+ * the whole hull of the shape, and a stroke laid across the screen would mask — and re-lay, and test per cut
+ * — every tile of the rectangle it spans. So {@link #boxes} is the pieces' own boxes and {@link #tiles} is the
+ * box round those: {@link #filter} answers with the bound first, which is one {@code Area.isects} and rejects
+ * nearly everything, and pays the per-piece walk only where the bound already said maybe.
  *
  * <p><b>One overlay per patch, for the life of the patch</b>, because its identity is what
  * {@code MapView.ols}, {@code MCache.Grid.Cut.ols} and {@code MapMesh.OLOrder.equals} all key on. It is
@@ -50,21 +56,28 @@ import haven.render.States;
  * id index beside it are concurrent collections and {@code getols} may be walking either at the time.
  */
 final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
-    /** The tiles the mask marks: the ring's bounding box, one tile proud on each side. */
+    /** The tiles the mask marks: one box per piece, each that piece's bounding box a tile proud each way. */
+    private Area[] boxes;
+    /** The box that bounds {@link #boxes} — the one question {@link #filter} asks before it walks them. */
     private Area tiles;
-    /** What the masked ground is re-laid with — the colours, and the carve that cuts the ring out of them. */
+    /** What the masked ground is re-laid with — the colours, and the carve that cuts the shape out of them. */
     private Material mat;
 
-    PatchOverlay(List<Coord2d> ring, Color fill, Color edge, float width, boolean occluded) {
-        set(ring, fill, edge, width, occluded);
+    PatchOverlay(List<List<Coord2d>> pieces, Color fill, Color edge, float width, boolean occluded) {
+        set(pieces, fill, edge, width, occluded);
     }
 
     /** Read where {@link #set} is given no edge: a colour the band is switched off over and so never reads. */
     private static final FColor NORIM = new FColor(0f, 0f, 0f, 0f);
 
     /**
-     * Re-derive both halves from a ring in <b>world</b> coordinates, and answer whether the <b>mask</b> moved
-     * — which is the caller's cue to pay for a re-cut rather than a state push.
+     * Re-derive both halves from a patch's pieces in <b>world</b> coordinates, and answer whether the
+     * <b>mask</b> moved — which is the caller's cue to pay for a re-cut rather than a state push. The answer
+     * is over the box <b>array</b>: a patch that merely turned or was tinted inside the tiles it already
+     * covers gives the same boxes and pays nothing, while a piece laid or taken up changes the array and so
+     * costs this overlay's own cuts. That is the honest answer for a piece that reaches ground the others do
+     * not — which is the point of laying one — and one box short of it for a piece that lands wholly inside
+     * them.
      *
      * <p><b>Three values, two states</b> (121.1): {@code fill} is what {@code BaseColor} writes at order 0 and
      * {@code edge} with {@code width} is what {@link PatchCarve} lays over it at 500, so each carries its own
@@ -83,33 +96,53 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
      * method would give without it, so a patch told the world may not hide it re-pushes its material down
      * the path a colour change takes and nothing is re-carved.
      */
-    boolean set(List<Coord2d> ring, Color fill, Color edge, float width, boolean occluded) {
-        Area was = tiles;
-        tiles = coverage(ring);
-        PatchCarve carve = new PatchCarve(PatchCarve.of(ring),
+    boolean set(List<List<Coord2d>> pieces, Color fill, Color edge, float width, boolean occluded) {
+        Area[] was = boxes;
+        boxes = coverage(pieces);
+        tiles = bounds(boxes);
+        PatchCarve carve = new PatchCarve(PatchCarve.of(pieces),
                                           (edge == null) ? NORIM : new FColor(edge),
                                           (edge == null) ? -1f : width);
         MapMesh.OLOrder order = new MapMesh.OLOrder(this);
         mat = occluded
             ? new Material(new BaseColor(fill), States.maskdepth, order, carve)
             : new Material(new BaseColor(fill), States.maskdepth, States.Depthtest.none, order, carve);
-        return !tiles.equals(was);
+        return !Arrays.equals(boxes, was);
     }
 
     /**
-     * Every tile the ring's bounding box touches, and one more each way. Generous on purpose: the shader does
-     * the cutting and the mask only has to reach past it, so a rounding difference at the edge of the box can
-     * never clip the shape.
+     * Every tile each piece's bounding box touches, and one more each way. Generous on purpose: the shader
+     * does the cutting and the mask only has to reach past it, so a rounding difference at the edge of a box
+     * can never clip the shape.
      */
-    private static Area coverage(List<Coord2d> ring) {
-        double lox = Double.MAX_VALUE, loy = Double.MAX_VALUE;
-        double hix = -Double.MAX_VALUE, hiy = -Double.MAX_VALUE;
-        for(Coord2d p : ring) {
-            lox = Math.min(lox, p.x); hix = Math.max(hix, p.x);
-            loy = Math.min(loy, p.y); hiy = Math.max(hiy, p.y);
+    private static Area[] coverage(List<List<Coord2d>> pieces) {
+        Area[] out = new Area[pieces.size()];
+        for(int i = 0; i < out.length; i++) {
+            double lox = Double.MAX_VALUE, loy = Double.MAX_VALUE;
+            double hix = -Double.MAX_VALUE, hiy = -Double.MAX_VALUE;
+            for(Coord2d p : pieces.get(i)) {
+                lox = Math.min(lox, p.x); hix = Math.max(hix, p.x);
+                loy = Math.min(loy, p.y); hiy = Math.max(hiy, p.y);
+            }
+            out[i] = Area.corn(Coord2d.of(lox, loy).floor(MCache.tilesz).sub(1, 1),
+                               Coord2d.of(hix, hiy).floor(MCache.tilesz).add(2, 2));
         }
-        return Area.corn(Coord2d.of(lox, loy).floor(MCache.tilesz).sub(1, 1),
-                         Coord2d.of(hix, hiy).floor(MCache.tilesz).add(2, 2));
+        return out;
+    }
+
+    /**
+     * The box round the boxes — what {@link #filter} rejects nearly every cut of the map with, in one
+     * comparison. A patch with no pieces left gets an empty box at the origin, and that is only ever a fast
+     * reject: the walk below it is over no boxes at all, so such a patch answers "nowhere in b" for every
+     * cut, the one that spans the origin included.
+     */
+    private static Area bounds(Area[] boxes) {
+        if(boxes.length == 0)
+            return Area.corn(Coord.z, Coord.z);
+        Area b = boxes[0];
+        for(int i = 1; i < boxes.length; i++)
+            b = b.include(boxes[i]);
+        return b;
     }
 
     public MCache.OverlayInfo id() {return(this);}
@@ -147,15 +180,27 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
      * expression. {@code Area.isects} is the test {@code overlap} itself runs first, so the answer is the same
      * one and nothing is built to reach it.
      */
-    public boolean filter(Area b) {return(!b.isects(tiles));}
+    public boolean filter(Area b) {
+        if(!b.isects(tiles))
+            return true;                               // the one comparison that rejects nearly every cut
+        for(Area box : boxes) {
+            if(b.isects(box))
+                return false;
+        }
+        return true;                                   // inside the hull, between the pieces: nothing here
+    }
 
     public void fill(Area b, boolean[] buf) {
-        Area ol = tiles.overlap(b);
-        if(ol != null) {
+        for(Area box : boxes) {
+            Area ol = box.overlap(b);
+            if(ol == null)
+                continue;
             for(Coord lc : ol)
-                buf[b.ri(lc)] = true;
+                buf[b.ri(lc)] = true;                  // two pieces over one tile write the same true twice
         }
     }
 
-    public String toString() {return(String.format("#<patch-overlay %s>", tiles));}
+    public String toString() {
+        return(String.format("#<patch-overlay %d piece(s) in %s>", boxes.length, tiles));
+    }
 }

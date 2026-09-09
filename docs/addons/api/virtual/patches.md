@@ -1,14 +1,18 @@
 # hafen.virtual: a shape lying on the ground
 
-A **patch** is a convex ring of places drawn flat on the terrain — a highlighted field, an object's own
-footprint, the reach of something you are about to build. It is the one kind here that lies **down**: a
-[ghost](ghosts.md), a [sprite](sprites.md), a [model](models.md) and a [standing widget](widgets.md) all
-stand up, and a patch is on the ground under them.
+A **patch** is a shape drawn flat on the terrain — a highlighted field, an object's own footprint, the reach
+of something you are about to build. It is the one kind here that lies **down**: a [ghost](ghosts.md), a
+[sprite](sprites.md), a [model](models.md) and a [standing widget](widgets.md) all stand up, and a patch is on
+the ground under them.
 
 It lies on the ground **exactly**: over a slope, a ridge or a tile boundary it follows the relief with no
 float, no gap and no shimmer, and whatever stands on that ground occludes it, your own character included —
-until you say [the world may not hide it](#drawing-through-the-world). Its edge is the ring's own shape at
+until you say [the world may not hide it](#drawing-through-the-world). Its outline is the shape's own at
 every zoom, rather than a staircase of square tiles, and [a line can be drawn along it](#the-border).
+
+The shape is the union of convex [pieces](pieces.md), and `:add(ring, anchor)` lays a patch of one. That is
+the whole of the difference between a patch and a ring: a footprint or a field is one piece and reads as the
+ring it was laid with, and anything that is not convex is the same patch carrying more of them.
 
 `hafen.virtual():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays
 one and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
@@ -25,50 +29,6 @@ local patch = hafen.virtual():patch():add(ring, here):tint{40, 200, 120}
 A patch is **client-only**: it has no server id, is never sent, and grants nothing — see
 [the section's permission note](README.md).
 
-## The ring
-
-`ring` is an array of [Position](../position.md)s, in order around the shape, wound either way. Each point is
-a real place in the world, so the rings [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) hands back go in
-**unchanged** — no projection, no conversion, one patch per ring:
-
-```lua
-local me = hafen.session():current():player():gob()
-for _, ring in ipairs(me:hitbox() or {}) do            -- nil until the object's resource resolves
-  hafen.virtual():patch():add(ring, me):tint{255, 80, 80}   -- lit up on that object's own footprint
-end
-```
-
-What a patch keeps is the ring as **offsets from its anchor**, not as points, which is why the same ring
-means the same shape at a point and on an object, and why it survives
-[the numbers moving under it](README.md#the-ground-under-one-that-stands-still).
-
-The ring cannot be changed afterwards: it is what the patch was made from, and a different shape is a
-different patch. There is no `:ring()` verb — `patch:info().ring` reads back the shape it holds.
-
-## What a ring may be
-
-Each rule below is a **refusal** naming itself, because a ring drawn as some other shape is the one outcome
-a drawing verb must not have.
-
-| The ring | What `:add` does |
-|---|---|
-| fewer than three points | raises: a ring of two is a line, and a line has no ground under it |
-| three or more points enclosing nothing — all the same place, or all on one line | raises, naming how many edges it actually found |
-| concave | raises: the silhouette is the intersection of the ring's edge half-planes, so a concave ring would be drawn as its hull |
-| more than **32** edges | raises, naming that number — refused rather than truncated to the wrong shape |
-| an element that is not a Position | raises, naming which one and the three verbs that make a place |
-| a point with no way to reach the anchor — another grid, and neither end located this session | raises: a ring one point short is the wrong shape, not a smaller one |
-
-The edge limit is the length the half-planes are declared at in the fragment stage. Split a bigger shape
-into convex rings and lay one patch each; that is also the answer for a concave one.
-
-```lua
-local ok, err = pcall(function()
-  hafen.virtual():patch():add({ here, here:offset(6, 0) }, here)   -- two points
-end)
-hafen.log():write(tostring(err))                              -- ...says a line has no ground under it
-```
-
 ## The anchor
 
 The [anchor](README.md#the-anchor-is-an-argument) is the same argument every other kind takes, and it means
@@ -80,7 +40,7 @@ the same two things:
 
 A patch that follows is re-laid where the object moved, and only where it moved: it is under the feet the
 whole way, and an object standing still leaves it lying where it lies at no cost to the frame. It keeps its
-own shape while it goes: the ring is offsets, and the object's own turning does not turn it —
+own shape while it goes: its pieces are offsets, and the object's own turning does not turn it —
 `patch:rotate(a)` is what turns a patch.
 
 ## The patch
@@ -90,7 +50,8 @@ the shared ones answer differently here, and both because a patch is on the grou
 
 | Method | Permission | Description |
 |---|---|---|
-| `patch:border()` / `patch:border(c [, w])` | unprotected | [the line round the ring](#the-border); `nil` clears it |
+| `patch:piece()` | unprotected | the convex [pieces](pieces.md) this shape is the union of |
+| `patch:border()` / `patch:border(c [, w])` | unprotected | [the line round the shape](#the-border); `nil` clears it |
 | `patch:occluded()` / `patch:occluded(b)` | unprotected | [may the world hide it](#drawing-through-the-world); `true` by default |
 | `patch:offset()` / `patch:offset(x, y)` | unprotected | where it sits relative to the object it follows — **two** numbers, on the ground |
 | `patch:drawn()` | unprotected | is it on the terrain being drawn right now? |
@@ -99,10 +60,11 @@ the shared ones answer differently here, and both because a patch is on the grou
 different thing and this is not it — what a raised one would mostly have been for is being seen over what
 stands around it, and [`patch:occluded(b)`](#drawing-through-the-world) is that without leaving the ground.
 
-Everything else reads exactly as it does for the kinds that stand up. `:scale(k)` takes the ring out from
+Everything else reads exactly as it does for the kinds that stand up. `:scale(k)` takes the shape out from
 its own place, `:rotate(a)` turns it there, `:tint(c)` and `:alpha(a)` colour it, `:visible(b)` takes it off
 the ground and puts it back, and `:position(p)` moves a planted one — on one that follows, that raises
-naming `patch:offset` instead.
+naming `patch:offset` instead. Each of them moves every [piece](pieces.md) of the shape together, since a
+piece is held as offsets from the patch's own anchor.
 
 **On a patch the tint is the fill**, and so its fourth component is the fill's own opacity rather than a
 blend strength: there is no picture underneath for a strength to be measured against. `:alpha(a)` is the
@@ -124,7 +86,7 @@ can see through.
 |---|---|
 | `border` | `{color = c, width = w}` — the pair [`patch:border()`](#the-border) hands back |
 | `occluded` | whether the world may hide it, the boolean [`patch:occluded()`](#drawing-through-the-world) reads |
-| `ring` | the shape, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with |
+| `ring` | the ring it was laid with, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with — every piece's own is [`piece:info()`](pieces.md#the-piece) |
 
 `border` is absent while no line is laid and `ring` while the character on screen cannot locate the patch at
 all — `hafen.virtual()` stands its things in the scene being drawn, so `ring` is that character's reading of
@@ -140,9 +102,10 @@ hafen.log():write(i.kind .. ": " .. #i.ring .. " point(s), alpha " .. i.alpha)
 
 ## The border
 
-`patch:border(c, w)` draws a line at one colour and one thickness all the way round the ring. Its centre is
+`patch:border(c, w)` draws a line at one colour and one thickness all the way round the shape. Its centre is
 left to whatever fills the patch, and a patch with no border laid has none drawn — the property is left out
-rather than set to something invisible.
+rather than set to something invisible. On a patch of several [pieces](pieces.md) it runs round their union,
+so an internal join carries no line.
 
 | Written | Does |
 |---|---|
@@ -161,9 +124,9 @@ local two = hafen.virtual():patch():add(other, there):border(one:border())
 ```
 
 **The width is world units, like every other length on a patch** — `w` of `11` is a tile, and `:scale(k)`
-takes the ring out around a line that stays the thickness it was told. `0` is the default and means
+takes the shape out around a line that stays the thickness it was told. `0` is the default and means
 the thinnest line the screen can draw. Below that it cannot go: whatever `w` says, the line is never drawn
-thinner **on screen** than the one pixel the ring's own edge already is, so a border does not fade out as
+thinner **on screen** than the one pixel the shape's own edge already is, so a border does not fade out as
 the camera pulls back. A `w` outside `0..100` is brought to the nearer end, the way
 [`:scale`](README.md#one-vocabulary-every-kind) and `:alpha` are, rather than refused.
 
@@ -172,7 +135,7 @@ the camera pulls back. A `w` outside `0..100` is brought to the nearer end, the 
 it as `{color = …, width = …}`, while out here it is a call and says it as two arguments —
 `patch:border(c, w)`, as [`g:line(x1, y1, x2, y2, width)`](../ui/drawing.md) has them. So a rule's own value
 raises, naming that; so does a picture spelling (`box`, `slice`, an image), which frames a rectangle out of
-art and has nothing to draw along a ring. A `c` that is not a colour raises naming the two colour spellings.
+art and has nothing to draw along an outline. A `c` that is not a colour raises naming the two colour spellings.
 
 ```lua
 local ok, err = pcall(function() patch:border{box = "gfx/hud/wnd"} end)
@@ -181,7 +144,7 @@ hafen.log():write(tostring(err))          -- ...says a border out here is two ar
 
 ## Drawing through the world
 
-`patch:occluded(false)` says the world may not hide the ring: a wall, a hill or a house between you and it
+`patch:occluded(false)` says the world may not hide the shape: a wall, a hill or a house between you and it
 stops cutting it, and it is drawn whole. `patch:occluded(true)` is the default and is what every patch does
 until it is told otherwise — the ground, the buildings and your own character are all in front of it, and it
 is drawn where they are not.
@@ -201,10 +164,10 @@ through the flip exactly as they were.
 - **The interface still covers it.** A patch is drawn inside the world, and your windows, your chat and
   every other 2D thing are drawn after the world is finished. A ring under a window is under it either way.
 - **It still lies on the ground.** The shape follows the slope, the ridge and the tile boundary as it always
-  did — this is not a flat shape drawn over the screen, it is the same ring on the same relief with one test
+  did — this is not a flat shape drawn over the screen, it is the same shape on the same relief with one test
   switched off.
 - **It is still only where the ground is.** A patch exists on terrain the client has built; ground that has
-  not arrived yet has nothing to draw a ring on, so `patch:drawn()` still answers what it did and a patch on
+  not arrived yet has nothing to draw a shape on, so `patch:drawn()` still answers what it did and a patch on
   ground this character cannot reach still waits.
 
 The other kinds are unchanged: a [ghost](ghosts.md), a [sprite](sprites.md) and a
@@ -213,10 +176,13 @@ verb of their own for this.
 
 ```lua
 local me = hafen.session():current():player():gob()
+local mine
 for _, ring in ipairs(me:hitbox() or {}) do
-  hafen.virtual():patch():add(ring, me)
-    :tint({255, 200, 40, 90}):border({255, 200, 40}, 0.4)
-    :occluded(false)                       -- still readable from the far side of the barn
+  if mine then mine:piece():add(ring) else
+    mine = hafen.virtual():patch():add(ring, me)
+      :tint({255, 200, 40, 90}):border({255, 200, 40}, 0.4)
+      :occluded(false)                     -- still readable from the far side of the barn
+  end
 end
 ```
 
@@ -238,7 +204,7 @@ hafen.virtual():patch():find(function(one) return one:drawn() end)  -- the first
 ```
 
 `tostring(patch)` is `Patch`, and a verb no patch has answers naming `patch` and listing what it does have,
-`border` among them.
+`border` and `piece` among them.
 
 ## Clickability
 
@@ -269,8 +235,9 @@ addon that laid it.
 
 ## See also
 
+- [pieces](pieces.md) — the convex rings a patch is the union of: what a ring may be, and the edge budget
 - [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
-- [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) — the rings this collection takes unchanged
+- [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) — the rings a patch takes unchanged
 - [Position](../position.md) — the place every point of a ring is, and the offset verb that builds one
 - [ghosts](ghosts.md) — the same core, standing up instead
 - [events](../event/bus/world.md#world-ghosts-and-sprites) — `PatchClicked`

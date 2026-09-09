@@ -69,9 +69,9 @@ final class PatchClick {
         for(LuaPatch p : live) {
             List<Coord2d> ring;
             synchronized(p) {
-                if(p.dead || !p.clickable || !p.drawn() || (p.rc == null))
+                if(p.dead || !p.clickable || !p.drawn() || (p.rc == null) || p.pieces.isEmpty())
                     continue;
-                ring = p.worldRing();
+                ring = p.worldPieces().get(0);         // the piece the patch was laid with
             }
             int n = ring.size();
             double[] sx = new double[n], sy = new double[n];

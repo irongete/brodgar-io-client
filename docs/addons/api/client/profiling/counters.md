@@ -91,7 +91,7 @@ another.
 terrain work. The client cuts the ground into squares, and every ground overlay — a
 [patch](../../virtual/patches.md) you lay, a claim or a province the client draws — is laid a second time
 over each cut its shape reaches: once as the sheet, and again as the outline round it where the overlay has
-one. So laying a patch moves `overlayMeshes` by the cuts its ring reaches and no others, and leaves
+one. So laying a patch moves `overlayMeshes` by the cuts its own [pieces](../../virtual/pieces.md) reach and no others, and leaves
 `overlayOutlines` where it was, because a patch's own
 [edge](../../virtual/patches.md#the-border) is carved into the sheet the cut already draws rather than laid
 as a second mesh over it — so wearing one, widening it or taking it off moves neither counter either.

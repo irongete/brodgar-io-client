@@ -1,0 +1,9 @@
+{
+  "name": "136.1 — a patch is many pieces, drawn as their union",
+  "id": "136-a-shape-of-many-pieces.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 136.1: patch:piece() is the collection of one patch's convex pieces — one ring is one piece, a second is the same patch, the ring rules hold per piece and the edge budget is the patch's.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
