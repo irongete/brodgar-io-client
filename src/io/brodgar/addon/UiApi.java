@@ -2683,6 +2683,16 @@ final class UiApi {
      * {@code m:cursor(name)} — force the pointer's picture, or {@code m:cursor(nil)} to put it back. A short
      * name is one of the client's own under {@code gfx/hud/curs/}; anything with a slash in it is a resource
      * path taken as written.
+     *
+     * <p><b>The name is resolved in {@link Resource#remote()}, not {@code local()}</b>. Only four cursors are
+     * bundled in the client jar — {@code arw}, {@code flag}, {@code hand}, {@code wrench} — while the pointers
+     * the game itself puts up ({@code study}, {@code harvest}, {@code mine}, …) are served from the resource
+     * URL like every other piece of the game's art. Resolving here in the local pool made the verb reach
+     * exactly those four and answer "no such cursor resource" for the whole rest of the catalogue, which is
+     * the catalogue an addon wants: a mode says what it is waiting for by wearing the game's own picture for
+     * it. {@code remote()} has {@code local()} as its parent, so the bundled four still resolve first and no
+     * name that worked before changes meaning. It is the pool {@code g:resource} and {@code hafen.virtual}
+     * already name resources in; {@code hafen.sound} is the deliberate exception, and says so itself.
      */
     static synchronized void setCursor(Addon owner, String name) {
         if(name == null) {
@@ -2692,7 +2702,7 @@ final class UiApi {
             return;
         }
         String res = (name.indexOf('/') >= 0) ? name : ("gfx/hud/curs/" + name);
-        forced = new Forced(owner, name, Resource.local().load(res));
+        forced = new Forced(owner, name, Resource.remote().load(res));
     }
 
     /** Teardown: an addon that has stopped running does not go on holding the pointer. */

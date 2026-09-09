@@ -106,7 +106,7 @@ final class LuaMouse {
                 }
                 if(!v.isstring())
                     throw new LuaError("mouse():cursor(name): name must be a cursor name — one of the"
-                        + " client's own under gfx/hud/curs (\"arw\", \"hand\", \"flag\", \"wrench\"), or a"
+                        + " game's own under gfx/hud/curs (\"arw\", \"hand\", \"study\", \"dig\", …), or a"
                         + " resource path with a slash in it. mouse():cursor(nil) puts the pointer back."
                         + " Got " + v.typename());
                 UiApi.setCursor(owner, v.tojstring());

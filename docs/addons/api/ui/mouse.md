@@ -47,9 +47,11 @@ m:cursor()                          -- "hand"
 m:cursor(nil)                       -- and back to whatever the client would have drawn
 ```
 
-A short name is one of the client's own under `gfx/hud/curs` — `arw`, `hand`, `flag`, `wrench` — and a name
-with a slash in it is a resource path taken as written. Anything that is not a string raises, naming both
-spellings.
+A short name is one of the game's own under `gfx/hud/curs` — `arw`, `hand`, `flag`, `wrench`, `study`,
+`dig`, `harvest`, `atk` — and a name with a slash in it is a resource path taken as written. Anything that is
+not a string raises, naming both spellings. The name is resolved in the **whole** resource pool, the same one
+[`g:resource`](drawing.md) draws from, so every pointer the game itself puts up is a pointer a mode of yours
+can wear.
 
 - **It wins over everything.** A forced cursor is the answer wherever the pointer is, over a widget with a
   cursor of its own included — a targeting mode that lost its picture over the inventory would be saying
