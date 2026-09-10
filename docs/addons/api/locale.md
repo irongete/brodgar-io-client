@@ -224,7 +224,7 @@ pixels — and nowhere above it. So while yours is installed:
   you had a catalogue;
 - what a **tooltip row** says answers the same way, even though an entry under `tooltip` is what changed it
   on screen: [`item:name()`](ui/items.md#the-item-object) and `item:info().name`, the rows
-  [`contents:text()`](ui/items.md#what-an-item-holds) prints, [`buff:name()`](buff.md#read),
+  [`contents:text()`](ui/contents.md) prints, [`buff:name()`](buff.md#read),
   [`wound:name()`](wound.md#a-wound) and the slot names [`item:slots()`](ui/items.md#the-item-object)
   answers with;
 - so does [`gob:speech()`](gob.md#read), while the bubble over that character reads your words;

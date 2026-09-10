@@ -180,7 +180,9 @@ final class LuaHand {
                 LuaItem ti = LuaItem.resolve(target);
                 if(ti != null) {
                     view(user);
-                    GItem g = LuaItem.live(ti);
+                    if(LuaItem.held(ti) == null)              // 137.1: a depiction has no widget to act on
+                        throw new LuaError(LuaItem.drawnNotHeld(USE));
+                    GItem g = LuaItem.liveHeld(ti);
                     if(g == null)
                         throw new LuaError(USE + ": the target item is gone — it was moved, used or consumed"
                             + " (item:exists() is false). Nothing was sent: an item that has left is not the"

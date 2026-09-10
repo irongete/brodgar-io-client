@@ -31,7 +31,7 @@ character sheet fires: attributes, learning points, weight, skills, credos and l
 
 Items entering or leaving a **container** are not on this bus: a chest is not a global fact, so you
 subscribe to the container itself with
-[`widget:on("ItemAdded"/"ItemRemoved"/"Removed", fn)`](../../ui/items.md#the-container-lifecycle).
+[`widget:on("ItemAdded"/"ItemRemoved"/"Removed", fn)`](../../ui/container.md).
 `EquipChanged` stays global because your worn gear is one fixed surface.
 
 `ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](../../actionbar.md) — the same

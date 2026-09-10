@@ -1,6 +1,8 @@
 package io.brodgar.addon;
 
 import haven.ACheckBox;
+import haven.AWidget;
+import haven.BAttrWnd;
 import haven.Button;
 import haven.ChatUI;
 import haven.CheckBox;
@@ -8,6 +10,7 @@ import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
 import haven.FromResource;
+import haven.GItem;
 import haven.GameUI;
 import haven.HSlider;
 import haven.IButton;
@@ -16,7 +19,9 @@ import haven.IMeter;
 import haven.ISBox;
 import haven.Img;
 import haven.Inventory;
+import haven.ItemInfo;
 import haven.Label;
+import haven.Makewindow;
 import haven.MenuGrid;
 import haven.Progress;
 import haven.RadioGroup;
@@ -1229,10 +1234,11 @@ public final class LuaWidget {
         // item() — 103.1: the ONE item this widget DRAWS, and nil on every other widget and on a stale one.
         // The join :items() cannot make: Widget.children(Class) is a deep traversal that EXCLUDES the receiver,
         // so an item icon's own :items() is empty by construction — an addon handed an icon by a selector match
-        // or a MouseDown subscription could read WHERE it is and never WHAT it is. WItem.item is public, final
-        // and set in the constructor, so the answer stands from the moment the placement seam offers the widget.
-        // The Item handed back is the INTERNED one, so it is == the entry the container around it lists.
-        // Unprotected: a read of what is already drawn on the screen.
+        // or a MouseDown subscription could read WHERE it is and never WHAT it is.
+        //   WHAT COUNTS AS AN ICON IS itemOf(w) AND NOTHING ELSE (137.1): a container's cell, a recipe slot, a
+        // constipation row's food icon, and a widget shipped inside a resource that draws its own depiction.
+        // The Item handed back is the INTERNED one, so it is == the entry the container around it lists, and
+        // == a second read of the same icon. Unprotected: a read of what is already drawn on the screen.
         m.set("item", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -1241,9 +1247,7 @@ public final class LuaWidget {
                         + " this reads it. The items INSIDE a container are widget:items(), a collection whose"
                         + " :find(filter) searches and whose :list()[n] takes a position.");
                 Widget w = live(handle(self, "item"));
-                if(!(w instanceof WItem))
-                    return LuaValue.NIL;
-                return LuaItem.of(owner, ((WItem)w).item);
+                return LuaItem.of(owner, itemOf(w), w);
             }
         });
         // group() — THE GROUP A ROW DRAWS ITS NAME IN, and nil on every other widget. The join the row itself
@@ -2817,6 +2821,52 @@ public final class LuaWidget {
         if(w == null)
             return new ArrayList<WItem>();
         synchronized(monitor(w)) { return new ArrayList<WItem>(w.children(WItem.class)); }
+    }
+
+    /**
+     * <b>What this widget draws, as one depiction</b> — the {@link ItemInfo.SpriteOwner} behind
+     * {@code widget:item()}, or {@code null} for the great majority of widgets. ONE method, the discipline
+     * {@link #typeName}, {@link #text} and {@link #role} already keep for fragile upstream knowledge: every
+     * question the API asks about "is this an item icon" comes through here, so upstream churn breaks this
+     * method and not the surface above it.
+     *
+     * <p><b>An item is a thing the client draws, and the widget drawing it is its address.</b> The engine
+     * models one in two ways and the API covers both with one type: the server pushes a {@link GItem}, which a
+     * container mints a {@link WItem} to draw; and a <i>depiction</i> — a resource, an {@code sdt} and a
+     * tooltip list held by whoever draws it, with no server widget behind it at all. {@code SpriteOwner} is
+     * the engine's own name for the family, and the four rules below are its implementors, most specific
+     * first:
+     *
+     * <ol>
+     *   <li>a {@link WItem} &rarr; the {@link GItem} it draws. {@code WItem.item} is {@code public final} and
+     *       set in the constructor, so the answer stands from the moment the placement seam offers the widget
+     *       (and the cursor's {@code ItemDrag} is a {@code WItem}, so it answers too);</li>
+     *   <li>a {@link Makewindow.SpecWidget} &rarr; its {@code Makewindow.Spec} — one input or output slot of
+     *       the crafting window, {@code Makewindow.Input} included;</li>
+     *   <li>a {@code BAttrWnd.Constipations.ItemIcon} &rarr; its {@link haven.ItemSpec} — the food icon a
+     *       constipation row draws;</li>
+     *   <li>a widget that <b>is</b> a {@code SpriteOwner} itself &rarr; itself. Resource code ships
+     *       {@code ItemSpec} for exactly this, and a {@code .res} widget holding one is reached the day its
+     *       class loads, without a name here.</li>
+     * </ol>
+     *
+     * <p><b>An {@link AWidget} is never an icon</b>, which is what keeps rule 4 from claiming a {@code GItem}:
+     * a {@code GItem} is a {@code SpriteOwner} and a widget, but it is hidden and paints nothing — its
+     * {@code WItem}s are what is on screen. The abstract-widget base is the engine's own marker for "in the
+     * tree, drawn by somebody else", so it is the test rather than a class list.
+     */
+    static ItemInfo.SpriteOwner itemOf(Widget w) {
+        if(w == null)
+            return null;
+        if(w instanceof WItem)
+            return ((WItem)w).item;                                   // may be null: an icon with no item yet
+        if(w instanceof Makewindow.SpecWidget)
+            return ((Makewindow.SpecWidget)w).spec;
+        if(w instanceof BAttrWnd.Constipations.ItemIcon)
+            return ((BAttrWnd.Constipations.ItemIcon)w).spec;
+        if((w instanceof ItemInfo.SpriteOwner) && !(w instanceof AWidget))
+            return (ItemInfo.SpriteOwner)w;
+        return null;
     }
 
     // ---- liveness + the reads ----------------------------------------------------------------------

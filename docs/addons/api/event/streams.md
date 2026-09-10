@@ -47,7 +47,7 @@ reaches the server, which an event on [the bus](bus/README.md) would arrive too 
 cancel is only worth anything while the client is still waiting for the answer — so an `ev` you stashed
 in a table and reach for later raises rather than cancelling a send that has already gone. They raise
 too when the widget the message came from has left the tree, which is a message addressed to a widget
-the client no longer draws. Hold the [widget](../widget.md) and use `widget:send(msg, ...)` when you
+the client no longer draws. Hold the [widget](../ui/widget.md) and use `widget:send(msg, ...)` when you
 mean to send outside the moment.
 
 A coordinate argument is in one of two spaces and nothing in its shape says which: a `click` carries the

@@ -134,7 +134,7 @@ end)
 ```
 
 Containers work the same way: subscribe to the container itself with
-[`:on("ItemAdded", fn)`](../api/ui/items.md#the-container-lifecycle) rather than looking for an event about
+[`:on("ItemAdded", fn)`](../api/ui/container.md) rather than looking for an event about
 chests — the same door you would reach for on any widget you hold, per the table above.
 
 **Next:** [custom UI](custom-ui.md) — a window of your own, and what to draw in it.

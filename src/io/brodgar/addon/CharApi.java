@@ -1692,8 +1692,12 @@ final class CharApi {
      * which is what it drew: reading a name is itself what builds the tip, so a {@code tooltip} entry
      * naming this row would otherwise come straight back out of this verb. A {@code Name} the caller
      * handed a rendered {@link haven.Text} has no source, and its raster is the only name there is.
+     *
+     * <p>Typed on the <b>interface</b> (137.1), so a depiction the client draws out of a resource — a recipe
+     * slot, a listing — names itself through the same read: its rows are built by the same static, out of
+     * the same wire shape, and a name is a name whoever holds the list.
      */
-    static String itemNameOf(GItem it) {
+    static String itemNameOf(ItemInfo.Owner it) {
         try {
             return nameStr(ItemInfo.find(ItemInfo.Name.class, it.info()));
         } catch(RuntimeException e) {   // Loading etc.
@@ -1715,10 +1719,14 @@ final class CharApi {
         return (n.str == null) ? null : n.str.text;
     }
 
-    /** Resource name (stable identity) for an item, or {@code null} (Loading-guarded). */
-    static String itemResOf(GItem it) {
+    /**
+     * Resource name (stable identity) for an item, or {@code null} (Loading-guarded) — through
+     * {@code resource()}, which is the one read every kind of item owner declares. For a depiction that is
+     * the <b>concrete</b> item, not the constraint a recipe slot may be drawing in its place.
+     */
+    static String itemResOf(ItemInfo.ResOwner it) {
         try {
-            Resource r = it.res.get();
+            Resource r = it.resource();
             return (r == null) ? null : r.name;
         } catch(RuntimeException e) {
             return null;

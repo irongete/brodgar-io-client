@@ -1,0 +1,10 @@
+{
+  "id": "137-an-item-the-client-draws-is-an-item.1",
+  "name": "137.1 — a depiction is an Item",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 137.1: a crafting recipe's slots answer widget:item() with a real interned Item, that Item reads its resource and its tooltip while answering absence for every place-read, a write on it is refused naming drawn, not held, a backpack item is unchanged beside it, and a depiction whose icon leaves the tree goes stale while still naming itself.",
+  "api_version": 1,
+  "permissions": ["item.*"],
+  "files": ["main.lua"]
+}

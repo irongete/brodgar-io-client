@@ -105,7 +105,9 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [the mouse](ui/mouse.md) | where the pointer is, what is under it, the modifier keys, and the grab that makes a drag yours |
 | [the pixel](ui/pixels.md) | the unit every coordinate and size is measured in, and the scale in force |
 | [selectors](ui/selectors.md) | naming a widget: the grammar, the lookups, roles, hit-testing, and the inspector |
-| [items](ui/items.md) | the items inside a container, while the window stays live |
+| [items](ui/items.md) | the items the client draws, found through the icons that draw them |
+| [contents](ui/contents.md) | what one item holds, and how a stack differs from a bucket |
+| [container](ui/container.md) | an item entering or leaving a container |
 | [native widgets](ui/native.md) | placing and hiding the client's own widgets, handing one to the user to drag or size, and the restore that comes with all of it |
 | [edit](ui/edit.md) | changing one part of one of the client's windows: taking over what a control does |
 | [replace](ui/replace.md) | waiting for a widget to appear, and standing your own window in its place |

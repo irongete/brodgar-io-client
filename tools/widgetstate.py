@@ -23,9 +23,12 @@ Two mechanical checks, in the shape tools/docverbs.py and tools/refusalverbs.py 
   exception is a `java.lang.ref` reference, whose whole job is to break the chain, and which is not
   followed.
 
-The key types are not a list kept here: `extends` is read out of `src/**` and closed transitively from
-`haven.Widget`, so `GItem`, `IMeter`, `Buff` and `ChatUI.Channel` are covered because they ARE widgets, and
-a map keyed on a widget class written next year is covered because it will be one too.
+The key types are not a list kept here: `extends` is read out of `src/**` and closed transitively from two
+roots, so `GItem`, `IMeter`, `Buff` and `ChatUI.Channel` are covered because they ARE widgets, and a map
+keyed on a widget class written next year is covered because it will be one too. The second root is
+`ItemInfo.SpriteOwner`, the engine's name for a thing an icon DRAWS: one of those is either a widget itself
+or a field of the widget drawing it, so it dies exactly when a widget dies and a map keyed on it leaks in
+exactly the same way.
 
     python tools/widgetstate.py            # report
     python tools/widgetstate.py --verbose  # ...and list every field with the note it carries
@@ -60,6 +63,10 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
   * A field typed `Object`, or one whose type this tree does not declare. Check 2 resolves a value class
     against `src/io/brodgar/**` and reads its DECLARED field types; a JDK type is counted and skipped, and
     `Object` is not treated as able to hold the key, because it is and the report would be noise.
+  * WHICH of two types share a simple name, once the name is written in neither's file. A value class is
+    resolved the way javac resolves it -- its OWN file first, since more than thirty caches in this package
+    each declare a private `Ref` -- and only a name declared nowhere in the map's file falls back to every
+    declaration of it in the tree, where a hit on any one of them is reported.
 """
 import io, os, re, sys
 
@@ -176,12 +183,13 @@ def scan(code):
 
 
 def widget_types():
-    """Every type in src/** that IS a haven.Widget, closed transitively over `extends`, and the graph."""
+    """Every type in src/** that dies with a widget -- a `haven.Widget`, or an `ItemInfo.SpriteOwner`, which
+    is drawn by one -- closed transitively over `extends`, and the graph."""
     parent = {}
     for path in javafiles(SRC):
         for m in EXTENDS.finditer(blank(read(path))):
             parent.setdefault(m.group(1), m.group(2).split(".")[-1])
-    types, changed = set(["Widget"]), True
+    types, changed = set(["Widget", "SpriteOwner"]), True
     while changed:
         changed = False
         for child, up in parent.items():
@@ -371,7 +379,11 @@ def check_weak(files, parent):
                 if v not in decls:
                     continue
                 resolved = True
-                for vrel, vcode in decls[v]:
+                # The name resolves in ITS OWN FILE first, exactly as javac resolves it: a nested `Ref` is
+                # private to the cache that declares it, and this package declares one per cache -- so a
+                # tree-wide match by simple name reads one class's fields into another class's map.
+                here = [d for d in decls[v] if d[0] == rel] or decls[v]
+                for vrel, vcode in here:
                     for ft in field_types(vcode, v):
                         if holds(ft, k, parent):
                             cycles.append((rel, code.count("\n", 0, m.start()) + 1, k, v, ft, vrel))
@@ -398,7 +410,7 @@ def main():
     methods = declared_methods(plain)
 
     seen, missing, dead, listed = check_notes(files, types, reach, methods)
-    print("%d widget-keyed map fields, over %d types that are a haven.Widget" % (seen, len(types)))
+    print("%d widget-keyed map fields, over %d types that die with a widget" % (seen, len(types)))
     print("the disposal drain calls %d methods directly and reaches %d in all" % (len(direct), len(reach)))
     if missing:
         print("\n== %d field(s) with neither a `// retired:` nor a `// retained:` note ==" % len(missing))

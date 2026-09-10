@@ -3746,9 +3746,14 @@ public final class AddonManager {
      * item. A {@code GItem} is an {@code AWidget}, so a disposed one is already in this queue and needs no tap
      * of its own — and it needs this drain more than anything else here does, because an inventory that closes
      * <b>destroys</b> the items inside it rather than removing them, so the removal drain's own
-     * {@code dropItemSubs} never sees one. Both calls are behind a single kind test: the caches are keyed on a
-     * {@code GItem}, an {@code IMeter} or a {@code Buff}, and a widget of none of those kinds — almost every
-     * widget that reaches here — pays three {@code instanceof} and no per-addon call at all.
+     * {@code dropItemSubs} never sees one. Both calls are behind a single kind test: the caches are keyed on
+     * what is drawn, an {@code IMeter} or a {@code Buff}, and a widget of none of those kinds — almost every
+     * widget that reaches here — pays a handful of {@code instanceof} and no per-addon call at all.
+     *
+     * <p><b>And a depiction dies exactly here too</b> (137.1). A recipe slot, a constipation row's food icon
+     * and a {@code .res} widget's own listing are drawn out of a resource with nothing on the wire behind
+     * them, so the only end they have is the death of the widget drawing them:
+     * {@link LuaWidget#itemOf} resolves it, and the same two calls retire the subscriptions and the handle.
      */
     private static void drainDisposedWidgets(SessionState st, int n) {
         if(n <= 0)
@@ -3769,12 +3774,13 @@ public final class AddonManager {
                                                              //   anchors and the drag listener that named IT
             Gesture.dispatchRemoved(w);                      // addon: 128.4 — ...and its gesture bindings, which
                                                              //   a widget dying as a DESCENDANT reaches here only
-            if(w instanceof GItem) {                         // addon: 128.5 — ...and, for an item destroyed WITH
-                GItem it = (GItem)w;                         //   its container, the subscriptions on it: an
-                for(int i = 0, m = owners.size(); i < m; i++) //   inventory closing never removes what it holds
-                    owners.get(i).dropItemSubs(it);
+            ItemInfo.SpriteOwner drawn = (w instanceof GItem)     // addon: 137.1 — the thing this widget draws:
+                ? (GItem)w : LuaWidget.itemOf(w);                //   itself for an item, its own for a depiction
+            if(drawn != null) {                              // addon: 128.5 — ...and, for an item destroyed WITH
+                for(int i = 0, m = owners.size(); i < m; i++) //   its container, the subscriptions on it: an
+                    owners.get(i).dropItemSubs(drawn);       //   inventory closing never removes what it holds
             }
-            if((w instanceof GItem) || (w instanceof IMeter) || (w instanceof Buff)) {
+            if((drawn != null) || (w instanceof IMeter) || (w instanceof Buff)) {
                 for(int i = 0, m = owners.size(); i < m; i++)  // addon: 128.5 — ...and every handle interned for
                     owners.get(i).dropInternedHandles(w);      //   it, in the strong-keyed caches that pin it
             }
@@ -3791,7 +3797,7 @@ public final class AddonManager {
      * cannot collect the pair on its own; see {@link Addon#dropItemSubs}. The same discipline
      * {@link WidgetSubs} keeps for a watched widget, at the same seam.
      */
-    private static void dropItemSubs(GItem it) {
+    private static void dropItemSubs(ItemInfo.SpriteOwner it) {
         for(Addon a : addons)
             a.dropItemSubs(it);
         Addon c = consoleOwner;

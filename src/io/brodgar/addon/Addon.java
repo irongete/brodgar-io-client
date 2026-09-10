@@ -5,6 +5,7 @@ import haven.BAttrWnd;
 import haven.Buff;
 import haven.GItem;
 import haven.IMeter;
+import haven.ItemInfo;
 import haven.Widget;
 
 import org.luaj.vm2.Globals;
@@ -1024,7 +1025,7 @@ public final class Addon {
      */
     // retired: Addon.dropItemSubs -- an item destroyed WITH the container that held it reaches the disposal
     //   drain and no removal, and a handler closing over its own item makes the value reach the key.
-    final Interned<GItem, Subs> itemSubs = Interned.held();
+    final Interned<ItemInfo.SpriteOwner, Subs> itemSubs = Interned.held();
 
     /**
      * <b>The frame each of this addon's send verbs last went out on</b> (audit2 B07) — {@link Wire}'s rate
@@ -1037,7 +1038,7 @@ public final class Addon {
     final Map<String, Long> lastSend = new ConcurrentHashMap<String, Long>();
 
     /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */
-    Subs itemSubs(GItem it) {
+    Subs itemSubs(ItemInfo.SpriteOwner it) {
         return itemSubs.of(it, () -> new Subs(this, Addon.C_EVENT));
     }
 
@@ -1048,7 +1049,7 @@ public final class Addon {
      * a {@link ConcurrentHashMap} now, which throws on a null key where the {@link WeakHashMap} it replaces
      * answered {@code null}.
      */
-    Subs itemSubsOrNull(GItem it) {
+    Subs itemSubsOrNull(ItemInfo.SpriteOwner it) {
         return (it == null) ? null : itemSubs.get(it);
     }
 
@@ -1066,7 +1067,7 @@ public final class Addon {
      * the cycle above makes permanent. {@link AddonManager#drainDisposedWidgets} offers every disposed
      * {@link GItem} to every addon, so this must stay one map lookup and nothing else for the miss.
      */
-    void dropItemSubs(GItem it) {
+    void dropItemSubs(ItemInfo.SpriteOwner it) {
         if(it == null)
             return;
         Subs s = itemSubs.drop(it);
@@ -1092,10 +1093,15 @@ public final class Addon {
      *
      * <p>A widget of none of those kinds is almost every widget the drain sees, so the kind is tested once per
      * widget by the drain and this is called only for one that can be in a cache at all.
+     *
+     * <p><b>The Item cache is keyed on what is drawn, not on the widget drawing it</b> (137.1), so the widget
+     * is resolved through {@link LuaWidget#itemOf} — a recipe slot dying retires the depiction it held, the
+     * way an item dying retires itself. The other three stay a {@code GItem}'s: what an item holds and what a
+     * study slot is are things only the server pushes.
      */
     void dropInternedHandles(Widget w) {
         if(w instanceof GItem) {
-            GItem it = (GItem)w;
+            GItem it = (GItem)w;                              // a GItem is its own icon: no itemOf detour
             items.retire(it);
             contents.retire(it);
             studySlots.retire(it);
@@ -1103,6 +1109,8 @@ public final class Addon {
             meters.retire((IMeter)w);
         } else if(w instanceof Buff) {
             buffs.retire((Buff)w);
+        } else {
+            items.retire(LuaWidget.itemOf(w));                // the icon of a depiction, and nothing else
         }
     }
 

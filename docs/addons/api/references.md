@@ -70,13 +70,20 @@ same path loads as a *new* object. The ending is the **collection's**, because t
 the file. Wherever a local file is used — a sprite's `:add(image)`, an object's `:add(model)`, a widget's
 `:font(h)` — you pass the **handle**, never a path, and `:remove` is no exception.
 
-## Item: a thing in a container
+## Item: a thing the client draws
 
-An item has no stable content id, so an [`Item`](ui/items.md#the-item-object) is interned on the item
-itself and **not** on `:handle()`, the server widget id it is addressed by on the wire: that number is
+An item has no stable content id, so an [`Item`](ui/items.md#the-item-object) is interned on the thing
+drawn and **not** on `:handle()`, the server widget id it is addressed by on the wire: that number is
 re-used, so a reference built on it would quietly stop naming this item and start naming its
 replacement. One you keep therefore answers *the same item* or *gone*, and the
 [protected verbs](ui/items.md#write-protected) are on the item itself rather than on a number.
+
+**Every item is found through the icon drawing it**, which is also what ends it. A container's cell, the
+cursor, a crafting recipe's slot and a listing a resource paints are one type and one interning, so
+`icon:item()` is `==` the container's own `:items()` entry, and each of them goes stale when the widget
+drawing it leaves the tree. What the server put in a container answers where it is; what the client only
+draws answers [absence and a refusal](ui/items.md#a-depiction-that-is-not-an-item), because there is no
+widget behind it to address.
 
 ## Widget: a piece of the UI
 

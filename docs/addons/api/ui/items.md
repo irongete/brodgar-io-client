@@ -1,9 +1,11 @@
-# hafen.ui: the items inside a container
+# hafen.ui: the items the client draws
 
-`widget:items()` is a **relation**, exactly like `:children()`: it answers with the
-[`Item`](#the-item-object) objects inside *that* widget — your backpack, a chest, a cupboard, an
-equipment grid — while the window stays visible and interactive. Nothing is hidden and nothing is
-registered. Reading is unprotected.
+**An item is a thing the client draws, and the icon drawing it is where you find it.** That covers the
+cell in your backpack and the one on the cursor, and it covers a crafting recipe's input and output slots
+and the food icon on a constipation row just as well: `widget:item()` answers on every one of them, and
+they are all the same [`Item`](#the-item-object) object. `widget:items()` is the relation over a
+container, exactly like `:children()` — the items inside *that* widget, while the window stays visible and
+interactive. Nothing is hidden and nothing is registered. Reading is unprotected.
 
 ```lua
 local s = hafen.session():current()              -- the character on screen
@@ -19,6 +21,10 @@ A container the client put up belongs to one character, so it is reached through
 [session](../session.md): two characters carry two backpacks, and the one nobody is looking at answers
 just as well as the one on screen.
 
+Some of what the client draws is **not** a thing the server put anywhere — a recipe slot names an
+ingredient, it does not hold one. Those read exactly like an item and answer nothing about where they
+are; [what a depiction cannot do](#a-depiction-that-is-not-an-item) is the whole of the difference.
+
 ## Read
 
 | Method | Returns | Description |
@@ -27,6 +33,10 @@ just as well as the one on screen.
 | [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 | [`widget:item()`](widget.md#read) | [`Item`](#the-item-object) \| nil | the item **one icon** draws; `nil` on any other widget |
 
+- **An icon is any widget that draws one item**: a container's cell, the cursor, a crafting recipe's input
+  or output slot, the food icon on a constipation row, and a listing a resource ships its own widget for.
+  `widget:item()` answers on all of them and `nil` on everything else, so the test for "is this an item
+  icon" is the read itself.
 - The search is **deep**, so a whole window answers for the grid inside it: `s:ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
 - **Each item appears once.** The equipment window draws a worn item in every slot it fills, and
@@ -49,24 +59,65 @@ just as well as the one on screen.
 | `:progress()` | number \| nil | [the arc](#the-two-numbers-on-an-icon) painted over the icon, `0..1`; `nil` for one painting none |
 | `:durability()` | table \| nil | [the two counts](#durability-the-counts-a-wear-row-prints) its wear row prints, `{cur, max}`; `nil` for one printing none |
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
-| `:contents()` | [`Contents`](#what-an-item-holds) \| nil | what it holds; `nil` for an item holding nothing |
+| `:contents()` | [`Contents`](contents.md) \| nil | what it holds; `nil` for an item holding nothing |
 | `:container()` | [`Item`](#the-item-object) \| nil | the item it sits **inside**; `nil` for one sitting in a container widget |
 | `:cell()` | table \| nil | the **1-based** `{x, y}` grid cell it sits **in** — a place, where a grid control's [`:cellSize()`](widget.md#read) is a size |
 | `:slots()` | string[] | the equipment slots it fills, by name; empty for anything not worn |
 | `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
-| `:exists()` | boolean | is this still a live item |
+| `:exists()` | boolean | is the icon drawing this still in the tree |
 | `:info()` | table | the [snapshot](../types/items.md#item) — every read above in one table |
 | `:on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | [what this item says about itself resolved, or was revised](#an-item-arrives-before-it-can-be-described) |
 
-An item is **interned**, so `==` is the identity test and a stashed one keeps answering. It is keyed on
-the item itself and never on `:handle()`, because the server re-uses that number: a reference built on
-it would stop naming this item and start naming its replacement, silently. So an item that moves, is
-eaten or is consumed does not become something else — it goes **stale**: `:res()`, `:name()` and
-`:quantity()` still say what it was, `:exists()` is false, and `:cell()`, `:slots()` and `:handle()` are
-empty, because where it is is exactly what it no longer has.
+An item is **interned**, so `==` is the identity test and a stashed one keeps answering. Two reads of one
+icon are the same object, and so are the icon's `:item()` and the container's `:items()` entry for it. It is
+keyed on the thing drawn and never on `:handle()`, because the server re-uses that number: a reference
+built on it would stop naming this item and start naming its replacement, silently.
+
+**An item you keep goes stale rather than becoming something else.** One that moves, is eaten or is consumed
+still says what it was — `:res()`, `:name()` and `:quantity()` go on answering — while `:exists()` turns
+false and `:cell()`, `:slots()` and `:handle()` go empty, because where it is is exactly what it no longer
+has. A depiction goes stale the same way when the widget drawing it leaves: close the crafting window and
+its slots still name their ingredients, and `:exists()` is false. That is what makes an item worth keeping
+past its own end — the [`ItemRemoved`](container.md) payload is a stale item, and it is the only
+thing that can tell you what left.
 
 > The verbs below take the object, never the number. A stale one raises an error and sends nothing,
 > rather than moving whatever took its place.
+
+## A depiction that is not an item
+
+A **depiction** is something the client paints from a resource with nothing on the wire behind it: a recipe
+slot, a price on a listing, an icon a piece of resource code puts up. It is an `Item` and reads like one —
+the same `:res()`, `:name()`, `:quality()`, `:durability()` and `:info()`, off the same tooltip — because
+the client describes both through one mechanism. What it has no answer for is **where it is** and **what to
+do to it**, and each of those says so on its own:
+
+| Read | On a depiction | Why |
+|---|---|---|
+| `:cell()` | `nil` | it is drawn where its icon is, and that is not a cell in a container |
+| `:slots()` | empty | nothing is wearing it |
+| `:handle()` | `nil` | the server has no widget for it, so there is no id to name |
+| `:container()` | `nil` | nothing is holding it |
+| `:contents()` | `nil` | the server sends an inside with an item it put somewhere, and it put this nowhere |
+| `:exists()` | its icon | true while the widget drawing it is in the tree, false the moment that widget goes |
+
+The four [protected verbs](#write-protected) **refuse** it, naming why and sending nothing: a depiction is
+drawn, not held, so there is no message to send and nothing to retry. Guard on `:handle()` when you want to
+know which kind you have before you act.
+
+```lua
+local function label(icon)
+  local it = icon:item()
+  if it == nil then return nil end
+  local name = it:name() or it:res() or "?"
+  if it:handle() == nil then return name .. " (drawn, not held)" end
+  return name .. " #" .. it:handle()
+end
+```
+
+The two numbers on the icon read from the item's own tooltip alone here — a depiction has no server message
+writing a count or an arc, so `:quantity()` and `:progress()` answer what the tooltip publishes and `nil`
+otherwise, which is still exactly what the icon draws.
 
 ## An item arrives before it can be described
 
@@ -109,7 +160,7 @@ end)
 - **The subscription is per item**, and it goes when the item does. Ending one early is `sub:off()`.
 
 > A **changed tooltip** is this event. An item **arriving** or **leaving** is the container's
-> [`ItemAdded`/`ItemRemoved`](#the-container-lifecycle) — where it is is not what it is.
+> [`ItemAdded`/`ItemRemoved`](container.md) — where it is is not what it is.
 
 ## The two numbers on an icon
 
@@ -161,80 +212,6 @@ both, one, or neither, so ask for the one you want and guard it on its own.
 told what one point of wear costs or what happens when the two meet. Compare the numbers against
 themselves, on the same item, rather than across two kinds of gear.
 
-## What an item holds
-
-`item:contents()` answers a **`Contents`** object for an item that holds something, and `nil` for one that
-holds nothing. A stack of dandelions and a creel carry real items, each with its own quality and its own
-server address; a bucket carries what its tooltip states and no items at all. One object answers for both,
-because the client is never told which kind it has — the difference is the server's, and a read that guessed
-would answer confidently and wrongly.
-
-| Read | Returns | Description |
-|---|---|---|
-| `contents:items()` | collection | what is inside, as live objects; **empty**, never `nil`, for a container that states what it holds rather than carrying it |
-| `contents:name()` | string \| nil | what the server calls this inside — the caption its own window carries; `nil` when it gave none |
-| `contents:text()` | string \| nil | the line the tooltip states about what is inside; `nil` for a container carrying items |
-| `contents:quality()` | number \| nil | the **content's** own quality, which is not `item:quality()`; `nil` when none is stated |
-| `contents:fill()` | table \| nil | the fill meter's `{cur, max}`; `nil` for a container that draws none |
-| `contents:info()` | table | the [snapshot](../types/items.md#contents), which carries no `items` |
-
-Reading is unprotected, and a `Contents` is **interned** like every other object here, so two reads of one
-item's contents are `==`. It answers `nil` while the item's info is still resolving, never a half-built
-object — so `nil` means "holds nothing" and an empty `:items()` means "an empty container".
-
-```lua
-for _, it in ipairs(hafen.session():current():ui():inventory():items():list()) do
-  local held = it:contents()
-  for _, one in ipairs(held and held:items() or {}) do
-    hafen.log():write((one:name() or "?") .. " q" .. (one:quality() or 0)   -- its own quality...
-                      .. " in " .. (it:name() or "?"))                      -- ...not the stack's
-  end
-end
-```
-
-**`item:container()` is the exact inverse.** `a:contents():items()` holds `b` if and only if `b:container()`
-is `a`, and it chains: a dandelion in a stack in a creel answers the stack, and the stack answers the creel.
-It is a **where** read, so like `:cell()`, `:slots()` and `:handle()` it answers `nil` on a stale item —
-where it is is exactly what a departed item no longer has.
-
-**A contained item is not in `widget:items()`.** A stack is one item there, as it is one cell on screen:
-flattening it would break `:cell()` and `#items` as the count of slots used, and delete the difference between
-one stack of eight and eight loose things. So a thing inside answers `:cell()` as `nil` too — it is drawn no
-cell of its own — and you reach it by recursing through `:contents()`, picking your own depth. The protected
-verbs reach it like any other item: `:take()` on one dandelion lifts that one, and `:take()` on the stack
-lifts the whole pile in one message.
-
-### A liquid container: a stated line, a fill, and no items
-
-A bucket, a jug, a barrel holds something and carries no items, so the other three reads answer instead:
-
-```lua
-local b = hafen.session():current():ui():inventory():items():list()[1]   -- a jug holding water
-local c = b:contents()
-
-c:text()                   --> "4.55 l of Water"   the line its tooltip states
-c:quality()                --> the water's quality, and b:quality() is still the jug's
-c:fill()                   --> { cur = 455, max = 500 }   the fill meter, in its own scale
-c:items()                  --> { }                 it states what it holds; it does not carry it
-```
-
-`c:fill()` is how you ask how full something is, and the two counts are the ones behind the bar drawn on
-the item's icon — the client itself paints only the fraction of them, so this is the one place they read as
-numbers. **They are the meter's own scale and not the units the line states**: divide one by the other and
-compare fractions, rather than reading `cur` as the number in front of the `l`. A stack answers `nil` to
-`:text()` and `:fill()`, and a container that states what it holds answers an empty `:items()`, so the two
-insides are told apart by asking rather than by knowing which you hold.
-
-**The substance is never named to the client.** What arrives is that rendered line, a quality and a fill:
-there is no water type behind them to ask for instead, so `c:text()` is the whole of what can be said about
-what is in there. Match on the line if you must, knowing it is a display string carrying the amount as well
-as the name.
-
-**Nothing has to be open.** The window a container pops up under the pointer is hidden rather than destroyed
-when you move away, so every read here answers the same with it down. Opening it is not something an addon can
-do either: the message that pins it open is the server's answer to a right-click, not anything the client
-sends.
-
 ## Write (protected)
 
 A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
@@ -276,78 +253,9 @@ Applying what you are carrying **onto** an item is the cursor's verb, not the it
 [`s:player():hand():use(item)`](../player.md#the-hand). On an arbitrary item that gesture would name
 whatever happens to be on the cursor rather than the receiver, which is why it lives on the hand.
 
-## The container lifecycle
-
-Two keys on the container itself, through the same [`:on(key, fn)`](widget.md#subscribing) every widget
-answers — plus `Removed`, universal to any widget, worth re-stating here because a container closing is
-usually the reason to hold one.
-
-| Key | handler receives | Fires |
-|---|---|---|
-| `ItemAdded` | [`Item`](#the-item-object) | an item enters this container |
-| `ItemRemoved` | [`Item`](#the-item-object) | one leaves |
-| `Removed` | — | this widget leaves the tree |
-
-Two chests can be open at once, so take each one as it opens rather than naming it from the root:
-
-```lua
-local function label(item) return item:name() or item:res() or "?" end
-
-hafen.session():current():ui():on("window[title=Chest]", "Added", function(chest)
-  chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
-  chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
-  chest:on("Removed",     function() hafen.log():write("chest closed") end)
-end)
-```
-
-**The subscription is the registration.** A container nobody subscribed to is watched for nothing, so
-leaving `:items()` alone costs nothing, and dropping the last subscription on `ItemAdded`/`ItemRemoved`
-stops the watching. There is no separate watch/unwatch pair because there is nothing extra to say.
-
-An item entering or leaving is a widget create or destroy rather than a server message, so both are seen
-at the moment the client puts that widget into the tree or takes it out. Three consequences are worth
-knowing: the items **already** inside a container fire `ItemAdded` while you subscribe, before `:on`
-returns, so the state arrives as events the way [`BuffAdded`](../event/bus/character.md#character-and-status)
-does; a container that is hidden still fires them, which is why you can [hide a grid](native.md) and keep
-reading it; and subscribing to any of the three on a widget that has already left the tree fires `Removed`
-there and then, and drops every subscription on it. The item handed to `ItemRemoved` is the same object the
-add reported, so it is worth keeping — it answers after it has left. Worn equipment additionally has the
-global [`EquipChanged`](../event/bus/character.md#character-and-status) event, which carries the whole new
-list.
-
-### The events go deeper than `:items()`
-
-`ItemAdded`/`ItemRemoved` answer **what entered this container**, not what it draws — the one place the
-read and the events part company. An item dropped into a stack, or a creel, that this container holds
-fires here too, **at any depth**, because it did arrive in your inventory; `widget:items()` on that same
-widget stays exactly as shallow as ever, since a stack is still one cell on screen. `item:container()` is
-what a handler uses to place the item it was handed — the stack a contained item just entered, or the
-creel a stack just arrived in.
-
-**Only the outermost thing that moved is reported.** A stack *arriving* with three dandelions already
-inside it fires `ItemAdded` **once**, for the stack — never once per dandelion — and the same on the way
-out. A dandelion dropped into a stack that was already there fires its own `ItemAdded`, because the stack
-itself did not move.
-
-**Subscribing seeds with exactly what `widget:items()` answers right now** — the top-level items alone,
-never what is inside them — and a contained item is reported only when it later moves on its own; it
-never appears in that read.
-
-## Where the item reads end
-
-What an item holds is what the **server** pushed with it, and it pushes it for the containers you carry: a
-stack, a creel, a bucket. An item it sent nothing for reads `nil`, and no message the client can send asks for
-one — a chest standing in the world is opened, and read as the container widget it becomes.
-
-**An item on the cursor is one of those.** The one you are carrying arrives as a widget of its own under the
-HUD rather than as the icon you lifted, and nothing is attached to it: a stack in your hand answers `nil` to
-`:contents()`, and — having no quality of its own, since a stack's quality is its parts' — `nil` to
-`:quality()` as well. Both read again the moment it lands somewhere. So a decoration that reads what an item
-holds shows nothing while it is being carried, and there is nothing to wait for: it is not late, it was never
-sent.
-
 ## See also
 
+- [what an item holds](contents.md) — `item:contents()`, and the `Contents` object it answers with
 - [`Item`](../types/items.md#item) — the snapshot `:info()` hands back
 - [`session:player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
 - [widget](widget.md) — the object `:items()` is a method on

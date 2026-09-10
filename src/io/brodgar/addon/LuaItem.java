@@ -30,19 +30,38 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * An <b>Item object</b> — one thing inside a container ({@code widget:items()}) or on the cursor
- * ({@code s:player():hand():item()}), with what the client knows about it: its resource, its display name,
- * how many it is, the arc over its icon, quality, and where it is sitting.
+ * An <b>Item object</b> — one thing the client draws, found through the icon drawing it: a cell in a
+ * container ({@code widget:items()}), the cursor ({@code s:player():hand():item()}), a crafting recipe's
+ * input or output slot, a food icon on a constipation row, or a depiction a resource ships its own widget
+ * for. What the client knows about it is the same set for all of them: its resource, its display name, how
+ * many it is, the arc over its icon, quality — and, for one the server actually put in a container, where
+ * it is sitting.
  *
- * <p><b>The intern key is the item widget's own identity, and that is the whole point of this type.</b>
- * An item has no content id; the server addresses it by a <i>widget id</i>, and a widget id is handed
- * back to the pool when the widget dies, so the server may give the same number to something else. A
+ * <p><b>Two kinds of thing, one type.</b> The engine models an item twice. The server pushes a
+ * {@link GItem}, an addressable widget a container mints a {@link WItem} to draw. A <i>depiction</i> is no
+ * {@code GItem} at all — a resource, an {@code sdt} and a tooltip list held by whoever draws it, with
+ * nothing on the wire behind it. {@link ItemInfo.SpriteOwner} is the engine's own name for the family, and
+ * it is what this handle is interned on, so a recipe slot and a backpack cell answer the same verbs. What a
+ * depiction cannot answer, it answers <b>absence</b> for — {@code :cell()}, {@code :slots()},
+ * {@code :handle()}, {@code :container()} and {@code :contents()} — and the four protected verbs refuse it
+ * naming why: it is drawn, not held, and there is no message to send. See {@link LuaWidget#itemOf}, the one
+ * decision behind every entry point.
+ *
+ * <p><b>The intern key is the depicted thing's own identity, and that is the whole point of this type.</b>
+ * An item has no content id; the server addresses a {@code GItem} by a <i>widget id</i>, and a widget id is
+ * handed back to the pool when the widget dies, so the server may give the same number to something else. A
  * handle keyed on that number would therefore not go stale — it would silently start naming a different
  * item, and a write made through it would land on whatever now holds the id. That is the failure this
- * whole entity exists to delete, so the handle holds the {@link GItem} <b>object</b>: it is the item it
- * was, for as long as anyone holds it, and when the item moves or is consumed the object is simply gone
- * ({@code :exists()} false) rather than repointed. A protected verb resolves through this object and never
- * through the number.
+ * whole entity exists to delete, so the handle holds the <b>object</b>: it is the item it was, for as long
+ * as anyone holds it, and when the item moves or is consumed the object is simply gone ({@code :exists()}
+ * false) rather than repointed. A protected verb resolves through this object and never through the number.
+ *
+ * <p><b>The handle holds the icon too, and the icon is what liveness means.</b> A depiction has no death of
+ * its own to announce — it is a field of the widget drawing it — so {@code :exists()} is that widget's
+ * reachability, and the widget is captured at the mint because it cannot be derived from the owner
+ * afterwards ({@code fcontext(Widget.class)} on a recipe slot answers the crafting <i>window</i>). For a
+ * {@code GItem} the two are one thing: a {@code GItem} is itself a widget in the tree, so it is its own
+ * icon and the test is the one it has always had.
  *
  * <p><b>A stale Item still answers.</b> {@code Widget.destroy()} unlinks the item without clearing it, so
  * {@code :res()}, {@code :name()}, {@code :quantity()} and {@code :quality()} go on reading the thing it was —
@@ -83,22 +102,51 @@ import java.util.Set;
  * of another such class, and nothing in the engine reaches them either.
  */
 public final class LuaItem {
-    /** The item widget this handle addresses — the whole state of a handle. */
-    public final GItem wdg;
+    /** The thing this handle addresses: a {@link GItem} the server pushed, or a depiction somebody draws. */
+    public final ItemInfo.SpriteOwner owner;
+    /** The widget drawing it — what {@code :exists()} tests, and what retires this handle when it dies. */
+    public final Widget icon;
 
-    private LuaItem(GItem wdg) {
-        this.wdg = wdg;
+    private LuaItem(ItemInfo.SpriteOwner owner, Widget icon) {
+        this.owner = owner;
+        this.icon = icon;
     }
 
     /** {@code tostring(item)}: {@code Item(<resname>)}. */
     public String toString() {
-        String r = CharApi.itemResOf(wdg);
+        String r = CharApi.itemResOf(owner);
         return "Item(" + ((r == null) ? "?" : r) + ")";
     }
 
-    /** An interned Item object for {@code it} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, GItem it) {
-        return owner.items.of(it);
+    /**
+     * <b>The widget an owner is drawn by</b> — {@code drawn} for a depiction, and the owner itself for one
+     * that <i>is</i> a widget (a {@link GItem}, and a {@code .res} widget holding its own depiction).
+     *
+     * <p>One rule in one place, because two entry points ask it: the mint from a widget verb, which has the
+     * icon in hand, and every {@code GItem} read, which has none and needs none.
+     */
+    static Widget iconOf(ItemInfo.SpriteOwner o, Widget drawn) {
+        return (o instanceof Widget) ? (Widget)o : drawn;
+    }
+
+    /**
+     * An interned Item object for {@code o}, minted from the widget {@code drawn} that draws it — what
+     * {@code widget:item()} hands back, and the only door a depiction can enter through.
+     */
+    static LuaValue of(Addon owner, ItemInfo.SpriteOwner o, Widget drawn) {
+        return owner.items.of(o, iconOf(o, drawn));
+    }
+
+    /**
+     * An interned Item object for {@code o} where the caller has no icon to offer — every {@code GItem}
+     * read ({@code widget:items()}, the cursor, an {@code ItemAdded} payload), which needs none because a
+     * {@code GItem} is its own icon.
+     *
+     * <p>For a depiction this re-mints through the icon the cache's entry remembers, and answers
+     * {@code nil} where there is no entry: a depiction nothing ever minted has no address to hand back.
+     */
+    static LuaValue of(Addon owner, ItemInfo.SpriteOwner o) {
+        return of(owner, o, null);
     }
 
     /** The {@code LuaItem} behind a Lua value, or {@code null} for anything else. */
@@ -112,16 +160,22 @@ public final class LuaItem {
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
     /**
-     * One addon's Item cache and metatable (its {@link Addon#items}), keyed by widget identity. Holds its
-     * {@link Addon} because the four protected verbs (048.3) turn on the <b>caller's</b> declared
-     * permission, and the metatable is where the gate has to be closed — the same reason
-     * {@link LuaGob.Cache} holds one.
+     * One addon's Item cache and metatable (its {@link Addon#items}), keyed by the identity of the thing
+     * drawn — a {@link GItem}, or the depiction an icon holds. Holds its {@link Addon} because the four
+     * protected verbs (048.3) turn on the <b>caller's</b> declared permission, and the metatable is where
+     * the gate has to be closed — the same reason {@link LuaGob.Cache} holds one.
+     *
+     * <p><b>The key is the owner and the entry remembers the icon</b> (137.1). Two icons never draw one
+     * depiction, but a {@code GItem} is drawn by as many {@link WItem}s as it fills slots, so keying on the
+     * icon would make one worn item two objects and {@code ==} would stop being the identity test. What the
+     * entry holds the icon <i>for</i> is the mint a caller has no icon for: the entry is the only record of
+     * where a depiction is drawn, since nothing in the owner points back at its widget.
      */
     static final class Cache {
         private final Addon owner;
-        // retired: Cache.retire -- the key is STRONG, so a dead GItem is pinned until Addon.dropInternedHandles
+        // retired: Cache.retire -- the key is STRONG, so a dead owner is pinned until Addon.dropInternedHandles
         //   takes the entry: drain() clears one only where Lua released the handle AND something mints again.
-        private final Map<GItem, Ref> live = new IdentityHashMap<GItem, Ref>();
+        private final Map<ItemInfo.SpriteOwner, Ref> live = new IdentityHashMap<ItemInfo.SpriteOwner, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -129,19 +183,27 @@ public final class LuaItem {
             this.owner = owner;
         }
 
-        synchronized LuaValue of(GItem it) {
+        /**
+         * The interned Item for {@code o}, minted from {@code icon} where there is nothing to hand back yet.
+         * A {@code null} icon and no entry is {@code NIL} — there is no third place to look.
+         */
+        synchronized LuaValue of(ItemInfo.SpriteOwner o, Widget icon) {
             drain();
-            if(it == null)
+            if(o == null)
                 return LuaValue.NIL;
-            Ref r = live.get(it);
+            Ref r = live.get(o);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(it);
+                live.remove(o);
+                if(icon == null)
+                    icon = r.icon;              // Lua let the handle go: re-mint through the icon it named
             }
-            LuaValue v = LuaValue.userdataOf(new LuaItem(it), meta());
-            live.put(it, new Ref(v, it, dead));
+            if(icon == null)
+                return LuaValue.NIL;
+            LuaValue v = LuaValue.userdataOf(new LuaItem(o, icon), meta());
+            live.put(o, new Ref(v, o, icon, dead));
             return v;
         }
 
@@ -155,19 +217,20 @@ public final class LuaItem {
         }
 
         /**
-         * <b>The widget died, so its entry goes</b> (128.5) — the item is gone: an inventory that closes DESTROYS the items inside it, so this is the only seam that
-         * reaches one. The key is
+         * <b>The icon died, so its entry goes</b> (128.5) — an inventory that closes DESTROYS the items
+         * inside it and a recipe change destroys every slot widget, so this is the only seam that reaches
+         * one. The key is
          * STRONG, and {@link #drain} clears an entry only where Lua has already released the handle <i>and</i>
-         * something mints again, so without this the map pins the widget for the session; see
+         * something mints again, so without this the map pins the depiction and its icon for the session; see
          * {@link Addon#dropInternedHandles}, which is the only caller.
          *
          * <p>{@code synchronized}, which is the monitor {@link #of} takes — the drain runs on the step and a
          * mint runs wherever Lua ran. A handle Lua is still holding goes on answering: what is dropped is the
-         * cache's claim on a widget that no longer exists, not the object an author stashed.
+         * cache's claim on something that no longer exists, not the object an author stashed.
          */
-        synchronized void retire(GItem it) {
-            if(it != null)
-                live.remove(it);
+        synchronized void retire(ItemInfo.SpriteOwner o) {
+            if(o != null)
+                live.remove(o);
         }
 
         private LuaValue meta() {
@@ -178,11 +241,18 @@ public final class LuaItem {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
-        final GItem key;
+        final ItemInfo.SpriteOwner key;
+        /**
+         * The widget that minted it, held <b>strongly</b> and retired with the entry. A depiction is a field
+         * of its icon and reaches it through nothing, so the entry is where the pair is kept — and the pin
+         * is bounded by {@link Cache#retire}, which the icon's own disposal calls.
+         */
+        final Widget icon;
 
-        Ref(LuaValue v, GItem key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, ItemInfo.SpriteOwner key, Widget icon, ReferenceQueue<LuaValue> q) {
             super(v, q);
             this.key = key;
+            this.icon = icon;
         }
     }
 
@@ -208,14 +278,14 @@ public final class LuaItem {
         // res() — the item's resource name, its stable identity, or nil while it resolves.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                String r = CharApi.itemResOf(handle(self, "res").wdg);
+                String r = CharApi.itemResOf(handle(self, "res").owner);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
         // name() — the display name, or nil until the item's tooltip info lands.
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                String n = CharApi.itemNameOf(handle(self, "name").wdg);
+                String n = CharApi.itemNameOf(handle(self, "name").owner);
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
@@ -224,7 +294,7 @@ public final class LuaItem {
         // #item:contents():items(), because there the same number IS how many are inside.
         m.set("quantity", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Integer n = quantity(handle(self, "quantity").wdg);
+                Integer n = quantity(handle(self, "quantity").owner);
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n.intValue());
             }
         });
@@ -233,7 +303,7 @@ public final class LuaItem {
         // 150" there, only how far round. The two absolute counts are item:durability(), which is other data.
         m.set("progress", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Double p = progress(handle(self, "progress").wdg);
+                Double p = progress(handle(self, "progress").owner);
                 return (p == null) ? LuaValue.NIL : LuaValue.valueOf(p.doubleValue());
             }
         });
@@ -242,14 +312,14 @@ public final class LuaItem {
         // and neither converts into the other — an item may answer both, and each is read on its own.
         m.set("durability", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return durability(handle(self, "durability").wdg);
+                return durability(handle(self, "durability").owner);
             }
         });
         // quality() — the number the tooltip shows, or nil while the item's info resolves (and for the
         // things that have no quality at all).
         m.set("quality", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Double q = quality(handle(self, "quality").wdg);
+                Double q = quality(handle(self, "quality").owner);
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.doubleValue());
             }
         });
@@ -259,17 +329,18 @@ public final class LuaItem {
         // wrong. Interned on this item, so two reads are ==; see LuaContents.
         m.set("contents", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                GItem it = handle(self, "contents").wdg;
-                return LuaContents.holds(it) ? LuaContents.of(owner, it) : LuaValue.NIL;
+                GItem it = held(handle(self, "contents"));
+                return ((it != null) && LuaContents.holds(it)) ? LuaContents.of(owner, it) : LuaValue.NIL;
             }
         });
         // container() — the Item this one sits INSIDE, or nil for one sitting in a container widget. The exact
         // inverse of :contents(): a:contents():items() holds b if and only if b:container() is a, and it chains
         // (a dandelion in a stack in a creel answers the stack, and the stack answers the creel). A WHERE read,
-        // so like :cell(), :slots() and :handle() it answers nil on a stale item.
+        // so like :cell(), :slots() and :handle() it answers nil on a stale item AND on a depiction, which is
+        // drawn rather than put anywhere (137.1).
         m.set("container", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                GItem c = container(live(handle(self, "container")));
+                GItem c = container(liveHeld(handle(self, "container")));
                 return (c == null) ? LuaValue.NIL : of(owner, c);
             }
         });
@@ -277,24 +348,26 @@ public final class LuaItem {
         // inside another item — where an item inside a stack is, is :container()).
         m.set("cell", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return cell(live(handle(self, "cell")));
+                return cell(liveHeld(handle(self, "cell")));
             }
         });
         // slots() — the equipment slots this item fills, by name; empty for anything not worn.
         m.set("slots", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return slots(live(handle(self, "slots")));
+                return slots(liveHeld(handle(self, "slots")));
             }
         });
         // handle() — the server widget id, the same number widget:id() answers. nil once the item is gone: it is
         // no longer its, and the server may already have given it to something else.
         m.set("handle", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                int id = wdgid(live(handle(self, "handle")));
+                int id = wdgid(liveHeld(handle(self, "handle")));
                 return (id < 0) ? LuaValue.NIL : LuaValue.valueOf(id);
             }
         });
-        // exists() — is this still a live item somewhere in the tree?
+        // exists() — is the icon drawing this still in the tree? For a GItem that is the item's own
+        // reachability, which is what it has always been; for a depiction it is the widget holding it, since a
+        // depiction has no death of its own to announce (137.1).
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
@@ -303,7 +376,7 @@ public final class LuaItem {
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").wdg);
+                return snapshot(handle(self, "info").owner);
             }
         });
         // on(key, fn) — the item's own door (104). ONE key: `Changed`, "what this item says about itself is
@@ -333,10 +406,10 @@ public final class LuaItem {
                 // rather than skipped, because the removal seam that ends a live item's subscriptions has
                 // ALREADY run for this one -- leaving the handler in place would leave it there for good, and
                 // a handler closing over its own item is what a weak map cannot collect (Addon#dropItemSubs).
-                LuaValue sub = owner.itemSubs(h.wdg).on(key, fnArg);
+                LuaValue sub = owner.itemSubs(h.owner).on(key, fnArg);
                 AddonManager.anyItemSubs = true;   // audit2 B15: somebody is watching now — see onItemInfo
                 if(live(h) == null)
-                    owner.dropItemSubs(h.wdg);
+                    owner.dropItemSubs(h.owner);
                 return sub;
             }
         });
@@ -407,14 +480,33 @@ public final class LuaItem {
      * <p>This is the whole reason the handle holds the item widget rather than its server id: a stale
      * handle can only resolve to <i>that item</i> or to nothing, so the failure is a message the caller
      * reads instead of a write landing on whatever inherited the recycled number.
+     *
+     * <p><b>A depiction is refused first</b> (137.1), before the stale test, because the two are different
+     * facts and only one of them is worth retrying: an item that left may come back in the next read, while
+     * a recipe slot will never have a message to send however long you wait.
      */
     private static GItem target(LuaValue self, String verb) {
-        GItem g = live(handle(self, verb));
+        LuaItem h = handle(self, verb);
+        if(!(h.owner instanceof GItem))
+            throw new LuaError(drawnNotHeld("item:" + verb));
+        GItem g = liveHeld(h);
         if(g == null)
             throw new LuaError("item:" + verb + ": this item is gone — it was moved, used or consumed, or"
                 + " you are not in the world (item:exists() is false). Nothing was sent: an item that has"
                 + " left is not the item that took its place. Re-read the container and retry.");
         return g;
+    }
+
+    /**
+     * <b>The refusal a depiction gets from any verb that would send something</b> — written inside the verb
+     * rather than keyed in {@link Refusal}, because nothing was renamed: the spelling is the one it always
+     * was and what changed is which receivers it accepts, which a name-keyed table has nothing to match on.
+     */
+    static String drawnNotHeld(String verb) {
+        return verb + ": this item is drawn, not held — it is a recipe slot, a listing or a price the client"
+            + " paints from a resource, and the server has no widget behind it to address. Nothing was sent,"
+            + " and there is nothing to retry: read it (:res(), :name(), :quality()) or act on the item in a"
+            + " container instead. item:handle() is nil for exactly this reason.";
     }
 
     /** Refuse an argument to a verb that has none, naming what the caller probably meant instead. */
@@ -455,24 +547,40 @@ public final class LuaItem {
     // ---- liveness ------------------------------------------------------------------------------------
 
     /**
-     * The live {@link GItem} behind a handle, or {@code null} once it is gone. Tree reachability is the
-     * test, exactly as it is for a widget: the server destroying an item unlinks it, and an item that is
-     * not under the root is not in any container. <b>The tree is the item's own</b> ({@code it.ui}), so an
-     * item in a container one character has open is live while the player looks at another. A missing
-     * {@link UI} answers {@code null} without clearing anything — unresolvable now is not proven dead.
+     * The live <b>icon</b> behind a handle, or {@code null} once it is gone. Tree reachability is the test,
+     * exactly as it is for a widget: the server destroying an item unlinks it, a recipe change destroys
+     * every slot widget, and what is not under the root is not being drawn anywhere. <b>The tree is the
+     * icon's own</b> ({@code icon.ui}), so an item in a container one character has open is live while the
+     * player looks at another. A missing {@link UI} answers {@code null} without clearing anything —
+     * unresolvable now is not proven dead.
      */
-    static GItem live(LuaItem h) {
-        return (h == null) ? null : live(h.wdg);
+    static Widget live(LuaItem h) {
+        return (h == null) ? null : live(h.icon);
     }
 
-    /** As {@link #live(LuaItem)}, on the widget itself. */
-    static GItem live(GItem it) {
-        if(it == null)
+    /** As {@link #live(LuaItem)}, on the icon itself. */
+    static Widget live(Widget icon) {
+        if(icon == null)
             return null;
-        UI u = it.ui;
+        UI u = icon.ui;
         if((u == null) || (u.root == null))
             return null;
-        return it.hasparent(u.root) ? it : null;
+        return icon.hasparent(u.root) ? icon : null;
+    }
+
+    /**
+     * The {@link GItem} behind a handle, live or stale, and {@code null} for a depiction — the read every
+     * verb that touches a {@code GItem} member starts from, so "this is not a thing the server pushed" is
+     * answered in one place and each of them answers its own absence rather than reaching a field that is
+     * not there.
+     */
+    static GItem held(LuaItem h) {
+        return ((h != null) && (h.owner instanceof GItem)) ? (GItem)h.owner : null;
+    }
+
+    /** {@link #held}, and only while its icon is still in the tree — the WHERE reads and the four verbs. */
+    static GItem liveHeld(LuaItem h) {
+        return (live(h) == null) ? null : held(h);
     }
 
     /** The item's server widget id, or {@code -1} (gone, or never bound). */
@@ -595,11 +703,15 @@ public final class LuaItem {
     private static final Map<Class<?>, Field[]> wfields = new HashMap<Class<?>, Field[]>();
 
     /**
-     * The item's own tooltip info, or {@code null} while it is still resolving: {@link GItem#info()} throws a
-     * bare {@code Loading} while the resource streams, and that is not resolvable here. Every read that goes
+     * The item's own tooltip info, or {@code null} while it is still resolving: {@code info()} throws a bare
+     * {@code Loading} while the resource streams, and that is not resolvable here. Every read that goes
      * through the tooltip comes through this one door, and answers {@code nil} rather than a half-built value.
+     *
+     * <p>Typed on {@link ItemInfo.Owner} because that is where {@code info()} is declared: a depiction builds
+     * its rows through the very same {@code ItemInfo.buildinfo}, so a name and a quality read off a recipe
+     * slot the way they read off a backpack cell, with no branch here at all.
      */
-    static List<ItemInfo> info(GItem it) {
+    static List<ItemInfo> info(ItemInfo.Owner it) {
         if(it == null)
             return null;
         try {
@@ -617,7 +729,7 @@ public final class LuaItem {
      * compare against. Naming the class instead of pinning a local copy of it means a revised resource
      * makes this answer {@code nil}, never something wrong — the same trade {@code gob:kin()} makes.
      */
-    static Double quality(GItem it) {
+    static Double quality(ItemInfo.Owner it) {
         return quality(info(it));
     }
 
@@ -662,17 +774,21 @@ public final class LuaItem {
      * server set it, and the published number answers otherwise, which makes the contract checkable by eye:
      * <b>if you can see it on the icon, this answers it.</b>
      *
+     * <p><b>A depiction has only the second half</b> (137.1). The field is a {@code GItem}'s, written by a
+     * server message; nothing writes one for a recipe slot or a listing, so the published number is the whole
+     * of what such an icon can say — which is also the whole of what it draws.
+     *
      * <p><b>What the published number counts is the implementor's, and the engine has no finer type</b>:
      * {@code GItem.Amount} renders an amount, and the gilding tooltip renders how many gildings a piece of gear
      * carries, {@code 0} included — both through the one {@code NumberInfo}. So this answers the number
      * <i>drawn</i> and does not assert what it means, for the same reason {@code :contents()} covers a stack and
      * a bucket with one type: guessing between them would answer confidently and wrongly.
      */
-    static Integer quantity(GItem it) {
+    static Integer quantity(ItemInfo.Owner it) {
         if(it == null)
             return null;
-        if(it.num != -1)
-            return Integer.valueOf(it.num);
+        if((it instanceof GItem) && (((GItem)it).num != -1))
+            return Integer.valueOf(((GItem)it).num);
         List<ItemInfo> info = info(it);
         if(info == null)
             return null;
@@ -695,15 +811,18 @@ public final class LuaItem {
      * otherwise. The field is a percentage on the wire, so it is divided here — the one conversion in the fold,
      * and the reason this can never answer a number above 1, which reading that field raw would give.
      *
+     * <p><b>A depiction has only the second half</b>, for the reason {@link #quantity} gives: the field is a
+     * {@code GItem}'s and nothing writes one for an icon the client paints out of a resource.
+     *
      * <p>What the arc <i>measures</i> is the server's business: the client paints a wedge and cannot say
      * <i>132 of 150</i> there. The two absolute counts an item's tooltip may print are {@code :durability()},
      * and neither number converts into the other.
      */
-    static Double progress(GItem it) {
+    static Double progress(ItemInfo.Owner it) {
         if(it == null)
             return null;
-        if(it.meter > 0)
-            return Double.valueOf(it.meter / 100.0);
+        if((it instanceof GItem) && (((GItem)it).meter > 0))
+            return Double.valueOf(((GItem)it).meter / 100.0);
         List<ItemInfo> info = info(it);
         if(info == null)
             return null;
@@ -734,7 +853,7 @@ public final class LuaItem {
      * an item may wear, it is a fraction with no units, and an item may answer both without either being a
      * view of the other.
      */
-    static LuaValue durability(GItem it) {
+    static LuaValue durability(ItemInfo.Owner it) {
         List<ItemInfo> info = info(it);
         if(info == null)
             return LuaValue.NIL;
@@ -798,8 +917,15 @@ public final class LuaItem {
 
     // ---- the snapshot + the container read -------------------------------------------------------------
 
-    /** The documented {@code Item} snapshot — every field optional, absent rather than empty. */
-    static LuaValue snapshot(GItem it) {
+    /**
+     * The documented {@code Item} snapshot — every field optional, absent rather than empty.
+     *
+     * <p>A depiction's is the same table with the halves it has no answer for simply absent, which is what
+     * {@code optional} already means here: no {@code handle}, no {@code cell}, no {@code slots}, no
+     * {@code contents}. That falls out of the reads rather than being branched on — {@link #held} answers
+     * {@code null} and each of them answers its own absence.
+     */
+    static LuaValue snapshot(ItemInfo.SpriteOwner it) {
         if(it == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -821,12 +947,13 @@ public final class LuaItem {
         Double q = quality(it);
         if(q != null)
             t.set("quality", LuaValue.valueOf(q.doubleValue()));
+        GItem g = (it instanceof GItem) ? (GItem)it : null;
         // What it holds, as that Contents' OWN snapshot — and there is deliberately no `container` beside it:
         // a snapshot holds no live objects, and a snapshot naming the item it sits in would nest snapshots of
         // bags without end. Where it is, is item:container(), on the live object.
-        if(LuaContents.holds(it))
-            t.set("contents", LuaContents.snapshot(it));
-        GItem l = live(it);
+        if((g != null) && LuaContents.holds(g))
+            t.set("contents", LuaContents.snapshot(g));
+        GItem l = ((g != null) && (live(g) != null)) ? g : null;
         int id = wdgid(l);
         if(id >= 0)
             t.set("handle", LuaValue.valueOf(id));
