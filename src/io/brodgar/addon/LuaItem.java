@@ -441,7 +441,7 @@ public final class LuaItem {
                 AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_USE);
                 int mods = Args.optint(a, 2, "item:use", "mods", null, 0);
                 GItem g = target(self, "use");
-                Wire.send(owner, AddonManager.userOf(g), "item:use", g, "iact", iactArgs(mods));
+                Wire.send(AddonManager.userOf(g), "item:use", g, "iact", iactArgs(mods));
                 return self;
             }
         });
@@ -453,7 +453,7 @@ public final class LuaItem {
                 AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_TAKE);
                 noArgs(a, "item:take");
                 GItem g = target(self, "take");
-                Wire.send(owner, AddonManager.userOf(g), "item:take", g, "take", takeArgs());
+                Wire.send(AddonManager.userOf(g), "item:take", g, "take", takeArgs());
                 return self;
             }
         });
@@ -464,7 +464,7 @@ public final class LuaItem {
                 AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_DROP);
                 int n = Args.optint(a, 2, "item:drop", "n", null, -1);
                 GItem g = target(self, "drop");
-                Wire.send(owner, AddonManager.userOf(g), "item:drop", g, "drop", countArgs(n));
+                Wire.send(AddonManager.userOf(g), "item:drop", g, "drop", countArgs(n));
                 return self;
             }
         });
@@ -476,7 +476,7 @@ public final class LuaItem {
                 AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_TRANSFER);
                 int n = Args.optint(a, 2, "item:transfer", "n", null, -1);
                 GItem g = target(self, "transfer");
-                Wire.send(owner, AddonManager.userOf(g), "item:transfer", g, "transfer", countArgs(n));
+                Wire.send(AddonManager.userOf(g), "item:transfer", g, "transfer", countArgs(n));
                 return self;
             }
         });

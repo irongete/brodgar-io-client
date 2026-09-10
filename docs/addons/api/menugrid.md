@@ -271,8 +271,8 @@ it hangs on your own button. Your subscriptions end when the addon reloads or is
 
 ## Use (protected)
 
-A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
-shapes a player could compose, and what the server does with more than that is the server's.
+The client sends only shapes a player could compose, and what the server does with more than that is
+the server's.
 
 | Method | Key | Description |
 |---|---|---|

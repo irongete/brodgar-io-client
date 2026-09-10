@@ -161,13 +161,6 @@ public final class AddonManager {
     // reads it off the step -- an HTTP Done handler, a message handler -- while the layer's tick advances it.
     // A torn read would put a timer due at an instant nothing will ever reach.
     static volatile double clock;
-    // audit2 B07: the frame the layer is on — what {@link Wire}'s rate bound keys a send against, so that
-    // "once per frame" means the frame the addon is actually running in. It advances beside `clock`, on the
-    // LAYER's tick, so one frame is one frame however many sessions are up; it is never reset, because a
-    // counter that restarted would let a second send pass in the frame the first went out in. Volatile for
-    // `clock`'s own reason: a send verb reads it off the step — a message handler, an HTTP Done handler —
-    // while the layer's tick advances it.
-    static volatile long frame;
     // 038.3: `overlaySubs` is a FAST PATH, not a correctness gate: Gob.addol runs on the loader threads for
     // every decoration the server sends, so the seam must cost one volatile read when nobody listens. It is
     // set by a subscription and cleared per session/reload; a stale `true` (someone unsubscribed) only means
@@ -1283,7 +1276,6 @@ public final class AddonManager {
             // one step's dt carried into the next, which is what dt is for.
             lastStep = now;
             clock += dt;
-            frame++;         // audit2 B07: the beat Wire's rate bound counts in, advanced beside the clock
 
             // 074.2: the client's addons, loaded once, on the first frame the layer is ticked.
             //   audit2 B14 (lc-11): AND ITS OWN CATCH. `booted` used to be set before boot() ran, inside a

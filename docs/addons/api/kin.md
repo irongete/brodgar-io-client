@@ -125,8 +125,8 @@ local mine = s:world():gob():list(function(g) return g:kin() == k end)
 
 ## Write (protected)
 
-A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
-shapes a player could compose, and what the server does with more than that is the server's.
+The client sends only shapes a player could compose, and what the server does with more than that is
+the server's.
 
 **Every one of these is kept by the server**: disabling, reloading or uninstalling your addon does not
 undo a rename, a regroup or an ended kinship, and neither does the session ending. There is nothing to

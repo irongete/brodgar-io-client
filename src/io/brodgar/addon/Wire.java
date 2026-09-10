@@ -14,13 +14,11 @@ import java.util.Map;
  * <b>The one way this API puts a message on the wire</b> (audit2 B07) — every send an addon makes comes
  * through {@link #send}, and nothing under {@code io.brodgar.addon} calls {@link Widget#wdgmsg} itself.
  *
- * <p><b>Why one door.</b> A send used to be written where the verb was: thirteen files each resolved their
- * own target, each took (or forgot) the tree's monitor, and none of them bounded either the shape of the
- * message or the rate it went out at. So the same three mistakes were available at every one of them —
- * a message addressed through another character's widget, a button or a modifier field the mouse has no
- * way of producing, and a hundred identical writes in the frame a Lua loop runs in. Those are properties of
- * <i>sending</i> rather than of any one verb, so they live here, once, and a verb states only what it
- * sends.
+ * <p><b>Why one door.</b> Resolving the target's tree, taking that tree's monitor and checking the shape
+ * of the message are properties of <i>sending</i> rather than of any one verb, so they live here, once,
+ * and a verb states only what it sends. Two mistakes are thereby available at none of them — a message
+ * addressed through another character's widget, and a button or a modifier field the mouse has no way
+ * of producing.
  *
  * <p><b>The four things this door does</b>, in this order:
  *
@@ -34,18 +32,9 @@ import java.util.Map;
  *   <li><b>It takes that tree's monitor</b> through {@link LuaWidget#monitorOf}, which is the acquisition
  *       every write in this layer makes, and the one place the client's "never two UI monitors at once"
  *       rule is held to.</li>
- *   <li><b>It checks the SHAPE of the message and the RATE it goes out at</b> — the two halves of
- *       <i>an addon can only send what a player could</i>. {@link #SHAPES} is the shape half, one row per
- *       message; the frame bound below is the rate half.</li>
+ *   <li><b>It checks the SHAPE of the message</b> — <i>an addon can only send what a player could
+ *       compose</i>. {@link #SHAPES} is one row per message.</li>
  * </ol>
- *
- * <p><b>The rate bound: one send per frame, per character, per verb.</b> A Lua loop runs entirely inside
- * one frame, so a hundred turns of it used to be a hundred messages on the wire in the time a player makes
- * one gesture. The second send of a verb in a frame is refused naming {@code once per frame}; the addon
- * drives a run of them from a timer or from the event that follows the last one, which is the rate a hand
- * has. <b>The character is part of the key</b> because this client draws more than one: a player at two
- * characters can walk both in the same frame, and a bound that forgot which one was addressed would refuse
- * the second character's write for the first character's.
  *
  * <p><b>The shape table is DATA</b>, one row per message the API composes. A row is applied to the
  * arguments the API built; where the client's own method builds them ({@code D-009}, wrap-not-reimplement)
@@ -60,12 +49,12 @@ final class Wire {
     }
 
     /**
-     * <b>Send {@code msg} from {@code w}, as {@code user}, for {@code owner}</b> — the bare
-     * {@link Widget#wdgmsg}, gated. {@code verb} is the Lua verb doing the sending
-     * ({@code "hafen.world():place"}), and it names both the refusals and the rate bound's key.
+     * <b>Send {@code msg} from {@code w}, as {@code user}</b> — the bare {@link Widget#wdgmsg}, gated.
+     * {@code verb} is the Lua verb doing the sending ({@code "hafen.world():place"}), and it names the
+     * refusals.
      */
-    static void send(Addon owner, String user, String verb, Widget w, String msg, Object... args) {
-        gate(owner, user, verb, w, msg, args, null);
+    static void send(String user, String verb, Widget w, String msg, Object... args) {
+        gate(user, verb, w, msg, args, null);
     }
 
     /**
@@ -75,15 +64,14 @@ final class Wire {
      * rather than re-encoded, so {@code args} is what the caller is about to hand them (or {@code null}
      * where it hands them nothing) and {@code dispatch} is the call itself, made under the tree's monitor.
      */
-    static void send(Addon owner, String user, String verb, Widget w, String msg, Object[] args,
-                     Runnable dispatch) {
+    static void send(String user, String verb, Widget w, String msg, Object[] args, Runnable dispatch) {
         if(dispatch == null)
             throw new IllegalArgumentException("dispatch");
-        gate(owner, user, verb, w, msg, args, dispatch);
+        gate(user, verb, w, msg, args, dispatch);
     }
 
     /** The whole gate. {@code dispatch == null} is the bare {@code w.wdgmsg(msg, args)}. */
-    private static void gate(Addon owner, String user, String verb, Widget w, String msg, Object[] args,
+    private static void gate(String user, String verb, Widget w, String msg, Object[] args,
                              Runnable dispatch) {
         UI u = AddonManager.sessionui(user);
         if(u == null)
@@ -99,29 +87,11 @@ final class Wire {
                 if(s != null)
                     s.check(verb, args);
             }
-            bound(owner, user, verb);
             if(dispatch != null)
                 dispatch.run();
             else
                 w.wdgmsg(msg, args);
         }
-    }
-
-    /**
-     * The rate half: refuse a second send of {@code verb} for {@code user} in the frame the first went out
-     * in. The frame is {@link AddonManager#frame}, which the layer's own step advances — the same beat the
-     * engine clock and every {@code Update} run on.
-     */
-    private static void bound(Addon owner, String user, String verb) {
-        String key = verb + "@" + user;   // a verb carries no "@", so the pair is unambiguous
-        long now = AddonManager.frame;
-        Long last = owner.lastSend.get(key);
-        if((last != null) && (last.longValue() == now))
-            throw new LuaError(verb + ": once per frame — this addon has already sent through this verb on"
-                + " that character this frame. A write goes out at the rate a hand makes one, so a run of"
-                + " them is driven from a timer (hafen.timer():every(0.2, fn)) or from the event that"
-                + " follows the last one, never from a loop. Nothing was sent.");
-        owner.lastSend.put(key, Long.valueOf(now));
     }
 
     // ---- the shape table -----------------------------------------------------------------------------

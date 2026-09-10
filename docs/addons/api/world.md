@@ -236,8 +236,8 @@ raises naming `hafen.session():current()`.
 
 ## Write (protected)
 
-A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
-shapes a player could compose, and what the server does with more than that is the server's.
+The client sends only shapes a player could compose, and what the server does with more than that is
+the server's.
 
 The verbs below change the world rather than read it, and each sends exactly the message the matching mouse
 gesture sends. Each hands the section back, so a run of writes chains. Each also needs its own

@@ -463,7 +463,7 @@ public final class LuaPagina {
                 // PagButton.use is the client's own message half (D-009): it picks "act" for a
                 // path-addressed entry and "use" for an id-addressed one and builds both from the LIVE
                 // modflags, so this API composes none of it and hands no shape over with it.
-                Wire.send(owner, h.user, "pagina:use", p.scm, "use", null,
+                Wire.send(h.user, "pagina:use", p.scm, "use", null,
                           () -> b.use(new MenuGrid.Interaction(1, 0)));
                 return self;
             }

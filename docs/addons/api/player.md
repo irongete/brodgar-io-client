@@ -56,8 +56,8 @@ per-player state, so they live in [`session:meter`](meter.md).
 
 ## Write (protected)
 
-A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
-shapes a player could compose, and what the server does with more than that is the server's.
+The client sends only shapes a player could compose, and what the server does with more than that is
+the server's.
 
 ### `s:player():move(p)`
 

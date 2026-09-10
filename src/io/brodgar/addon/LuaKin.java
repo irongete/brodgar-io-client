@@ -271,7 +271,7 @@ public final class LuaKin {
                 BuddyWnd.Buddy b = require(self, "group");
                 // The client's own Buddy.chgrp composes the wdgmsg("grp", id, group) (D-009), so the
                 // values it will carry are handed over with it and the wire shape is checked on them.
-                Wire.send(owner, h.user, "kin:group", bw, "grp",
+                Wire.send(h.user, "kin:group", bw, "grp",
                           new Object[] {Integer.valueOf(h.id), Integer.valueOf(g)}, () -> b.chgrp(g));
                 return self;
             }
@@ -351,7 +351,7 @@ public final class LuaKin {
                 String n = name.tojstring();
                 // Buddy.chname composes the wdgmsg("nick", id, name) (D-009); what a rename field can
                 // actually compose -- one typed line, not empty -- is the "nick" row in Wire.
-                Wire.send(owner, h.user, "kin:rename", bw, "nick",
+                Wire.send(h.user, "kin:rename", bw, "nick",
                           new Object[] {Integer.valueOf(h.id), n}, () -> b.chname(n));
                 return self;
             }
@@ -368,7 +368,7 @@ public final class LuaKin {
                     throw new LuaError("kin:endKin(): that kinship has already ended — the entry is only"
                         + " memorized now, and dropping a memorized entry is kin:forget(), which asks for"
                         + " its own permission key");
-                Wire.send(owner, h.user, "kin:endKin", bw, "rm",   // "End kinship" → wdgmsg("rm", id)
+                Wire.send(h.user, "kin:endKin", bw, "rm",   // "End kinship" → wdgmsg("rm", id)
                           new Object[] {Integer.valueOf(h.id)}, () -> b.endkin());
                 return self;
             }
@@ -385,7 +385,7 @@ public final class LuaKin {
                     throw new LuaError("kin:forget(): that kinship is still live — forgetting drops an entry"
                         + " that is already un-kinned, and ending the kinship first is kin:endKin(), which"
                         + " asks for its own permission key");
-                Wire.send(owner, h.user, "kin:forget", bw, "rm",   // "Forget" → wdgmsg("rm", id)
+                Wire.send(h.user, "kin:forget", bw, "rm",   // "Forget" → wdgmsg("rm", id)
                           new Object[] {Integer.valueOf(h.id)}, () -> b.forget());
                 return self;
             }
@@ -622,7 +622,7 @@ public final class LuaKin {
                         + " the world yet)");
                 // BuddyWnd's own "Add kin" field sends exactly this, and Wire's "bypwd" row is what
                 // that field can compose: one typed line.
-                Wire.send(owner, user, CharApi.KN + ":add", bw, "bypwd", s);
+                Wire.send(user, CharApi.KN + ":add", bw, "bypwd", s);
                 // 091/A-084: NOT the collection and not a member. Adding by hearth secret is a round
                 // trip -- the server decides whether that secret names anyone -- so there is no Kin to hand
                 // back yet, and handing back the roster made s:kin():add(x):name() look like it might work.

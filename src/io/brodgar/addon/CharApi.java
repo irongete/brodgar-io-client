@@ -1190,7 +1190,7 @@ final class CharApi {
                 // 076.5: the one send that reaches a character nobody is looking at, so it carries no
                 // widget — Sessions.ordermember finds that session's own view and composes the ground
                 // click itself (D-009), which is why nothing goes over for a shape row to read.
-                Wire.send(owner, user, P + ":move", null, "click", null, () -> order(user, rc, P + ":move"));
+                Wire.send(user, P + ":move", null, "click", null, () -> order(user, rc, P + ":move"));
                 return me;                                       // the Player, so a move chains
             }
         });

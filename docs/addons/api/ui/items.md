@@ -234,8 +234,8 @@ themselves, on the same item, rather than across two kinds of gear.
 
 ## Write (protected)
 
-A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
-shapes a player could compose, and what the server does with more than that is the server's.
+The client sends only shapes a player could compose, and what the server does with more than that is
+the server's.
 
 What you can do **to** an item is on the item. Each sends exactly what the matching click sends, and each
 hands the Item back, so a run of verbs chains.

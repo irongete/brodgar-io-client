@@ -481,7 +481,7 @@ public final class LuaSpeed {
                         + " which of them can be picked)");
                 // Speedget.set is the client's own selection (D-009 -> wdgmsg("set", n)), so the index
                 // it will carry is what Wire's "set" row reads.
-                Wire.send(owner, user, CharApi.SP + ":set", s, "set", new Object[] {Integer.valueOf(n)},
+                Wire.send(user, CharApi.SP + ":set", s, "set", new Object[] {Integer.valueOf(n)},
                           () -> s.set(n));
                 return me;
             }

@@ -245,7 +245,7 @@ final class FlowerMenuApi {
                 // FlowerMenu.choose is the very call Esc makes (D-009) and composes its own
                 // wdgmsg("cl", …) — or ends a client-side petal and sends nothing at all.
                 final FlowerMenu fm = required(user, FM + ":cancel");
-                Wire.send(owner, user, FM + ":cancel", fm, "cl", null, () -> fm.choose(null));
+                Wire.send(user, FM + ":cancel", fm, "cl", null, () -> fm.choose(null));
                 return a.arg1();          // the section: every ending chains
             }
         });
@@ -474,7 +474,7 @@ final class FlowerMenuApi {
         // widget's own parent chain, and `opts` is replaced from the message path. It composes its own
         // wdgmsg("cl", …) — or handles a client-side petal and sends nothing — so no shape goes over.
         final int at = idx;
-        Wire.send(owner, user, verb, fm, "cl", null, () -> {
+        Wire.send(user, verb, fm, "cl", null, () -> {
                 FlowerMenu.Petal[] opts = fm.opts;
                 if((opts == null) || (at >= opts.length) || (opts[at] == null))
                     throw new LuaError(verb + ": the menu's petals changed while it was being read — read"

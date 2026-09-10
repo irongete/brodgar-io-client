@@ -288,7 +288,7 @@ public final class LuaSlot {
                 Object[] msg = ((p != null) && !(p instanceof AddonPagina) && !(p.id instanceof haven.Indir))
                     ? new Object[] {Integer.valueOf(h.index), "pag", p.id}
                     : new Object[] {Integer.valueOf(h.index), "res", res};
-                Wire.send(owner, h.user, "slot:res", g, "setbelt", msg);
+                Wire.send(h.user, "slot:res", g, "setbelt", msg);
                 return self;
             }
         });
@@ -315,7 +315,7 @@ public final class LuaSlot {
                 GameUI g = AddonManager.gameui(h.user);
                 if(g == null)
                     throw new LuaError("slot:clear(): no game UI (that character is not in the world yet)");
-                Wire.send(owner, h.user, "slot:clear", g, "setbelt",
+                Wire.send(h.user, "slot:clear", g, "setbelt",
                           new Object[] {Integer.valueOf(h.index), null});
                 return self;
             }
@@ -406,7 +406,7 @@ public final class LuaSlot {
                 // The bar's own button presses it (D-009): GameUI.ResBeltSlot composes the
                 // wdgmsg("belt", n, button, mods) from the Interaction, so those are the values Wire's
                 // "belt" row is handed.
-                Wire.send(owner, h.user, "slot:use", g.beltwdg, "belt",
+                Wire.send(h.user, "slot:use", g.beltwdg, "belt",
                           new Object[] {Integer.valueOf(n), Integer.valueOf(1), Integer.valueOf(mods)},
                           () -> g.beltwdg.act(n, new MenuGrid.Interaction(1, mods)));
                 return self;

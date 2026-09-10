@@ -193,7 +193,7 @@ final class LuaHand {
                             + " item rather than through this one. Read the target out of this session"
                             + " (s:ui()), or address the hand of the character that holds it. Nothing was"
                             + " sent.");
-                    Wire.send(owner, user, USE, g, "itemact", itemArgs(mods));
+                    Wire.send(user, USE, g, "itemact", itemArgs(mods));
                     return self;
                 }
                 // (b) a GOB: the MapView "itemact" EXTENDED with the object's own click args — the one
@@ -218,7 +218,7 @@ final class LuaHand {
                     synchronized(gb) { grc = gb.rc; }
                     if(grc == null)
                         throw new LuaError(USE + ": that gob has no position yet");
-                    Wire.send(owner, user, USE, mv, "itemact",
+                    Wire.send(user, USE, mv, "itemact",
                               gobArgs(pc(mv), mods, (int)gb.id, grc.floor(OCache.posres)));
                     return self;
                 }
@@ -226,7 +226,7 @@ final class LuaHand {
                 if(LuaPosition.resolve(target) != null) {
                     Coord2d rc = LuaPosition.worldArg(a, 2, USE, "target", user);
                     MapView mv = view(user);
-                    Wire.send(owner, user, USE, mv, "itemact",
+                    Wire.send(user, USE, mv, "itemact",
                               groundArgs(pc(mv), rc.floor(OCache.posres), mods));
                     return self;
                 }

@@ -107,7 +107,7 @@ public final class LuaCraft {
                     throw new LuaError(CharApi.CR + ":make(all): no recipe is open on that character — "
                         + CharApi.CR + ":exists() is the test, and which recipe is open is the player's"
                         + " choice");
-                Wire.send(owner, user, CharApi.CR + ":make", mw, "make",
+                Wire.send(user, CharApi.CR + ":make", mw, "make",
                           Integer.valueOf(all ? 1 : 0));
                 return me;
             }

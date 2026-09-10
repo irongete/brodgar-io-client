@@ -317,7 +317,7 @@ public final class LuaChannel {
                 // history the arrow keys walk and composes the wdgmsg("msg", text). The text it will carry
                 // is handed over with it, and Wire's "msg" row is what an entry line can compose.
                 final ChatUI.EntryChannel ec = (ChatUI.EntryChannel)c;
-                Wire.send(owner, AddonManager.userOf(c), "channel:send", c, "msg", new Object[] {text},
+                Wire.send(AddonManager.userOf(c), "channel:send", c, "msg", new Object[] {text},
                           () -> ec.send(text));
                 return self;
             }
