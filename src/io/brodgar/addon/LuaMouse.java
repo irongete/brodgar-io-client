@@ -154,11 +154,14 @@ final class LuaMouse {
                     UiApi.setCursor(owner, null);
                     return a.arg1();
                 }
-                if(!v.isstring())
-                    throw new LuaError("mouse():cursor(name): name must be a cursor name — one of the"
-                        + " game's own under gfx/hud/curs (\"arw\", \"hand\", \"study\", \"dig\", …), or a"
-                        + " resource path with a slash in it. mouse():cursor(nil) puts the pointer back."
-                        + " Got " + v.typename());
+                // The TYPE, through the one door that asks it. isstring() is LuaJ's coercing predicate and
+                // a number is a string by it, so mouse():cursor(7) scanned as the name "7", resolved to
+                // nothing and put the pointer back with a line in the log — where this page promises a
+                // refusal naming both spellings.
+                Args.str(v, "mouse():cursor", "name",
+                         "one of the game's own under gfx/hud/curs (\"arw\", \"hand\", \"study\", \"dig\","
+                         + " …), or a resource path with a slash in it; mouse():cursor(nil) puts the pointer"
+                         + " back");
                 UiApi.setCursor(owner, v.tojstring());
                 return a.arg1();
             }

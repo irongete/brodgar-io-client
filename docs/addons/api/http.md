@@ -95,7 +95,7 @@ freeze the client.
 | `req:body()` / `req:body(v)` | string \| nil / the request | a **string** sent verbatim, or a **table** encoded as JSON |
 | `req:header(name)` | string \| nil | the value this request carries for `name`, matched case-insensitively |
 | `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
-| `req:timeout()` / `req:timeout(ms)` | number / the request | the milliseconds it will wait; **10000** by default, capped at **60000** |
+| `req:timeout()` / `req:timeout(ms)` | number / the request | the milliseconds it will wait; **10000** by default, and a whole number **1..60000** — anything else is refused, never clamped |
 | `req:on("done", fn)` | [`Sub`](event/README.md#subscribe) | the handler, called once with the [result](#the-result-object); legal before `:send()` and after it |
 | `req:send()` | the request | **put it on the wire.** Every setter above is refused from here on — `req:on` is not one of them, because a request in flight has not come back yet |
 | `req:cancel()` | the request | stop it; the handler never fires |
@@ -224,9 +224,9 @@ inside it is logged, never propagated.
   made of it and is not what the server sent. Ask for what you can read: JSON, plain text, anything
   the server will encode for you.
 - **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
-  timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
-  a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming;
-  and a pool of **8** threads shared by all addons.
+  timeout **10 s** by default and settable anywhere in **1 ms..60 s**, refused outside it; **6** requests in
+  flight per addon, with the excess queued and a hard cap of **64** pending, past which `:send()` raises —
+  `hafen.http():count()` sees it coming; and a pool of **8** threads shared by all addons.
 
 ## See also
 

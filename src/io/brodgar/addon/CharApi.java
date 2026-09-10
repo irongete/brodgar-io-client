@@ -71,10 +71,11 @@ import static io.brodgar.addon.AddonManager.*;
  * {@link AddonManager#screen()}, which answers the session on screen — the uimsg tap runs on a Loader thread
  * of whichever session sent the message, and the entry drain walks every tree's queue in turn.
  *
- * <p><b>What an adapter READS is the drawn HUD</b>: an adapter body asks {@link AddonManager#gui()}, which
- * answers the session on screen. Each adapter already knows whose cache it is, so the seam that must hand it
- * its own HUD instead has one caller to fix rather than nine caches to untangle first — and until it does, an
- * adapter indexed under a background session reports the drawn character's numbers.
+ * <p><b>What an adapter READS is its own session's HUD</b> — {@link SessionAdapter#gui()}, resolved from the
+ * state it was built with, and never {@link AddonManager#gui()}, which answers the session on screen. An
+ * adapter already knows whose cache it is, so its HUD is that same login's: what it reports about a character
+ * nobody is looking at is that character's, and a diff never measures one login's widgets against another
+ * login's cache.
  *
  * <p><b>Built with the state, not re-added on a switch.</b> The {@code resetSession} that used to empty the
  * list and construct nine fresh adapters on every {@code init} is gone: a session's HUD is not a different
@@ -171,6 +172,21 @@ final class CharApi {
         /** The account this adapter reads for. {@code null} for the layer's own state, which has no HUD. */
         final String user() {
             return AddonManager.userOf(st);
+        }
+
+        /**
+         * <b>The HUD this adapter reads</b>: its own session's, off the state it was built with.
+         *
+         * <p><b>Not {@link AddonManager#gui()}</b>, which answers the session on SCREEN. An adapter is one
+         * login's (073.3) and its cache names that login's widgets, so a body reading the drawn HUD diffs
+         * one character's bar against another character's cache — and the two ways that comes out are both
+         * silent. A change made on a background login moves nothing the drawn character has, so it is
+         * reported by nothing; and a change to the DRAWN character's bar, dispatched through a background
+         * session's adapter, is reported under {@link #user()}, which is the wrong account. The lookup is
+         * the whole of it, so it is asked once here rather than in each body.
+         */
+        final GameUI gui() {
+            return AddonManager.gameui(user());
         }
     }
 

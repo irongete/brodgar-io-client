@@ -268,13 +268,32 @@ final class WidgetSubs {
         this.boundId = (u == null) ? -1 : u.widgetid(wdg);
         if((u != null) && !live(u)) {
             subs.fire("Removed");
-            subs.clear();
+            endEverySub();
             return;
         }
         this.listening = true;
         UiApi.registerInterest(this);
         if(subs.has("ItemAdded") || subs.has("ItemRemoved"))
             refreshItems();
+    }
+
+    /**
+     * End every subscription this record holds, one at a time, through the very path {@code sub:off()} takes
+     * (uw-22) — the dead-widget arm of {@link #startListening}, which used to drop the whole record with
+     * {@code subs.clear()}.
+     *
+     * <p><b>Why per subscription and not wholesale.</b> A record holds more than the tree key that found the
+     * widget dead: the four input keys have an engine listener installed on {@link #inwdg}, and {@code Update}
+     * has this surface on the owner's step list. Those are registrations held OUTSIDE this record, and the
+     * only thing that releases them is the {@link Subs.Idle} hook — which is what {@link Subs#off} runs, key
+     * by key, as each key's last handler goes. So each sub is marked dead and ended exactly as the addon's own
+     * {@code sub:off()} would have ended it, and the record is left the way a fully unsubscribed one is.
+     */
+    private void endEverySub() {
+        for(LuaSub s : subs.live()) {
+            s.alive = false;      // the guard sub:off() sets, for a fire already walking its snapshot
+            subs.off(s);          // ...and the path that runs the ended/idle hooks this record's releases hang on
+        }
     }
 
     private void stopListening() {

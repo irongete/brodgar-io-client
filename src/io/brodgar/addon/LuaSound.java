@@ -453,6 +453,14 @@ public final class LuaSound {
 
     // ---- the play path -----------------------------------------------------------------------------
 
+    // The two bounds the path below is held to: how many clips may be in the air at once, and how long one
+    // of them waits for a resource that neither resolves nor fails.
+    /** How many clips one addon may have sounding or resolving at once — see {@link Sounds#inTheAir}. */
+    private static final int MAX_LIVE = 64;
+
+    /** How long a play waits for a resource that neither resolves nor fails, in seconds (sn-09). */
+    private static final double LOAD_TIMEOUT = 30.0;
+
     /**
      * Play a client sound by resource name without blocking the UI thread: resolve the resource on a loader
      * thread ({@code Loading} re-runs the task), wrap it in an {@link Audio.VolAdjust} when the volume is not
@@ -479,12 +487,6 @@ public final class LuaSound {
      * all. Because the resolve lands later, the play carries the {@link Live#gen} it started under: a
      * {@code :stop()} in between bumps that stamp and the clip is dropped instead of blipping (024.2).
      */
-    /** How many clips one addon may have sounding or resolving at once — see {@link Sounds#inTheAir}. */
-    private static final int MAX_LIVE = 64;
-
-    /** How long a play waits for a resource that neither resolves nor fails, in seconds (sn-09). */
-    private static final double LOAD_TIMEOUT = 30.0;
-
     private static void play(final Addon owner, final String name, final double vol) {
         final Glob g = AddonManager.glob();
         final UI u = AddonManager.layer();

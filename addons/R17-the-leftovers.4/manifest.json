@@ -1,0 +1,9 @@
+{
+  "id": "R17-the-leftovers.4",
+  "name": "R17 the leftovers: the profiler's frame sampling",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for the profiling row of refactor block R17. `:tR17-4` asserts, through the API itself, that the seven frame-sampling verbs answer an empty table and refuse an argument while the switch is off, and that frame(), history(n), addons(), widgets(), passes() and gl() each carry the keys their page documents while it is armed. It arms the switch itself and puts it back where it found it in the same run, which is what the client.settings key is for.",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

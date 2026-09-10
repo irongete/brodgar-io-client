@@ -1,0 +1,9 @@
+{
+  "id": "R17-the-leftovers.2",
+  "name": "R17 the leftovers: the hand and the chat line",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for the player and chat rows of refactor block R17. `:tR17-2` asserts, through the API itself and over a 10 s window, the refusals `hand:use` gives before the wire (a missing target, mods 8, a fractional mods, a foreign item, a character that is not on screen), that a character's Gob and its HUD arrive together, the refusals `channel:send` gives before the wire on whichever login owns the channel, the rich-text quoting `msg:text()` carries, the chat tab written and put back, and that counting a scrollback costs a bounded time where copying one does not.",
+  "permissions": ["player.hand.use", "chat.send"],
+  "files": ["main.lua"]
+}

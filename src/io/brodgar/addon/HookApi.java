@@ -424,10 +424,6 @@ final class HookApi {
     // ============================================ global hotkeys (hafen.client:options():keybindings(), 2e-2)
 
     /**
-     * Declare one addon hotkey — the body of {@code keybindings:on(name, fn)}. The binding starts
-     * <b>unbound</b> (D-047): the addon names an action, the user assigns the key in Options ▸ Keybindings.
-     */
-    /**
      * The {@link KeyBinding} id one addon hotkey is registered and remembered under — {@code Utils.setpref}
      * then stores it as {@code "keybind/" + this}. Spelled once (audit2 B14, cl-03) so the door that checks
      * the length and the door that builds the key cannot mean two different strings.
@@ -436,6 +432,10 @@ final class HookApi {
         return "addon/" + owner.manifest.id + "/" + name;
     }
 
+    /**
+     * Declare one addon hotkey — the body of {@code keybindings:on(name, fn)}. The binding starts
+     * <b>unbound</b> (D-047): the addon names an action, the user assigns the key in Options ▸ Keybindings.
+     */
     static LuaKeyBind newKeyBind(final Addon owner, String name, LuaValue fn) {
         // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
         // a user's assignment (persisted in the client prefs) survives; KeyMatch.nil applies only on first create.

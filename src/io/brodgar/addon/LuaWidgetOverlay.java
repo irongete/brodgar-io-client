@@ -351,6 +351,22 @@ public final class LuaWidgetOverlay {
                 + " overlay says ONE thing — widget:overlay():add(\"" + r.key + "\") again to replace it");
     }
 
+    /**
+     * One anchor fraction (un-12): finite by {@link Args#num}, and then <b>0..1</b> — refused outside it,
+     * never clamped. {@code 0} is the left (top) edge of the widget and of the label alike, {@code 1} the
+     * right (bottom) one, so there is no anchor above 1 to mean: a label anchored at {@code 1e9} is drawn a
+     * billion widget-widths away, which is a mistake with no symptom. What a caller wanting a label beside
+     * the widget actually wants is {@code overlay:offset(x, y)}, in pixels.
+     */
+    private static double fraction(Varargs a, int i, String param, String hint) {
+        double v = Args.num(a, i, "overlay:anchor", param, hint).todouble();
+        if((v < 0.0) || (v > 1.0))
+            throw new LuaError("overlay:anchor: " + param + " must be 0..1 — the point across the widget and"
+                + " across the label the pair addresses, 0 being one edge and 1 the other. Got " + v
+                + ". overlay:offset(x, y) is what moves a label off the corner it is anchored to.");
+        return v;
+    }
+
     /** A pair of numbers read back, in the {@code {x=, y=}} shape every place in this API is read in. */
     private static LuaValue pair(double x, double y) {
         LuaTable t = new LuaTable();
@@ -456,6 +472,10 @@ public final class LuaWidgetOverlay {
         // anchor(ax, ay) — ONE pair of fractions read twice (see Rec.ax): the point of the widget's box the label
         // sits at, and the point of the label that lands there. The pair is the verb, so ONE number is refused
         // naming both — an anchor with an axis missing is the accident a default would swallow.
+        // Each fraction is REFUSED outside 0..1 rather than taken (un-12): the pair addresses a point of a
+        // box that is one unit wide, so 1e9 is not a far-away anchor — it is a label placed a million widths
+        // off the widget, drawn nowhere and reported by nothing. offset(x, y) is the verb that does take any
+        // finite pixel, and it is what moves a label off the corner it is anchored to.
         m.set("anchor", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Rec r = handle(a.arg1(), "anchor");
@@ -465,8 +485,8 @@ public final class LuaWidgetOverlay {
                     throw new LuaError("overlay:anchor(ax, ay) takes BOTH fractions: ax picks the point across"
                         + " the widget and across the label, ay the point down them — 0..1 each, so (0, 0) is"
                         + " the top-left corner of both and (0.5, 1) centres the label on the bottom edge");
-                double ax = Args.num(a, 2, "overlay:anchor", "ax", "a fraction 0..1 across").todouble();
-                double ay = Args.num(a, 3, "overlay:anchor", "ay", "a fraction 0..1 down").todouble();
+                double ax = fraction(a, 2, "ax", "a fraction 0..1 across");
+                double ay = fraction(a, 3, "ay", "a fraction 0..1 down");
                 r.ax = ax; r.ay = ay;
                 return a.arg1();
             }

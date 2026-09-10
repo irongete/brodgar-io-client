@@ -332,7 +332,11 @@ final class HttpApi {
                 if(ms == null)
                     return LuaValue.valueOf(req.timeout);
                 requireUnsent(req, "timeout");
-                req.timeout = clampTimeout(Args.integer(ms, "request:timeout", "ms", "milliseconds"));
+                // ht-11: the range is REFUSED, never clamped. A deadline silently rewritten to the default
+                // (a 0, a negative) or down to the ceiling (an hour) is a request that waits for a length
+                // nobody wrote, and the only way to see it was to read the property back.
+                req.timeout = (int)Args.integer(ms, "request:timeout", "ms", "milliseconds", 1,
+                                                LuaHttp.MAX_TIMEOUT);
                 return h;
             }
         });
@@ -579,13 +583,6 @@ final class HttpApi {
                 i.remove();
         }
         headers.put(name, value);
-    }
-
-    /** A timeout in milliseconds, defaulted and clamped to {@link LuaHttp}'s bounds. */
-    private static int clampTimeout(int ms) {
-        if(ms <= 0)
-            return LuaHttp.DEFAULT_TIMEOUT;
-        return (ms > LuaHttp.MAX_TIMEOUT) ? LuaHttp.MAX_TIMEOUT : ms;
     }
 
     /**

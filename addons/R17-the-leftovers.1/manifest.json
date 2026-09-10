@@ -1,0 +1,8 @@
+{
+  "id": "R17-the-leftovers.1",
+  "name": "R17 the leftovers: the three refusals",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for the three refusals of refactor block R17. `:tR17-1` asserts, through the API itself, that a request's timeout is refused outside 1..60000 rather than clamped, that an overlay's anchor fraction is refused outside 0..1 while its offset still takes any finite pixel, and that every subscription on a widget -- the Update key included -- ends when the widget does.",
+  "files": ["main.lua"]
+}
