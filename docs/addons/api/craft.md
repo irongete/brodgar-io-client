@@ -82,6 +82,13 @@ one by and nothing to track: read the recipe again rather than holding a slot ac
 Every read is unprotected, and none of them throws. The wire's "unspecified" count is `-1` and
 `spec:count()` answers `1` for it, which is what it means; the snapshot keeps the server's own number.
 
+**A slot is drawn by an icon, and that icon draws an item.** `spec:res()` is the **displayed** constraint —
+what the recipe accepts. The slot on screen is an [item icon](ui/items.md) like any other, so
+[`widget:item()`](ui/widget.md#read) on it answers the concrete item being painted and `:res()` on *that* is
+the concrete resource. Two views of one slot: read the spec for what the recipe requires, the item for what
+is drawn. The quality inputs and the tools have no icon at all — the window prints those as bare pictures,
+so `s:craft()` is the only read for them.
+
 There is no `CraftChanged` event, because a recipe changes only when the player opens one. To notice
 that, watch for the window with [`s:ui():on`](ui/replace.md): `s:ui():on("window", "Added", fn)`.
 

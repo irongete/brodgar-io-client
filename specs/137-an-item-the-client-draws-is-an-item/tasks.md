@@ -19,7 +19,7 @@
       pass when `:exists()` turns false while `:res()` still answers.
       `[manual]`: close the crafting window within 20 s of `:t137.1` -- expect: the timed line prints pass.
 
-- [ ] **137.2 — Found where it is drawn: the role, the collection, the door.** `LuaWidget.role` answers
+- [x] **137.2 — Found where it is drawn: the role, the collection, the door.** `LuaWidget.role` answers
       `item` exactly where `itemOf` answers; `witems` becomes `icons` (deep children filtered by `itemOf`)
       and `LuaItem.items` dedupes on the owner, so `widget:items()` on the crafting window lists its slots
       and `s:ui():on("item", "Added"/"Removed")` seeds and fires for them; `deepItems`/`ItemAdded` stay a

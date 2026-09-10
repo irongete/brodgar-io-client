@@ -803,7 +803,7 @@ final class CharApi {
             }
             if(changed) {
                 String user = user();
-                fireEquip(user, LuaItem.items(equipory(user)));
+                fireEquip(user, LuaItem.held(equipory(user)));
             }
         }
 
@@ -817,7 +817,7 @@ final class CharApi {
                 return;
             cache.put(it, LuaItem.equipKey(it));
             resolveInfo(it);
-            fireEquip(user, LuaItem.items(eq));
+            fireEquip(user, LuaItem.held(eq));
         }
 
         public void removed(Widget w) {
@@ -830,7 +830,7 @@ final class CharApi {
             // rule, mirrored here). Equipory's own child list no longer has it, so items() below already
             // reads the post-removal set.
             String user = user();
-            fireEquip(user, LuaItem.items(equipory(user)));
+            fireEquip(user, LuaItem.held(equipory(user)));
         }
 
         /**
@@ -850,7 +850,7 @@ final class CharApi {
                         if(cache.containsKey(it) && !key.equals(cache.get(it))) {
                             cache.put(it, key);
                             String user = user();
-                            fireEquip(user, LuaItem.items(equipory(user)));
+                            fireEquip(user, LuaItem.held(equipory(user)));
                         }
                     }
                 });

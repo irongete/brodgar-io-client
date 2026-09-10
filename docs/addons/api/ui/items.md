@@ -3,9 +3,10 @@
 **An item is a thing the client draws, and the icon drawing it is where you find it.** That covers the
 cell in your backpack and the one on the cursor, and it covers a crafting recipe's input and output slots
 and the food icon on a constipation row just as well: `widget:item()` answers on every one of them, and
-they are all the same [`Item`](#the-item-object) object. `widget:items()` is the relation over a
-container, exactly like `:children()` — the items inside *that* widget, while the window stays visible and
-interactive. Nothing is hidden and nothing is registered. Reading is unprotected.
+they are all the same [`Item`](#the-item-object) object. `widget:items()` is the relation over the widget
+*around* them, exactly like `:children()` — everything that widget draws, while the window stays visible
+and interactive, so a crafting window answers for its recipe's slots the way your backpack answers for its
+cells. Nothing is hidden and nothing is registered. Reading is unprotected.
 
 ```lua
 local s = hafen.session():current()              -- the character on screen
@@ -29,25 +30,31 @@ are; [what a depiction cannot do](#a-depiction-that-is-not-an-item) is the whole
 
 | Method | Returns | Description |
 |---|---|---|
-| `widget:items()` | collection of [`Item`](#the-item-object) | the items inside this widget, in the container's own order — `:list()` is the array |
+| `widget:items()` | collection of [`Item`](#the-item-object) | everything this widget draws, in the order it draws them — `:list()` is the array |
 | [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 | [`widget:item()`](widget.md#read) | [`Item`](#the-item-object) \| nil | the item **one icon** draws; `nil` on any other widget |
 
 - **An icon is any widget that draws one item**: a container's cell, the cursor, a crafting recipe's input
   or output slot, the food icon on a constipation row, and a listing a resource ships its own widget for.
   `widget:item()` answers on all of them and `nil` on everything else, so the test for "is this an item
-  icon" is the read itself.
-- The search is **deep**, so a whole window answers for the grid inside it: `s:ui():node(chestId):items()`
-  works whether you point at the window or at its `Inventory` child.
-- **Each item appears once.** The equipment window draws a worn item in every slot it fills, and
+  icon" is the read itself — and the [`item` role](selectors.md#roles) is that same test, which is why
+  `s:ui():matchAll("item")` and `s:ui():on("item", "Added", fn)` reach exactly the icons `:item()` answers
+  on, and no others.
+- The search is **deep**, so a whole window answers for what is inside it: `s:ui():node(chestId):items()`
+  works whether you point at the window or at its `Inventory` child, and the crafting window lists its
+  recipe's input and output slots the same way.
+- **Each thing appears once.** The equipment window draws a worn item in every slot it fills, and
   `item:slots()` names them all — so a two-slot piece of gear is one entry, not two. The window does not
   publish a display name for every one of its places; a slot that has none is listed by its own identifier
   instead, so a worn item always names where it is and an empty `:slots()` means exactly *not worn*.
+- **Quality inputs and tools are not items.** The crafting window prints those as bare pictures rather
+  than icons, so nothing draws one and `:items()` lists none of them: what the recipe *asks* for is
+  [`s:craft()`](../craft.md#a-spec), and the input and output slots are what it *draws*.
 - **The cursor belongs to a character**, so it is read on the [session](../session.md) that names one: `s`
   above is `hafen.session():current()`, and one you are not looking at can perfectly well be carrying
   something.
-- A non-container, or a stale widget, answers with an **empty array**, never `nil`.
-- There is no `find` verb: it is a one-liner over `:items()`, and it would have to pick a container for you.
+- A widget that draws nothing, or a stale one, answers with an **empty array**, never `nil`.
+- There is no `find` verb: it is a one-liner over `:items()`, and it would have to pick a widget for you.
 
 ## The Item object
 
@@ -69,7 +76,7 @@ are; [what a depiction cannot do](#a-depiction-that-is-not-an-item) is the whole
 | `:on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | [what this item says about itself resolved, or was revised](#an-item-arrives-before-it-can-be-described) |
 
 An item is **interned**, so `==` is the identity test and a stashed one keeps answering. Two reads of one
-icon are the same object, and so are the icon's `:item()` and the container's `:items()` entry for it. It is
+icon are the same object, and so are the icon's `:item()` and the `:items()` entry of the widget around it. It is
 keyed on the thing drawn and never on `:handle()`, because the server re-uses that number: a reference
 built on it would stop naming this item and start naming its replacement, silently.
 

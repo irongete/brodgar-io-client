@@ -1,0 +1,9 @@
+{
+  "id": "137-an-item-the-client-draws-is-an-item.2",
+  "name": "137.2 — found where it is drawn",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 137.2: the item role and widget:items() reach a crafting recipe's slots as well as a container's cells, one door seeds every icon there is, a recipe's quality inputs and tools are not among them, a real container is unchanged, a slot whose icon is destroyed goes stale and leaves the role's listing, and the slots of the recipe that replaces it are announced.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

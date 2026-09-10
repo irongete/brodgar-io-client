@@ -1206,14 +1206,14 @@ public final class LuaWidget {
         // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Tick/Drop/Close
         // on an owned surface, ItemAdded/ItemRemoved/Removed on any widget. See AddonWidget (the first three)
         // and WidgetSubs (the tree-key three, event-driven off placement/removal since 042.7).
-        // items() — 029.3: the items INSIDE this widget, as an array of Item OBJECTS. A RELATION on the
-        // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
-        // (whose worn items say which slots they fill), or any widget with WItems under it (children(WItem.class)
-        // is a DEEP traversal, so a whole window answers for its grid). Each item appears ONCE however many slots
-        // it occupies. Read with the window VISIBLE and interactive: nothing is hidden, nothing is registered —
-        // which is the whole point of deleting hafen.ui.adopt. Empty for a leaf, a non-container or a stale
-        // widget. Read-only: MOVING an item is the item's own protected tier (item:take() / :drop(n) /
-        // :transfer(n)).
+        // items() — 029.3: the items THIS WIDGET DRAWS, as an array of Item OBJECTS. A RELATION on the widget
+        // around them, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
+        // (whose worn items say which slots they fill), or anything with icons under it: the walk is DEEP and
+        // its filter is itemOf (137.2), so a whole window answers for its grid, and a crafting window answers
+        // for its recipe's input and output slots. Each depiction appears ONCE however many icons draw it. Read
+        // with the window VISIBLE and interactive: nothing is hidden, nothing is registered — which is the whole
+        // point of deleting hafen.ui.adopt. Empty for a leaf, a widget drawing nothing or a stale one.
+        // Read-only: MOVING an item is the item's own protected tier (item:take() / :drop(n) / :transfer(n)).
         m.set("items", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 final LuaWidget h = handle(self, "items");
@@ -2806,21 +2806,39 @@ public final class LuaWidget {
     // ---- items: the relation (029.3) — the lifecycle notifications live on WidgetSubs since 041.4 -----
 
     /**
-     * The items inside a container widget, as an array of <b>Item objects</b> ({@code widget:items()}). {@code
-     * children(WItem.class)} is a <b>deep</b> traversal, so a whole window answers for the grid inside it, and
-     * {@link LuaItem#items} de-duplicates — an {@link Equipory} draws one worn item once per slot it fills, and
-     * two entries that are {@code ==} would make {@code #items} a lie. Where each one sits is read off the item
-     * ({@code :cell()}, {@code :slots()}). Taken under the {@code ui} monitor, like every other tree read.
+     * The items a container widget draws, as an array of <b>Item objects</b> ({@code widget:items()}). {@link
+     * #icons} is a <b>deep</b> walk, so a whole window answers for the grid — or for the recipe slots — inside
+     * it, and {@link LuaItem#list} de-duplicates on the thing drawn: an {@link Equipory} draws one worn item
+     * once per slot it fills, and two entries that are {@code ==} would make {@code #items} a lie. Where each
+     * one sits is read off the item ({@code :cell()}, {@code :slots()}). Taken under the {@code ui} monitor,
+     * like every other tree read.
      */
     static LuaValue items(Addon owner, Widget w) {
         return LuaItem.list(owner, w);
     }
 
-    /** A copy of a container's {@link WItem} children (deep), taken under the {@code ui} monitor. */
-    static List<WItem> witems(Widget w) {
+    /**
+     * <b>Every icon under a widget</b> (137.2) — each descendant that draws one depiction, in tree order,
+     * copied under the {@code ui} monitor like every other tree read. {@link #itemOf} is the whole of the
+     * filter, and that is what makes this reach a container's cells, a crafting recipe's slots and a widget
+     * a resource ships to draw its own item without naming one of them here. The walk is {@link
+     * Widget#children(Class) children(Widget.class)}, which is DEEP and excludes the receiver: an icon's own
+     * icons are the ones inside it, never itself.
+     *
+     * <p>Undeduplicated, deliberately — a {@link GItem} is drawn by one {@link WItem} per slot it fills, and
+     * which of those icons is the address is {@link LuaItem#list}'s question, not this walk's.
+     */
+    static List<Widget> icons(Widget w) {
         if(w == null)
-            return new ArrayList<WItem>();
-        synchronized(monitor(w)) { return new ArrayList<WItem>(w.children(WItem.class)); }
+            return new ArrayList<Widget>();
+        List<Widget> out = new ArrayList<Widget>();
+        synchronized(monitor(w)) {
+            for(Widget c : w.children(Widget.class)) {
+                if(itemOf(c) != null)
+                    out.add(c);
+            }
+        }
+        return out;
     }
 
     /**
@@ -2976,11 +2994,15 @@ public final class LuaWidget {
             return null;
         if((w instanceof Inventory) || (w instanceof Equipory))
             return "inventory";
-        // 104: the icon ONE item is drawn as, wherever it is drawn -- a slot in a container, a slot of the
-        // equipment grid, or the cursor while the item is being carried. A role is an `instanceof`, so it covers
-        // the subclasses `@Class` deliberately does not: the cursor's icon is an ItemDrag, a WItem all the same,
-        // and an addon decorating item icons wants both without having to know that name.
-        if(w instanceof WItem)
+        // 104, widened by 137.2: the icon ONE item is drawn as, WHEREVER it is drawn -- a slot in a container,
+        // a slot of the equipment grid, the cursor while the item is being carried, a crafting recipe's input or
+        // output, a constipation row's food icon, and a widget a resource ships to draw its own depiction. The
+        // role IS "widget:item() answers", which is why the test is itemOf and not a class list: one decision
+        // behind both, so a role can never name an icon the read then refuses (or the other way round), and a
+        // .res widget drawing a depiction is reached the day its class loads without a name here. It still
+        // covers the subclasses `@Class` deliberately does not -- the cursor's icon is an ItemDrag and a recipe
+        // input is a Makewindow.Input -- which an addon decorating icons wants without learning either name.
+        if(itemOf(w) != null)
             return "item";
         if(w instanceof Window)
             return "window";

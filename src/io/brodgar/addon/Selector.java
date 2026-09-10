@@ -72,9 +72,9 @@ final class Selector {
      * than a widget, so nothing is ever classified as one. Kept valid so the vocabulary stays single.
      *
      * <p><b>Every scope is a role; not every role is a scope</b> (104). {@code item} classifies a widget and
-     * names no render site: a {@code WItem} draws a sprite and the overlays its own resource publishes, and has
-     * no text of its own to give a font to. Declaring it a scope would promise a style nothing reads, which is
-     * worse than the vocabulary being a superset — so the inclusion is one-way, and stated.
+     * names no render site: an icon draws a sprite and the overlays its own resource publishes, and has no text
+     * of its own to give a font to. Declaring it a scope would promise a style nothing reads, which is worse
+     * than the vocabulary being a superset — so the inclusion is one-way, and stated.
      */
     static final String[] SITE_ROLES = {
         "window.title", "window.frame", "panel", "heading", "tooltip", "world.nick", "world.speech",

@@ -46,6 +46,13 @@ widget. **`WItem` is the exception in this tree**: an item icon is the first wid
 something on top of, so it chains (`// addon:`, last, over the sprite and its info overlays) and a child built
 into an icon *is* drawn.
 
+**And `WItem` is the only icon that chains — the other three do not.** `Makewindow.SpecWidget.draw` is
+`drawbg` + `drawicon`, `SListWidget.IconText.draw` (which `BAttrWnd.Constipations.ItemIcon` extends) is
+`drawicon` + `drawtext`, and a `.res` widget drawing its own `ItemSpec` answers to nobody here: none of them
+calls `super.draw`, so a child added to one is invisible. The decoration seam in the child loop above is
+unaffected, because it is the **parent** that paints it after `wdg.draw(g2)` returns — so an overlay lands on
+every one of those widgets, and only a child widget does not.
+
 **The style frame is per widget and nests.** `Fonts.frame(wdg)` is opened around `wdg.draw(g2)` in the loop
 above, so it covers that widget's own text *and* its whole subtree while its siblings resolve under whatever
 the level above them carries —

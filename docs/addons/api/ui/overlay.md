@@ -183,8 +183,9 @@ puts in a container and destroys it when the server takes that item out, so movi
 — or onto the cursor — is a destroy and a build, not a widget that moved. What you hung on the old icon
 goes with it. So a decoration that has to survive a move is written as *decorate every icon there is*:
 [`s:ui():on("item", "Added", fn)`](selectors.md#roles) hands you each one as it appears — the ones already
-open when you subscribe, the ones built by a move, and the one the cursor carries — and
-[`widget:item()`](widget.md#read) is the item it draws.
+open when you subscribe, the ones built by a move, the one the cursor carries, and every other icon the
+client draws, a crafting recipe's slots included — and [`widget:item()`](widget.md#read) is the item it
+draws.
 
 ```lua
 local mark = pack:overlay():get("frame")

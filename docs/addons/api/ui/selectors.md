@@ -161,7 +161,7 @@ publishes, each answering `:name()` and `:selector()` — the same string when i
 | `textentry` | `TextEntry` |
 | `chat` | `ChatUI` and its channels |
 | `menu` | `MenuGrid`, `FlowerMenu` |
-| `item` | the icon **one item** is drawn as, wherever it is drawn — a container's slot, an equipment slot, and the cursor while the item is carried |
+| `item` | the icon **one item** is drawn as, wherever it is drawn — a container's cell, an equipment slot, the cursor while the item is carried, a crafting recipe's input or output slot, and an icon a resource ships its own widget for |
 
 **The table above is every role that matches a widget.** Every other name in the vocabulary is a *site*
 key: `window.title`, `window.frame`, `panel`, `heading`, `tooltip`, `inventory.slot`, `world.nick` and
@@ -180,10 +180,12 @@ gap: an unrecognised widget answers `nil` rather than being guessed into the nea
 `*`, `@Class`, `[res=]`, or by anchoring a chain on the window they sit in.
 
 **`item` is why a role is not `@Class`.** A role is what a widget *is*, so it covers the subclasses `@Class`
-deliberately does not: the icon under the cursor is its own class, and an addon decorating item icons wants
-it without having to learn that name. `item` is also the one role with no site key behind it — an item icon
-draws a picture and whatever overlays its own resource publishes, and has no text of its own to give a font
-to, so calling it a site would promise a style nothing reads.
+deliberately does not: the icon under the cursor is one class, a recipe's input slot is another, and an addon
+decorating icons wants both without having to learn either name. The role is exactly
+[`widget:item()`](widget.md#read) answering — one test behind the match and the read, so a role can never name
+an icon whose item the read then refuses to give you. `item` is also the one role with no site key behind it —
+an icon draws a picture and whatever overlays its own resource publishes, and has no text of its own to give a
+font to, so calling it a site would promise a style nothing reads.
 
 ## Two rules that are easy to get wrong
 
@@ -202,11 +204,16 @@ to, so calling it a site would promise a style nothing reads.
 ## What carries a res
 
 `[res=]` is the *stable* key: a resource name never changes with the client's language, where a caption
-can. But only some widgets have one — **items** (`gfx/invobjs/…`), **meters** (`gfx/hud/meter/hp`), a
-building site's **material boxes** (`@ISBox`, the material each counts), and
+can. But only some widgets have one — a **container's cell** (`gfx/invobjs/…`, its item's), **meters**
+(`gfx/hud/meter/hp`), a building site's **material boxes** (`@ISBox`, the material each counts), and
 widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Most windows carry none**: the client's
 own windows are plain Java classes with nothing behind them. So in practice, `[res=]` for items and meters,
 `[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.
+
+Not every `item` does: an icon drawing a [depiction](items.md#a-depiction-that-is-not-an-item) — a recipe
+slot, a listing a resource draws itself — carries the resource its own code came out of, or none, because
+that resource is the thing drawn's rather than the widget's. Refine those on the item, where
+[`w:item():res()`](items.md#the-item-object) answers for every icon there is.
 
 A caption selector matches the client's **own English**, whatever the client is displaying: a
 [catalogue](../locale.md) lands at the render and nowhere above it, so `[title=Inventory]` goes on matching

@@ -100,7 +100,7 @@ grep -rn "item icon\|icon one item\|one icon draws\|wherever it is drawn" docs/
 - H `OwnerContext.java`, `Widget.java` (`add0`, `remove`, `destroy`) — 1
 - B `LuaItem.java`, `LuaContents.java`, `CharApi.java`, `LuaHand.java` (its `hand:use(item)` resolves
   an Item and so owes the depiction refusal too) — 1
-- B `LuaWidget.java` (`itemOf` — 137.1's one decision — plus `role`, `witems`, `typeName`),
+- B `LuaWidget.java` (`itemOf` — 137.1's one decision — plus `role`, `icons`, `typeName`),
   `Selector.java` — 1, 2
 - B `Addon.java` (`items`, `itemSubs`, `dropItemSubs`, `dropInternedHandles`) — 1
 - B `AddonManager.java` (`onItemInfo`, `drainItemInfos`, `fireItem`, `drainDisposedWidgets`,

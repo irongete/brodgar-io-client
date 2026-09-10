@@ -967,37 +967,55 @@ public final class LuaItem {
     }
 
     /**
-     * The items inside a container, <b>each one once</b> ({@code widget:items()}). The {@link WItem} walk is
-     * what defines a container (and it is deep, so a whole window answers for the grid inside it) — but an
-     * {@link Equipory} draws one worn item in every slot it fills, and two entries that are {@code ==} would
-     * make {@code #items} a lie about how many things you have. So the list is de-duplicated on the item
-     * itself, and the slots it fills are read from it with {@code :slots()}.
+     * <b>Everything a widget draws, each thing once</b> ({@code widget:items()}), as one owner's array of Item
+     * objects. The {@link LuaWidget#icons} walk is what finds them (deep, so a whole window answers for the
+     * grid — or for the recipe slots — inside it), and the list is de-duplicated on <b>the thing drawn</b>:
+     * an {@link Equipory} draws one worn item in every slot it fills, and two entries that are {@code ==}
+     * would make {@code #items} a lie about how many things you have. Which slots one fills is read off the
+     * item with {@code :slots()}.
+     *
+     * <p><b>The mint carries the icon</b> (137.2), because for a depiction that widget is the only address
+     * there is — and the first icon in tree order is the one the entry keeps, which for a depiction is also
+     * the only one, since nothing draws one twice. For a {@link GItem} the icon is discarded at the mint:
+     * a {@code GItem} is its own icon.
      */
-    static List<GItem> items(Widget container) {
-        List<GItem> out = new ArrayList<GItem>();
-        Set<GItem> seen = Collections.newSetFromMap(new IdentityHashMap<GItem, Boolean>());
-        for(WItem w : LuaWidget.witems(container)) {
-            if((w.item != null) && seen.add(w.item))
-                out.add(w.item);
+    static LuaValue list(Addon owner, Widget container) {
+        LuaTable out = new LuaTable();
+        Set<ItemInfo.SpriteOwner> seen =
+            Collections.newSetFromMap(new IdentityHashMap<ItemInfo.SpriteOwner, Boolean>());
+        int n = 0;
+        for(Widget icon : LuaWidget.icons(container)) {
+            ItemInfo.SpriteOwner o = LuaWidget.itemOf(icon);
+            if((o != null) && seen.add(o))
+                out.set(++n, of(owner, o, icon));
         }
         return out;
     }
 
-    /** {@link #items} as one owner's array of Item objects — what {@code widget:items()} hands back. */
-    static LuaValue list(Addon owner, Widget container) {
-        LuaTable out = new LuaTable();
-        List<GItem> its = items(container);
-        for(int i = 0; i < its.size(); i++)
-            out.set(i + 1, of(owner, its.get(i)));
+    /**
+     * The <b>items a container holds</b>, each one once — the {@link GItem} half of {@link #list}, and never
+     * handed to Lua. A depiction is deliberately absent: this is the set the container LIFECYCLE is about
+     * ({@link #deepItems}, {@code ItemAdded}/{@code ItemRemoved}, {@code EquipChanged}), and every one of
+     * those asks what the server put somewhere. A recipe slot is drawn, not held: it never entered a
+     * container, so it can never enter or leave one.
+     */
+    static List<GItem> held(Widget container) {
+        List<GItem> out = new ArrayList<GItem>();
+        Set<GItem> seen = Collections.newSetFromMap(new IdentityHashMap<GItem, Boolean>());
+        for(Widget icon : LuaWidget.icons(container)) {
+            ItemInfo.SpriteOwner o = LuaWidget.itemOf(icon);
+            if((o instanceof GItem) && seen.add((GItem)o))
+                out.add((GItem)o);
+        }
         return out;
     }
 
     /**
      * Every item {@code container} holds, INCLUDING what sits inside a stack or a creel it holds, at any
-     * depth (064.3) — unlike {@link #items}, which is exactly what {@code widget:items()} answers, one entry
-     * per cell and never a stack's own contents flattened in. This is the set {@link WidgetSubs}'s {@code
-     * ItemAdded}/{@code ItemRemoved} diff runs against: the events answer what ENTERED this container, at
-     * any depth, while the read answers what it DRAWS. Never handed to Lua.
+     * depth (064.3) — unlike {@link #held}, which is one entry per cell and never a stack's own contents
+     * flattened in. This is the set {@link WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved} diff runs
+     * against: the events answer what ENTERED this container, at any depth, while {@code widget:items()}
+     * answers what it DRAWS. Never handed to Lua.
      *
      * <p><b>The value is each item's own immediate container</b> ({@code null} for a top-level one) — read
      * HERE, while every item in the map is still live, rather than later through {@link #container}, which
@@ -1008,7 +1026,7 @@ public final class LuaItem {
      */
     static Map<GItem, GItem> deepItems(Widget container) {
         Map<GItem, GItem> out = new LinkedHashMap<GItem, GItem>();
-        for(GItem it : items(container))
+        for(GItem it : held(container))
             collectDeep(it, null, out);
         return out;
     }

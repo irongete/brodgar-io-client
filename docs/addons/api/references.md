@@ -80,7 +80,7 @@ replacement. One you keep therefore answers *the same item* or *gone*, and the
 
 **Every item is found through the icon drawing it**, which is also what ends it. A container's cell, the
 cursor, a crafting recipe's slot and a listing a resource paints are one type and one interning, so
-`icon:item()` is `==` the container's own `:items()` entry, and each of them goes stale when the widget
+`icon:item()` is `==` the `:items()` entry of the widget around it, and each goes stale when the widget
 drawing it leaves the tree. What the server put in a container answers where it is; what the client only
 draws answers [absence and a refusal](ui/items.md#a-depiction-that-is-not-an-item), because there is no
 widget behind it to address.

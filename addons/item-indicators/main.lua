@@ -204,6 +204,11 @@ end
 local function decorateIcon(icon)
   local item = icon:item()
   if item == nil then return end
+  -- ONLY AN ITEM SOMEBODY IS HOLDING. The role reaches every icon the client draws, a crafting recipe's
+  -- slots and a constipation row's food among them -- and those paint themselves without drawing their
+  -- children, so a plate built into one would exist, cost a widget and never appear. A depiction has no
+  -- server widget behind it, which is the test: no handle, nothing held, nothing to indicate.
+  if item:handle() == nil then return end
 
   -- Built into the icon, so both die with it and there is nothing to release: an icon is destroyed and
   -- rebuilt every time its item moves, and the one that replaces it arrives here on its own. Adoption is a
@@ -341,9 +346,10 @@ local function forgetSession(session)
   sessionSubscriptions[session] = nil
 end
 
--- "item" is every icon an item is drawn as: a container slot, an equipment slot, and the cursor while the
--- item is carried. Subscribing reports the ones already on screen as well as the ones built later, so there
--- is nothing to walk and nothing to wait for.
+-- "item" is every icon an item is drawn as -- a container slot, an equipment slot, the cursor while the item
+-- is carried, and every other icon the client puts up, which is why decorateIcon picks out the ones a
+-- decoration can reach. Subscribing reports the ones already on screen as well as the ones built later, so
+-- there is nothing to walk and nothing to wait for.
 local function watchSession(session)
   forgetSession(session)                                   -- a character switch keeps the session, not its tree
   sessionSubscriptions[session] = session:ui():on("item", "Added", decorateIcon)
