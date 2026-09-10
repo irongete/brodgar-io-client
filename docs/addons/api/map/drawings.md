@@ -31,12 +31,22 @@ and returns `nil`, a later one returns the handle. A draw callback that re-asks 
 intended shape, and it costs nothing once the picture is there — the same `(grid, level)` hands back the
 *same* handle, never a new render.
 
-**A render that fails answers `nil` for good.** If it threw, or found nothing to draw, that `(grid,
-level)` is remembered as failed and every later call answers `nil` too — re-trying it each frame would
-be a render loop nobody could see. So `nil` is two answers wearing one word, *not yet* and *never*, and
-the way to tell them apart is to ask what the grid has: [`grid:exists()`](grids.md) and
-[`grid:mask()`](grids.md) say whether there was anything to draw. A `nil` that has not turned into a
-handle after a few frames is the second kind.
+**A render that fails is tried again — three times, and then it stops.** If it threw, or found nothing
+to draw, that `(grid, level)` answers `nil` and the *next* ask renders it anew. Most failures here are a
+moment rather than a verdict: a render cancelled because another thread wanted the same picture, a
+resource mid-swap, a segment being rewritten under a merge. After three failures in a row nothing more
+is coming, and the picture stops being asked for.
+
+**`grid:info().failed` is what says so**, and it is the reason `nil` is not two answers wearing one word:
+
+| `grid:image(0)` | `grid:info().failed` | What it means |
+|---|---|---|
+| `nil` | `false` | not yet — it is rendering, ask again next frame |
+| an image | `false` | there it is |
+| `nil` | `true` | never — it was tried and given up on |
+
+So the shape stays what it always was: ask every frame and draw what you get. The flag is for the moment
+you want to say *why* nothing came — a status line, a log — rather than something to branch the draw on.
 
 ## A level is a scale, not a size
 

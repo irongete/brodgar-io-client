@@ -146,6 +146,11 @@ call can be rendered in a [loaded font](../font.md), tinted, and wrapped to a bo
   downwards. A `width` of `0` or less is refused rather than read as "one line", because zero is what your
   own arithmetic produces when you subtract a padding from a width you have not measured yet.
 
+**One call rasterises one line, so the string is bounded at 4096 characters** — `g:text`, `g:atext` and
+`hafen.ui():measure` alike, and past it the call raises naming the ceiling. A string is one AWT image and
+one GPU texture, so a line long enough to matter is a picture nothing can read; a paragraph is drawn a
+line at a time, or wrapped with `width` and cut to what fits.
+
 The string may also carry rich-text markup — `$font[family,size]{…}`, `$col`, `$b`, `$i`, `$u`, `$size` —
 so several fonts can share one line. Feed a handle's `h:family()` to the `$font` tag; see
 [mixing fonts on one line](../font.md#mix-fonts-on-one-line). Plain text with no markup and no font takes
@@ -223,6 +228,10 @@ What that means when you write a draw callback:
 - **It is bounded, not a leak.** An LRU of at most **512 entries or 8 MiB** of texture; the least recently
   used entries are evicted and their textures disposed. An addon that draws thousands of distinct strings
   settles at the cap instead of growing.
+- **One entry is bounded too, at 1 MiB.** A raster bigger than that is drawn and dropped rather than kept:
+  it is far wider than any line of text, and holding it would flush most of the cache to make room and then
+  be evicted itself on the next miss — paying eviction and re-rasterisation, every frame, for the entries
+  it displaced. There is nothing to do about it; a wrapped block that large is simply not cached.
 - **A label an overlay puts up shares it.** [`ov:text(s)`](overlay.md#a-label-the-client-draws) over a
   widget, and [the same verb at a gob](../overlay.md), are drawn by the client rather than by a callback of
   yours — through this very cache, on the same key. So one string in one font is one entry whether your

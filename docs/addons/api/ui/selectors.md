@@ -215,6 +215,14 @@ a window whose caption is drawn in another language.
 A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
 meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource name is *exactly* that.
 
+> **A `[res=]` refiner has about twenty frames to land.** A widget's resource arrives with no event of its
+> own, so a rule that did not match is re-asked for a bounded run of frames and then settles — and a
+> resource that resolves later than that never starts matching, for that widget. It is not a wait you can
+> lengthen. Where it bites is a widget placed in the same breath as a cold resource load; installing the
+> sheet again re-opens every answer, and so does any edit to it.
+
+
+
 ### The picture is a different read
 
 `:res()` names the resource a widget's own **code** came from. Most of the client's chrome is an ordinary

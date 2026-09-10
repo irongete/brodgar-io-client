@@ -64,15 +64,24 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      */
     static final double ANCHOR_Z = 15;
 
-    /** The shared {@code g} draw wrapper, bound per draw (one per attached gob; the draw pass is single-threaded). */
-    private final LuaGOut gwrap = new LuaGOut();
-
     /**
      * The records, partitioned per addon and insertion-ordered within an addon (so {@code gob:overlay()} answers
      * in the order the addon attached them). Guarded by this attrib's own monitor: the writes come from the UI
      * thread (a Lua verb) and the reads from the draw pass, but teardown may sweep from a session-bind thread.
      */
     private final Map<Addon, Map<String, Attach>> byAddon = new LinkedHashMap<Addon, Map<String, Attach>>();
+
+    /**
+     * <b>The draw pass's own two arrays, reused frame after frame</b> (audit2 B15) — the records that paint and
+     * the point each projected to. They were a fresh {@code ArrayList} and a fresh {@code Coord3f[]} per
+     * overlaid gob per frame, which is what {@code overlay.md}'s "one blit and one rasterisation for its
+     * lifetime" was measured against and did not describe: two hundred labelled crops were four hundred
+     * allocations a frame before a single pixel was drawn. Only {@link #draw} touches them, and that runs on
+     * the UI thread inside one {@code UI.draw} traversal, so the reuse needs no lock of its own — the
+     * <i>filling</i> of the list still takes this attrib's monitor, exactly as the snapshot it replaces did.
+     */
+    private final List<Attach> paint = new ArrayList<Attach>();
+    private Coord3f[] pts = new Coord3f[0];
 
     LuaGobOverlay(Gob gob) {
         super(gob);
@@ -290,14 +299,14 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      * in it, having not yet said what it draws; that is how a half-configured overlay never paints.
      */
     private synchronized List<Attach> paintRecords() {
-        List<Attach> out = new ArrayList<Attach>();
+        paint.clear();
         for(Map<String, Attach> m : byAddon.values()) {
             for(Attach a : m.values()) {
                 if(a.drawn())
-                    out.add(a);
+                    paint.add(a);
             }
         }
-        return out;
+        return paint;
     }
 
     // ---- the write, addressed at the OBJECT (080.1) ------------------------------------------------
@@ -378,17 +387,24 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         }
     }
 
-    /** The distinct resource names of the game's own overlays on {@code g}, in {@code Gob.ols} order. */
+    /**
+     * The distinct resource names of the game's own overlays on {@code g}, in {@code Gob.ols} order.
+     *
+     * <p><b>Under the gob's own monitor</b> (audit2 B15). {@code Gob.ols} is a plain {@code ArrayList} the
+     * loader threads add to and remove from under {@code synchronized(gob)} (docs/client/world-3d.md), so a
+     * walk without it raced them: the {@code ConcurrentModificationException} was swallowed and a PARTIAL list
+     * handed back, which is a native key silently missing from {@code gob:overlay():list()} — and, through
+     * {@link #countNative}, a miscount that could swallow a {@code GobOverlay*} edge at the union gate. The
+     * monitor is the one the engine itself takes, held for the walk alone and never over Lua.
+     */
     static List<String> nativeKeys(Gob g) {
         List<String> out = new ArrayList<String>();
-        try {
+        synchronized(g) {
             for(Gob.Overlay ol : g.ols) {
                 String k = nativeKey(ol);
                 if((k != null) && !out.contains(k))
                     out.add(k);
             }
-        } catch(RuntimeException e) {
-            /* concurrent overlay mutation — answer what we have */
         }
         return out;
     }
@@ -411,13 +427,11 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      */
     static int countNative(Gob g, String key) {
         int n = 0;
-        try {
+        synchronized(g) {                    // audit2 B15: the engine's own monitor over Gob.ols -- see nativeKeys
             for(Gob.Overlay ol : g.ols) {
                 if(key.equals(nativeKey(ol)))
                     n++;
             }
-        } catch(RuntimeException e) {
-            /* concurrent overlay mutation -- answer what we counted */
         }
         return n;
     }
@@ -434,15 +448,17 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      */
     public void draw(GOut g, Pipe state) {
         List<Attach> recs = paintRecords();
-        if(recs.isEmpty())
+        int n = recs.size();
+        if(n == 0)
             return;                                        // nothing attached (an idle attrib awaiting its prune)
-        Coord3f[] pts = new Coord3f[recs.size()];
+        if(pts.length < n)
+            pts = new Coord3f[n];                          // grows to the busiest frame and then stops allocating
         try {
             Area view = Area.sized(g.sz());
             double lastZ = 0;
             Coord3f last = null;
             boolean have = false;
-            for(int i = 0; i < pts.length; i++) {
+            for(int i = 0; i < n; i++) {
                 Attach a = recs.get(i);
                 if(!have || (a.height != lastZ)) {
                     // The point is kept EXACT: its whole part is where the record is laid out and its fraction
@@ -457,6 +473,9 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         } catch(RuntimeException e) {
             return;       // never throw into the render pass (mirrors the Loading-guarded reads)
         }
-        UiApi.paintGobOverlays(gob, recs, pts, g, gwrap);
+        // audit2 B15: each record is painted through ITS OWN ADDON's one wrapper (B01's Addon.gout) rather than
+        // through a LuaGOut this attrib held. A whole table of drawing closures was built in the attrib's
+        // constructor -- once per gob that took any overlay -- for a `text` record that never enters Lua at all.
+        UiApi.paintGobOverlays(gob, recs, pts, g, n);
     }
 }

@@ -199,11 +199,20 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
     /* addon: (F3d) a Tip may render its text in its constructor -- published `.res` code does -- so a font
      * change has to rebuild the info list; ItemInfo.buildinfo() runs inside the "tooltip" scope. */
     private int fontgen = -1;   // addon:
+    /* addon: (audit2 B15) was the rebuild below a FONT rebuild rather than a revision? The seam at the end
+     * of this method fires item:on("Changed"), whose whole promise -- stated three lines above it -- is that
+     * it is reached once per arrival and once per revision. A font or style move bumps the GLOBAL Fonts.gen(),
+     * so ANY addon's unrelated stylesheet edit dropped every cached list in the client and fired "Changed"
+     * for every item in every session, about an item nothing had changed. The list still has to be rebuilt
+     * (a published Tip renders its text in its own constructor, F3d); what must not happen is the report. */
+    private boolean fontrebuild;   // addon:
     public List<ItemInfo> info() {
 	if(fontgen != Fonts.gen()) {   // addon: (F3d)
 	    fontgen = Fonts.gen();
-	    if(rawinfo != null)   // addon: ...but only once the item's `tt` has actually arrived
+	    if(rawinfo != null) {  // addon: ...but only once the item's `tt` has actually arrived
 		this.info = null;
+		this.fontrebuild = true;   // addon: (audit2 B15) the letters moved, the item did not
+	    }
 	}
 	if(this.info == null) {
 	    List<ItemInfo> info = ItemInfo.buildinfo(this, rawinfo);
@@ -217,7 +226,9 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	     * reached exactly once per arrival and once per revision, whichever of the two was last, and never
 	     * per frame (the built list is cached in `info` and this block is skipped while it stands). It is
 	     * what fires item:on("Changed", fn). */
-	    io.brodgar.addon.AddonManager.onItemInfo(this);   // addon:
+	    if(!fontrebuild)   // addon: (audit2 B15) ...and never for a rebuild the font system asked for
+		io.brodgar.addon.AddonManager.onItemInfo(this);   // addon:
+	    fontrebuild = false;   // addon:
 	}
 	return(this.info);
     }

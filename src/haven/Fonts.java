@@ -1370,6 +1370,29 @@ public class Fonts {
 
 	private Piece(Object art) {this.art = art;}
 
+	/* addon: (audit2 B15) VALUE EQUALITY, because Fonts.stock compares declarations with Arrays.equals
+	 * over freshly built Pieces and this class overrode nothing -- so the identity comparison was false
+	 * on every call, and the three per-DRAW declarations (a plate's `picture`, GameUI's own) wrote the
+	 * ConcurrentHashMap and cloned the array every frame, against stock()'s own "the same declaration
+	 * again: no write, so a per-draw call is free" and against the docs/client page that repeats it.
+	 * The art itself is compared by identity on purpose: a Tex, a BufferedImage and an IBox are held
+	 * objects, and the same declaration hands over the same one. */
+	public boolean equals(Object o) {
+	    if(!(o instanceof Piece))
+		return(false);
+	    Piece p = (Piece)o;
+	    return((art == p.art) && Utils.eq(at, p.at) && Utils.eq(offset, p.offset) &&
+		   (tile == p.tile) && (width == p.width));
+	}
+
+	public int hashCode() {
+	    int h = System.identityHashCode(art);
+	    h = (h * 31) + ((at == null) ? 0 : at.hashCode());
+	    h = (h * 31) + ((offset == null) ? 0 : offset.hashCode());
+	    h = (h * 31) + (tile ? 1 : 0);
+	    return((h * 31) + width);
+	}
+
 	/** Pin it to one of the nine corners. */
 	public Piece at(String corner) {this.at = corner; return(this);}
 	/** ...at an offset from that corner, in device px. */

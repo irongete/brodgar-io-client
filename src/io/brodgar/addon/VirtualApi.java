@@ -1059,7 +1059,7 @@ final class VirtualApi {
         // write would be a silent no-op — the one outcome an API this size should never hand back.
         m.set("position", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":position()");
                 if(!Args.passed(a, 2))
                     return entityPosition(e.owner, e);
                 if(e.followTgt != 0)
@@ -1090,7 +1090,7 @@ final class VirtualApi {
         // that means "where".
         m.set("offset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":offset()");
                 if(e.followTgt == 0)
                     throw new LuaError(kind + ":offset(): this " + kind + " stands where it was put, so it is"
                         + " offset from nothing -- its place is " + kind + ":position(p). An offset is what a "
@@ -1119,7 +1119,7 @@ final class VirtualApi {
         // rotate() / rotate(a) -- the facing in radians, kept while the thing stays where it is.
         m.set("rotate", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":rotate()");
                 Args.only(a, 1, kind + ":rotate");
                 LuaValue av = Args.written(a, 2, kind + ":rotate", "a");
                 if(av == null) {
@@ -1132,7 +1132,7 @@ final class VirtualApi {
         });
         m.set("scale", new VarArgFunction() {           // uniform scale (1 = original size)
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":scale()");
                 Args.only(a, 1, kind + ":scale");
                 LuaValue sv = Args.written(a, 2, kind + ":scale", "s");
                 if(sv == null) {
@@ -1145,7 +1145,7 @@ final class VirtualApi {
         });
         m.set("alpha", new VarArgFunction() {           // opacity 0..1 (1 = opaque)
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":alpha()");
                 Args.only(a, 1, kind + ":alpha");
                 LuaValue av = Args.written(a, 2, kind + ":alpha", "a");
                 if(av == null) {
@@ -1160,7 +1160,8 @@ final class VirtualApi {
         // the whole API documents a meaning for.
         m.set("tint", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = Args.only(a, 1, kind + ":tint");
+                LuaValue self = recv(a, e, kind + ":tint()");
+                Args.only(a, 1, kind + ":tint");
                 if(!Args.passed(a, 2)) {
                     synchronized(e) { return AddonManager.color(e.tint); }
                 }
@@ -1171,7 +1172,7 @@ final class VirtualApi {
         // visible() / visible(b) -- a boolean property is a property, so one name carries both directions.
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":visible()");
                 Args.only(a, 1, kind + ":visible");
                 LuaValue bv = Args.written(a, 2, kind + ":visible", "b");
                 if(bv == null) {
@@ -1189,7 +1190,7 @@ final class VirtualApi {
         // what lets one vocabulary mean one thing across the five rather than be present on some of them.
         m.set("clickable", new VarArgFunction() {   // opt into the client-side pick (never reaches the server)
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":clickable()");
                 Args.only(a, 1, kind + ":clickable");
                 LuaValue bv = Args.written(a, 2, kind + ":clickable", "b");
                 if(bv == null) {
@@ -1201,7 +1202,7 @@ final class VirtualApi {
         });
         m.set("onClick", new VarArgFunction() {     // fn(handle, button, x, y) -- the per-entity click callback
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue self = recv(a, e, kind + ":onClick()");
                 Args.only(a, 1, kind + ":onClick");
                 LuaValue fn = Args.written(a, 2, kind + ":onClick", "fn");
                 if(fn == null) {
@@ -1217,6 +1218,7 @@ final class VirtualApi {
         // exists() -- is it still in the world? False once the collection removed it, and false after a teardown.
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                recv(a, e, kind + ":exists()");
                 Args.only(a, 0, kind + ":exists");
                 synchronized(e) { return LuaValue.valueOf(!e.dead); }
             }
@@ -1229,6 +1231,7 @@ final class VirtualApi {
         // different question and p:surfaces() counts it.
         m.set("drawn", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                recv(a, e, kind + ":drawn()");
                 if(Args.passed(a, 2))
                     throw new LuaError(kind + ":drawn() reads whether it is in the scene and does not write it"
                         + " -- taking it out and putting it back is " + kind + ":visible(b), and the ground"
@@ -1249,6 +1252,7 @@ final class VirtualApi {
         // info() in the API has: present means set.
         m.set("info", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                recv(a, e, kind + ":info()");
                 if(Args.passed(a, 2))
                     throw new LuaError(kind + ":info() takes no arguments -- it IS the whole snapshot, and"
                         + " every field in it has a verb of its own beside it to read one at a time");
@@ -1268,6 +1272,10 @@ final class VirtualApi {
                     t.set("clickable", LuaValue.valueOf(e.clickable));
                     t.set("exists", LuaValue.valueOf(!e.dead));
                     t.set("drawn", LuaValue.valueOf(e.drawn()));
+                    // audit2 B15: the fifth reason a :drawn() is false, and the only one the other four cannot
+                    // be told from -- the visual was asked for and the client gave up on it. Present on every
+                    // kind and false where nothing can fail, so a reader needs no per-kind knowledge.
+                    t.set("failed", LuaValue.valueOf(e.failed()));
                     if(e.tint != null) {
                         LuaValue tint = AddonManager.color(e.tint);
                         if(!tint.isnil())
@@ -1314,6 +1322,25 @@ final class VirtualApi {
         });
         h.setmetatable(mt);
         return h;
+    }
+
+    /**
+     * <b>The receiver, proved</b> (audit2 B15) — the first argument really is the very entity this verb was
+     * looked up on, and not something that landed in slot 1 because the call was written with a dot.
+     *
+     * <p>Every verb of an entity closes over its own {@code e} and used {@code arg1} only as the value to hand
+     * back, so nothing here read the receiver at all. That is invisible for a read and silent for a write:
+     * {@code e.visible(false)} puts {@code false} in slot 1, where {@code Args.written} looks in slot 2, finds
+     * nothing and answers the CURRENT visibility — a hide that never happened and said so by returning
+     * {@code false}. One check, at the one place every verb starts, rather than an argument test per verb.
+     */
+    private static LuaValue recv(Varargs a, LuaWorldEntity e, String verb) {
+        LuaValue self = a.arg1();
+        if(!self.isuserdata() || (self.touserdata() != e))
+            throw new LuaError(verb + " -- use a COLON call on the handle itself. A dot call passes the"
+                + " receiver as the first argument, so what you meant to write lands one slot along and a"
+                + " write is read as a read");
+        return self;
     }
 
     /**
@@ -1574,6 +1601,12 @@ final class VirtualApi {
             return null;                               // not in the world yet — no scene to add to
         LuaMesh mesh = resolveObjectMesh(opts.get("model"));   // AFTER the world check (don't validate when not in world)
         String verb = "hafen.virtual():object():add";
+        // audit2 B15: ...and the count is the bound. The geometry is milled per OBJECT (MeshSprite.mill), so
+        // nothing about a mesh already parsed says what standing another copy of it costs.
+        if(owner.objects.size() >= MeshSprite.MAXLIVE)
+            throw new LuaError(verb + ": this addon already has " + MeshSprite.MAXLIVE + " objects standing,"
+                + " which is all one addon stands -- each mills its own geometry, so a model is a scene's"
+                + " worth of it and not a picture; hafen.virtual():object():remove(x) frees one");
         double a = Args.optnum(opts.get("a"), verb, "a", "the facing in radians", 0.0);
         Coord2d rc = optPlace(opts, verb);             // 045.2: null ⇒ the place is not locatable this session
         LuaObject ob = new LuaObject(owner, mesh, rc, a);
@@ -1863,6 +1896,11 @@ final class VirtualApi {
             return null;                               // not in the world yet — no scene to add to
         Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
         Coord2d rc = optPlace(opts, "hafen.virtual():widget():add");   // 045.2: null ⇒ not locatable this session
+        // audit2 B15: the panel's own ceiling, REFUSED rather than clamped. WidgetSurface.clamp silently
+        // Math.min'd both axes at MAXDIM inside its super(...) call, so a window bigger than that stood with
+        // the rest of itself simply missing -- no error, no log, and a page that names no cap at all. The
+        // widget is untouched: the refusal happens before it is re-homed.
+        WidgetSurface.checkSize(content.sz, "hafen.virtual():widget():add");
         WidgetSurface surf = new WidgetSurface(u, owner, content.sz);   // 073.2: the tree it is about to stand in
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
         surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
@@ -2221,11 +2259,16 @@ final class VirtualApi {
             throw new LuaError(verb + ": ring[" + bad + "] is not a place — its distance from the"
                 + " anchor is not a finite number, and a ring with one such point carves a silhouette that"
                 + " answers every click on the map. Build the ring from places the session can locate");
+        // audit2 B15: ...and the message covers BOTH shapes the test now refuses. It said "concave", which
+        // is a lie about a ring that crosses itself -- a star bends the same way at every vertex and is not
+        // concave at all; what it does is go round twice, and what the carve draws for it is the small shape
+        // in the middle. One sentence, because the cure is the same one: cut it into convex pieces.
         if(!PatchCarve.convex(shape))
-            throw new LuaError(verb + ": that ring is concave, and a piece of a patch is convex — the"
-                + " silhouette is carved as the intersection of the ring's edge half-planes, so a concave one"
-                + " would be drawn as its hull rather than as itself. Split it into convex rings and lay one"
-                + " piece each with patch:piece():add(ring)");
+            throw new LuaError(verb + ": that ring is not convex — it is concave, or it crosses itself — and"
+                + " a piece of a patch is convex. The silhouette is carved as the intersection of the ring's"
+                + " edge half-planes, so a concave ring would be drawn as its hull and a ring that crosses"
+                + " itself as the small shape in the middle of it, rather than as what you listed. Split it"
+                + " into convex rings and lay one piece each with patch:piece():add(ring)");
         float[][] e = PatchCarve.of(java.util.Collections.singletonList(shape));
         if(e.length < 3)
             throw new LuaError(verb + ": a patch needs at least three points that are not the same place"

@@ -1166,7 +1166,6 @@ final class UiApi {
         UI u = requireUi(what);
 
         final AddonWidget content = new AddonWidget(owner, Px.in(Coord.of(DEF_W, DEF_H)));
-        final Widget rootw;
         if(window) {
             // ANONYMOUS on purpose: the chrome must skip its own draw while the content is unarmed, and
             // LuaWidget.typeName climbs past an anonymous subclass — so w:type() still reads "Window" and every
@@ -1185,10 +1184,9 @@ final class UiApi {
                 dropPending(content);
                 owner.widgets.remove(content);
             });
-            rootw = win;
-        } else {
-            rootw = content;
         }
+        // audit2 B15: no local for the root -- attach() re-derives it from the content (`c.rootw()`), which is
+        // the one answer, so a second one assigned here and never read was a hint at a choice that is not made.
         return attach(u, owner, content);
     }
 
@@ -2729,7 +2727,8 @@ final class UiApi {
         for(Addon a : addons)
             if(!a.hudOverlays.isEmpty())
                 return true;
-        return false;
+        Addon c = consoleOwner;               // the :lua REPL paints too, and owns them the same way (B15)
+        return (c != null) && !c.hudOverlays.isEmpty();
     }
 
     /**
@@ -2746,23 +2745,32 @@ final class UiApi {
     static void paintHudOverlays(GOut g) {
         Coord sz = Px.out(g.sz());
         LuaValue w = LuaValue.valueOf(sz.x), h = LuaValue.valueOf(sz.y);
-        for(Addon a : addons) {
-            if(a.hudOverlays.isEmpty())
-                continue;
-            // 026.1: bound PER ADDON (it used to wrap the whole loop) — the wrapper now carries the owner of the
-            // g:text cache, and a cache is per-addon. audit2 B01: and so is the WRAPPER, which was one object
-            // for the client here too, so a painter that opens another addon's cannot rebind this one.
-            LuaGOut gwrap = a.gout;
-            LuaTable gt = gwrap.bind(g, a);
-            try {
-                for(HudOverlay o : a.hudOverlays) {
-                    LuaValue fn = o.fn;                 // bare until :draw(fn) — an incomplete overlay
-                    if(o.active && (fn != null))        //   paints nothing rather than painting badly
-                        callLua(a, Addon.C_DRAW, fn, gt, w, h);
-                }
-            } finally {
-                gwrap.unbind();
+        for(Addon a : addons)
+            paintHudOverlays(g, a, w, h);
+        paintHudOverlays(g, consoleOwner, w, h);   // the :lua REPL paints too, and owns them the same way (B15)
+    }
+
+    /**
+     * One owner's half of {@link #paintHudOverlays(GOut)} — every seam on this surface asks
+     * {@code consoleOwner} beside {@code addons}, and this one did not: a painter added from the {@code :lua}
+     * REPL was registered, listed by {@code hafen.ui():overlay():list()} and never drawn (audit2 B15).
+     */
+    private static void paintHudOverlays(GOut g, Addon a, LuaValue w, LuaValue h) {
+        if((a == null) || a.hudOverlays.isEmpty())
+            return;
+        // 026.1: bound PER ADDON (it used to wrap the whole loop) — the wrapper now carries the owner of the
+        // g:text cache, and a cache is per-addon. audit2 B01: and so is the WRAPPER, which was one object
+        // for the client here too, so a painter that opens another addon's cannot rebind this one.
+        LuaGOut gwrap = a.gout;
+        LuaTable gt = gwrap.bind(g, a);
+        try {
+            for(HudOverlay o : a.hudOverlays) {
+                LuaValue fn = o.fn;                 // bare until :draw(fn) — an incomplete overlay
+                if(o.active && (fn != null))        //   paints nothing rather than painting badly
+                    callLua(a, Addon.C_DRAW, fn, gt, w, h);
             }
+        } finally {
+            gwrap.unbind();
         }
     }
 
@@ -2770,7 +2778,9 @@ final class UiApi {
      * Paint the overlays attached to ONE gob — called from {@link LuaGobOverlay#draw} with that attrib's own
      * records and, beside them, the screen point each one projected to. Nothing is matched and nothing is
      * searched here since 038.1: the records are the ones standing on this very gob, and each is painted for
-     * its own owner (its {@code g} wrapper carries that addon's text cache, its cost lands on that addon's row).
+     * its own owner, through <b>that owner's own</b> {@code g} wrapper ({@link Addon#gout}) — so the text cache
+     * it renders through is that addon's and the cost lands on that addon's row. {@code n} is how many of
+     * {@code recs}/{@code pts} this frame filled: both are the attrib's reused arrays and may be longer.
      *
      * <p><b>A point per record</b>, because a record says what height up the gob it is taken at
      * ({@code ov:height(z)}): {@code pts[i]} is where {@code recs.get(i)} lands, and a {@code null} there is a
@@ -2786,8 +2796,8 @@ final class UiApi {
      * font is part of the cache key; the colour is not, and a gob's label has no background. On the UI thread
      * (inside the Render2D pass of {@code UI.draw}).
      */
-    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord3f[] pts, GOut g, LuaGOut gwrap) {
-        for(int i = 0; i < recs.size(); i++) {
+    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord3f[] pts, GOut g, int n) {
+        for(int i = 0; i < n; i++) {
             LuaGobOverlay.Attach o = recs.get(i);
             Coord3f v = pts[i];
             if(v == null)
@@ -2809,6 +2819,11 @@ final class UiApi {
             // (Px.point), so a painter that draws at `sx + k` lands `k` design pixels from the very device
             // pixel the point projected to, frame after frame. Rounded here first, the column stepped by whole
             // design pixels while the object moved by device ones, and trembled against its own plate.
+            // audit2 B15: the RECORD'S OWN ADDON's wrapper (B01's Addon.gout) -- the attrib held one of its own,
+            // built in its constructor, so every gob that took a single label paid a table of drawing closures
+            // it never called. Per addon the wrapper is already the right grain: a record is one addon's, its
+            // text cache is that addon's, and two addons painting on one gob hold two wrappers.
+            LuaGOut gwrap = o.owner.gout;
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)

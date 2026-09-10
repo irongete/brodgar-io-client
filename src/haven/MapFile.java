@@ -46,6 +46,18 @@ public class MapFile {
     public final Collection<Long> knownsegs = new HashSet<>();
     public final Collection<Marker> markers = new ArrayList<>();
     public volatile int markerseq = 0;
+
+    /* addon: (audit2 B15) THE ONE DOOR THAT BUMPS IT. `markerseq++` on a volatile int is a read, an add and
+     * a write, and three of the five sites that did it stood under the READ lock or under no lock at all --
+     * `update(Marker)`, which is what a marker's own colour/name write goes through, takes the read lock on
+     * purpose (it changes no collection) and so admits two writers at once. Two concurrent writes then lost
+     * a bump between them, and with it the MarkerChanged the addon layer drives off the number and the
+     * redisplay every MapWnd/MiniMap in the client drives off it too: a marker recoloured and a map that
+     * went on drawing the old colour. The counter is still volatile, because the readers are unsynchronised
+     * pollers comparing it against their own copy; only the bump needs to be one act, and this is it. */
+    synchronized int bumpseq() {   // addon:
+	return(++markerseq);
+    }
     public final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Random rnd = new Random();
 
@@ -313,8 +325,7 @@ public class MapFile {
 		file.update(this);
 	    } else {
 		seq++;
-		file.markerseq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(file, file.markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
+		io.brodgar.addon.AddonManager.onMarkersChanged(file, file.bumpseq());  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	}
     }
@@ -423,9 +434,8 @@ public class MapFile {
 	try {
 	    if(markers.add(mark)) {
 		defersave();
-		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, bumpseq());  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.writeLock().unlock();
@@ -437,9 +447,8 @@ public class MapFile {
 	try {
 	    if(markers.remove(mark)) {
 		defersave();
-		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, bumpseq());  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.writeLock().unlock();
@@ -451,9 +460,8 @@ public class MapFile {
 	try {
 	    if(markers.contains(mark)) {
 		defersave();
-		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, bumpseq());  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.readLock().unlock();
@@ -1572,8 +1580,7 @@ public class MapFile {
 	    }
 	}
 	if(mf) {
-	    markerseq++;
-	    io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
+	    io.brodgar.addon.AddonManager.onMarkersChanged(this, bumpseq());  // addon: marker-change seam (042.11, 073.4: whose map)
 	}
 	knownsegs.remove(src.id);
 	defersave();

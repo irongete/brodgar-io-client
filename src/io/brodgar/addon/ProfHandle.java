@@ -710,7 +710,8 @@ public final class ProfHandle {
      * cache is <b>per addon</b>, so the top level is the <b>calling</b> addon's own: {@code entries},
      * {@code bytes} (GL texture bytes held), {@code hits}, {@code misses}, {@code evictions} and
      * {@code hitRate} (absent until something has been looked up — an absent key is "not measured", which a 0
-     * would not be, D-050), plus {@code maxEntries}/{@code maxBytes}, the two caps it is bounded by. A count
+     * would not be, D-050), plus {@code maxEntries}/{@code maxBytes}, the two caps it is bounded by, and
+     * {@code maxEntryBytes}, the size past which ONE raster is declined rather than held (B15). A count
      * without its ceiling says nothing, which is why the caps are in the table rather than only in the source.
      *
      * <p>{@code total} is the same five figures summed across <b>every</b> Lua owner (the loaded addons plus
@@ -735,6 +736,10 @@ public final class ProfHandle {
                           owner.texts.hits(), owner.texts.misses(), owner.texts.evictions());
         t.set("maxEntries", LuaValue.valueOf(LuaGOut.Cache.MAXENTRIES));
         t.set("maxBytes", LuaValue.valueOf((double)LuaGOut.Cache.MAXBYTES));
+        // audit2 B15: ...and the third ceiling, which is the one a caller can actually be surprised by --
+        // a raster past it is drawn and dropped rather than held, so a wide line that never hits is not a
+        // broken cache, it is one entry the cache declines. Reported beside the two it is bounded by.
+        t.set("maxEntryBytes", LuaValue.valueOf((double)LuaGOut.Cache.MAXENTRYBYTES));
         long entries = 0, bytes = 0, hits = 0, misses = 0, evictions = 0;
         List<Addon> owners = AddonManager.profOwners();
         for(int i = 0; i < owners.size(); i++) {

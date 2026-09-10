@@ -77,6 +77,11 @@ node count. A chain of nodes stays legal however deep it runs. The second visit 
 skipped because a node under two parents is an **instance** — the same mesh with a different baked transform —
 so skipping it would drop that geometry from your model without saying so.
 
+**How many you may stand: 64 at once, per addon.** Every object mills its *own* geometry when you stand it
+— a vertex array and an index buffer per primitive, on the thread that called `:add` — so a parsed model
+says nothing about what a second copy of it costs, and the count is the thing that has to be bounded.
+Past the ceiling `:add` raises naming it; `hafen.virtual():object():remove(x)` frees a place.
+
 ## The object
 
 The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,

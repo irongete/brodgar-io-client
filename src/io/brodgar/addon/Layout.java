@@ -3,6 +3,7 @@ package io.brodgar.addon;
 import haven.Coord;
 import haven.EventHandler;
 import haven.GameUI;
+import haven.SIWidget;
 import haven.UI;
 import haven.Widget;
 
@@ -146,6 +147,22 @@ final class Layout {
 
     /** How deep a chain of anchors is followed when one of its links is written (a cycle is a user's to make). */
     private static final int MAXDEPTH = 8;
+
+    /**
+     * <b>Resize {@code w} and make it redraw</b> (audit2 B15) — the one door a layout size write goes through.
+     *
+     * <p>{@code Widget.resize} moves the box and nothing else: {@code docs/client/ui-controls.md} records that
+     * it does not call {@code redraw()}, and the {@link haven.SIWidget} family — a button, a checkbox, anything
+     * that rasterises its face once and blits the raster — therefore kept the OLD picture at the new
+     * dimensions, which is a rule's {@code size} apparently doing half of what it said. Asking for the redraw
+     * is what a client control does for itself when it resizes; a plain {@code Widget} has no cached face and
+     * this costs it nothing.
+     */
+    private static void resize(Widget w, Coord to) {
+        w.resize(to);
+        if(w instanceof SIWidget)
+            ((SIWidget)w).redraw();
+    }
 
     /** Is there anything to enforce at all — an installed layout rule, or a widget somebody is standing on? */
     static boolean active() {
@@ -483,7 +500,7 @@ final class Layout {
                 if(rec.size == null)
                     rec.size = UiApi.stockSizeArg(w);
                 if(!want.equals(LuaWidget.sizeArg(w)))
-                    w.resize(want);
+                    resize(w, want);
             }
             return;
         }
@@ -494,7 +511,7 @@ final class Layout {
             if(!stock.equals(w.c))
                 w.move(stock);
         } else if(!stock.equals(LuaWidget.sizeArg(w))) {
-            w.resize(stock);
+            resize(w, stock);
         }
     }
 
@@ -756,6 +773,11 @@ final class Layout {
      * miss the very window it names.
      */
     static void placed(Widget w, int id) {
+        // audit2 B15: the same head test sweep() opens with, and this class's own doc promises ("a client
+        // with no layout rule pays no seam at all"). It ran the whole fold -- the widget monitor, the
+        // Sheet.styleOf resolution and both halves -- for EVERY widget placed into ANY tree, rule or no rule.
+        if(!active())
+            return;
         apply(w);
         if(!Sheet.lateLayoutCandidate(w))
             return;

@@ -80,7 +80,6 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     private final Addon owner;
     private volatile FontHandle defaultFont;       // :font(h) — the default font for this widget's g:text draws
     private volatile LuaValue fontVal = LuaValue.NIL;   // ...and the handle itself, so :font() reads back what was set
-    private final LuaGOut gwrap = new LuaGOut();   // the shared GOut draw wrapper `g`, bound per draw
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
     private boolean dead;           // set on teardown so a late tick/draw callback is a no-op
     private volatile boolean pending = true;   // built, not yet drawing — armed on the next AddonManager tick
@@ -194,6 +193,11 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         if(!dead) {
             WidgetSubs s = owner.widgetSubsOrNull(rootw());
             if((s != null) && s.subs.has("Draw")) {
+                // audit2 B15: the ADDON's one wrapper (B01's Addon.gout), not one of this widget's own. The
+                // bind is strictly scoped -- it is released before super.draw(g) reaches any child -- so no
+                // second painter of this addon can be inside it, which is the whole reason a narrower one was
+                // ever held. Same door LuaWidgetOverlay already comes through.
+                LuaGOut gwrap = owner.gout;
                 LuaTable gt = gwrap.bind(g, owner, defaultFont);   // F2: g:text with no per-call font uses :font()
                 try {
                     LuaValue ev = LuaEvent.draw(owner, gt, sz.x, sz.y);   // R4: g/w/h, so an ev — never :preventDefault()

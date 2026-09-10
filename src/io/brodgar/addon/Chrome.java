@@ -509,6 +509,17 @@ final class Chrome {
          * gives a themed close button its box ({@link Close}), the one place an art's own size decides a
          * widget's rather than filling a box the client already decided.
          */
+        /**
+         * <b>Would this art draw nothing at all?</b> (audit2 B15) — a picture whose image has been
+         * {@code hafen.asset():remove}d. {@link #natural} answers {@code null} for it, {@link #place} answers
+         * {@code null} for that, and {@link #draw} then returns early — so a site that asked for the art, got
+         * a non-null answer and skipped its OWN drawing painted nothing whatever: blank, not stock. A colour
+         * always draws.
+         */
+        boolean blank() {
+            return (color == null) && ((src == null) || src.dead());
+        }
+
         Coord natural() {
             if((color != null) || (src == null) || src.dead())
                 return null;
@@ -1063,6 +1074,19 @@ final class Chrome {
             this.states = states;
         }
 
+        /**
+         * Would this background draw nothing — every layer's image freed out from under it? (audit2 B15;
+         * {@link Art#blank()}). A background of one removed picture left the surface blank rather than stock,
+         * because the site asks {@code Fonts.Chrome.bg()} and paints its own art only on a {@code false}.
+         */
+        boolean blank() {
+            for(int i = 0; i < layers.length; i++) {
+                if(!layers[i].blank())
+                    return false;
+            }
+            return true;
+        }
+
         /** This background as the surface wears it in state {@code i}, which is this one where it names none. */
         Bg state(int i) {
             Bg s = ((states == null) || (i < 0)) ? null : states[i];
@@ -1185,6 +1209,11 @@ final class Chrome {
             art.draw(g, ul, sz);
         }
 
+        /** Would this plate draw nothing — its art freed out from under it? See {@link Art#blank()}. */
+        boolean blank() {
+            return art.blank();
+        }
+
         public int hashCode() {
             int h = art.hashCode();
             for(int i = 0; (states != null) && (i < states.length); i++)
@@ -1272,6 +1301,23 @@ final class Chrome {
         final Art[] parts;
         private final Tex[] pieces;       // a box border's eight textures, resolved where the rule was written
         private IBox ibox;                // built on first use -- no upload, nothing to free
+
+        /**
+         * Would this frame draw nothing — its 9-slice freed out from under it, and no piece pinned inside it?
+         * (audit2 B15; {@link Art#blank()}). A line and one of the client's own boxes never blank: neither is
+         * an addon's asset.
+         */
+        boolean blank() {
+            if((line != null) || (box != null))
+                return false;
+            if((src != null) && !src.dead())
+                return false;
+            for(int i = 0; (parts != null) && (i < parts.length); i++) {
+                if(!parts[i].blank())
+                    return false;
+            }
+            return true;
+        }
 
         /** A frame cut out of art — your own 9-slice, or one of the client's own boxes. */
         Border(Src src, String box, int l, int t, int r, int b, String mode, Art[] parts, Tex[] pieces) {
@@ -1705,12 +1751,15 @@ final class Chrome {
             this.border = border;
         }
 
+        // audit2 B15: ...and a paint that would draw NOTHING answers false, so the site paints its own art.
+        // These two are what every reader asks before it decides whether to draw its own; a bg or a border
+        // whose picture an addon has since hafen.asset():remove'd answered true and then drew nothing at all.
         public boolean bg() {
-            return bg != null;
+            return (bg != null) && !bg.blank();
         }
 
         public boolean border() {
-            return border != null;
+            return (border != null) && !border.blank();
         }
 
         public void drawbg(GOut g, Coord ul, Coord sz) {
@@ -1845,7 +1894,12 @@ final class Chrome {
      * resolved style already holds one object per distinct rule.
      */
     static Fonts.Picture picture(String scope, Widget wdg) {
-        return picture((scope == null) ? Sheet.specOf(wdg) : Fonts.styleFor(scope, wdg));
+        // audit2 B15: ...and a plate that would draw NOTHING is no plate. The site asks this, and paints its
+        // own art only on a null -- so a picture whose image an addon has since hafen.asset():remove'd left
+        // the surface blank rather than stock, which is the one outcome "a dropped sheet is exact" forbids.
+        // The rule is still installed and the moment the image comes back so does the plate.
+        Pic p = picture((scope == null) ? Sheet.specOf(wdg) : Fonts.styleFor(scope, wdg));
+        return ((p == null) || p.blank()) ? null : p;
     }
 
     /**

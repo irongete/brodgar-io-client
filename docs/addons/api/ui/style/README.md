@@ -76,6 +76,12 @@ offset — as is the place a window's [caption](chrome.md#ornaments) is drawn at
 [same two ways](text.md#font) — `{builtin = "mono"}` or `{asset = "fonts/Inter.ttf"}`. Nothing in the
 document is a handle, so a whole client look, windows and typography included, is a file and one command.
 
+**A loaded sheet's rules are in selector order.** A keyed Lua table has no order of its own — what `next`
+walks is a hash — so a data sheet's rules are sorted by their selector, and that is the order `sheet:info()`
+reports and the order the [equal-specificity tie-break](keys.md) uses. It is the same on every client and
+every run, which is what the table itself could not promise. When two rules of the *same* specificity must
+be ordered a particular way, write them as rules: `sheet:rule(sel)` applies them in the order you call it.
+
 Inside a loaded table the properties are the setter names: `font`, `color`, `emboss`, `glow`, `bg`,
 `border`, `padding`, `picture`, `caption`, `sizer`, `closeButton`, `position`, `anchor`, `size`. An
 unknown one is an **error** naming the ones that exist, and so is a rule

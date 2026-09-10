@@ -12,6 +12,7 @@ import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -297,9 +298,15 @@ final class Sheet {
         // teardown interleaved with an install left the new sheet standing in `installed` with owner.skin
         // unable to name it again, so its tree rules resolved for the life of the client.
         synchronized(Sheet.class) {
+            // audit2 B15: WHERE the old sheet stood, so the new one takes its place rather than the end of
+            // the queue. `installed` order is the last tie-break of the per-widget cascade, and an addon's
+            // sheet is re-applied WHOLE on any single rule edit (LuaSheet.changed) -- so an unrelated
+            // rule:color() silently promoted every rule in that sheet over an addon that installed later,
+            // and the look of the client depended on who had last touched a colour.
+            int at = installed.indexOf(owner.skin);
             drop(owner);          // an addon owns ONE sheet: the previous one's entries leave first...
             s.install(owner);     // ...then this one fills its site keys (so a site it no longer names falls back)
-            register(s);          // ...and its tree keys join the per-widget resolution (034.1)
+            register(s, at);      // ...and its tree keys join the per-widget resolution (034.1), where it stood
             owner.skin = s;
         }
         // 036.2: ...and its LAYOUT half is enforced now. Outside register()'s lock, because matching takes
@@ -418,7 +425,15 @@ final class Sheet {
      * leaves the sheet exactly as it was rather than a half-loaded document.
      */
     static List<Parsed> parseSheet(Addon owner, String ctx, LuaValue t) {
-        List<Parsed> out = new ArrayList<Parsed>();
+        // audit2 B15: THE KEYS ARE SORTED, and the sheet's order is that. `t.next(k)` walks a Lua table in
+        // LuaJ's hash order, which is not an order the addon wrote: it is an artefact of the string hashes
+        // and of what else the table has held. That order is what the parsed list becomes, and the parsed
+        // list IS the equal-specificity tie-break the README makes load-bearing and what sheet:info() reports
+        // as "the order it named them" -- so two rules of the same specificity took turns winning between
+        // runs of the same addon. A keyed Lua table HAS no order to preserve, so the honest answer is a
+        // stated one, the same on every client and every run; a sheet that needs a particular order between
+        // equals writes it as rules, where the order is the calls.
+        List<String> keys = new ArrayList<String>();
         LuaValue k = LuaValue.NIL;
         while(true) {
             Varargs n = t.next(k);
@@ -430,8 +445,13 @@ final class Sheet {
                     + " \"window.title\"), not a number — a sheet is keyed, not an array");
             if(!k.isstring())
                 throw new LuaError(ctx + ": a sheet key is a SELECTOR string, got " + k.typename());
-            String key = k.tojstring();
-            LuaValue v = n.arg(2);
+            keys.add(k.tojstring());
+        }
+        Collections.sort(keys);
+        List<Parsed> out = new ArrayList<Parsed>();
+        for(int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            LuaValue v = t.get(LuaValue.valueOf(key));
             if(!v.istable())
                 throw new LuaError(ctx + "[\"" + key + "\"]: the value is a table of style properties "
                     + "{ font = h, color = {r,g,b} }, got " + v.typename());
@@ -1038,10 +1058,18 @@ final class Sheet {
         });
     }
 
-    private static synchronized void register(Sheet s) {
+    /**
+     * Join the per-widget resolution at {@code at} — the index the addon's previous sheet held, or {@code -1}
+     * for a first install, which joins at the end. See the note in {@link #apply}: the index is what keeps a
+     * sheet's place in the install order across the whole-sheet re-apply that any rule edit performs.
+     */
+    private static synchronized void register(Sheet s, int at) {
         if(s.tree.isEmpty())
             return;              // a site-only sheet resolves nothing per widget: nothing to invalidate either
-        installed.add(s);
+        if((at < 0) || (at > installed.size()))
+            installed.add(s);
+        else
+            installed.add(at, s);
         rulesChanged();
     }
 

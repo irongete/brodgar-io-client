@@ -250,6 +250,17 @@ public abstract class LuaWorldEntity {
     abstract void infoInto(org.luaj.vm2.LuaTable t);
 
     /**
+     * <b>Did this entity's visual fail to arrive?</b> (audit2 B15) — {@code true} once the client has given up
+     * on what it was asked to draw, and {@code false} for every kind that cannot fail that way. It is the
+     * fifth answer to "why can I not see it", and the one {@code :drawn()} could never give: a mistyped
+     * resource name and a resource still streaming in both answered a plain {@code false}, so a typo and a
+     * wait were the same word. {@code :info().failed} is where it reads.
+     */
+    boolean failed() {
+        return false;
+    }
+
+    /**
      * The {@code ev} field name under which the clicked entity's handle is delivered in its {@link #clickEvent()} —
      * a ghost is a ghost, a sprite is a sprite: the field is named for the kind, so there is one word, not two.
      */

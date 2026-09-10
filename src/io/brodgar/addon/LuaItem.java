@@ -334,6 +334,7 @@ public final class LuaItem {
                 // ALREADY run for this one -- leaving the handler in place would leave it there for good, and
                 // a handler closing over its own item is what a weak map cannot collect (Addon#dropItemSubs).
                 LuaValue sub = owner.itemSubs(h.wdg).on(key, fnArg);
+                AddonManager.anyItemSubs = true;   // audit2 B15: somebody is watching now — see onItemInfo
                 if(live(h) == null)
                     owner.dropItemSubs(h.wdg);
                 return sub;

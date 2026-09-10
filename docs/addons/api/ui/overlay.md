@@ -63,6 +63,7 @@ itself, which names the collection you meant.
 | `ov:draw(fn)` | the overlay | paint `fn(g, w, h)` over the HUD every frame; `w, h` is the screen |
 | `ov:draw()` | function \| nil | the painter it carries; `nil` while it is bare |
 | `ov:exists()` | bool | is it still painting |
+| `ov:info()` | table | `{key, exists, drawn}` — the snapshot; `drawn` is false while it is still bare |
 
 `ov:draw(fn)` on a live overlay replaces its painter rather than adding a second one, so a painter can be
 swapped without the key changing hands. Anything that is not a function raises, and so does a name a

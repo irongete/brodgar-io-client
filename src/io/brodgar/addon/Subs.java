@@ -340,6 +340,7 @@ public final class Subs {
      * calling into an env that is being rebuilt — the same guard {@link LuaSub#alive} gives one {@code off()}.
      */
     public void clear() {
+        java.util.List<String> keys = new java.util.ArrayList<String>(byKey.keySet());
         for(CopyOnWriteArrayList<LuaSub> l : byKey.values()) {
             for(LuaSub s : l) {
                 s.alive = false;
@@ -349,5 +350,19 @@ public final class Subs {
         }
         byKey.clear();
         wild = false;
+        // audit2 B15: ...and the per-KEY hook too, which only off() ran. A key emptied by clear() is as idle
+        // as one emptied a subscription at a time, and the hook is what stops LISTENING for it -- the engine
+        // listener a widget installed, its place in the flat watch list, the per-frame step it asked for.
+        // WidgetSubs.startListening on an already-dead widget clears the whole record, so every OTHER key it
+        // held went out this door with nothing said and nothing released.
+        if(idle != null) {
+            for(int i = 0; i < keys.size(); i++) {
+                try {
+                    idle.idle(keys.get(i));
+                } catch(RuntimeException e) {
+                    /* one key's release must not strand the rest: this is a teardown path */
+                }
+            }
+        }
     }
 }

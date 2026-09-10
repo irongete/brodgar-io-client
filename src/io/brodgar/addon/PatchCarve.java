@@ -317,13 +317,20 @@ public class PatchCarve extends State {
      * intersection of a concave ring's half-planes is not that ring but its hull, and drawing the hull would be
      * the wrong shape rather than a refusal. Collinear points are convex; the winding may be either way, since
      * every cross product flips together with it.
+     *
+     * <p><b>Two tests, because one is not enough</b> (audit2 B15): every corner turns the same way, AND the
+     * ring goes round exactly once. A self-intersecting ring wound one way — a star — passes the first on its
+     * own, and what the carve then draws is the pentagon in the middle of it.
      */
     static boolean convex(List<Coord2d> ring) {
         int n = ring.size();
         int sign = 0;
+        double turned = 0;
         for(int i = 0; i < n; i++) {
             Coord2d a = ring.get(i), b = ring.get((i + 1) % n), c = ring.get((i + 2) % n);
-            double cross = ((b.x - a.x) * (c.y - b.y)) - ((b.y - a.y) * (c.x - b.x));
+            double ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y;
+            double cross = (ux * vy) - (uy * vx);
+            turned += Math.atan2(cross, (ux * vx) + (uy * vy));   /* the signed angle this corner turns through */
             if(Math.abs(cross) < EPS)
                 continue;                              /* three points on a line bend neither way */
             int s = (cross > 0) ? 1 : -1;
@@ -332,7 +339,15 @@ public class PatchCarve extends State {
             else if(s != sign)
                 return false;
         }
-        return true;
+        /* audit2 B15: ...AND IT MUST GO ROUND ONCE. The turn-sign test above is necessary and not sufficient:
+         * a star polygon -- five points visited in the order that crosses its own edges -- turns the same way
+         * at every one of them and passed, whereupon PatchCarve.of carved the intersection of its half-planes,
+         * which is the pentagon in the middle. "Drawn as some other shape" is the one outcome the whole refusal
+         * table exists to prevent, so the shape that produces it cannot be the shape that passes.
+         *   A simple closed ring's exterior angles sum to exactly one turn; a ring that crosses itself sums to
+         * two or more. The tolerance is generous (a tenth of a turn) because the sum is over n atan2s and the
+         * two cases are a whole turn apart, so nothing near a legitimate polygon can reach it. */
+        return Math.abs(turned) < (2.1 * Math.PI);
     }
 
     /** Does this ONE piece carry more edges than a piece may ({@link #RING_EDGES})? */

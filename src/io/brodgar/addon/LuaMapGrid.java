@@ -313,6 +313,12 @@ public final class LuaMapGrid {
                     t.set("pos", pos);
                 t.set("live", LuaValue.valueOf(streamed(h)));
                 t.set("loaded", LuaValue.valueOf(g != null));
+                // audit2 B15: has a picture of this ground been GIVEN UP ON? A grid:image()/overlayImage()
+                // that answers nil while it renders and one that answers nil because the render broke were
+                // the same word, so the page's one answer to "why can I not see it" could not tell them
+                // apart. A failure is retried on the next ask (MapImages.RETRIES); this is true only once
+                // the budget is spent and nothing more is coming.
+                t.set("failed", LuaValue.valueOf(MapImages.failedFor(owner, h.id)));
                 if(g != null)
                     t.set("mtime", LuaValue.valueOf((double)g.mtime));
                 t.set("size", LuaWidget.whTable(MCache.cmaps));   // a span in TILES, and a size is {w=, h=}

@@ -53,6 +53,16 @@ final class LuaRows {
     }
 
     /**
+     * <b>How many rows one call installs</b> (audit2 B15). Nothing bounded it, and the walk below resolves
+     * every row and loads every row's ICON — synchronously, inside one bridge call charged the single
+     * instruction a call costs — before anything is asked about the total. A hundred thousand rows was a
+     * hundred thousand {@code Resource.loadrimg} calls with the client's own thread inside them. Four
+     * thousand is far past any list a person scrolls and small enough that the worst case is a pause rather
+     * than a stall; a list longer than this is a filter that has not been applied yet.
+     */
+    static final int MAXROWS = 4096;
+
+    /**
      * An array of rows, validated and resolved: each element is a STRING (a text row) or an
      * {@code {icon =, text =}} TABLE (an icon row), never {@code nil} or any other shape. {@code verb} names
      * the caller for the error text ({@code "widget:rows"} today; the later model-backed controls share it).
@@ -65,12 +75,26 @@ final class LuaRows {
     static List<Row> parse(LuaValue t, String verb) {
         if(!t.istable())
             throw new LuaError(verb + "(t) is an ARRAY of rows, got " + t.typename());
-        int n = t.length();
+        // audit2 B15: the LENGTH IS ASKED AS A COUNT, not as Lua's border. `t.length()` answers ANY index n
+        // where t[n] is non-nil and t[n+1] is nil, so an array with a hole in it silently parsed as the rows
+        // before the hole -- and the "row i is nil" refusal one line down could only ever fire for a hole
+        // ABOVE the border, which is to say almost never. Counting up from 1 to the last non-nil index makes
+        // the hole reach that refusal, which is what it was written for.
+        int n = 0;
+        for(int i = 1; i <= MAXROWS + 1; i++) {
+            if(!t.get(i).isnil())
+                n = i;
+        }
+        if(n > MAXROWS)
+            throw new LuaError(verb + "(t): " + n + " rows is past the " + MAXROWS + " one call takes -- every"
+                + " row is resolved and every icon loaded before this call returns, so a list this long is a"
+                + " pause and not a list; filter it, or page it");
         List<Row> rows = new ArrayList<Row>(n);
         for(int i = 1; i <= n; i++) {
             LuaValue e = t.get(i);
             if(e.isnil())
-                throw new LuaError(verb + "(t): row " + i + " is nil");
+                throw new LuaError(verb + "(t): row " + i + " is nil — an array of rows has no holes in it,"
+                    + " and a hole is a row that was meant to be there");
             if(e.istable()) {
                 LuaValue textv = e.get("text");
                 if(textv.type() != LuaValue.TSTRING)

@@ -57,7 +57,6 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
     private static final Coord MARG = new Coord(-1, 5);
 
     private final Owned.State own;
-    private final LuaGOut gwrap = new LuaGOut();   // this control's own g wrapper (026.1's per-owner text cache)
     final Coord cellSz;
     private final Group group;
     private List<LuaValue> curItems = Collections.<LuaValue>emptyList();
@@ -101,7 +100,7 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
     }
 
     /**
-     * The one cell painter (040.11, re-spelled 041.4): binds THIS control's own {@link LuaGOut} to {@code g} —
+     * The one cell painter (040.11, re-spelled 041.4): binds this addon's {@link LuaGOut} to {@code g} —
      * reclipped to the cell's own box by {@code GridList.draw} before it ever reaches here, so {@code (0,0)} is
      * the cell's own top-left, exactly like a surface's local draw space — and fires {@code "Cell"} with an
      * {@code ev} answering {@code :g()}/{@code :item()}/{@code :w()}/{@code :h()} (R4: four things to say)
@@ -114,6 +113,10 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
         WidgetSubs s = own.owner.widgetSubsOrNull(this);
         if((s == null) || !s.subs.has("Cell"))
             return;
+        // audit2 B15: the ADDON's one wrapper (B01's Addon.gout). One cell's bind is released before the next
+        // cell's begins and before anything else of this addon can paint, so a wrapper per control bought
+        // nothing a wrapper per addon does not already give.
+        LuaGOut gwrap = own.owner.gout;
         LuaTable gt = gwrap.bind(g, own.owner, null);
         try {
             LuaValue ev = LuaEvent.cell(own.owner, gt, item, cellSz.x, cellSz.y);

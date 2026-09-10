@@ -1803,14 +1803,29 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     public void resize(Coord sz) {
 	super.resize(sz);
-	chat.resize(sz.x - blpw - brpw);
-	chat.move(new Coord(blpw, sz.y));
-	if(map != null)
+	/* addon: (audit2 B15) EACH OF THESE IS THIS HUD'S OWN, and only while it still is. Every line below
+	 * writes a place or a size through a field reference, whatever has become of the widget it names --
+	 * so a widget an addon re-homed into a panel of its own, in ANOTHER tree, was re-placed inside it in
+	 * HUD coordinates by the next window resize. The relayout at the end walks the tree under `this` and
+	 * therefore could not undo it: the widget is not under `this` any more. `mine` is the whole test --
+	 * is this widget still a child of this HUD -- and it costs one reference comparison per line. */
+	if(mine(chat)) {
+	    chat.resize(sz.x - blpw - brpw);
+	    chat.move(new Coord(blpw, sz.y));
+	}
+	if(mine(map))
 	    map.resize(sz);
-	if(prog != null)
+	if(mine(prog))
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
-	beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));
+	if(mine(beltwdg))
+	    beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));
 	AddonWidgets.relayout(this);	// addon: ...and a place an AddOn or the user named survives that (062)
+    }
+
+    /* addon: (audit2 B15) is `w` still one of this HUD's own children? Null for a widget the client has not
+     * built yet, and false for one that has been taken somewhere else -- an addon panel, another tree. */
+    private boolean mine(Widget w) {	// addon:
+	return((w != null) && (w.parent == this));
     }
     
     public void presize() {

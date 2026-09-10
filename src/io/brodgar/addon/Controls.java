@@ -850,7 +850,9 @@ final class Controls {
             if(li.dead)
                 throw new LuaError("widget:image: the " + which + " face has been freed — after"
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
-            return li.tex;
+            // audit2 B15: as a LIVE view, not the raw TexI. The widget keeps this for as long as it lives and
+            // blits it every frame; the dead test above is one-shot, and nothing else re-asks it.
+            return LuaImage.live(li, li.tex);
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
             String name = v.tojstring();
@@ -987,6 +989,16 @@ final class Controls {
         }
         if(w instanceof haven.Scrollbar) {
             final haven.Scrollbar s = (haven.Scrollbar)w;
+            // audit2 B15: a scrollbar built as Scrollbar(int, Scrollable) -- the constructor a listbox and a
+            // dropdown use (docs/client/ui-lists.md) -- re-reads min/max/val off its Scrollable in every
+            // draw, so a value written here is gone by the next drawn frame. A write that is silently
+            // reverted is the one outcome this API refuses to hand back, and the thing that CAN be driven is
+            // the list itself: widget:value(row) scrolls it there by moving what it is showing.
+            if(s.ctl != null)
+                throw new LuaError("widget:value(v) on a scrollbar that belongs to a list is refused: that"
+                    + " bar reads its position back off the list on every frame, so the write would be undone"
+                    + " before you saw it. Drive the LIST -- widget:value(row) on the list itself, with a row"
+                    + " out of widget:rows() -- and the bar follows");
             int to = clamp(num(v, "a scrollbar"), s.min, s.max);
             synchronized(mon) {
                 final int step = to - s.val;              // ch(int) is RELATIVE: there is no absolute setter
@@ -1000,7 +1012,11 @@ final class Controls {
         }
         if(w instanceof haven.TextEntry) {
             String s = str(v, "a text entry", "the text it holds");
-            synchronized(mon) { ((haven.TextEntry)w).settext(s); }
+            // audit2 B15: rsettext, never settext. docs/client/ui-lists.md records the pair: settext notifies
+            // `changed` and marks the field dirty -- it is the USER typing -- where rsettext is the silent
+            // one a value write has to go through. Driving a field with settext made the client believe the
+            // player had edited it.
+            synchronized(mon) { ((haven.TextEntry)w).rsettext(s); }
             return;
         }
         if(w instanceof haven.SListWidget) {              // a list, and a dropdown, which is one
@@ -1114,7 +1130,7 @@ final class Controls {
             if(li.dead)
                 throw new LuaError("widget:source: this asset has been freed — after"
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
-            return li.tex;
+            return LuaImage.live(li, li.tex);   // audit2 B15: a live view — see faceTex
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
             String name = v.tojstring();

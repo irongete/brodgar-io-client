@@ -201,6 +201,14 @@ public final class LuaOverlay {
                 // 080.1: onto EVERY live session's copy of the object, so what is attached to the object is
                 // drawn whichever character is looking at it. One record, shared by the copies — the setters
                 // that say what it draws act on the one thing, and the event is fired once, off this copy.
+                // audit2 B15: ...and the gob is not an unbounded map. Asked AFTER the three refusals above
+                // and BEFORE anything is written, so a key that would have been refused anyway is refused by
+                // its own message; a REPLACE of a key already here spends no new room and is not counted.
+                LuaGobOverlay store = LuaGobOverlay.on(g);
+                if((store != null) && (store.get(owner, k) == null) && (store.keys(owner).size() >= MAXKEYS))
+                    throw new LuaError("gob:overlay():add(\"" + k + "\"): this addon already has " + MAXKEYS
+                        + " overlays on that gob, which is all one gob carries -- each is a blit a frame and a"
+                        + " record every session's copy replays; gob:overlay():remove(key) frees one");
                 LuaGobOverlay.Attach rec = new LuaGobOverlay.Attach(owner, k);
                 LuaGobOverlay.Attach old = LuaGobOverlay.attach(g, gobId, rec);
                 // 092.7: ...and onto the copy of a character that loads the object afterwards. The record is
@@ -253,12 +261,32 @@ public final class LuaOverlay {
         }, null);
     }
 
+    /**
+     * <b>How many overlays one addon may attach to one gob</b> (audit2 B15). Nothing bounded it: {@code :add}
+     * in a loop built an unbounded per-gob map, an unbounded {@link GobIntent} record replayed onto every copy
+     * of the object, and one blit per record per frame. A gob wearing thirty-two labelled things is already
+     * unreadable, so the ceiling is where the picture stops being one rather than where the client stops
+     * coping — and it is per addon, so one addon cannot spend another's room.
+     */
+    static final int MAXKEYS = 32;
+
+    /** How long an overlay key may be. A key is a NAME an addon chose; past this it is a payload. */
+    static final int MAXKEYLEN = 128;
+
+    /** How long a label may be — one blit at a gob, not a document. {@link LuaGOut#MAXTEXT}'s shape, one surface along. */
+    static final int MAXLABEL = 256;
+
     /** A key argument: a string, and never a number — LuaJ counts a number as a string, so coerce nothing. */
     private static String keyArg(LuaValue kv, String verb) {
         if(!kv.isstring() || kv.isnumber())
             throw new LuaError(verb + "(key): the key must be a string -- it is YOUR name for this overlay"
                 + " (keys are per addon), and a native one is the overlay's resource name");
-        return kv.tojstring();
+        String k = kv.tojstring();
+        if(k.length() > MAXKEYLEN)
+            throw new LuaError(verb + "(key): the key is " + k.length() + " characters, past the " + MAXKEYLEN
+                + " a key may be -- a key is your NAME for one overlay (gob:overlay():list() prints them),"
+                + " not a place to put the data behind it");
+        return k;
     }
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
@@ -361,8 +389,15 @@ public final class LuaOverlay {
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "res");
-                if(h.src == NATIVE)
-                    return LuaValue.valueOf(h.key);
+                if(h.src == NATIVE) {
+                    // audit2 B15: ...and only while it is still THERE. The key is the resource name, so it
+                    // reads off the handle with no lookup -- which is how a departed native overlay went on
+                    // naming its resource while :exists(), :count() and :info() all said it was gone. The
+                    // VIRTUAL arm below resolves its entity for the same reason.
+                    Gob g = AddonManager.getgob(h.user, h.gob);
+                    return ((g != null) && LuaGobOverlay.findNative(g, h.key))
+                        ? LuaValue.valueOf(h.key) : LuaValue.NIL;
+                }
                 LuaWorldEntity e = virtual(owner, h);
                 String nm = (e == null) ? null : e.visualName();
                 return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
@@ -418,6 +453,12 @@ public final class LuaOverlay {
                     return ((rec == null) || (rec.text == null)) ? LuaValue.NIL : LuaValue.valueOf(rec.text);
                 if(!sv.isstring())
                     throw new LuaError("overlay:text(s) expects a string label, got " + sv.typename());
+                // audit2 B15: bounded at the WRITE, because the label is drawn from Java and the render pass
+                // has no caller to refuse to -- LuaGOut.MAXTEXT's rule, at the door a gob's label comes through.
+                if(sv.tojstring().length() > MAXLABEL)
+                    throw new LuaError("overlay:text(s): the label is " + sv.tojstring().length()
+                        + " characters, past the " + MAXLABEL + " one overlay carries -- a label stands over an"
+                        + " object at one blit, so a line this long is a picture nothing can read");
                 if(rec != null) {
                     becomes(rec, "text", "text");
                     rec.text = sv.tojstring();

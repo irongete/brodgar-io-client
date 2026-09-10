@@ -39,6 +39,14 @@ box:rows{ "Alpha", { icon = hafen.asset():get("bucket.png"), text = "Bucket" }, 
 name. Writing `:rows(t)` again replaces the whole set and clears the selection (a listbox or a dropdown), or
 its contents (a menu); an empty `:rows{}` is a control with nothing in it, not an error.
 
+**The array has no holes in it**, and `:rows(t)` says so rather than guessing: every row from `1` up to the
+last one you set is read, so a `nil` in the middle raises naming which index it is. It is almost always a
+row that was meant to be there — a build loop that skipped an element and left the gap behind.
+
+**And it takes at most 4096 rows**, refused naming the number. Every row is resolved and every icon
+*loaded* before the call returns, so a list of a hundred thousand is not a long list, it is a stalled
+client. A list that long is a filter that has not been applied yet.
+
 ## Listbox
 
 `:value()`/`:value(v)` is the selected row — the **exact** Lua value `:rows(t)` was given, so it can be

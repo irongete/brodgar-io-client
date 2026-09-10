@@ -10,6 +10,7 @@
 | What | Where |
 |---|---|
 | **Client-only world entity (template)** | `MapView.Plob extends Gob` — `super(glob, rc)` + `setattr(new ResDrawable(...))` + `basic.add(placed)`; `move(Coord2d,double)`; `slot.remove()` |
+| **Reading the live one — the placement ghost on the cursor** | `MapView.addonPlacing()` (`// addon:` seam) answers the `Plob` the server currently has on the pointer, or `null`. The field behind it is `private volatile Loader.Future<Plob> placing`, so ⚠️ **the ghost exists before it is loadable**: the future is set the moment the server says "place this" and `get()` throws until the resource lands — the seam answers `null` for both "nothing is being placed" and "not resolved yet", which are the same nothing to a reader. It is a live `Gob`: `getc()`, `a`, its `ResDrawable` and its `obst` rings all read exactly as any other object's, and it is in **no `OCache`** (see the ticking row) |
 | Gob construction (no server id) | `Gob(Glob,Coord2d)` / `Gob(Glob,Coord2d,long)`; `Gob implements RenderTree.Node, Sprite.Owner` |
 | Visual attr (`.res`-backed) | `ResDrawable` (`Gob.setattr`) |
 | Add/remove in the 3D scene | `MapView.addClientGob` (`// addon:` seam) + `Gob.placed`; transform `Gob.Placed`. **A client gob is in no `OCache`, so nothing but its placer removes it** — and `Placed.autotick` *catches* the `Loading` a `new Placement()` throws when the tile under it is unloaded (`getmapstate` → `glob.map.tiler`) and keeps `cur`, so it goes on drawing at its last placement rather than vanishing with the ground |

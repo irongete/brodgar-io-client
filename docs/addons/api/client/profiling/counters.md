@@ -270,6 +270,7 @@ draw through. The cache is **per addon**, so the top level is **your own**; `tot
 | `hits` / `misses` / `evictions` | lookups served from the cache, rasterised, or dropped to stay within the caps |
 | `hitRate` | `hits / (hits + misses)`, `0.0`..`1.0` — **absent** until something has been looked up |
 | `maxEntries` / `maxBytes` | the two caps the cache is bounded by; an entry count says nothing without its ceiling |
+| `maxEntryBytes` | the size past which **one** raster is drawn and dropped rather than kept — see [text is cached across frames](../../ui/drawing.md#text-is-cached-across-frames) |
 | `total` | the same five figures summed over every Lua owner, plus `owners`, how many were summed |
 
 `hits`, `misses` and `evictions` are **cumulative since the addon loaded**: a `:reload` builds a fresh cache

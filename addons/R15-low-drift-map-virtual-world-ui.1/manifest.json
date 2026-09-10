@@ -1,0 +1,8 @@
+{
+  "id": "R15-low-drift-map-virtual-world-ui.1",
+  "name": "R15 low drift: map, virtual, world and ui",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for refactor block R15. `:tr15` asserts, through the API itself, the ceilings the block gave the doors that had none (a drawn string, a row list, the overlays and the key and the label one gob carries, a panel's side, the objects one addon stands), the failure a reader can now see (`:info().failed` on a ghost and on a recorded grid), the shapes that are now refused (a ring that crosses itself, a dot call on a world entity, a list's own scrollbar), and the snapshot a HUD painter owed.",
+  "files": ["main.lua"]
+}

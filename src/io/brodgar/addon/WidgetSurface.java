@@ -24,6 +24,8 @@ import haven.render.Texture;
 import haven.render.Texture2D;
 import haven.render.VectorFormat;
 
+import org.luaj.vm2.LuaError;
+
 
 
 /**
@@ -145,7 +147,6 @@ final class WidgetSurface extends Widget {
      */
     private volatile Texture2D tex;
     private volatile TexRender tr;
-    private Coord tsz;                 // the texture's size, which is this widget's size at stand time
     private volatile boolean dirty = true;   // never drawn, or something the signature cannot see has changed
     private volatile long sig;         // the last content signature (see needsDraw)
     private volatile boolean sigged;
@@ -161,6 +162,17 @@ final class WidgetSurface extends Widget {
     private volatile boolean onscreen;
 
     /**
+     * <b>Has this surface's draw failure already been said?</b> (audit2 B15) — one line per surface per
+     * broken spell, not one a frame. Cleared by the first pass that gets through, so a handler that is fixed
+     * and then breaks again is news again. Written and read on the frame's own thread inside {@link #render},
+     * which is its only toucher.
+     */
+    private boolean logged;
+
+    /** ...and the same for the resize this panel does not do ({@link #resize}), which is a different word. */
+    private boolean saidFixed;
+
+    /**
      * 044.4: where this surface's <b>widget-local origin currently is on screen</b>, kept following the
      * pointer ({@link SurfaceInput#refreshOrigin}). It is what {@link #parentpos} answers with, and therefore
      * what {@code rootpos()} means for everything inside a standing panel — see that method.
@@ -172,7 +184,6 @@ final class WidgetSurface extends Widget {
         this.sui = ui;
         this.owner = owner;
         this.visible = false;          // not drawn by the flat pass, not hit-tested, still ticked
-        this.tsz = this.sz;
         this.tex = new Texture2D(this.sz, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null);
         this.tr = new TexRender(this.tex.sampler()) {
             /**
@@ -197,10 +208,46 @@ final class WidgetSurface extends Widget {
             st.surfaces.add(this);
     }
 
+    /**
+     * <b>Is this widget small enough to stand?</b> — the refusal {@link #clamp}'s silent {@code Math.min} had
+     * none of (audit2 B15). It is asked at the door ({@code hafen.virtual():widget():add}) and not here,
+     * because a constructor has no caller to answer to; {@link #clamp} stays as the floor under it, so a
+     * surface built any other way is still a legal texture rather than a crash.
+     */
+    static void checkSize(Coord sz, String verb) {
+        if((sz == null) || ((sz.x <= MAXDIM) && (sz.y <= MAXDIM)))
+            return;
+        throw new LuaError(verb + ": that widget is " + sz.x + "x" + sz.y + " device pixels and a panel is at"
+            + " most " + MAXDIM + " on a side -- past that the texture is the whole cost and nothing on it is"
+            + " readable in the world anyway; make the widget smaller, or stand part of it");
+    }
+
     /** A surface is at least one pixel and at most {@link #MAXDIM} on a side. */
     private static Coord clamp(Coord sz) {
         int w = (sz == null) ? 1 : sz.x, h = (sz == null) ? 1 : sz.y;
         return new Coord(Math.max(1, Math.min(MAXDIM, w)), Math.max(1, Math.min(MAXDIM, h)));
+    }
+
+    /**
+     * <b>A panel's size is decided when it is stood, and held</b> (audit2 B15). The texture is allocated once,
+     * at that size; the world quad's material is milled from that very {@link TexRender} at a world size
+     * derived from it ({@code LuaWidgetEntity.visual}); and the hit test maps a pointer against {@code sz}.
+     * A {@code resize} would have moved one of the three and left the other two — the picture clipped to the
+     * stand-time texture, the quad still the old size in the world, and clicks landing against a box that is
+     * no longer what is drawn. There was no resize path and the invariant was a hope, held by nothing but the
+     * fact that nothing happened to call this; now it is a property, and a caller that tries is told once.
+     *
+     * <p>The content INSIDE is free to be any size it likes and is clipped by the panel, exactly as a widget
+     * inside a window is: what is fixed is the panel, which is the thing standing in the world.
+     */
+    public void resize(Coord nsz) {
+        if((nsz == null) || sz.equals(nsz))
+            return;
+        if(!saidFixed) {
+            saidFixed = true;
+            AddonManager.log("surface resize ignored: a standing panel keeps the size it was stood at ("
+                + sz + "), and this one was asked for " + nsz);
+        }
     }
 
     /** The texture wrapper the world quad samples ({@link SurfaceQuad}). Never disposed by the quad. */
@@ -375,20 +422,31 @@ final class WidgetSurface extends Widget {
         Pipe base = new BufPipe();
         base.prep(new FragColor<Texture.Image<Texture2D>>(tx.image(0)));
         base.prep(FragColor.blend(BLEND));
-        Area a = Area.sized(tsz);
+        Area a = Area.sized(sz);                   // audit2 B15: the texture IS this size -- see resize()
         base.prep(new States.Viewport(a)).prep(new Ortho2D(a));
         base.prep(new FrameInfo());
         try {
             out.clear(base, FragColor.fragcol, CLEAR);
-            draw(new GOut(out, base, tsz), true);      // the standing widget's root is this surface's one child
+            draw(new GOut(out, base, sz), true);       // the standing widget's root is this surface's one child
         } catch(Loading l) {
             return;                                    // a resource is still streaming: stay dirty, try next frame
-        } catch(RuntimeException e) {
-            dirty = false;                             // a broken surface must not spin the frame loop
-            AddonManager.log("surface draw error: " + e);
+        } catch(Throwable e) {
+            // audit2 B15, two things at once. (1) THROWABLE, not RuntimeException: a Lua Draw handler can
+            // raise a StackOverflowError, and an Error out of here escaped UILoop.display ahead of ui.draw
+            // and took the whole frame with it -- the same arm AddonManager.callLua already ends with.
+            // (2) LOGGED ONCE, not once a frame. `dirty = false` was meant to stop a broken surface spinning
+            // the frame loop, and bought nothing: changing() re-arms needsDraw() the very next frame whenever
+            // a child carries a "Draw" subscription, so the log line repeated for ever. The latch clears on
+            // the next pass that gets through, so a handler that is fixed with :reload says so again.
+            dirty = false;
+            if(!logged) {
+                logged = true;
+                AddonManager.log("surface draw error (logged once until it draws): " + e);
+            }
             return;
         }
         dirty = false;
+        logged = false;                                // it drew: the next failure is news again
         AddonManager.SessionState st = state();
         if(st != null)
             st.surfaceUploads++;
@@ -404,67 +462,65 @@ final class WidgetSurface extends Widget {
             return false;                              // 044.7: nothing is looking, so nothing is painted --
                                                        // and the signature is deliberately NOT read, so whatever
                                                        // changes out of sight is still a change when it is seen
-        if(unarmed())
+        scan();                                        // audit2 B15: ONE walk, all three answers
+        if(scanUnarmed)
             return false;                              // still being built: it paints nothing, so it costs nothing
-        long s = signature();
-        boolean changed = !sigged || (s != sig);
-        sig = s;
+        boolean changed = !sigged || (scanSig != sig);
+        sig = scanSig;
         sigged = true;
         // ...and a panel with a button HELD DOWN on it repaints every frame while the gesture lasts (044.4).
         // A cached face says when it changed; a scrollbar or a slider being dragged has none and simply draws
         // its new position, so the one thing that covers every control mid-drag is the drag itself.
-        return dirty || changed || changing() || SurfaceInput.gesturing(this);
+        return dirty || changed || scanChanging || SurfaceInput.gesturing(this);
     }
 
-    /**
-     * <b>Is anything in here still being built?</b> A widget is attached inert and paints nothing until the
-     * tick after the statement that built it (D-112, {@link Owned#pending}) — so a pass over it would clear a
-     * blank texture and charge an upload for a picture nobody asked for. Skipping the frame instead makes the
-     * FIRST upload the first one that draws something, which is what "a static panel costs one upload" has to
-     * mean to be worth measuring.
+    /* ---- the one walk (audit2 B15) -----------------------------------------------------------------
+     *
+     * `unarmed()`, `signature()` and `changing()` each walked the whole child subtree depth-first, once per
+     * surface per frame -- and for a static panel, the case the page sells as "one offscreen pass and one
+     * walk", `dirty` and `changed` are both false so the || short-circuited nowhere and all three ran. They
+     * ask three questions of the SAME nodes, so they are one walk that answers all three. The three results
+     * are fields rather than a returned record because this runs every frame for every standing panel and a
+     * record would be the per-frame allocation the walk was merged to avoid; only the render pass touches
+     * them, on the frame's own thread under the ui monitor, between scan() and the read two lines later.
      */
-    private boolean unarmed() {
-        return unarmed(this);
+    private boolean scanUnarmed;
+    private boolean scanChanging;
+    private long scanSig;
+
+    private void scan() {
+        scanUnarmed = false;
+        scanChanging = false;
+        scanSig = walk(this, 0xcbf29ce484222325L);
     }
 
-    private static boolean unarmed(Widget w) {
+    private long walk(Widget w, long h) {
         for(Widget c = w.child; c != null; c = c.next) {
-            if((c instanceof Owned) && ((Owned)c).pending())
-                return true;
-            if(unarmed(c))
-                return true;
-        }
-        return false;
-    }
-
-    /**
-     * What the client's own widgets show, as one number: each widget's class, place, size, visibility and
-     * caption, depth-first. It sees a label's new text, a control appearing or leaving, anything moving or
-     * resizing, and anything hidden or shown — the changes a panel built from controls actually makes.
-     */
-    private long signature() {
-        return sig(this, 0xcbf29ce484222325L);
-    }
-
-    private static long sig(Widget w, long h) {
-        for(Widget c = w.child; c != null; c = c.next) {
+            // ...the signature: what the client's own widgets show, as one number — each widget's class,
+            // place, size, visibility and caption, depth-first. It sees a label's new text, a control
+            // appearing or leaving, anything moving or resizing, and anything hidden or shown.
             h = mix(h, c.getClass().hashCode());
             h = mix(h, (c.c == null) ? 0 : ((c.c.x * 31) + c.c.y));
             h = mix(h, (c.sz == null) ? 0 : ((c.sz.x * 31) + c.sz.y));
             h = mix(h, c.visible() ? 1 : 0);
             String t = LuaWidget.text(c);
             h = mix(h, (t == null) ? 0 : t.hashCode());
-            h = sig(c, h);
+            // ...is anything still being built? A widget is attached inert and paints nothing until the
+            // tick after the statement that built it (D-112, Owned.pending), so a pass over it would clear a
+            // blank texture and charge an upload for a picture nobody asked for. Skipping the frame instead
+            // makes the FIRST upload the first one that draws something.
+            if((c instanceof Owned) && ((Owned)c).pending())
+                scanUnarmed = true;
+            // ...and is anything changing on its own? (see changingHere below)
+            if(!scanChanging && changingHere(c))
+                scanChanging = true;
+            h = walk(c, h);
         }
         return h;
     }
 
-    private static long mix(long h, int v) {
-        return (h ^ (v & 0xffffffffL)) * 0x100000001b3L;
-    }
-
     /**
-     * <b>Is anything in here changing on its own?</b> Two things are, and neither leaves a trace a signature
+     * <b>Is this one widget changing on its own?</b> Three things do, and none leaves a trace a signature
      * could read:
      * <ul>
      *   <li>a {@code widget:on("Draw", fn)} handler — a Lua function of whatever it likes, so the only way to
@@ -486,25 +542,19 @@ final class WidgetSurface extends Widget {
      *       alpha clip, so the panel did not merely look faint: it was not there at all (044.3).</li>
      * </ul>
      */
-    private boolean changing() {
-        return changing(this);
+    private boolean changingHere(Widget c) {
+        if(!c.anims.isEmpty() || !c.nanims.isEmpty())
+            return true;
+        if((c instanceof Window) && ((Window)c).animating())
+            return true;
+        if((c instanceof SIWidget) && ((SIWidget)c).redrawing())
+            return true;
+        WidgetSubs s = owner.widgetSubsOrNull(c);
+        return (s != null) && s.subs.has("Draw");
     }
 
-    private boolean changing(Widget w) {
-        for(Widget c = w.child; c != null; c = c.next) {
-            if(!c.anims.isEmpty() || !c.nanims.isEmpty())
-                return true;
-            if((c instanceof Window) && ((Window)c).animating())
-                return true;
-            if((c instanceof SIWidget) && ((SIWidget)c).redrawing())
-                return true;
-            WidgetSubs s = owner.widgetSubsOrNull(c);
-            if((s != null) && s.subs.has("Draw"))
-                return true;
-            if(changing(c))
-                return true;
-        }
-        return false;
+    private static long mix(long h, int v) {
+        return (h ^ (v & 0xffffffffL)) * 0x100000001b3L;
     }
 
     /** Mark this surface's picture out of date (see {@link #touch}). */

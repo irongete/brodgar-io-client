@@ -171,6 +171,11 @@ the thumb drag, and the wheel and step buttons that move it a notch. Like a slid
 cancelled — see [editing](../edit.md). Its rail and its thumb are `scrollbar` and `scrollbar.knob`, the
 [same split](../style/surfaces.md#checkbox-scrollbar-and-slider) a slider wears.
 
+**But you cannot drive one that belongs to a list.** A scrollbar the client built *for* a listbox reads its
+position back off that list on every frame, so `widget:value(n)` on it would be undone before you saw it —
+and it is refused rather than silently reverted. Drive the list instead: `widget:value(row)` on the list
+itself scrolls it to that row, and the bar follows.
+
 ## See also
 
 - [controls](README.md) — the shared model: `:parent`, `:position`, permissions, owned vs borrowed

@@ -200,6 +200,20 @@ final class LuaHudOverlay {
                 return LuaValue.valueOf(handle(self, "exists").ov.active);
             }
         });
+        // info() — the snapshot every live interned object in this API answers with (audit2 B15). A HUD
+        // painter is one: not a builder, not a snapshot already, and not a carrier of an ending — so it owed
+        // one, and its widget and gob siblings both had theirs. `drawn` is the half `exists` cannot say: a
+        // painter that is registered but has not been given its function paints nothing.
+        m.set("info", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                HudOverlay o = handle(self, "info").ov;
+                LuaTable t = new LuaTable();
+                t.set("key", LuaValue.valueOf(o.key));
+                t.set("exists", LuaValue.valueOf(o.active));
+                t.set("drawn", LuaValue.valueOf(o.active && (o.fn != null)));
+                return t;
+            }
+        });
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Refusal.closedIndex("uioverlay", m,
             "one HUD painter",

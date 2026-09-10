@@ -101,6 +101,17 @@ final class MeshSprite extends Sprite {
     }
 
     /**
+     * <b>How many glTF objects one addon may have standing at once</b> (audit2 B15). Every object mills its
+     * OWN geometry inside {@code :add} — a fresh interleaved {@code float[]}, a {@link haven.render.VertexArray}
+     * and an index buffer per primitive, on whichever thread called it — and nothing shared it between two
+     * objects of one mesh or counted them. At the parser's own vertex ceiling that is 128 MB of GPU geometry
+     * per object, charged as the single instruction a bridge call costs, so the count is what has to be bound:
+     * sixty-four models standing in the world is a scene, and past it the client is milling rather than
+     * drawing. Per addon, so one addon cannot spend another's room.
+     */
+    static final int MAXLIVE = 64;
+
+    /**
      * A {@link Sprite.Mill} that builds every primitive of {@code lm}'s mesh into an engine {@link Model} + a glTF
      * {@link Material} (texture × baseColorFactor + alpha mode + cull), sharing the mesh's decoded {@link TexI}s. The
      * {@code SprDrawable} ctor calls {@code create(owner)} with itself as the owner (the {@link SpriteQuad}/{@link

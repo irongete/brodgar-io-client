@@ -63,6 +63,9 @@ public final class LuaGhost extends LuaWorldEntity {
     String clickEvent() { return "GhostClicked"; }   // V2: the owner-scoped click event (unchanged)
     String kind()       { return "ghost"; }
 
+    /** Its resource could not be resolved: the create was abandoned and nothing of it will ever be drawn. */
+    synchronized boolean failed() { return failed; }
+
     void infoInto(org.luaj.vm2.LuaTable t) {   // :res()
         String nm = visualName();
         if(nm != null)

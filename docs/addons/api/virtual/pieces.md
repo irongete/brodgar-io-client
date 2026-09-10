@@ -75,6 +75,7 @@ drawing verb must not have. They hold for the ring `hafen.virtual():patch():add`
 | fewer than three points | raises: a ring of two is a line, and a line has no ground under it |
 | three or more points enclosing nothing — all the same place, or all on one line | raises, naming how many edges it actually found |
 | concave | raises: the silhouette is the intersection of the ring's edge half-planes, so a concave ring would be drawn as its hull |
+| crossing itself — a star, a bow-tie, any ring whose edges cut through one another | raises as concave does, and for the same reason: what the half-planes carve is the small shape in the middle, not the one you listed |
 | more than **32** edges | raises, naming that number — refused rather than truncated to the wrong shape |
 | an element that is not a Position | raises, naming which one and the three verbs that make a place |
 | a point with no way to reach the anchor — another grid, and neither end located this session | raises: a ring one point short is the wrong shape, not a smaller one |
@@ -87,7 +88,9 @@ hafen.log():write(tostring(err))                              -- ...says a line 
 ```
 
 **Concave is not a wall, it is the instruction.** Split the shape into convex rings and lay one piece each;
-that is what this collection is for, and the refusal says so.
+that is what this collection is for, and the refusal says so. A ring that crosses itself is the same
+instruction wearing a different shape: a star is five triangles and a pentagon, or however few convex
+pieces you care to cut it into, and the order the points come in is what decides which.
 
 ## The budget: 32 to a piece, 128 to a patch
 

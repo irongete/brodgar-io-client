@@ -530,10 +530,17 @@ final class MapApi {
     }
 
     /**
-     * <b>The one minimap the session location is read from</b> — the corner one. Named because the 045.2 tap
-     * has to listen to exactly this instance and no other: the map window carries a second {@link MiniMap},
-     * ticking the same locator against the same file, and a change announced by that one would be about a
-     * {@code sessloc} nothing here ever reads.
+     * <b>The one minimap the map database is read from</b> — the corner one ({@code GameUI.mmap}).
+     *
+     * <p>It is named because the map window carries a SECOND {@link MiniMap}, ticking its own locator against
+     * the same file, and the two are not interchangeable to anything that reads a field off one of them.
+     *
+     * <p><b>A plain public-field read, and no seam</b> (audit2 B15). This javadoc used to name a "045.2 tap"
+     * that has to listen to this instance and no other; there is no such tap and there never was. Every
+     * {@code // addon:} tag in {@code MiniMap} is the font system (F3d, 102.3), and the session location the
+     * map section converts through is {@link #sessloc(String)}, which comes off {@code Sessions.Member.base()}
+     * — a base a live grid's id has been checked against (109.3) — and not off this widget at all. Reading a
+     * public field of the engine needs no tag: that mark is for core edits.
      */
     static MiniMap minimap() {
         GameUI g = gui();
@@ -966,15 +973,55 @@ final class MapApi {
         return maskOf(gridDataIn(file, id), tag);
     }
 
+    /**
+     * <b>The decoded masks of one recorded grid, by tag</b> (audit2 B15) — the memo {@link #maskOf} answers
+     * from. Every ask decoded the whole thing again: {@code maskOf} resolved every overlay's tags and
+     * allocated a fresh {@code boolean[100 * 100]} for each of {@code :covers}, {@code :count}, {@code :area},
+     * {@code :exists} and {@code :info}, and {@code grid:mask():get(tag)} decoded once more just to decide
+     * whether the tag was there at all. A recorded grid is IMMUTABLE — it is what the client wrote down —
+     * so one decode is the whole answer for as long as that grid object is in memory, and the memo is keyed
+     * by the grid object itself and held weakly, so it dies with the grid rather than pinning it.
+     *
+     * <p>Only a fully resolved decode is remembered. A {@code null} from an overlay resource still coming is
+     * "ask again next tick", which is not an answer to keep.
+     */
+    private static final Map<MapFile.DataGrid, Map<String, boolean[]>> maskMemo =
+        Collections.synchronizedMap(new WeakHashMap<MapFile.DataGrid, Map<String, boolean[]>>());
+
     /** {@link #maskIn} over a grid already in hand — the union rule itself, testable without a map file. */
     static boolean[] maskOf(MapFile.DataGrid g, String tag) {
         if((g == null) || (tag == null))
             return null;
+        Map<String, boolean[]> memo;
+        synchronized(maskMemo) {
+            memo = maskMemo.get(g);
+            if(memo == null)
+                maskMemo.put(g, memo = new HashMap<String, boolean[]>());
+        }
+        synchronized(memo) {
+            if(memo.containsKey(tag))
+                return memo.get(tag);       // a decoded union, or a remembered "this grid does not carry it"
+        }
+        boolean[] m = decodeMask(g, tag);
+        if(m != NOT_RESOLVED) {
+            synchronized(memo) {
+                memo.put(tag, m);
+            }
+            return m;
+        }
+        return null;                        // an overlay resource is still coming: ask again next tick
+    }
+
+    /** {@link #maskOf}'s answer for "an overlay resource has not resolved", told apart from "no such tag". */
+    private static final boolean[] NOT_RESOLVED = new boolean[0];
+
+    /** The decode itself — the union rule, run once per (grid, tag) and then remembered. */
+    private static boolean[] decodeMask(MapFile.DataGrid g, String tag) {
         boolean[] out = null;
         for(MapFile.Overlay ol : g.ols) {
             Collection<String> tags = olTags(ol);
             if(tags == null)
-                return null;                  // still resolving: a partial union would under-report
+                return NOT_RESOLVED;          // still resolving: a partial union would under-report
             if(!tags.contains(tag) || (ol.ol == null))
                 continue;
             if(out == null)

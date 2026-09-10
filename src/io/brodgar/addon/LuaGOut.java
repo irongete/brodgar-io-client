@@ -133,6 +133,18 @@ final class LuaGOut {
         static final int  MAXENTRIES = 512;
         static final long MAXBYTES   = 8L << 20;    // 8 MiB of GL texture
 
+        /*
+         * ...and the cap on ONE entry (audit2 B15). Without it `put` inserted the newcomer, added its bytes and
+         * then trimmed with `live.size() > 1` as the floor -- so a raster bigger than MAXBYTES on its own
+         * emptied the cache down to itself and still sat over the cap, and the very next put evicted it again.
+         * A wide line drawn every frame therefore flushed and re-rendered the whole working set once a frame:
+         * the thrash, not a permanent pin. An entry past this is simply NOT ADOPTED -- it is rendered, blitted
+         * and disposed on the spot, the pre-026 lifecycle -- so the trim below can no longer be asked to evict
+         * something it must keep. A megabyte is a 512x512 raster, far past any line of text and well inside the
+         * 8 MiB the whole cache is bounded by.
+         */
+        static final long MAXENTRYBYTES = MAXBYTES / 8;
+
         /** The LRU itself, in ACCESS order (`true`) so `removeEldest` below is genuinely least-recently-used. */
         private final Map<Key, Entry> live = new LinkedHashMap<Key, Entry>(64, 0.75f, true);
         private long bytes;
@@ -152,10 +164,16 @@ final class LuaGOut {
             return e.tex;
         }
 
-        /** Adopt a freshly rendered {@code t}/{@code tex} under {@code k}, then evict down to the caps. */
-        synchronized void put(Key k, Text t, Tex tex) {
+        /**
+         * Adopt a freshly rendered {@code t}/{@code tex} under {@code k}, then evict down to the caps —
+         * {@code false} when the raster is past {@link #MAXENTRYBYTES} and the cache declines it, which leaves
+         * the caller holding a {@link Text} it must dispose itself.
+         */
+        synchronized boolean put(Key k, Text t, Tex tex) {
             Coord sz = tex.sz();
             long b = 4L * Tex.nextp2(sz.x) * Tex.nextp2(sz.y);
+            if(b > MAXENTRYBYTES)
+                return false;                       // too big to hold: keeping it would flush everything else
             Entry old = live.put(k, new Entry(t, tex, b));
             bytes += b;
             if(old != null) {                       // cannot normally happen (we only put on a miss), but stay exact
@@ -163,6 +181,7 @@ final class LuaGOut {
                 old.text.dispose();
             }
             trim();
+            return true;
         }
 
         /** Drop the least-recently-used entries until both caps hold, disposing each. Never drops the newcomer. */
@@ -250,6 +269,29 @@ final class LuaGOut {
             a.texts.clear();
     }
 
+    /**
+     * <b>The longest string this wrapper rasterises</b> (audit2 B15) — {@code g:text}, {@code g:atext} and
+     * {@code hafen.ui():measure} alike. Nothing bounded it: one call handed an arbitrarily long line to
+     * {@link Text#render} and got back one AWT image and one GL texture of whatever size it came to, charged
+     * the single instruction the bridge call costs. Four thousand characters is some fifty screen widths of
+     * ordinary text and past anything a label, a tooltip or a wrapped paragraph is; a document is not a draw
+     * call, and the refusal says so rather than the client stalling on an image nobody can read.
+     */
+    static final int MAXTEXT = 4096;
+
+    /**
+     * The string a draw verb is about to rasterise, or the refusal that names {@link #MAXTEXT}. Asked at the
+     * Lua door and not at {@link #render}, which the engine-drawn label path also comes through: a record's
+     * label is bounded where it is WRITTEN ({@code ov:text}), because the render pass has no caller to refuse to.
+     */
+    static String textArg(String str, String verb) {
+        if(str.length() > MAXTEXT)
+            throw new LuaError(verb + ": the string is " + str.length() + " characters, past the " + MAXTEXT
+                + " one call rasterises — one call is one image and one texture, so a line this long is a"
+                + " picture nothing can read; cut it, or draw it a line at a time");
+        return str;
+    }
+
     /** The live {@link GOut} during the current draw callback, else {@code null} (the wrapper is then inert). */
     private GOut cur;
     /**
@@ -315,7 +357,7 @@ final class LuaGOut {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 Args.only(a, 4, "g:text");
-                drawText(d, Args.str(a, 2, "g:text", "str", null).tojstring(),
+                drawText(d, textArg(Args.str(a, 2, "g:text", "str", null).tojstring(), "g:text"),
                          Px.point(px(a, 3, "g:text", "x"), px(a, 4, "g:text", "y")),
                          0.0, 0.0, a.arg(5), "g:text");
                 return NIL;
@@ -327,7 +369,7 @@ final class LuaGOut {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 Args.only(a, 6, "g:atext");
-                drawText(d, Args.str(a, 2, "g:atext", "str", null).tojstring(),
+                drawText(d, textArg(Args.str(a, 2, "g:atext", "str", null).tojstring(), "g:atext"),
                          Px.point(px(a, 3, "g:atext", "x"), px(a, 4, "g:atext", "y")),
                          Args.num(a, 5, "g:atext", "ax", "a fraction 0..1 across the text").todouble(),
                          Args.num(a, 6, "g:atext", "ay", "a fraction 0..1 down the text").todouble(),
@@ -581,12 +623,11 @@ final class LuaGOut {
         }
         Text t = render(str, fh, width);                   // miss: rasterise once (fast or rich path, per the key)
         T = smooth(t.tex());
-        if(cache != null) {
-            cache.put(k, t, T);                            // the cache owns it from here — it is the only disposer
-            fill(d, T, c, ax, ay, bg);
+        if((cache != null) && cache.put(k, t, T)) {
+            fill(d, T, c, ax, ay, bg);                     // the cache owns it from here — it is the only disposer
             blitText(d, T, c, ax, ay, col);
-        } else {                                           // no owner (defensive): the pre-026 per-frame lifecycle
-            try {
+        } else {                                           // no owner, or a raster past MAXENTRYBYTES the cache
+            try {                                          //   declined: the pre-026 per-frame lifecycle
                 fill(d, T, c, ax, ay, bg);
                 blitText(d, T, c, ax, ay, col);
             } finally {
@@ -608,6 +649,7 @@ final class LuaGOut {
      * never uploaded.
      */
     static Coord measure(Addon owner, String str, FontHandle fh, int width) {
+        textArg(str, "hafen.ui():measure");            // a measure rasterises: the same bound as a draw (B15)
         Cache cache = (owner != null) ? owner.texts : null;
         Key k = (cache != null) ? new Key(str, fh, width, Fonts.gen()) : null;
         Tex T = (cache != null) ? cache.get(k) : null;
@@ -615,11 +657,9 @@ final class LuaGOut {
             return T.sz();
         Text t = render(str, fh, width);
         T = smooth(t.tex());
-        if(cache != null) {
-            cache.put(k, t, T);                            // the cache owns it from here, exactly as a draw's does
-            return T.sz();
-        }
-        Coord sz = T.sz();                                 // no owner (defensive): measure and drop it again
+        if((cache != null) && cache.put(k, t, T))
+            return T.sz();                                 // the cache owns it from here, exactly as a draw's does
+        Coord sz = T.sz();                                 // no owner, or declined as over-large: measure and drop
         t.dispose();
         return sz;
     }

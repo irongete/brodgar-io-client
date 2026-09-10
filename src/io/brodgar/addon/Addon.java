@@ -282,6 +282,7 @@ public final class Addon {
      */
     void teardownWidgetSubs() {
         itemSubs.clear();
+        AddonManager.recountItemSubs();   // audit2 B15: this addon has stopped watching items — see onItemInfo
         List<WidgetSubs> all = widgetSubs.values();
         widgetSubs.clear();
         for(WidgetSubs s : all)
@@ -1059,8 +1060,10 @@ public final class Addon {
         if(it == null)
             return;
         Subs s = itemSubs.drop(it);
-        if(s != null)
+        if(s != null) {
             s.clear();
+            AddonManager.recountItemSubs();   // audit2 B15: one watcher fewer — see onItemInfo
+        }
     }
 
     /**
@@ -1270,8 +1273,14 @@ public final class Addon {
      * verbs going inert and its text rendering into the inner addon's cache. Per addon the premise is no longer
      * needed: two addons painting inside one another hold two wrappers, and each stays bound to its own owner.
      *
-     * <p>The other wrappers are narrower still and stay where they are: {@link AddonWidget} and {@link CGrid}
-     * hold one per WIDGET, which is one addon's by construction, and {@link LuaGobOverlay} one per gob attrib.
+     * <p><b>And it is the only one</b> (audit2 B15). {@link AddonWidget}, {@link CGrid} and
+     * {@link LuaGobOverlay} each held a narrower wrapper of their own — one per widget, per control, per
+     * OVERLAID GOB — and a wrapper is a whole table of drawing closures built in its owner's constructor, so a
+     * label on each of two hundred crops was two hundred tables for records that never enter Lua at all. Per
+     * addon is already the right grain, because every bind in this bridge is strictly scoped: it is released
+     * before the traversal reaches anything else that could paint, so no second painter of THIS addon can ever
+     * be inside one. What the client-wide wrapper could not do — keep two addons painting inside one another
+     * apart — is exactly what per-addon does.
      */
     final LuaGOut gout = new LuaGOut();
 

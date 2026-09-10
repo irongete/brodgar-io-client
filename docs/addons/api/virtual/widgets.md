@@ -65,7 +65,15 @@ two spaces.
 
 A panel's world size comes from the widget's own [design pixels](../ui/pixels.md), at **a hundred pixels to
 the tile**, so a default `hafen.ui():window()` stands about two tiles across on every client, whatever
-interface scale the user runs — the world is not the HUD. `:scale` adjusts it from
+interface scale the user runs — the world is not the HUD.
+
+**The size is decided when it is stood, and held.** A widget more than **2048 device pixels** on a side is
+refused by `:add`, naming the ceiling: past that the texture is the whole cost and nothing on it is
+readable in the world anyway. And the panel keeps that size for as long as it stands — the offscreen
+picture, the quad in the world and the box a click is mapped against are all cut from it at once, so a
+panel that grew afterwards would be three things disagreeing about where it is. The widget *inside* is free
+to be any size it likes and is clipped by the panel, exactly as one inside a window is; to stand a bigger
+one, take it down and stand it again. `:scale` adjusts it from
 there, and a string [filter](README.md#the-collections-unprotected) over the collection matches the widget's
 caption — the "Cupboard" window is found by its title, which is what anybody looking for it knows.
 

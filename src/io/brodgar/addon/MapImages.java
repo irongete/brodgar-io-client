@@ -69,6 +69,24 @@ final class MapImages {
      */
     static int MAX = 96;
 
+    /**
+     * <b>How many times a failed render is asked for again</b> (audit2 B15). The failure used to LATCH on the
+     * first throw and answer {@code nil} for ever — a deliberate choice, argued as "retrying it every frame
+     * would be a render loop", and a real one: a broken tileset resource would otherwise cost a
+     * {@link Defer} job per frame. But most failures here are not broken art. A render is cancelled when
+     * another thread wins the same key; a resource can be mid-swap; a segment can be being rewritten under a
+     * merge. Every one of those is a moment, and a permanent {@code nil} made it permanent.
+     *
+     * <p>So a failure answers {@code nil} once and the NEXT ask renders it again, up to this many times; past
+     * that the entry settles and {@code grid:info().failed} is how a caller tells a picture that will never
+     * come from one that has not come yet. Three is enough for anything transient and small enough that a
+     * genuinely broken resource costs three renders rather than one a frame for the life of the client.
+     */
+    static final int RETRIES = 3;
+
+    /** The separator inside an overlay cache key ({@code "o" + SEP + gid + SEP + tag}) — one char, never in a tag. */
+    private static final String SEP = String.valueOf((char)0);
+
     // ---- the per-addon bounded cache ---------------------------------------------------------------
 
     /** One rendered image: the pending render, the handle it becomes, and nothing else. */
@@ -77,7 +95,9 @@ final class MapImages {
         Defer.Future<TexI> future;          // in flight; null once it landed (or failed)
         LuaImage image;                     // the owned image, once the render landed
         LuaValue handle;                    // the stable Lua handle — the interning this cache exists for
-        boolean failed;                     // the render threw, or there was nothing to draw: answer nil, do not retry
+        boolean failed;                     // the LAST render threw, or had nothing to draw (audit2 B15)
+        int fails;                          // ...how many in a row; past RETRIES the entry settles for good
+        Defer.Callable<TexI> mill;          // ...and how to render it again, so the retry needs no second door
 
         Entry(String label) {
             this.label = label;
@@ -133,6 +153,27 @@ final class MapImages {
                 drop(e);
         }
 
+        /**
+         * Has any render of grid {@code gid} settled as failed? The keys are {@code map:<gid>@<lvl>} and
+         * {@code o<SEP><gid><SEP><tag>}, so the grid's own decimal id is what both carry (audit2 B15).
+         *
+         * <p>A walk of at most {@link #MAX} entries, which is what {@code grid:info()} is: a snapshot asked
+         * once when a caller wants to know why nothing came, never per frame. Keyed by grid rather than by
+         * (grid, level, tag) because the question is about the ground, not about one picture of it — a
+         * failure at any level is a failure of the same ground.
+         */
+        synchronized boolean settled(String gid) {
+            for(Map.Entry<String, Entry> en : live.entrySet()) {
+                Entry e = en.getValue();
+                if(!e.failed || (e.fails < RETRIES))
+                    continue;
+                String k = en.getKey();
+                if(k.startsWith("map:" + gid + "@") || k.startsWith("o" + SEP + gid + SEP))
+                    return true;
+            }
+            return false;
+        }
+
         /** Free every rendered image this addon holds (teardown). */
         synchronized void clear() {
             List<Entry> all = new ArrayList<Entry>(live.values());
@@ -180,7 +221,7 @@ final class MapImages {
         if(e != null)
             return answer(owner, key, e);
         final Coord sc = gi.sc;
-        Defer.Future<TexI> f;
+        Defer.Callable<TexI> mill;
         if(lvl == 0) {
             // The client's own level-0 render: a 3x3 View, so tile transitions blend across the grid border
             // exactly as the corner minimap's do. Wait for the grid's own data first — a View built around a
@@ -188,7 +229,7 @@ final class MapImages {
             if(MapApi.gridDataIn(file, gid) == null)
                 return LuaValue.NIL;
             final MapFile mf = file;
-            f = Defer.later(new Defer.Callable<TexI>() {
+            mill = new Defer.Callable<TexI>() {
                 public TexI call() {
                     // audit2 B06: the lock is TAKEN WITH tryLock and GIVEN UP BEFORE THE RASTER. It was a
                     // blocking lock() held across the nine addgrids AND drawmap, so one grid:image(0) parked
@@ -208,28 +249,41 @@ final class MapImages {
                     }
                     return new TexI(MapSource.drawmap(view, Area.sized(sc.mul(MCache.cmaps), MCache.cmaps)));
                 }
-            });
+            };
         } else {
             final haven.Indir<? extends MapFile.DataGrid> ind = zoomIndir(file, seg, zc, lvl);
             if(ind == null)
                 return LuaValue.NIL;
-            f = Defer.later(new Defer.Callable<TexI>() {
+            mill = new Defer.Callable<TexI>() {
                 public TexI call() {
                     MapFile.DataGrid g = ind.get();        // Loading until Defer has it — reschedules
                     if(g == null)
                         return null;                       // nothing recorded at this level here
                     return new TexI(g.render(zc.mul(MCache.cmaps)));
                 }
-            });
+            };
         }
         e = new Entry("map:" + Long.toString(gid) + "@" + lvl);
-        e.future = f;
+        e.mill = mill;                                     // audit2 B15: kept, so a failure can be tried again
+        Defer.Future<TexI> f = e.future = Defer.later(mill);
         Entry got = owner.mapImages.claim(key, e);
         if(got != e) {                                     // another thread claimed it while we built ours
             try { f.cancel(); } catch(RuntimeException x) { /* best-effort */ }
             return answer(owner, key, got);
         }
         return LuaValue.NIL;                               // kicked the render; the next call answers
+    }
+
+    /**
+     * <b>Has a picture of this grid been given up on?</b> (audit2 B15) — {@code true} once any render this
+     * addon asked for of this grid, at any level or overlay tag, has failed {@link #RETRIES} times and
+     * settled. It is what {@code grid:info().failed} answers, and the whole reason it exists: a
+     * {@code grid:image()} that answers {@code nil} because the render is still on {@link Defer} and one that
+     * answers {@code nil} because the tileset is broken were the same word, so "why can I not see it" had no
+     * answer at all.
+     */
+    static boolean failedFor(Addon owner, long gid) {
+        return owner.mapImages.settled(Long.toString(gid));
     }
 
     /** The {@code Indir} for the zoom grid of {@code lvl} covering level-coord {@code zc}, under the read lock. */
@@ -257,7 +311,7 @@ final class MapImages {
         MapFile.GridInfo gi = MapApi.gridInfoIn(file, gid);
         if(gi == null)
             return LuaValue.NIL;
-        String key = "o\0" + Long.toString(gid) + "\0" + tag;
+        String key = "o" + SEP + Long.toString(gid) + SEP + tag;
         Entry e = owner.mapImages.get(key);
         if(e != null)
             return answer(owner, key, e);
@@ -269,12 +323,12 @@ final class MapImages {
         final Coord sc = gi.sc;
         final String t = tag;
         e = new Entry("overlay:" + tag + "@" + Long.toString(gid));
-        final Defer.Future<TexI> of = Defer.later(new Defer.Callable<TexI>() {
+        e.mill = new Defer.Callable<TexI>() {              // audit2 B15: kept, so a failure can be tried again
             public TexI call() {
                 return new TexI(g.olrender(sc.mul(MCache.cmaps), t));   // Loading on an overlay res reschedules
             }
-        });
-        e.future = of;
+        };
+        final Defer.Future<TexI> of = e.future = Defer.later(e.mill);
         Entry got = owner.mapImages.claim(key, e);
         if(got != e) {                                     // as above: the loser cancels its own render
             try { of.cancel(); } catch(RuntimeException x) { /* best-effort */ }
@@ -285,9 +339,13 @@ final class MapImages {
 
     /**
      * What a second (and later) call answers: the handle if the render landed, {@code nil} while it is still
-     * on {@link Defer}. A render that threw, or that had nothing to draw, is remembered as failed and keeps
-     * answering nil — retrying it every frame would be a render loop, and the caller has {@code grid:exists()}
-     * and {@code grid:overlays()} to tell it why nothing is coming.
+     * on {@link Defer}.
+     *
+     * <p><b>A failure answers {@code nil} once and is tried again on the next ask</b> (audit2 B15), up to
+     * {@link #RETRIES} times — see that constant for why a permanent latch was the wrong answer to a real
+     * problem. Past the budget the entry settles for good and {@code grid:info().failed} says so, which is
+     * the difference between "not yet" and "never" that a bare {@code nil} could not carry. The retry is on
+     * the ASK, never on a timer: an addon that stops asking stops paying.
      */
     private static LuaValue answer(Addon owner, String key, Entry e) {
         // audit2 B06: under the entry's own monitor. Its four fields are the whole state of one render and
@@ -296,7 +354,19 @@ final class MapImages {
         synchronized(e) {
         if(e.handle != null)
             return e.handle;
-        if(e.failed || (e.future == null))
+        if(e.failed) {
+            // audit2 B15: THIS ASK IS THE RETRY. The entry remembers how to render itself, so the budget is
+            // remembered with it -- dropping the entry instead would drop the count and retry for ever. Past
+            // the budget it settles, answers nil and says why through grid:info().failed.
+            if((e.fails < RETRIES) && (e.mill != null)) {
+                e.failed = false;
+                e.future = Defer.later(e.mill);
+            } else {
+                e.mill = null;         // settled: let go of what the render closure was holding
+            }
+            return LuaValue.NIL;
+        }
+        if(e.future == null)
             return LuaValue.NIL;
         if(!e.future.done())
             return LuaValue.NIL;
@@ -305,14 +375,17 @@ final class MapImages {
             tex = e.future.get();
         } catch(RuntimeException x) {          // a broken tileset resource, a cancelled render
             e.failed = true;
+            e.fails++;
             e.future = null;
             return LuaValue.NIL;
         }
         e.future = null;
         if(tex == null) {                      // nothing recorded at that level/tag: not an error, just no picture
             e.failed = true;
+            e.fails++;
             return LuaValue.NIL;
         }
+        e.mill = null;                         // it landed: the retry is over, and so is the capture it held
         final LuaImage li = new LuaImage(owner, e.label, tex);
         li.asset = new AssetApi.Asset(owner, e.label) {
             /** A picture of the database, not a file the addon shipped: hafen.asset() never holds it. */

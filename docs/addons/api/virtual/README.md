@@ -228,6 +228,11 @@ exactly as that game object does, and it ends with it.
 `e:drawn()` is the one answer to *why can I not see it*. It is `false` while you have hidden it, while the
 whole section is off, while its visual is still streaming in, and while a free one's ground is not drawn.
 
+There is a fifth, and it is the one the other four cannot be told from: **the client asked for the visual
+and gave up on it** — a mistyped resource name, art that will not load. `e:info().failed` says so, and it
+is `false` for every entity that is merely waiting. A `drawn()` that is false with `failed` false is *not
+yet*; with `failed` true it is *never*, and no amount of waiting will change it.
+
 ```lua
 local home = hafen.store():get("spot").home            -- a place saved in an earlier session
 local e = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", home)

@@ -45,6 +45,19 @@ A string `filter` matches the **key** as a substring. Once the gob is gone the c
 answers `nil` and `:remove` is inert — an overlay died with the gob, so there is nothing left to remove —
 while `:add` raises, because there is nothing left to attach it to.
 
+### What one gob holds
+
+Three ceilings, and each raises naming itself. They are what stops a loop from turning one object into an
+unbounded map, a record every session's copy replays, and one blit a frame each.
+
+| Bound | What it is |
+|---|---|
+| **32 keys** | how many overlays *your addon* may have on one gob; another addon's are not counted against yours, and replacing a key you already hold spends nothing |
+| **128 characters** | how long a key may be — it is your *name* for one overlay, not somewhere to put the data behind it |
+| **256 characters** | how long `ov:text(s)` may be — a label stands over an object at one blit |
+
+A replace is free of the first: `:add("hp")` twice is one overlay, so the count is of distinct keys.
+
 ```lua
 me:overlay():add("hp"):text("hurt"):color{255, 90, 90}:offset(0, -6)
 me:overlay():add("ring"):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
@@ -94,7 +107,9 @@ over it is [`hafen.virtual`](virtual/README.md).
 **A label costs one blit and one rasterisation for its lifetime.** It is drawn through the same
 [text cache](ui/drawing.md#text-is-cached-across-frames) `g:text` goes through, so the line is laid out and
 uploaded once and every later frame is a lookup and a blit — with no Lua call at all, where a painter
-drawing the same words pays one every frame. The string and the face are what is cached, so relabelling
+drawing the same words pays one every frame. That is the whole of the per-frame cost now: an overlaid gob
+allocates nothing at all in a frame it does not change, where it used to build a list, an array and a
+projection box before it drew a pixel — so two hundred labelled crops are two hundred blits and no garbage. The string and the face are what is cached, so relabelling
 rasterises once more and then settles; the colour is not, and may change every frame for nothing. And the
 face may carry an [outline](font.md#an-outline-round-every-glyph), baked into that same one raster — which
 is what makes a number standing on a crop readable over any ground for the price of the blit it already
@@ -151,7 +166,7 @@ The reads below answer on every kind; what a kind has nothing to say about comes
 | `ov:gob()` | Gob | the gob it hangs on |
 | `ov:native()` | bool | is this the game's own rather than yours? |
 | `ov:kind()` | string \| nil | `"draw"`/`"text"` for one of yours, `"ghost"`/`"sprite"`/`"object"` for one you stood there; `nil` for a native one, and for one that has not said yet |
-| `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a painter of yours, which draws Lua |
+| `ov:res()` | string \| nil | what it is drawn from — the resource name, the asset path; `nil` for a painter of yours, which draws Lua, and `nil` once the overlay is gone |
 | `ov:count()` | number \| nil | how many engine overlays this one entry stands for |
 | `ov:exists()` | bool | still there? |
 | `ov:info()` | table \| nil | a plain snapshot; the shape follows what the entry is |

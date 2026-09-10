@@ -245,6 +245,23 @@ public final class LuaPosition {
         return LuaValue.userdataOf(new LuaPosition(true, x, y, 0, 0, 0, user), owner.positions.meta());
     }
 
+    /**
+     * <b>A Position {@code dx, dy} from one already anchored</b>, without a second lookup (audit2 B15) —
+     * {@code NIL} when {@code base} carries no anchor, and the caller falls back to {@link #ofWorld} per point.
+     *
+     * <p>An anchor is a grid id and an offset within that grid, and {@link #worldOf} adds the two back, so an
+     * offset that runs past the grid's own hundred tiles still names the same ground: which grid a point is
+     * <i>filed under</i> is not which grid it is <i>on</i>. That is what lets a RING of points — a gob's
+     * hitbox, a fence's outline — cost one grid lookup rather than one per vertex, where every vertex was
+     * flooring to a tile, dividing to a grid coord and doing a loaded-grid lookup, falling through to the
+     * recorded map database (a lock and a segment read) for anything off-stream.
+     */
+    static LuaValue ofOffset(Addon owner, LuaPosition base, double dx, double dy) {
+        if((base == null) || base.located)
+            return LuaValue.NIL;
+        return ofAnchor(owner, base.gridId, base.gx + dx, base.gy + dy);
+    }
+
     /** A Position from a durable anchor — what the store, {@code hafen.json} and {@code :position(info)} rebuild. */
     static LuaValue ofAnchor(Addon owner, long id, double x, double y) {
         return LuaValue.userdataOf(new LuaPosition(false, 0, 0, id, x, y, null), owner.positions.meta());

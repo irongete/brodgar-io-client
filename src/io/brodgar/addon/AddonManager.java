@@ -2732,7 +2732,33 @@ public final class AddonManager {
      * <p>It also takes the fire-side read of {@link Addon#itemSubs} — a plain {@code WeakHashMap} — off
      * whichever thread happened to build the info and onto the step, beside the {@code item:on} that writes it.
      */
+    /**
+     * <b>Is anybody watching {@code item:on("Changed")} at all?</b> (audit2 B15) — the one volatile read the
+     * item-info seam pays on a client where nothing subscribes, which is every client until an addon asks.
+     *
+     * <p>The seam queued EVERY item build in EVERY session unconditionally and let {@link #fireItem} decide
+     * per owner, one drain later — where the sibling seams on this surface ({@link LuaWidget#anyHidden},
+     * {@link LuaWidget#anyMoved}) each read a flag first. Raised by {@code item:on}, and never lowered on a
+     * guess: a stale <i>true</i> costs the queue and the drain finds nobody, and only a teardown that has
+     * actually looked ({@link #recountItemSubs}) clears it.
+     */
+    static volatile boolean anyItemSubs = false;
+
+    /** Recompute {@link #anyItemSubs} over every live owner — the loaded addons plus the {@code :lua} REPL. */
+    static void recountItemSubs() {
+        boolean any = false;
+        List<Addon> as = addons;
+        for(int i = 0, n = as.size(); !any && (i < n); i++)
+            any = !as.get(i).itemSubs.values().isEmpty();
+        Addon c = consoleOwner;
+        if(!any && (c != null))
+            any = !c.itemSubs.values().isEmpty();
+        anyItemSubs = any;
+    }
+
     public static void onItemInfo(GItem it) {
+        if(!anyItemSubs)
+            return;                     // audit2 B15: nobody is listening, so nothing is queued
         // Never throws into info(). This runs inside the build that WItem.draw asks for, so a fault here would
         // not break a subscription — it would break drawing the icon, and info() already has a meaningful
         // throw of its own (Loading) that callers handle.
@@ -6057,15 +6083,27 @@ public final class AddonManager {
         }
     }
 
-    /** A copy of that session's gob list (taken under its OCache lock; snapshots built by the caller). */
+    /**
+     * A copy of that session's gob list (taken under its OCache lock; snapshots built by the caller).
+     *
+     * <p><b>Only what {@link #getgob} will hand back</b> (audit2 B15). The {@code OCache} iterator is wider
+     * than the lookup: it walks {@code objs} <i>plus</i> the local collections, and {@code OCache.Virtual}
+     * mints negative ids of its own (docs/client/state.md) — so an id this walk yielded could answer
+     * {@code null} from {@code getgob}, and every read on the handle goes through {@code getgob}. The list
+     * therefore handed out Gobs whose {@code :exists()} was already false, which is a member of a collection
+     * that is not there. Re-asking the lookup under the same monitor is the one test that agrees with the
+     * handle's own.
+     */
     static List<Gob> allGobs(String user) {
         List<Gob> out = new ArrayList<Gob>();
         OCache oc = oc(user);
         if(oc == null)
             return out;
         synchronized(oc) {
-            for(Gob g : oc)
-                out.add(g);
+            for(Gob g : oc) {
+                if((g != null) && (oc.getgob(g.id) == g))
+                    out.add(g);
+            }
         }
         return out;
     }
@@ -6217,6 +6255,11 @@ public final class AddonManager {
             try {
                 return Args.truthy(filter.call(LuaGob.of(owner, user, g.id)));
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
+                // audit2 B15: ...and it SAYS SO. The drop itself is right — one bad member must not end the
+                // walk — but it was silent, so a typo in a predicate read as "nothing matched" with nothing
+                // anywhere to look at. Logged once per raise, at the log every other swallowed Lua error in
+                // this bridge goes to; the answer is still false.
+                log("gob filter error (that object was dropped from the result): " + e);
                 return false;
             }
         }
@@ -6407,14 +6450,24 @@ public final class AddonManager {
         if(rc == null)
             return LuaValue.NIL;
         double s = Math.sin(ra), c = Math.cos(ra);
+        // audit2 B15: ONE grid lookup for the whole footprint, not one per vertex. Every point went through
+        // LuaPosition.of -> ofWorld -> anchorAt, which floors to a tile and looks the grid up (and falls
+        // through to the recorded map database, under a lock, for ground off-stream) -- so a multi-ring fence
+        // paid one per point, and gob.md advertises handing that very ring to virtual():patch(), which
+        // resolves each of them again. The object's OWN point is anchored once and every vertex is that
+        // anchor plus its offset, which is the same ground by the anchor's own arithmetic (LuaPosition.ofOffset).
+        LuaPosition base = LuaPosition.resolve(LuaPosition.of(owner, user, rc));
         LuaTable polys = new LuaTable();
         for(int i = 0; i < rings.length; i++) {
             Coord2d[] ring = rings[i];
             LuaTable poly = new LuaTable();
             for(int o = 0; o < ring.length; o++) {
                 Coord2d p = ring[o];
-                Coord2d wp = Coord2d.of((p.x * c) - (p.y * s), (p.y * c) + (p.x * s)).add(rc);
-                poly.set(o + 1, LuaPosition.of(owner, user, wp));
+                double dx = (p.x * c) - (p.y * s), dy = (p.y * c) + (p.x * s);
+                LuaValue at = LuaPosition.ofOffset(owner, base, dx, dy);
+                if(at.isnil())      // never-explored ground: it has no anchor to offset, so ask per point
+                    at = LuaPosition.of(owner, user, Coord2d.of(rc.x + dx, rc.y + dy));
+                poly.set(o + 1, at);
             }
             polys.set(i + 1, poly);
         }

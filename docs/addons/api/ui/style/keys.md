@@ -101,7 +101,9 @@ Three rules decide what one widget resolves to:
   `window[title=Cupboard]` outranks `window` on the window it names while `window` still answers everywhere
   else. It is folded property by property: a
   specific rule that sets only `color` does not take the `font` a broader one set. Equal specificity goes to
-  the rule applied last, addons included.
+  the rule applied last, addons included — and *applied* means when the sheet was first installed, not when
+  it was last touched: editing one rule re-applies the whole sheet, and it keeps the place it already had.
+  So an unrelated `rule:color()` never promotes a sheet over an addon that installed after it.
 - **A chain reaches everything *inside* that window.** `window[title=Cupboard] *` matches every widget below
   a window captioned `Cupboard` — the same
   [descendant combinator](../selectors.md#the-grammar) every selector uses —

@@ -1123,7 +1123,18 @@ public class ChatUI extends Widget {
 
 	private float colseq = 0;
 	private int seqn = 0;       // addon: (065.16) how many speakers this channel has minted a colour for
-	private int seqgen = -1;    // addon: (065.16) Fonts.gen() the mints below were made at
+	/* addon: (065.16, audit2 B15) the SEQUENCE the mints below were made from -- the resolved
+	 * Fonts.sequence("chat.speaker") itself, compared by value, and null for "the client's own walk".
+	 * It was Fonts.gen(), which is the GLOBAL style/font generation: any addon's unrelated font or
+	 * colour edit anywhere bumped it, dropped every minted speaker colour and re-shuffled who was what
+	 * colour -- against chat.md's "A speaker keeps the colour they were given". The drop itself is right
+	 * and is why a chat rule takes effect on the next line rather than the next login; what was wrong is
+	 * what it keyed on, which must be the one thing that decides these colours and nothing else. */
+	private Object seqkey = SEQ_UNSET;   // addon:
+	/* addon: (audit2 B15) "no sequence has been asked for yet", told apart from the null that means
+	 * "asked, and the client's own walk is the answer" -- so the FIRST fromcolor of a channel does not
+	 * clear a map that is already empty and, more to the point, does not read as a change. */
+	private static final Object SEQ_UNSET = new Object();   // addon:
 	private Color nextcol() {
 	    /* addon: (065.16) a theme may name the SEQUENCE this walks rather than any of the colours it emits:
 	     * a palette it lists and this cycles, or this very walk with its own step, saturation and brightness.
@@ -1143,9 +1154,9 @@ public class ChatUI extends Widget {
 		 * never reach anyone already speaking. Dropping the mints on a gen move is what makes a theme
 		 * take effect on the next line rather than on the next login. Lines ALREADY in the scrollback
 		 * keep theirs: a message's colour is decided when it arrives, not when it is drawn. */
-		int g = Fonts.gen();
-		if(seqgen != g) {
-		    seqgen = g;
+		Object sq = Fonts.sequence("chat.speaker");   // addon: (audit2 B15) the sequence itself, by value
+		if(!Utils.eq(seqkey, sq)) {
+		    seqkey = sq;
 		    pc.clear();
 		    seqn = 0;
 		    colseq = 0;

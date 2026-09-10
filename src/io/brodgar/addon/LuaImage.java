@@ -38,6 +38,38 @@ import org.luaj.vm2.LuaValue;
  * {@link Addon#images} list is copy-on-write — so no extra locking is needed.
  */
 public final class LuaImage implements AssetApi.Loaded {
+    /**
+     * <b>This image's texture as a CLIENT widget may hold it</b> (audit2 B15) — a thin wrapper that draws
+     * nothing once the asset behind it is freed.
+     *
+     * <p>A checkbox face and a picture's {@code :source} hand the addon's own {@link TexI} straight into a
+     * widget of the client's, which keeps a {@code Tex} field and blits it every frame. The {@code dead} test
+     * at the hand-over is one-shot; nothing was registered against a later {@code hafen.asset():remove(a)},
+     * and only {@code g:image} re-tested the flag — so the control went on blitting a disposed handle, whose
+     * lazy re-upload could bring the texture back from the dead. The wrapper is the same rule those draw
+     * verbs already follow, put where a client widget can carry it: the size still answers (a widget laid
+     * itself out around it) and the blit simply stops.
+     *
+     * <p>It does <b>not</b> own what it wraps: {@code dispose()} is a no-op, because the asset is the owner
+     * and {@code hafen.asset():remove(a)} is the one thing that frees it.
+     */
+    static haven.Tex live(final LuaImage li, final haven.Tex t) {
+        return new haven.Tex() {
+            public Coord sz() {
+                return t.sz();
+            }
+
+            public void render(haven.GOut g, float[] gc, float[] tc) {
+                if(!li.dead)
+                    t.render(g, gc, tc);
+            }
+
+            public void dispose() {
+                /* the asset owns the texture; this is a view of it */
+            }
+        };
+    }
+
     final Addon  owner;
     final String name;      // the addon-relative path — for load-dedup, the error text, and a future filter
     final TexI   tex;       // the GPU texture (lazy upload in TexI.st()); freed by a remove/teardown
