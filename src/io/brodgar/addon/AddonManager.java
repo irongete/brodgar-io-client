@@ -2831,9 +2831,15 @@ public final class AddonManager {
         if((s == null) || !s.has(LuaItem.CHANGED))
             return;
         // Re-minted through the icon this addon's cache remembers, so the payload is the very object the
-        // handler subscribed on. A depiction nothing ever minted has no entry and no icon to name, and a
-        // subscription cannot exist without a prior mint — so this is an Item wherever it is reached at all.
-        s.fire(LuaItem.CHANGED, LuaItem.of(a, it));
+        // handler subscribed on — and it is that whether or not Lua is still holding the handle, because the
+        // entry outlives it (LuaItem.Cache#drain). A payload that is not an Item is NOT fired (137.4): the
+        // handler is promised the depiction it subscribed on, and nil is not a depiction. A subscription
+        // cannot exist without a prior mint, so the only way to reach this line is an entry that has already
+        // been retired — the icon is gone, and what it drew has nothing left to say.
+        LuaValue item = LuaItem.of(a, it);
+        if(LuaItem.resolve(item) == null)
+            return;
+        s.fire(LuaItem.CHANGED, item);
     }
 
     /**

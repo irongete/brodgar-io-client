@@ -79,7 +79,7 @@ and `sel` (`public I`) plus `change(I)`
 
 | What | Where |
 |---|---|
-| Row widgets are built LAZILY | `SListBox.update()`, called from `tick(dt)` every frame — **not** from `items()`/`change()` directly, so a row from `:rows(t)` does not exist as a widget until the next tick |
+| Row widgets are built LAZILY, and REBUILT on scroll | `SListBox.update()`, called from `tick(dt)` every frame — **not** from `items()`/`change()` directly, so a row from `:rows(t)` does not exist as a widget until the next tick. One pass keeps the widget of every item still in view (`curw.remove(item)`), calls `makeitem` for one that has just come into view, and `destroy()`s whatever is left over — so scrolling a row out and back in gives it a **new** widget, and everything the old one held died with it |
 | The ready-made rows | `TextItem.of(sz, Supplier<String>)` and `IconText.of(sz, Supplier<BufferedImage>, Supplier<String>)` — both plain `Widget`s, neither wired to `change()` on their own |
 | The click-to-select wrapper | `ItemWidget<I>` — its `mousedown` takes button 1 alone and routes to `clicked(ev)`, whose body is `list.change(item)`, or `change(null)` when `toggle()` marks the row as deselecting on re-click (the base returns false); `makeitem` must wrap a bare `TextItem`/`IconText` in one (added as its own child) for a click to select anything |
 | Deselect on empty click | `SListBox.unselect(button)` calls `change(null)` for button 1 when `mousedown` finds no `slotclick` — a REAL interaction, not one an adapter's own `:value(v)` should suppress |

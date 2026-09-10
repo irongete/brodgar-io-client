@@ -53,7 +53,7 @@
       `[manual]`: open a barter stand during the 10 s window -- expect: "arrival: N icons, each fired once"
       with N > 0.
 
-- [ ] **137.4 — A depiction's `Changed` carries the depiction.** `LuaItem.Cache.drain()` takes the whole
+- [x] **137.4 — A depiction's `Changed` carries the depiction.** `LuaItem.Cache.drain()` takes the whole
       entry when Lua releases a handle, and the `Ref` takes `icon` with it — so the `of(Addon, owner)` that
       `AddonManager.fireItem` calls answers `NIL`, and a handler is handed `nil` where `ui/items.md` promises
       the very object it subscribed on. A `GItem` is immune, being its own icon; a `.res` owner that revises

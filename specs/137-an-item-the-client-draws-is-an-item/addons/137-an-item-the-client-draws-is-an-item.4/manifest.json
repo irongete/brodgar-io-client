@@ -1,0 +1,9 @@
+{
+  "name": "137.4 — a depiction's Changed carries the depiction",
+  "id": "137-an-item-the-client-draws-is-an-item.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 137.4: a Changed handler that keeps nothing is still handed the very Item it subscribed on, because the intern entry outlives the handle.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

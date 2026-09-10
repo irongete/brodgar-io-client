@@ -173,8 +173,8 @@ public final class LuaItem {
      */
     static final class Cache {
         private final Addon owner;
-        // retired: Cache.retire -- the key is STRONG, so a dead owner is pinned until Addon.dropInternedHandles
-        //   takes the entry: drain() clears one only where Lua released the handle AND something mints again.
+        // retired: Cache.retire ALONE (137.4) -- the key is STRONG, and the entry is the only record of which
+        //   icon draws this owner, so it is kept until that icon dies and Addon.dropInternedHandles takes it.
         private final Map<ItemInfo.SpriteOwner, Ref> live = new IdentityHashMap<ItemInfo.SpriteOwner, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
@@ -198,7 +198,8 @@ public final class LuaItem {
                     return v;
                 live.remove(o);
                 if(icon == null)
-                    icon = r.icon;              // Lua let the handle go: re-mint through the icon it named
+                    icon = r.icon;              // Lua let the handle go: re-mint through the icon it named,
+                                                //   which is the whole reason the entry outlives the handle
             }
             if(icon == null)
                 return LuaValue.NIL;
@@ -207,22 +208,32 @@ public final class LuaItem {
             return v;
         }
 
+        /**
+         * Take what the collector enqueued, and <b>leave the map alone</b> (137.4). A handle Lua released is
+         * not a depiction that stopped being drawn: the entry is the only record of which icon draws this
+         * owner, and it is exactly the record a fire needs — {@link AddonManager#fireItem} has an owner and
+         * no icon, so unmapping here handed a {@code Changed} handler {@code nil} for the very depiction it
+         * had subscribed on. The map's bound is {@link #retire}, at the icon's own disposal, which reaches
+         * every kind of icon there is.
+         *
+         * <p><b>The poll is still worth making</b>: an unpolled {@link ReferenceQueue} holds every enqueued
+         * {@link Ref} strongly and a {@code Ref} holds the owner and the icon, so this is what lets a retired
+         * entry actually go. Clearing is the whole of the work.
+         */
         private void drain() {
             Reference<? extends LuaValue> r;
-            while((r = dead.poll()) != null) {
-                Ref br = (Ref)r;
-                if(live.get(br.key) == br)
-                    live.remove(br.key);
-            }
+            while((r = dead.poll()) != null)
+                r.clear();
         }
 
         /**
          * <b>The icon died, so its entry goes</b> (128.5) — an inventory that closes DESTROYS the items
          * inside it and a recipe change destroys every slot widget, so this is the only seam that reaches
-         * one. The key is
-         * STRONG, and {@link #drain} clears an entry only where Lua has already released the handle <i>and</i>
-         * something mints again, so without this the map pins the depiction and its icon for the session; see
-         * {@link Addon#dropInternedHandles}, which is the only caller.
+         * one. It is also the <b>only</b> thing that unmaps an entry (137.4): the key is STRONG and
+         * {@link #drain} unmaps nothing, so without this the map pins the depiction and its icon for the
+         * session. It reaches every kind of icon, which is what lets the entry outlive the handle — see
+         * {@link Addon#dropInternedHandles}, its only caller, and {@code AddonManager.drainDisposedWidgets},
+         * which resolves the owner through {@link LuaWidget#itemOf} and so calls it for a depiction too.
          *
          * <p>{@code synchronized}, which is the monitor {@link #of} takes — the drain runs on the step and a
          * mint runs wherever Lua ran. A handle Lua is still holding goes on answering: what is dropped is the

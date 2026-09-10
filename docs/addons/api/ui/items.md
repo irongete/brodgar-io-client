@@ -158,7 +158,9 @@ end)
 
 - **One key, because the wire has one.** The server resends a whole tooltip rather than the field that
   changed, so a key per field would be a promise nothing can keep. Read what you need in the handler.
-- **The payload is the item**, the same object you subscribed on, so one handler can serve several items.
+- **The payload is the item**, the same object you subscribed on, so one handler can serve several
+  items — and it is that object whether or not you kept the one you subscribed with. A handler holding
+  nothing but a counter is handed the item back, so there is no reason to stash one to be told about it.
 - **It fires on the [step](../threading.md) after the answer becomes true** — the first frame after the
   client builds that item's description, which is the draw of its icon or your own read. An item nobody
   has drawn yet is described the moment something asks; reading it *is* asking.
