@@ -1,8 +1,0 @@
-{
-  "id": "R17-the-leftovers.3",
-  "name": "R17 the leftovers: the bar, the console and the panels",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "The verification suite for the actionbar, console and client rows of refactor block R17. `:tR17-3` asserts, through the API itself, that a hold takes a slot on any character's bar and hands it back untouched with both ActionbarChanged edges, that a custom entry's own binding leaves the client registry with the entry, that a name the client or the engine owns is refused while a second claim on an addon's own name ends the first, that the five client panels answer and intern, that every write to a client setting refuses without client.settings, and that an addon hotkey reads its key's level.",
-  "files": ["main.lua"]
-}

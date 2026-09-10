@@ -1,9 +1,0 @@
-{
-  "id": "R17-the-leftovers.6",
-  "name": "R17 the leftovers: the world read and the world write",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "The verification suite for the world row of refactor block R17. `:tR17-6` asserts, through the API itself and over a 10 s window, that a walking gob is at a different point half a second later while a standing one is not, that a terrain read over ground nobody has streamed answers nil without asking the loader for anything, that a place off explored ground is not durable and cannot be saved while the place under you round-trips through JSON, that a place keeps its durable form for every login, and that the wire refuses a button no mouse has and a modifier bitfield no keyboard sends before anything leaves.",
-  "permissions": ["gob.click"],
-  "files": ["main.lua"]
-}

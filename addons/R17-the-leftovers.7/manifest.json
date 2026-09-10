@@ -1,8 +1,0 @@
-{
-  "id": "R17-the-leftovers.7",
-  "name": "R17 the leftovers: the cache, the pointer and the cascade",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "The verification suite for the three UI rows of refactor block R17. `:tR17-7` asserts, through the API itself, that the text cache fills to its ceiling, evicts to stay inside it and keys on the face as well as the string, that the hit test reaches a surface of your own where no session's own search ever does, that a forced cursor reads back as itself and nil is the whole of putting it back, that a grab is closed to two keys and ends itself on the Up, and that the four site keys and both of a surface's own style levels take a rule and read it back.",
-  "files": ["main.lua"]
-}

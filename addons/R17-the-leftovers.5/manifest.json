@@ -1,9 +1,0 @@
-{
-  "id": "R17-the-leftovers.5",
-  "name": "R17 the leftovers: the map and what stands in the world",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "The verification suite for the map, virtual and placing rows of refactor block R17. `:tR17-5` asserts, through the API itself, the four display switches and an idempotent overlay hold, a pin added and removed by the same handle, a glTF object's mesh path and the 64-object ceiling, a hold and a place-anchored ghost surviving a screen that changes character, a ghost whose resource never loads latching failed, a click reaching the addon that stood the object, the Placing read with and without something on the cursor, and the section's own count back where the run found it.",
-  "permissions": ["map.marker"],
-  "files": ["main.lua"]
-}

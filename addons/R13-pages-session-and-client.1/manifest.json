@@ -1,8 +1,0 @@
-{
-  "id": "R13-pages-session-and-client.1",
-  "name": "R13 pages: session and client",
-  "version": "1.0.0",
-  "author": "irongete",
-  "description": "The verification suite for refactor block R13. `:tr13` asserts, through the API itself, the behaviour the block's page lines now state: which collections are one object and which are views, the deck's collection refusals, the ring's position key, the party's missing event, the two food halves' liveness verbs, the player's Gob handle, the menu grid's case-insensitive display-name lookup, and the kin write's permission refusal.",
-  "files": ["main.lua"]
-}
