@@ -274,12 +274,12 @@ end
 
 hafen.event():on("Load", function()
   menuIcon = hafen.asset():get("lens.png")
-  -- A :reload happens with the character already in the world, where SessionEnteredWorld has been and gone.
-  for _, session in ipairs(hafen.session():list()) do
-    if session:player():gob() then addButton(session) end   -- nil until that character is in the world
-  end
 end)
 
+-- Every moment there is a character in the world to put the button in front of: a login, that session
+-- picking another character, and a :reload with one already there -- SessionEnteredWorld is announced again
+-- for each login in the world, so this one handler is the whole of it. Adding the button from Load as well
+-- would add it twice on a reload, and the second :add is refused: the id is unique within a character.
 hafen.event():on("SessionEnteredWorld", addButton)
 
 -- :inspector -- what the pointer is on, right now. It defers, because a console handler runs under the
