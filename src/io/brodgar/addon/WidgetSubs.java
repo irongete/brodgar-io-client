@@ -28,7 +28,7 @@ import java.util.Set;
  * {@linkplain #inwdg input target}, which is the widget the addon PAINTS rather than the one it holds
  * (063.1).
  *
- * <p><b>Three keys ride the placement/removal seams</b> ({@code ItemAdded}/{@code ItemRemoved}/{@code Destroy},
+ * <p><b>Three keys ride the placement/removal seams</b> ({@code ItemAdded}/{@code ItemRemoved}/{@code Removed},
  * 041.4, event-driven since 042.7) — a container's items are a {@link WItem} create/{@code cdestroy}, not a
  * {@code uimsg}, and a widget's own death has no engine event of its own, so both are SEEN at the moment the
  * client's own placement ({@link #offerPlaced}) and removal ({@link #offerRemoved}, M1) seams fire, the same
@@ -48,7 +48,7 @@ import java.util.Set;
 final class WidgetSubs {
     /** The four keys with an engine listener behind them (041.3) — §1.1's input catalogue. */
     private static final String[] INPUT_KEYS = { "MouseDown", "MouseUp", "MouseMove", "Wheel" };
-    /** The three keys seen at the placement/removal seams (041.4) — §1.1/§1.2's Destroy and the container pair. */
+    /** The three keys seen at the placement/removal seams (041.4) — §1.1/§1.2's Removed and the container pair. */
     private static final Set<String> TREE_KEYS = new java.util.HashSet<String>(
         java.util.Arrays.asList("ItemAdded", "ItemRemoved", "Removed"));
     /** The one key the ENGINE STEP fires (112.1) — see {@link Addon#updateSurfaces}. */
@@ -163,7 +163,7 @@ final class WidgetSubs {
     }
 
     /** {@code widget:on(key, fn)} — register the handler first, then install/start whatever the key needs; a
-     *  tree key whose widget is already gone (see {@link #startListening}) fires {@code Destroy} on the handler
+     *  tree key whose widget is already gone (see {@link #startListening}) fires {@code Removed} on the handler
      *  just registered, so the order here matters. */
     LuaValue on(String key, LuaValue fn) {
         boolean hadItemInterest = subs.has("ItemAdded") || subs.has("ItemRemoved");
@@ -175,7 +175,7 @@ final class WidgetSubs {
             if(!listening)
                 startListening();   // seeds current items itself when this first ask is an item key
             else if(!hadItemInterest && (key.equals("ItemAdded") || key.equals("ItemRemoved")))
-                refreshItems();     // already listening (e.g. via an earlier Destroy sub) — first item-key ask
+                refreshItems();     // already listening (e.g. via an earlier Removed sub) — first item-key ask
         } else if(UPDATE_KEY.equals(key)) {
             owner.watchUpdate(this);   // 112.1: the engine step fires this one, not the widget's own tick
         }
@@ -251,12 +251,12 @@ final class WidgetSubs {
         }
     }
 
-    // ---- the three tree keys (041.4, event-driven since 042.7): Destroy, on ANY widget; ItemAdded/ItemRemoved
+    // ---- the three tree keys (041.4, event-driven since 042.7): Removed, on ANY widget; ItemAdded/ItemRemoved
     // ---- on a container, both seen at the placement/removal seams instead of diffed every tick -------------
 
     /**
      * First tree-key ask on this widget: join {@link UiApi}'s flat watch list — unless the widget is ALREADY
-     * gone, in which case there is nothing to watch for and {@code Destroy} is fired right here, mirroring what
+     * gone, in which case there is nothing to watch for and {@code Removed} is fired right here, mirroring what
      * the old per-tick poll would have found on its very next look. Reuses {@link #live}'s two-branch liveness
      * test rather than re-deriving it, so a subscription minted after the fact behaves exactly like one minted
      * before it. A live container is seeded with its CURRENT items right away — {@code ItemAdded} for what is
@@ -368,7 +368,7 @@ final class WidgetSubs {
 
     /**
      * The widget-removal seam's offer (042.7, M1): either {@code w} IS the widget being watched — fire
-     * {@code Destroy} once (nothing to say, uncancelable) and drop every remaining sub, since a dead widget has
+     * {@code Removed} once (nothing to say, uncancelable) and drop every remaining sub, since a dead widget has
      * nothing left to report — or it may be an item widget ({@code WItem} or {@code GItem}, see {@link
      * #offerPlaced}) that just left MY subtree. Its parent link is already gone by now (M1 fires after
      * {@code unlink()}), so membership is read from the cache re-derive below rather than a {@code hasparent}
@@ -378,7 +378,11 @@ final class WidgetSubs {
         if(w == wdg) {
             subs.fire("Removed");
             subs.clear();
-            owner.unwatchUpdate(this);   // 112.1: clear() fires no Idle, and a dead surface steps no more
+            // clear() runs the per-key Idle, so a record that held an Update sub is off the step list and one
+            // that held a tree key has already stopped listening by the line below. These run anyway, and
+            // unconditionally: an Idle fires only for a key this record actually held, and a teardown that
+            // released only what somebody happened to subscribe to is a teardown with a hole in it.
+            owner.unwatchUpdate(this);
             listening = false;
             items.clear();
             containerOf.clear();

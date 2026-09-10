@@ -195,7 +195,7 @@ public final class Addon {
      * three-token {@code hooks} list ({@code hafen.hook():input}) — and 041.4 folds the REST of the widget
      * vocabulary onto the same record: {@code Pressed}/{@code Changed}/…'s controls fire straight into its
      * {@link Subs}, {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} do the same for an owned surface, and
-     * {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} add the one thing none of those needed — a
+     * {@code ItemAdded}/{@code ItemRemoved}/{@code Removed} add the one thing none of those needed — a
      * placement/removal watch-list registration (event-driven since 042.7) — so one class is the address for
      * everything a widget can say, the same way {@link Subs} is the one mechanism under every {@code :on(key, fn)}
      * in the API. A NATIVE widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks

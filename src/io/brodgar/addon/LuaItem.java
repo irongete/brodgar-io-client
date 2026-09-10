@@ -46,7 +46,7 @@ import java.util.Set;
  *
  * <p><b>A stale Item still answers.</b> {@code Widget.destroy()} unlinks the item without clearing it, so
  * {@code :res()}, {@code :name()}, {@code :quantity()} and {@code :quality()} go on reading the thing it was —
- * which is what makes a stashed {@code onItemRemoved} payload worth holding. What a stale item has no
+ * which is what makes a stashed {@code ItemRemoved} payload worth holding. What a stale item has no
  * answer for is <i>where</i> it is: {@code :cell()} is nil, {@code :slots()} is empty and
  * {@code :handle()} is nil, because the id is exactly the thing that is no longer its.
  *

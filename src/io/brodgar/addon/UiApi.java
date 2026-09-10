@@ -41,7 +41,7 @@ import static io.brodgar.addon.AddonManager.*;
  * {@link AddonManager} and delegates here — placement also drives {@link #dispatchWidgetSubsPlaced} (042.7);
  * the selector matching is the entry seam's ({@link #offerEntered}, 112.3)
  * and the tick still drives {@link #anyHudOverlays}, but {@code
- * WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} keys moved onto the placement/removal seams
+ * WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved}/{@code Removed} keys moved onto the placement/removal seams
  * ({@link #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7), so has the {@code
  * widget:replace(view)} substitution's own death test ({@link #dispatchReplacedRemoved}, 042.8), and so has the
  * selector subscriptions' late-refiner re-check ({@link #markCaptionChanged}/{@link #drainSelectorCaptionCheck},
@@ -126,7 +126,7 @@ final class UiApi {
     // {@code SessionState.widgetSubsWatching}, reached with the ui of the very widget each record was made
     // on ({@link WidgetSubs#ui}). Still cleared per init; the tree is rebuilt.
 
-    /** {@link WidgetSubs#on}: the first tree-key ({@code ItemAdded}/{@code ItemRemoved}/{@code Destroy})
+    /** {@link WidgetSubs#on}: the first tree-key ({@code ItemAdded}/{@code ItemRemoved}/{@code Removed})
      *  subscription on a widget joins its own tree's flat watch list. */
     static void registerInterest(WidgetSubs s) {
         SessionState st = state(s.ui());
@@ -160,7 +160,7 @@ final class UiApi {
 
     /**
      * The widget-removal seam's offer to every watching {@link WidgetSubs} (042.7): either {@code w} IS the
-     * widget one of them is watching (fires {@code Destroy}) or it may be a {@code WItem} that just left one of
+     * widget one of them is watching (fires {@code Removed}) or it may be a {@code WItem} that just left one of
      * their subtrees. Fast-paths out when nobody is watching, the normal case.
      */
     static void dispatchWidgetSubsRemoved(SessionState st, Widget w) {
@@ -445,11 +445,15 @@ final class UiApi {
         //   :items()         -- 029.3: the Item snapshots inside this container (a relation, like :children()) —
         //                       an Inventory, an Equipory (each entry also carrying its `slot`), or any widget with
         //                       WItems under it. Read it with the window VISIBLE and interactive: nothing is hidden.
-        //   :onItemAdded(fn) / :onItemRemoved(fn) -- fn(item) as items enter/leave this container (an item add is
-        //                       a widget create, not a uimsg — seen at the placement/removal seams). Pass nil to
-        //                       unsubscribe.
-        //   :onDestroy(fn)   -- fn() once, when this widget leaves the tree. All three chain; subscribing is what
-        //                       registers the widget as watched, so an unwatched widget costs nothing.
+        //   :on(key, fn)     -- 041.3/041.4: THE ONE address for everything a widget can say, and what the three
+        //                       chained subscribe-setters became (:onItemAdded / :onItemRemoved / :onDestroy are
+        //                       GONE): input on any widget, a control's own notifications, a surface's
+        //                       Draw/Tick/Drop/Close, a container's ItemAdded/ItemRemoved — an item add is a
+        //                       widget create rather than a uimsg, so both of those ride the placement/removal
+        //                       seams — and Removed on any widget at all. Hands back a Sub, ended with
+        //                       sub:off(). The key set is WIDGET-SPECIFIC and :events() is what answers it; an
+        //                       unknown key throws naming what THIS widget does answer. Subscribing on a tree
+        //                       key is what registers the widget as watched, so an unwatched one costs nothing.
         // OWNED-ONLY (a widget YOUR addon created with hafen.ui():window() / hafen.ui():widget()); on a native widget
         // each raises a clear error, the geometry ones naming layout (feature E):
         //   :position(x, y)  -- move + chain (arity is the verb, the 018 shape; :move() is GONE)
@@ -2301,7 +2305,7 @@ final class UiApi {
                 Owned c = (x == w) ? null : LuaWidget.ownedContent(owner, x);
                 if(c != null) {
                     if(!standingIn(owner, c))
-                        adopted.add(c);       // ours, and going away whole: its Destroy is what says so
+                        adopted.add(c);       // ours, and going away whole: its Removed is what says so
                     continue;
                 }
                 revertLevels(owner, x);

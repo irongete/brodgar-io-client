@@ -918,7 +918,7 @@ public final class LuaWidget {
         // on(key, fn) — THE ONE address for everything a widget can say: input on ANY widget, found or built
         // (041.3, over Widget.listen/deafen rather than the three magic hafen.hook():input tokens), plus the
         // REST of the widget vocabulary (041.4) — a control's own notifications, a surface's Draw/Tick/Drop/
-        // Close, a container's ItemAdded/ItemRemoved, and Destroy on any widget at all. The vocabulary is
+        // Close, a container's ItemAdded/ItemRemoved, and Removed on any widget at all. The vocabulary is
         // WIDGET-SPECIFIC and computed fresh each call (widgetKeys, below): a Button answers Pressed and the
         // universal five, a Label only the five, a surface adds Draw/Tick/Drop/Close, a non-control adds
         // ItemAdded/ItemRemoved. An unknown key throws naming what THIS widget does answer, at the line that
@@ -1197,9 +1197,9 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // Draw/Tick/Drop/Close and ItemAdded/ItemRemoved/Destroy are GONE as chained-setter verbs (041.4): they
+        // Draw/Tick/Drop/Close and ItemAdded/ItemRemoved/Removed are GONE as chained-setter verbs (041.4): they
         // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Tick/Drop/Close
-        // on an owned surface, ItemAdded/ItemRemoved/Destroy on any widget. See AddonWidget (the first three)
+        // on an owned surface, ItemAdded/ItemRemoved/Removed on any widget. See AddonWidget (the first three)
         // and WidgetSubs (the tree-key three, event-driven off placement/removal since 042.7).
         // items() — 029.3: the items INSIDE this widget, as an array of Item OBJECTS. A RELATION on the
         // container, exactly like :children() — an Inventory (the backpack, a chest, a cupboard), an Equipory
