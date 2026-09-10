@@ -424,13 +424,40 @@ public abstract class ItemInfo {
 	return(null);
     }
 
+    /* addon: (137.3) the builds this thread is INSIDE, by identity. Every description in the client funnels
+     * through buildinfo, and some of them nest: the `ui/tt/cont` factory fills a Contents row's `sub` with a
+     * whole second list built through this same static and the SAME owner. The seam below wants one fire per
+     * description, so it asks whether this call is the outermost one for its owner. A nested build for a
+     * DIFFERENT owner (ISlots minting an ItemSpec per gilding slot) is outermost for that owner and fires for
+     * it -- which is right: it is a description of its own, and it is the queue's business that nothing has
+     * ever minted a handle for it. */
+    private static final ThreadLocal<Set<Owner>> building = new ThreadLocal<Set<Owner>>() {   // addon: (137.3)
+	    protected Set<Owner> initialValue() {
+		return(Collections.newSetFromMap(new IdentityHashMap<Owner, Boolean>()));
+	    }
+	};
+
     public static List<ItemInfo> buildinfo(Owner owner, Raw raw) {
+	Set<Owner> nest = building.get();                            // addon: (137.3)
+	boolean outermost = (owner != null) && nest.add(owner);      // addon:
+	List<ItemInfo> ret;
 	Fonts.enter("tooltip");   // addon: a Tip (ours or published) may render its text in its CONSTRUCTOR (F3d)
 	try {
-	return(buildinfo0(owner, raw));
+	    ret = buildinfo0(owner, raw);
 	} finally {
 	    Fonts.exit();   // addon:
+	    if(outermost)                                            // addon: (137.3) left on the way out, throw or not
+		nest.remove(owner);
 	}
+	/* addon: (137.3) the item-info seam for everything the client draws that is NOT a GItem -- a recipe slot,
+	 * a constipation row's food, a price a resource puts up. A GItem keeps its own seam at the end of
+	 * GItem.info(), because its list is complete only after that method appends the contents and pagina rows
+	 * and because the font-rebuild flag that suppresses a re-render is invisible from here. Reached only on a
+	 * build that RETURNED: a throw (Loading, most often) leaves through the finally above and never describes
+	 * anything. Outside the "tooltip" scope, so a handler firing off it renders in the ordinary face. */
+	if(outermost && (owner instanceof SpriteOwner) && !(owner instanceof GItem))   // addon: (137.3)
+	    io.brodgar.addon.AddonManager.onItemInfo((SpriteOwner)owner);              // addon:
+	return(ret);
     }
 
     private static List<ItemInfo> buildinfo0(Owner owner, Raw raw) {   // addon: the stock body (F3d)

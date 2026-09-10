@@ -1,0 +1,9 @@
+{
+  "name": "137.3 — Changed reaches every depiction, once per build",
+  "id": "137-an-item-the-client-draws-is-an-item.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 137.3: every item icon the client draws takes a Changed subscription; a read of an item already described fires nothing; a font change fires nothing on a held item or a recipe slot; an item described after the subscribe fires exactly once; and a stale item's Changed is a subscription that never fires.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

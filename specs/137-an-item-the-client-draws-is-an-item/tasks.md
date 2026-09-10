@@ -34,7 +34,7 @@
       then answers `:exists()` false, and `matchAll("item")` no longer lists them.
       `[manual]`: close the crafting window within 20 s of `:t137.2` -- expect: the timed lines print pass.
 
-- [ ] **137.3 — Changed reaches every depiction, once per build.** The seam at the end of
+- [x] **137.3 — Changed reaches every depiction, once per build.** The seam at the end of
       `ItemInfo.buildinfo` for a non-`GItem` `SpriteOwner`, behind the outermost-build guard;
       `AddonManager.onItemInfo(ItemInfo.SpriteOwner)` files a `GItem` under its `ui` and any other owner
       under the state whose `ui.sess` is its `Session`, dropping what resolves none;
@@ -52,3 +52,22 @@
       and the summary says how many such icons the run reached — zero is reported, not passed.
       `[manual]`: open a barter stand during the 10 s window -- expect: "arrival: N icons, each fired once"
       with N > 0.
+
+- [ ] **137.4 — A depiction's `Changed` carries the depiction.** `LuaItem.Cache.drain()` takes the whole
+      entry when Lua releases a handle, and the `Ref` takes `icon` with it — so the `of(Addon, owner)` that
+      `AddonManager.fireItem` calls answers `NIL`, and a handler is handed `nil` where `ui/items.md` promises
+      the very object it subscribed on. A `GItem` is immune, being its own icon; a `.res` owner that revises
+      is not, and a `Shopbox` revises. `drain()` stops unmapping and clears the collected value alone — the
+      icon stays named — because `Cache.retire` at the icon's **disposal** already bounds the map for every
+      icon kind, `drainDisposedWidgets` taking the owner through `itemOf`: that is the bound the entry's own
+      comment claims, and the reference queue was buying a second one at the cost of the pair. `fireItem`
+      refuses to fire a payload that is not an Item rather than passing one on. Pages: `ui/items.md`'s
+      `:on("Changed", fn)` row and its payload sentence, which this is what makes true. Criterion 7.
+      *Its suite* runs with a barter stand open. It subscribes `Changed` on every `item` icon whose
+      `:type()` is not `WItem` **without keeping the Item**, holding nothing but a counter the handler
+      writes; it then drops every reference, runs `collectgarbage("collect")` twice, and asserts
+      `icon:item()` still answers and is `==` a second read. Over a 10 s window it asserts every payload
+      it is handed is a userdata answering `:res()`, counting how many the run reached — zero is reported,
+      not passed — and that a `WItem` payload is the same object in the same run.
+      `[manual]`: buy or browse at the barter stand inside the 10 s window -- expect: "payload: N depictions,
+      each an Item" with N > 0.

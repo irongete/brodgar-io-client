@@ -51,6 +51,7 @@ import haven.RenderLink;
 import haven.ResDrawable;
 import haven.Resource;
 import haven.SAttrWnd;
+import haven.Session;
 import haven.SkillWnd;
 import haven.Speaking;
 import haven.Speedget;
@@ -521,11 +522,13 @@ public final class AddonManager {
         // the removals below, so a widget that came and went in one frame can never report Added after
         // Removed. Not a per-session drain: this one must run where nothing is held.
         final Queue<Widget> enteredWidgets = new ConcurrentLinkedQueue<Widget>();
-        // 112.3: the item-info seam — GItem.info()'s build runs on whichever thread asked for the item first,
-        // and the draw that usually asks holds that tree's monitor, so the tap only enqueues and the layer's
-        // step fires item:on("Changed", fn). It also takes the fire-side read of Addon.itemSubs — a plain
+        // 112.3: the item-info seam — the build runs on whichever thread asked for the item first, and the
+        // draw that usually asks holds that tree's monitor, so the tap only enqueues and the layer's step
+        // fires item:on("Changed", fn). It also takes the fire-side read of Addon.itemSubs — a plain
         // WeakHashMap — off whichever thread happened to build the info, and onto the step.
-        final Queue<GItem> itemInfos = new ConcurrentLinkedQueue<GItem>();
+        //   137.3: everything the client draws queues here, not only a GItem. The two seams that fill it are
+        // the end of GItem.info() and the end of ItemInfo.buildinfo for an owner that is not one.
+        final Queue<ItemInfo.SpriteOwner> itemInfos = new ConcurrentLinkedQueue<ItemInfo.SpriteOwner>();
         // 042.1: the widget-removal seam (M1) — Widget.remove() runs on whatever thread reached it (a Loader
         // thread under synchronized(ui) from the server command queue, or the UI thread from a client-side
         // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
@@ -2174,11 +2177,17 @@ public final class AddonManager {
      * <p>An item whose widget has left the tree between the build and here is still reported: what the event
      * says is that the client can now describe the item, which does not stop being true because the icon was
      * put away — and {@link #drainRemovedWidgets} ends its subscriptions a beat later, in the same frame.
+     *
+     * <p>A depiction is queued the same way and fired the same way (137.3), but a recipe slot is described
+     * <i>before</i> its icon is in the tree — {@code Makewindow.SpecWidget}'s constructor asks its spec
+     * whether it is optional, which builds the list — so what a handler sees on a slot is an {@code Added}
+     * that can already answer {@code :name()}, and no {@code Changed} behind it. An owner nothing has ever
+     * minted a handle for is polled and dropped here, which is the whole cost of a tooltip's own depictions.
      */
     private static void drainItemInfos() {
         for(SessionState st : allStates()) {
             for(int n = st.itemInfos.size(); n > 0; n--) {
-                GItem it = st.itemInfos.poll();
+                ItemInfo.SpriteOwner it = st.itemInfos.poll();
                 if(it == null)
                     break;
                 for(Addon a : addons)
@@ -2704,9 +2713,15 @@ public final class AddonManager {
     }
 
     /**
-     * The <b>item-info seam</b> — the core edit at the end of {@code GItem.info()}'s build block, and the moment
-     * an item stops being a picture and starts being a thing the client can describe. Fires
-     * {@code item:on("Changed", fn)} on the addons that hold that item.
+     * The <b>item-info seam</b> — the moment a thing the client draws stops being a picture and starts being
+     * a thing the client can describe. Fires {@code item:on("Changed", fn)} on the addons that hold it.
+     *
+     * <p><b>Two core edits, one per kind</b> (137.3). An item the server pushed is described at the end of
+     * {@code GItem.info()}'s build block, because that list is complete only after the method has appended
+     * the contents and pagina rows. Everything else the client draws — a recipe slot, the food on a
+     * constipation row, a depiction resource code puts up — is described at the end of
+     * {@code ItemInfo.buildinfo}, which is the one door every description in the client goes through, and
+     * which skips a {@code GItem} for exactly that reason. Neither can fire for the other's owners.
      *
      * <p><b>Why here and not at the server's message.</b> Two things have to happen before a quality, a name, a
      * wear row or a contents block can be read, and only the first is a message: the server sends the tooltip
@@ -2716,11 +2731,13 @@ public final class AddonManager {
      * whichever of them was last. That is the moment an addon drawing a number on an icon is waiting for, and
      * before 104 there was no way to be told it: an author had no choice but to keep asking.
      *
-     * <p><b>It costs nothing per frame.</b> {@code info()} caches into {@code GItem.info} and only enters its
-     * build block when that field is null — once per arrival and once per revision, never per draw. A theme
-     * change also rebuilds the list (the tooltip is re-rendered in the new font) and so fires this too: the
-     * words are the same and a handler re-reading them writes what it wrote before, which is why that is left
-     * as an honest extra rather than filtered with a second flag.
+     * <p><b>It costs nothing per frame.</b> Every owner caches its built list and only rebuilds it when that
+     * field is null — once per arrival and once per revision, never per draw. A theme change rebuilds a
+     * {@code GItem}'s (the tooltip is re-rendered in the new font) and is suppressed there by
+     * {@code GItem.fontrebuild}: the letters moved and the item did not, so nothing fires. No other owner
+     * rebuilds on a font change at all. What nesting would otherwise cost is paid by an identity guard in
+     * {@code ItemInfo.buildinfo}: a {@code Contents} row builds its own {@code sub} list through the same
+     * static and the same owner, and only the outermost call for an owner describes it.
      *
      * <p><b>Threading, and why it only enqueues</b> (112.3). The build runs on whichever thread first asks for
      * the item's info, and the two that usually ask are holding a tree monitor when they do: the draw of the
@@ -2756,14 +2773,22 @@ public final class AddonManager {
         anyItemSubs = any;
     }
 
-    public static void onItemInfo(GItem it) {
+    /**
+     * <b>The client can now describe something it draws</b> (112.3, widened by 137.3) — called from the end
+     * of {@link GItem#info()} for an item the server pushed, and from the end of
+     * {@code ItemInfo.buildinfo} for every other {@link ItemInfo.SpriteOwner}: a recipe slot, the food on a
+     * constipation row, a depiction a piece of resource code puts up. One call is one description, and the
+     * two seams do not overlap — {@code buildinfo} skips a {@code GItem} precisely because that method's
+     * list is not finished when the static returns.
+     */
+    public static void onItemInfo(ItemInfo.SpriteOwner it) {
         if(!anyItemSubs)
             return;                     // audit2 B15: nobody is listening, so nothing is queued
-        // Never throws into info(). This runs inside the build that WItem.draw asks for, so a fault here would
-        // not break a subscription — it would break drawing the icon, and info() already has a meaningful
-        // throw of its own (Loading) that callers handle.
+        // Never throws into the build. This runs inside the build that WItem.draw (or SpecWidget's own
+        // constructor) asks for, so a fault here would not break a subscription — it would break drawing the
+        // icon, and the build already has a meaningful throw of its own (Loading) that callers handle.
         try {
-            SessionState st = queueState((it == null) ? null : it.ui);   // the tree the item is in, and no other
+            SessionState st = itemState(it);
             if(st != null)
                 st.itemInfos.add(it);
         } catch(RuntimeException e) {
@@ -2771,13 +2796,43 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * <b>Whose character is this depiction drawn for</b> (137.3) — the state its {@code Changed} is queued
+     * on, or {@code null} for one that names nobody.
+     *
+     * <p>A {@link GItem} is a widget and answers with its own tree, as it always has. Nothing else is: a
+     * {@code Makewindow.Spec} and an {@code ItemSpec} have no parent, no id and no {@code UI} field, and
+     * asking one for a {@code Widget} answers the <i>window</i> rather than the icon — {@code ClassResolver}
+     * matches by {@code isAssignableFrom}. {@link Session} is the one key all four owner kinds resolve, so
+     * the session is asked for and the tree is found by identity against it. An owner that resolves none is
+     * dropped: a depiction built inside a tooltip image belongs to no character's screen, and there is no
+     * second place to file it.
+     */
+    private static SessionState itemState(ItemInfo.SpriteOwner it) {
+        if(it == null)
+            return null;
+        if(it instanceof GItem)
+            return queueState(((GItem)it).ui);       // the tree the item is in, and no other
+        Session sess = it.fcontext(Session.class, false);
+        if(sess == null)
+            return null;
+        for(SessionState st : allStates()) {
+            if((st.ui != null) && (st.ui.sess == sess))
+                return queueState(st.ui);
+        }
+        return null;
+    }
+
     /** {@code Changed} to one owner, and only if that owner is actually holding this item's door open. */
-    private static void fireItem(Addon a, GItem it) {
+    private static void fireItem(Addon a, ItemInfo.SpriteOwner it) {
         if(a == null)
             return;
         Subs s = a.itemSubsOrNull(it);            // never mints: an addon that never subscribed pays a map get
         if((s == null) || !s.has(LuaItem.CHANGED))
             return;
+        // Re-minted through the icon this addon's cache remembers, so the payload is the very object the
+        // handler subscribed on. A depiction nothing ever minted has no entry and no icon to name, and a
+        // subscription cannot exist without a prior mint — so this is an Item wherever it is reached at all.
         s.fire(LuaItem.CHANGED, LuaItem.of(a, it));
     }
 

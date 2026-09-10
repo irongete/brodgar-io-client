@@ -166,6 +166,17 @@ end)
   so a handler that outlives its item needs no guard.
 - **The subscription is per item**, and it goes when the item does. Ending one early is `sub:off()`.
 
+**A recipe slot is already described when you are handed it.** The client works out what a slot names while
+it is building the icon, before that icon is on screen at all — so a slot arrives on the `item` role with
+`:name()` and `:quality()` answering, and nothing fires behind them. That is why the example above reads
+first and subscribes second: written the other way round it waits for an event that has already happened.
+Subscribing is still right, and for the same reason it is right on a backpack item — a depiction a resource
+revises says so here, the moment the client rebuilds what it says.
+
+**A change of font is not a change of item.** Restyling the client re-renders every tooltip in the new face,
+and the words are the same words; nothing fires. A handler drawing a quality on an icon is told when the
+quality *arrives* and when the server *revises* it, and never merely because the letters moved.
+
 > A **changed tooltip** is this event. An item **arriving** or **leaving** is the container's
 > [`ItemAdded`/`ItemRemoved`](container.md) — where it is is not what it is.
 
