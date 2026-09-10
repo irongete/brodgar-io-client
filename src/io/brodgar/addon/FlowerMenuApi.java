@@ -182,7 +182,7 @@ final class FlowerMenuApi {
                 LuaCollection.receiver(a.arg1(), FM, "select");
                 AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_SELECT);
                 select(owner, user, Args.required(a, 2, FM + ":select", "key"));
-                return LuaValue.NIL;
+                return a.arg1();          // the section, like :cancel() and :visible(b) beside it (fm-11)
             }
         });
         // visible() / visible(b) — the ring the client PAINTS, or does not (116.1). The pair

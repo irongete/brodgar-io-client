@@ -79,10 +79,15 @@ public final class LuaSpeed {
         this.index = index;
     }
 
-    /** {@code tostring(sp)} (also the {@code __tostring} answer): {@code Speed(2 Run)}. */
+    /**
+     * {@code tostring(sp)} (also the {@code __tostring} answer): {@code Speed(3 Run)} — the <b>1-based</b>
+     * number {@code sp:index()} answers, because every index in this API is 1-based whatever the wire says
+     * (audit2 B16, bm-09). It printed the wire number, so the one place a reader sees a Speed spelled out
+     * disagreed with the verb they would read it by; the wire's own number has its own verb, {@code sp:wire()}.
+     */
     public String toString() {
         String n = speedName(index);
-        return "Speed(" + index + ((n == null) ? "" : " " + n) + ")";
+        return "Speed(" + (index + 1) + ((n == null) ? "" : " " + n) + ")";
     }
 
     /** An interned Speed object for {@code index} <b>on {@code user}'s selector</b>, in {@code owner}'s env. */
@@ -462,7 +467,7 @@ public final class LuaSpeed {
                 LuaValue me = a.arg1();
                 AddonManager.requirePermission(AddonManager.current(), Permission.SPEED_SET);
                 LuaCollection.receiver(me, CharApi.SP, "set");
-                int n = demand(Args.required(a, 2, CharApi.SP + ":set", "speed"));
+                int n = demand(user, Args.required(a, 2, CharApi.SP + ":set", "speed"));
                 // That character's own selector sends it: Speedget.set walks the widget's own tree to that
                 // session, so a speed picked on a character nobody is looking at reaches the right server.
                 Speedget s = speedget(user);
@@ -547,10 +552,20 @@ public final class LuaSpeed {
      * lookup that may find nothing, while a {@code :set} whose argument names no speed is a write that was
      * meant to happen and did not.
      */
-    private static int demand(LuaValue x) {
+    private static int demand(String user, LuaValue x) {
         LuaSpeed h = resolve(x);
-        if(h != null)
+        if(h != null) {
+            // audit2 B16 (bm-11): and it is THIS character's speed. The account is half the handle exactly
+            // so that the same number reached through two sessions gives two objects, and a write that took
+            // one of them for the other read the index off it and set the speed of the character the verb
+            // was addressed at -- silently, on the one write this section has.
+            if(!h.user.equals(user))
+                throw new LuaError(CharApi.SP + ":set(speed): that Speed is another character's — the same"
+                    + " number reached through two sessions is two objects, because it names two characters'"
+                    + " selectors. Read the speed off the session you are setting (s:speed():get(key)), or"
+                    + " pass the 1..4 position or the display name, which name no character.");
             return h.index;
+        }
         if(x.type() == LuaValue.TNUMBER) {          // by TYPE, so "2" is a name and not a position
             // 090: the 1-based position sp:index() answers
             int n = Args.integer(x, CharApi.SP + ":set", "speed", "the 1-based position sp:index() answers,"

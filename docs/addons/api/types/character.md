@@ -87,8 +87,9 @@ the one your character is on. The live reads are `sp:index()`, `:wire()`, `:name
 What `q:info()` and `c:info()` hand back on [`session:quest`](../quest.md)'s objects; the reads themselves
 are verbs on those objects.
 
-**Quest** — `{ id, title?, res?, status, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
-or `"disabled"` and `mtime` is the server's change stamp, which `q:modified()` reads.
+**Quest** — `{ id, title?, res?, status?, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
+or `"disabled"` — absent for a status this client has no word for, which is the absence `q:status()`
+states with `nil` — and `mtime` is the server's change stamp, which `q:modified()` reads.
 
 **Condition** — `{ desc = string?, status = "pending"|"done"|"failed", text = string? }`, where `desc`
 is what `c:description()` reads.

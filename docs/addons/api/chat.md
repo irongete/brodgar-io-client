@@ -202,6 +202,12 @@ the same object `channel:message():get(i)` answers, so a handler that indexes li
 it will read back. Lines that arrived before your addon loaded fire nothing:
 `channel:message():list()` is how it reads what is already there.
 
+> **A line you say in this handler comes back to it.** `channel:send` puts the line on the wire and the
+> server hands it back as another `MessageAdded`, on this key, to every handler including yours — so a
+> handler that speaks on every line speaks on its own echo, for ever, one line a frame. Decide what you
+> are answering before you answer it: `msg:mine()` is false for everyone else's line, and `msg:text()`
+> and `msg:kind()` say the rest.
+
 ## Write (unprotected)
 
 ### `s:chat():selected(ch)`

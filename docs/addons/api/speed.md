@@ -100,8 +100,10 @@ shapes a player could compose, and what the server does with more than that is t
 | `s:speed():set(speed)` | `speed.set` | pick a speed; returns the collection, so writes chain |
 
 `speed` is a `Speed` object, the `1..4` position or a display name — whatever `:get` takes, plus the object
-itself. The call drives the client's own selector and sends exactly what clicking that icon sends, so the
-server has the last word on whether the speed is allowed.
+itself. A `Speed` names one character's selector, so one read off another session is **refused** rather
+than taken for the number on it; the position and the name name no character and work anywhere. The call
+drives the client's own selector and sends exactly what clicking that icon sends, so the server has the
+last word on whether the speed is allowed.
 
 **The read-back is a round trip.** The selected speed changes when the server says so, so `:current()` still
 answers the speed that character was on for a beat after the call. Poll it, rather than reading it on the

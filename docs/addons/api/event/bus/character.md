@@ -49,6 +49,14 @@ back. The payload is the same `Slot`, and while the hold is on it `slot:res()` i
 > the **full new list**, not a delta. Read the initial state once with the section's own `:list()`
 > verb, then listen.
 
+**These keys fire on a diff, and the window is one frame.** The client marks the subject dirty when the
+server messages about it and re-reads it once on the next step, so a value that changes and comes back
+inside that frame fires nothing: an event says the state differs from the one you were last told about,
+and after a revert it does not. What raises the value is the server's own message about it — so state the
+server never messages about, such as a buff's meter running down against a clock, moves silently and is
+announced by the next message that does arrive. Read a number like that live off the object rather than
+waiting to be told.
+
 **A list key covers its adds, its removals and its changes**, which is why `WoundChanged` fires for a wound
 appearing, healing and worsening alike where the buffs beside it split three ways. The difference is what
 the payload is: a buff arrives one at a time, so the edge can be named and the object handed over, while a

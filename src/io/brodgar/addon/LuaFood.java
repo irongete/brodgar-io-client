@@ -180,12 +180,16 @@ public final class LuaFood {
         return (w == null) ? null : w.glut;
     }
 
-    /** A defensive copy of the food-event list (it is rebuilt off-thread as the server pushes updates). */
-    /** One {@link LuaFepEntry} from one food-bar element — what {@code fep:entry()} hands back. */
-    static LuaValue entry(Addon owner, BAttrWnd.FoodMeter.El el) {
+    /**
+     * <b>The resource name and the display name of one food-bar element</b>, as {@code {res, name}} with
+     * either entry {@code null} — the one extraction both doors onto an entry take (audit2 B16, ch-15): the
+     * {@link LuaFepEntry} {@code fep:entry()} hands back, and the row {@code food:info()} copies out.
+     * Loading-guarded: an event whose resource is still streaming keeps its amount and has no names yet.
+     */
+    private static String[] label(BAttrWnd.FoodMeter.El el) {
         String res = null, name = null;
         try {
-            haven.Resource r = el.res.get();
+            Resource r = el.res.get();
             if(r != null)
                 res = r.name;
             BAttrWnd.FoodMeter.Event ev = el.ev();
@@ -194,9 +198,16 @@ public final class LuaFood {
         } catch(RuntimeException ex) {
             /* this event's resource is still Loading — keep the amount */
         }
-        return LuaFepEntry.of(owner, res, name, el.a);
+        return new String[] {res, name};
     }
 
+    /** One {@link LuaFepEntry} from one food-bar element — what {@code fep:entry()} hands back. */
+    static LuaValue entry(Addon owner, BAttrWnd.FoodMeter.El el) {
+        String[] l = label(el);
+        return LuaFepEntry.of(owner, l[0], l[1], el.a);
+    }
+
+    /** A defensive copy of the food-event list (it is rebuilt off-thread as the server pushes updates). */
     static java.util.List<BAttrWnd.FoodMeter.El> els(BAttrWnd.FoodMeter f) {
         try {
             return new ArrayList<BAttrWnd.FoodMeter.El>(f.els);
@@ -205,24 +216,14 @@ public final class LuaFood {
         }
     }
 
-    /** The food-event groups as {@code {{res?, name?, amount}}} — a plain value table (§2.8). */
+    /** The food-event groups as {@code {{res?, name?, amount}}} — a plain value table (§2.8), each row
+     *  built by {@link LuaFepEntry#snapshot}, which is also what an entry's own {@code :info()} answers. */
     private static LuaValue entries(BAttrWnd.FoodMeter f) {
         LuaTable out = new LuaTable();
         int i = 0;
         for(BAttrWnd.FoodMeter.El el : els(f)) {
-            LuaTable e = new LuaTable();
-            try {
-                Resource r = el.res.get();
-                if(r != null)
-                    e.set("res", LuaValue.valueOf(r.name));
-                BAttrWnd.FoodMeter.Event ev = el.ev();
-                if((ev != null) && (ev.nm != null))
-                    e.set("name", LuaValue.valueOf(ev.nm));
-            } catch(RuntimeException ex) {
-                /* this event's resource is still Loading — keep the amount */
-            }
-            e.set("amount", LuaValue.valueOf(el.a));
-            out.set(++i, e);
+            String[] l = label(el);
+            out.set(++i, LuaFepEntry.snapshot(l[0], l[1], el.a));
         }
         return out;
     }

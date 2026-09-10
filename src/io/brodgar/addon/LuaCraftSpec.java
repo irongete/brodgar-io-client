@@ -147,18 +147,30 @@ final class LuaCraftSpec {
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaCraftSpec h = handle(self, "info");
-                LuaTable t = new LuaTable();
-                if(h.res != null)
-                    t.set("res", LuaValue.valueOf(h.res));
-                if(h.name != null)
-                    t.set("name", LuaValue.valueOf(h.name));
-                if(h.num != null)
-                    t.set("num", LuaValue.valueOf(h.num.intValue()));
-                if(h.opt != null)
-                    t.set("opt", LuaValue.valueOf(h.opt.booleanValue()));
-                return t;
+                return snapshot(h.res, h.name, h.num, h.opt);
             }
         });
         return m;
+    }
+
+    /**
+     * <b>The one builder of the recipe-slot shape</b> {@code {res?, name?, num?, opt?}} (audit2 B16, cq-03)
+     * — {@code spec:info()} here, and one row of {@code craft:info()}'s {@code inputs}/{@code outputs}/
+     * {@code qmod}/{@code tools} arrays over in {@link LuaCraft}. The two were written separately and did
+     * not agree: one always carried {@code num} and {@code opt} while the other left them out where the slot
+     * has none, so a reader testing {@code slot.opt == nil} got a different answer per door. A count and a
+     * flag are absent for a tool and a quality input, which is what having neither means.
+     */
+    static LuaValue snapshot(String res, String name, Integer num, Boolean opt) {
+        LuaTable t = new LuaTable();
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        if(num != null)
+            t.set("num", LuaValue.valueOf(num.intValue()));
+        if(opt != null)
+            t.set("opt", LuaValue.valueOf(opt.booleanValue()));
+        return t;
     }
 }

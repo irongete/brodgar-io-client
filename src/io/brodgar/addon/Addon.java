@@ -43,6 +43,16 @@ public final class Addon {
     public String error;   // null if the addon loaded cleanly
 
     /**
+     * <b>Has this addon been told {@code Load}?</b> — and so, is there a {@code Disable} owed to it (audit2
+     * B16, lc-05). The moments table presents the two as a PAIR, and a teardown fired the second half for
+     * things that never got the first: an addon whose file body threw is torn down without ever having
+     * loaded, and {@link AddonManager#consoleOwner} is an {@link Addon} that is torn down on every reload
+     * and never loads at all. Set where {@code Load} is fired and read where {@code Disable} is, which is
+     * one place each; UI thread, like the whole of the load and the teardown.
+     */
+    public boolean loaded;
+
+    /**
      * <b>The hosts the USER approved for this addon</b> — read out of the consent record at load
      * ({@code AddonRegistry.loadAll}), never off the manifest. The manifest is the <i>request</i>; this is the
      * <i>answer</i>, and it is what the network gate asks ({@link #hostGranted}).

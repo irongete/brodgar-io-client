@@ -310,6 +310,26 @@ final class CharApi {
      *       half(ves) it needs — a fading widget (a buff, a window) answers {@link #removed} on its own
      *       "gone" signal instead, never on this seam (D-180).</li>
      * </ul>
+     *
+     * <p><b>THE DIFF WINDOW IS ONE TICK, AND THE TRIGGER IS {@link #interested}</b> (audit2 B16 — ch-11,
+     * pk-20, bm-08). Three consequences follow from that and they are the contract of every uimsg-driven
+     * adapter here rather than a fault of any one of them, which is why they are written once:
+     * <ul>
+     *   <li><b>A value that changes and comes back inside one tick fires nothing.</b> The tap only marks the
+     *       adapter dirty ({@link #dispatchUimsg}) and {@link #refreshTreeAdapters} re-reads it <b>once</b>
+     *       per frame, so A→B→A is a diff against a key that never moved. That is the point of a diff and
+     *       not a hole in one: an event says the state is different from the one you were last told about,
+     *       and after a revert it is not.</li>
+     *   <li><b>A change with no {@code uimsg} of its own is not detected when it happens.</b>
+     *       {@link #interested} is the whole trigger, so state the server never messages about — a
+     *       resource-published buff meter computed from a clock — moves silently and is announced by the
+     *       next message the adapter <i>is</i> interested in. Such a value is a live read
+     *       ({@code buff:meter()}), and its page says to read it rather than to wait for it.</li>
+     *   <li><b>The snapshot is paid only for a live subscriber.</b> An adapter whose {@code refresh} builds
+     *       a snapshot per cached widget asks {@link AddonManager#anySub} first and returns; the diff key it
+     *       keeps is what was last ANNOUNCED, so an addon that subscribes later is told about a change it
+     *       did not see happen, on the first message after it subscribed.</li>
+     * </ul>
      */
     interface TreeAdapter {
         boolean interested(Widget w, String msg);
@@ -483,7 +503,12 @@ final class CharApi {
             if(!(w instanceof Buff))
                 return;
             Buff b = (Buff)w;
-            if(cache.containsKey(b))
+            // audit2 B16 (bm-16): the liveness half of the MeterAdapter mirror, which this had dropped
+            // while its comment claimed the whole of it. LuaBuff.active is buff:exists() -- on the bar and
+            // not already fading -- exactly as LuaMeter.exists is meter:exists(), so a Buff widget standing
+            // anywhere but a Bufflist, or one the server retired in the frame it arrived, seeds no cache
+            // entry and announces nothing. The two adapters now seed on one condition.
+            if(cache.containsKey(b) || !LuaBuff.active(b))
                 return;
             // Seed the diff key with the buff's current snapshot AT add time (027.2, mirrored from
             // MeterAdapter) -- there is no tick ordering to lean on here since placed/refresh are two
@@ -837,7 +862,7 @@ final class CharApi {
             super(st);
         }
 
-        private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
+        private String cache;   // last roster key (UI thread; change-detect)
 
         public boolean interested(Widget w, String msg) {
             return (w instanceof BuddyWnd) &&
@@ -846,10 +871,10 @@ final class CharApi {
 
         public void refresh() {
             String user = user();
-            LuaValue snap = kinSnapshotList(user);
-            if(!kinListEqual(snap, cache)) {
-                cache = snap;
-                fireKin(user, kinIds(snap));
+            Roster r = roster(user);
+            if(!r.key.equals(cache)) {
+                cache = r.key;
+                fireKin(user, r.ids);
             }
         }
     }
@@ -998,7 +1023,7 @@ final class CharApi {
             LuaValue snap = LuaWound.snapshotList(user);
             if(!woundListEqual(snap, cache)) {
                 cache = snap;
-                fireWounds(user, LuaWound.ids(user));
+                fireWounds(user, snapshotIds(snap));
             }
         }
 
@@ -1039,16 +1064,36 @@ final class CharApi {
             && luaFieldEq(a, b, "duration") && luaFieldEq(a, b, "number");
     }
 
-    /** Field-level equality for a snapshot key: nil/number/string aware (used by buffEqual). */
+    /**
+     * <b>Field-level equality for a change-detection key</b>, by TYPE — {@code nil}, number, string and
+     * boolean. Every diff key in this file runs through it ({@link #buffEqual}, {@link #meterEqual},
+     * {@link #studySlotEqual}, {@link #actionbarEqual}), which is what keeps four detectors from disagreeing
+     * about what "changed" means.
+     *
+     * <p><b>A type it cannot compare is NOT equal</b> (audit2 B16 — ch-12, bm-15). It answered <i>equal</i>
+     * for everything past its arms, so a boolean or a table added to any of those keys would have disabled
+     * change detection for that field in silence, on the one piece of code whose whole job is to notice. A
+     * detector that guesses "equal" loses the edge for ever; one that guesses "changed" is loud on the next
+     * message, which is where the author who added the field is. So the boolean is compared like the other
+     * three, and the guess left over goes the loud way.
+     *
+     * <p>The types are asked with {@link LuaValue#type()} and never {@code isstring()}/{@code isnumber()},
+     * for the reason {@link Args#str} states: in LuaJ those coerce, so {@code 42} answers {@code isstring()}
+     * and {@code "42"} answers {@code isnumber()} — the lax predicates make two different values one.
+     */
     private static boolean luaFieldEq(LuaValue a, LuaValue b, String k) {
         LuaValue va = a.get(k), vb = b.get(k);
-        if(va.isnil() != vb.isnil())
+        if(va.isnil() || vb.isnil())
+            return va.isnil() && vb.isnil();
+        if(va.type() != vb.type())
             return false;
-        if(va.type() == LuaValue.TNUMBER)   // by TYPE, like every other number test in the bridge
-            return (vb.type() == LuaValue.TNUMBER) && (va.todouble() == vb.todouble());
-        if(va.isstring())
-            return vb.isstring() && va.tojstring().equals(vb.tojstring());
-        return true;
+        if(va.type() == LuaValue.TNUMBER)
+            return va.todouble() == vb.todouble();
+        if(va.type() == LuaValue.TSTRING)
+            return va.tojstring().equals(vb.tojstring());
+        if(va.type() == LuaValue.TBOOLEAN)
+            return va.toboolean() == vb.toboolean();
+        return false;
     }
 
     /** That character's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. The one
@@ -1093,7 +1138,7 @@ final class CharApi {
         // walk and answers a beat earlier — the HUD arrives before its map view is parented.
         methods.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = Args.only(a, 0, "session:player():gob");
+                self(Args.only(a, 0, P + ":gob"), user, "gob");
                 long id = plgob(user);
                 return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
@@ -1115,8 +1160,13 @@ final class CharApi {
         // not sendView, which is what refuses every other send for a background session.
         methods.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
+                LuaValue me = a.arg1();
                 requirePermission(current(), Permission.PLAYER_MOVE);
+                // ...and then the receiver, which is what says WHICH character walks (audit2 B16, pl-09).
+                // The gate stays first (D-213) and this is the second question, asked because the account
+                // below is the one the object was READ from: unasked, a dot call handing this another
+                // character's player walked the one the call was written on, and said nothing.
+                self(me, user, "move");
                 // 076.3: the Position is resolved in THAT character's frame, so the refusal it already had
                 // changes subject — a place is unreachable for the character you addressed. That frame is also
                 // the one the order is sent in, so nothing translates it again on the way out.
@@ -1125,7 +1175,7 @@ final class CharApi {
                 // widget — Sessions.ordermember finds that session's own view and composes the ground
                 // click itself (D-009), which is why nothing goes over for a shape row to read.
                 Wire.send(owner, user, P + ":move", null, "click", null, () -> order(user, rc, P + ":move"));
-                return self;                                     // the Player, so a move chains
+                return me;                                       // the Player, so a move chains
             }
         });
         // hand() — the cursor, as a Hand object, or nil when nothing is on it (048.2). Like :move it is not a
@@ -1135,8 +1185,7 @@ final class CharApi {
         // protected hand:use(target, mods); see LuaHand.
         methods.set("hand", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = Args.only(a, 0, "session:player():hand");
-                return LuaHand.of(owner, mark(self));
+                return LuaHand.of(owner, self(Args.only(a, 0, P + ":hand"), user, "hand"));
             }
         });
         final LuaTable pmt = new LuaTable();
@@ -1179,11 +1228,33 @@ final class CharApi {
     }
 
     /** The {@code PlayerMark} behind a Player userdata, or {@code null} for anything that is not one. */
-    static PlayerMark mark(LuaValue v) {
+    private static PlayerMark mark(LuaValue v) {
         if((v == null) || !v.isuserdata())
             return null;
         Object o = v.touserdata();
         return (o instanceof PlayerMark) ? (PlayerMark)o : null;
+    }
+
+    /**
+     * <b>The receiver of a colon call on the Player object</b>, or a guiding error — {@link Section#self}'s
+     * rule at the one section object that is not a {@link Section}. The section contains exactly one thing,
+     * so the section object IS that thing (§2.1) and its verbs carry their own check; what they may not do is
+     * skip it, because every one of them reads the account it was <i>built</i> for. A dot call passes its
+     * first argument as the receiver, and that is two separate mistakes here: {@code pl.hand()} hands over
+     * nothing, and {@code cur:player().move(alt:player(), p)} hands over a Player of ANOTHER character — and
+     * an unchecked verb answered about the one it was read from either way, silently, on a verb that walks.
+     */
+    private static PlayerMark self(LuaValue v, String user, String method) {
+        PlayerMark m = mark(v);
+        if(m == null)
+            throw new LuaError(P + ":" + method + "() — use a COLON call on the player object (" + P + ":"
+                + method + "(…)), got " + ((v == null) ? "nothing" : v.typename()));
+        if(!m.user.equals(user))
+            throw new LuaError(P + ":" + method + "(): that is another character's player object — a dot"
+                + " call passes its first argument as the receiver, so " + P + "." + method + "(other, …)"
+                + " answers about the character it was written on rather than the one it was handed. Call it"
+                + " with a colon on the player you mean.");
+        return m;
     }
 
     // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
@@ -1320,7 +1391,7 @@ final class CharApi {
      * {@code s:kin()} (077.2). <b>The section object IS the roster</b> (uniform grammar §2.1): it is the
      * {@link LuaCollection} {@link LuaKin#collection} builds, and one kin is {@code s:kin():get(idOrName)}.
      * Only the kin-side plumbing the event adapter still needs ({@link #buddywnd}, {@link #kinSnapshot},
-     * {@link #kinListEqual}, {@link #kinIds}) stays here.
+     * {@link #roster}) stays here.
      *
      * <p><b>A buddy id counts inside one roster.</b> The Kin window is {@link GameUI#buddies}, which is one
      * login's HUD, so id 7 on two characters is two different people — which is why a Kin handle carries
@@ -1838,7 +1909,9 @@ final class CharApi {
     // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (s:kin() = the roster
     // collection, :get(idOrName) = an interned Kin object, protected verbs on the object). What stays HERE is the
     // plumbing LuaKin and the KinAdapter share: the buddywnd(user) resolve funnel, the kinSnapshot() escape
-    // hatch (kin:info()) and the snapshot diff that drives KinChanged.
+    // hatch (kin:info()) and the roster() key that drives KinChanged. The collapse to a boolean is the
+    // READ's choice and the diff does not take it: roster() keys on the raw tri-state, so an offline kin
+    // going hearth-secret-only is a roster change like any other (audit2 B16, pk-13).
 
     /**
      * <b>That character's</b> Kin window ({@link GameUI#buddies}), or {@code null} before its HUD exists.
@@ -1881,48 +1954,80 @@ final class CharApi {
         return t;
     }
 
-    /** The whole roster as snapshots, in the window's current sort order — the {@link KinAdapter}'s
-     *  change-detection input (never a Lua-facing list any more: Lua sees Kin objects, {@link LuaKin}). */
-    private static LuaValue kinSnapshotList(String user) {
-        LuaTable out = new LuaTable();
-        BuddyWnd bw = buddywnd(user);
-        if(bw == null)
-            return out;
-        int i = 0;
-        for(BuddyWnd.Buddy b : bw)                 // iterator() copies under the BuddyWnd's own lock
-            out.set(++i, kinSnapshot(b));
-        return out;
+    /** One walk of the roster: the change-detection key, and the ids the payload is minted from. */
+    private static final class Roster {
+        final String key;
+        final int[] ids;
+
+        Roster(String key, int[] ids) {
+            this.key = key;
+            this.ids = ids;
+        }
     }
 
-    /** The buddy ids of a snapshot list, in roster order — what {@link AddonManager#fireKin} mints the
-     *  per-addon {@code KinChanged} payload from (the snapshots themselves never reach Lua as an event). */
-    private static int[] kinIds(LuaValue list) {
+    /**
+     * <b>That character's roster as one change-detection key, plus the ids {@code KinChanged}'s payload is
+     * minted from — taken in ONE walk</b> (audit2 B16 — pk-13, pk-14, and the cq-09 shape). The key is a
+     * string built for the diff and not a list of {@code kin:info()} snapshots, which is what closes three
+     * defects at once.
+     *
+     * <ul>
+     *   <li>{@code kin:online()} collapses the engine's tri-state (1 online, 0 offline, -1 hearth-secret-
+     *       only) to the boolean the common question wants, and that collapse is a deliberate choice of the
+     *       READ. The diff inherited it from the snapshot, so a kin going from offline to hearth-secret-only
+     *       compared equal and nothing fired for a roster change that really happened. The key carries the
+     *       raw number; the read goes on answering the boolean.</li>
+     *   <li>A name was compared as {@code .tojstring()}, which renders {@code nil} as the string
+     *       {@code "nil"} in LuaJ — so a kin gaining or losing the literal name "nil" was diffed away.
+     *       A kin the window has not named stands in the key as a byte no name can contain.</li>
+     *   <li>The payload was a SECOND read, taken after the diff had decided on the first and under its own
+     *       lock, so a handler could be handed a roster the diff never saw. It is the walk that decided.</li>
+     * </ul>
+     *
+     * <p>The three published fields are read together under the monitor {@link BuddyWnd} writes them under,
+     * exactly as {@link #kinSnapshot} does — one entry of the key is one roster row, rather than a name
+     * from before a rename and a group from after it.
+     */
+    private static Roster roster(String user) {
+        BuddyWnd bw = buddywnd(user);
+        if(bw == null)
+            return new Roster("", new int[0]);
+        StringBuilder key = new StringBuilder();
+        List<Integer> ids = new ArrayList<Integer>();
+        for(BuddyWnd.Buddy b : bw) {               // iterator() copies under the BuddyWnd's own lock
+            String name;
+            int group, online;
+            synchronized(b) {
+                name = b.name;
+                group = b.group;
+                online = b.online;
+            }
+            ids.add(Integer.valueOf(b.id));
+            key.append(b.id).append(KEYSEP).append((name == null) ? NONAME : name).append(KEYSEP)
+               .append(group).append(KEYSEP).append(online).append(KEYSEP);
+        }
+        int[] out = new int[ids.size()];
+        for(int i = 0; i < out.length; i++)
+            out[i] = ids.get(i).intValue();
+        return new Roster(key.toString(), out);
+    }
+
+    /** The roster key's field separator, and what stands in it for a kin the window has not named — two
+     *  bytes a name cannot carry, so no name can spell another row's key or another name's absence. */
+    private static final char KEYSEP = (char)0;
+    private static final char NONAME = (char)1;
+
+    /**
+     * The ids of a snapshot list, in its own order — a list event's payload minted from <b>the very read
+     * the diff decided on</b> (audit2 B16, cq-09) rather than from a second one taken after it, each under
+     * its own lock. The snapshots themselves never reach Lua: what a handler gets is objects.
+     */
+    private static int[] snapshotIds(LuaValue list) {
         int n = list.length();
         int[] ids = new int[n];
         for(int i = 0; i < n; i++)
             ids[i] = list.get(i + 1).get("id").toint();
         return ids;
-    }
-
-    /** Do two kin snapshot lists carry the same id/name/group/online per entry? (change-detection.) */
-    private static boolean kinListEqual(LuaValue a, LuaValue b) {
-        if((a == null) || (b == null) || !a.istable() || !b.istable())
-            return a == b;
-        int n = a.length();
-        if(n != b.length())
-            return false;
-        for(int i = 1; i <= n; i++) {
-            LuaValue ea = a.get(i), eb = b.get(i);
-            if(ea.get("id").toint() != eb.get("id").toint())
-                return false;
-            if(!ea.get("name").tojstring().equals(eb.get("name").tojstring()))
-                return false;
-            if(ea.get("group").toint() != eb.get("group").toint())
-                return false;
-            if(Args.truthy(ea.get("online")) != Args.truthy(eb.get("online")))
-                return false;
-        }
-        return true;
     }
 
     // ---- quest log (A9: hafen.quest) -------------------------------------------------------------

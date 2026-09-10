@@ -48,7 +48,7 @@ predicate receives the Quest object.
 | `q:id()` | number | the server's quest id — always answers |
 | `q:title()` | string \| nil | the quest's name |
 | `q:res()` | string \| nil | its resource name |
-| `q:status()` | string \| nil | `"pending"`, `"done"`, `"failed"` or `"disabled"`; `nil` once the server has dropped the quest |
+| `q:status()` | string \| nil | `"pending"`, `"done"`, `"failed"` or `"disabled"`; `nil` once the server has dropped the quest, and for a status this client has no word for |
 | `q:modified()` | number \| nil | the server's change stamp; higher is more recent |
 | — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
 | `q:conditions()` | collection | its objectives — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), minted per call, with the identity on the objectives in it — see below |

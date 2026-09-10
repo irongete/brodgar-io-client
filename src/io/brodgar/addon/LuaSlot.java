@@ -535,7 +535,13 @@ public final class LuaSlot {
         LuaTable t = new LuaTable();
         t.set("page", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                // The section IS the collection, so its own verb takes the collection's receiver check
+                // (audit2 B16, ab-03). It looked at nothing: `ab.page(3)` puts the 3 where the receiver
+                // belongs, leaves slot 2 unwritten, and so took the READ branch -- a documented chaining
+                // write that silently answered a number and turned no page.
                 LuaValue self = a.arg1();
+                LuaCollection.receiver(self, CharApi.AB, "page");
+                Args.only(a, 1, CharApi.AB + ":page");
                 LuaValue v = Args.written(a, 2, CharApi.AB + ":page", "n");
                 GameUI g = AddonManager.gameui(user);
                 GameUI.Belt b = (g == null) ? null : g.beltwdg;

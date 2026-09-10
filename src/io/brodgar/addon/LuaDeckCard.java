@@ -173,10 +173,11 @@ public final class LuaDeckCard {
                 return LuaValue.valueOf(handle(self, "wire").slot);
             }
         });
-        // key() — the hotkey label the window paints under this slot.
+        // key() — the hotkey label the window paints under this slot, or nil for a slot it paints none for.
         m.set("key", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(keyLabel(handle(self, "key").slot));
+                String k = keyLabel(handle(self, "key").slot);
+                return (k == null) ? LuaValue.NIL : LuaValue.valueOf(k);
             }
         });
         // maneuver() — the maneuver dealt into this slot, or nil while the slot is empty.
@@ -284,19 +285,24 @@ public final class LuaDeckCard {
         return n;
     }
 
-    /** The hotkey label for a deck slot (the game's own table), or a 1-based fallback beyond it. */
+    /**
+     * The hotkey label the window paints under a deck slot, or {@code null} for a slot past the labels there
+     * are (audit2 B16, fg-10). {@code FightWnd.keys} is the whole of them and the window blits from an array
+     * of exactly as many, so beyond it there IS no label — inventing {@code slot + 1} answered a number where
+     * the verb promises the window's own word, and a reader printing it got a hotkey nobody can press.
+     */
     static String keyLabel(int slot) {
         String[] keys = FightWnd.keys;
-        if((keys != null) && (slot >= 0) && (slot < keys.length) && (keys[slot] != null))
-            return keys[slot];
-        return String.valueOf(slot + 1);
+        return ((keys != null) && (slot >= 0) && (slot < keys.length)) ? keys[slot] : null;
     }
 
     /** The documented {@code DeckCard} snapshot; the maneuver half is absent while the slot is empty. */
     private static LuaValue snapshot(String user, int slot) {
         LuaTable t = new LuaTable();
         t.set("slot", LuaValue.valueOf(slot));
-        t.set("key", LuaValue.valueOf(keyLabel(slot)));
+        String k = keyLabel(slot);             // absent for a slot the window paints no label under, as :key() is
+        if(k != null)
+            t.set("key", LuaValue.valueOf(k));
         FightWnd.Action a = action(user, slot);
         if(a != null) {
             String res = AddonManager.resIdent(a.res);
@@ -339,9 +345,13 @@ public final class LuaDeckCard {
             public String needle(LuaValue member) {
                 // Resolved, never member.get("name"): since 084 a field read on a closed type hands back the
                 // METHOD, so a filter written that way would silently match nothing.
+                //   audit2 B16 (fg-09): and it is the MANEUVER'S own needle, res-plus-name, which is what
+                // s:fight():maneuver():find takes. A card names the maneuver in it, so one filter string had
+                // better find the same maneuver through both doors -- this one matched the display name
+                // alone, so deck():find("paginae/atk/...") found nothing the maneuvers found.
                 LuaDeckCard h = resolve(member);
                 FightWnd.Action a = (h == null) ? null : action(h.user, h.slot);
-                return (a == null) ? null : AddonManager.resTipName(a.res, null);
+                return (a == null) ? null : LuaManeuver.needleOf(a);
             }
 
             public String noGet() {

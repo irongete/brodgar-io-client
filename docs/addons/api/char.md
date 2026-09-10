@@ -180,6 +180,11 @@ Each half snapshots on its own as well as inside `food:info()`, and an entry's o
 the `entries` array — the same tables, addressed at whichever level you are holding. Each is `nil` when
 its meter is not up.
 
+**An entry is data, not a handle.** The client rebuilds the FEP bar whole on every update, so an entry has
+no key to be addressed by and nothing to re-resolve through: it carries the resource, the name and the
+amount the bar had when you read it, for as long as you hold it, and there is no `:exists()` to ask. Read
+`fep():entry()` again rather than keeping one across a meal.
+
 Subscribe to [`FepChanged`](event/bus/character.md#character-and-status), whose payload is the `Food` object
 itself.
 

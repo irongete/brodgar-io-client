@@ -514,15 +514,26 @@ public final class AddonPagina extends MenuGrid.Pagina {
      */
     static AddonPagina owned(Addon owner, String user, String res, String call) {
         reap(owner, user, LuaPagina.grid(user));
+        String elsewhere = null;
         for(AddonPagina p : owner.menuEntries) {
-            if(p.id.equals(res) && p.user.equals(user))
+            if(!p.id.equals(res))
+                continue;
+            if(p.user.equals(user))
                 return p;
+            elsewhere = p.user;      // this addon's own entry, standing in ANOTHER character's menu
         }
         String mine = PREFIX + owner.manifest.id + "/";
-        if(res.startsWith(mine))
-            throw new LuaError(call + ": \"" + res + "\" is not in that character's menu — this addon"
-                + " added it and removed it again, added it on another character, or added it to the menu a"
-                + " relogin has since replaced (check :exists())");
+        if(res.startsWith(mine)) {
+            // audit2 B16 (ab-12): the record has the character, so the refusal SAYS whose menu it is in
+            // rather than offering the reader three causes to pick between. The walk above already held
+            // `p.user` -- one of the three guesses was a fact this loop could see.
+            if(elsewhere != null)
+                throw new LuaError(call + ": \"" + res + "\" is in " + elsewhere + "'s menu, not " + user
+                    + "'s — an entry is added to one character's menu and belongs to that one. Address the"
+                    + " session it was added on, or " + CharApi.MG + ":add(id) it on this one too.");
+            throw new LuaError(call + ": \"" + res + "\" is in no character's menu — this addon removed it"
+                + " again, or added it to a menu a relogin has since replaced (pag:exists() is the test).");
+        }
         if(res.startsWith(PREFIX)) {
             throw new LuaError(call + ": \"" + res + "\" belongs to " + other(res) + ", not to"
                 + " this addon — an addon writes only the entries it added with " + CharApi.MG + ":add(id)");
@@ -537,7 +548,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * resolver for {@code slot:hold(pag)}, which places an entry and writes nothing on it. The bar is one
      * shared surface: {@code GameUI.Belt.dropthing} takes any addon's entry the player drops, and a verb that
      * lets an addon do the same for them takes the same. One of this addon's own identities still goes through
-     * {@link #owned}, which is what tells "removed again" from "another character" from "a replaced menu";
+     * {@link #owned}, which is what names the character whose menu it IS in when it is in one;
      * another addon's is looked up in that character's grid as it stands, so an entry that addon has removed,
      * or one it added on another login, is refused as not being in the menu.
      */

@@ -1,0 +1,8 @@
+{
+  "id": "R16-low-drift-session.1",
+  "name": "R16 low drift: the session's own sections",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "The verification suite for refactor block R16. `:tr16` asserts, through the API itself, the eight session surfaces the block changed and no archived suite covered: the player's receiver check and its cursor's snapshot, the FEP bar's one entry shape, the two rosters, the chat scrollback, the speed selector's 1-based print, the buff and meter bars, the deck's needle and its hotkey label, the quest selection and the wound tree, the recipe's one slot shape, the action bar's page verb and the menu catalogue's categories.",
+  "files": ["main.lua"]
+}

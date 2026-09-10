@@ -23,6 +23,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  *   local h = s:player():hand()
  *   if h then
  *     h:item()                     -- the Item on the cursor (every ordinary Item read answers on it)
+ *     h:info()                     -- the snapshot: { item = <that Item's own shape> }
  *     h:use(target [, mods])       -- PROTECTED: apply what you are holding to an Item, a Position or a Gob
  *   end
  * </pre>
@@ -135,6 +136,20 @@ final class LuaHand {
                 return (it == null) ? LuaValue.NIL : LuaItem.of(owner, it);
             }
         });
+        // info() — the one SNAPSHOT escape hatch. A Hand is a live interned object and no builder, no
+        // snapshot and no carrier of an ending, so the grammar gives it one (audit2 B16, pl-10). Its whole
+        // state is what is on the cursor, so the snapshot is that Item's OWN shape under `item` -- the same
+        // nesting Item uses for what a container holds, and the same one builder, never a second copy of it.
+        // A cursor emptied under a Hand somebody kept has no `item`, exactly as :item() answers nil.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                GItem it = held(handle(Args.only(a, 0, "hand:info"), "info").user);
+                LuaTable t = new LuaTable();
+                if(it != null)
+                    t.set("item", LuaItem.snapshot(it));
+                return t;
+            }
+        });
         // use(target [, mods]) — apply what you are holding TO something. mods optional (0 default; Shift=1
         // Ctrl=2 Alt=4), and unlike the verb this replaces the modifiers are yours to state rather than
         // hardcoded 0. PROTECTED by the per-addon "player.hand.use" permission, and the gate runs FIRST — before the
@@ -193,7 +208,12 @@ final class LuaHand {
                             + " despawned, or was never in this character's world (gob:sessions() says who"
                             + " has it). Nothing was sent.");
                     Coord2d grc;
-                    synchronized(gb) { grc = gb.rc; }   // OCache discipline: copy under the gob lock
+                    // OCache discipline: copy under the gob lock. It is `rc` -- the server's own last point
+                    // for that object -- and not the interpolated getc(), on purpose (audit2 B16, pl-13):
+                    // the message also carries the gob's id, which is what the server resolves the target
+                    // on, so the coordinate is corroboration and the client's guess at where a walking
+                    // object has got to since its last update would be a worse one than the server's.
+                    synchronized(gb) { grc = gb.rc; }
                     if(grc == null)
                         throw new LuaError(USE + ": that gob has no position yet");
                     Wire.send(owner, user, USE, mv, "itemact",

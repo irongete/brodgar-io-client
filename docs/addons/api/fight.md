@@ -57,7 +57,8 @@ the display name. **There is no `:get`**: a maneuver is addressed by nothing you
 *search* and a position is `:list()[n]`.
 
 The deck is a **collection** like the maneuvers, and addressed the same way: no `:get`, a `:find` over the
-maneuver's own name, and `deck():list()` as the array — so `#deck()`, `deck()[n]` and `ipairs(deck())` are
+resource name **and** the display name of the maneuver in the slot — the same needle the maneuvers take, so
+one string finds the same maneuver through either door — and `deck():list()` as the array — so `#deck()`, `deck()[n]` and `ipairs(deck())` are
 [refused](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) here too. Empty slots are
 left out, and the two numbers say so between them: `card:index()` is the position **in that list**, so
 `deck():list()[n]:index()` is `n` whatever the gaps, and `card:wire()` is the hotkey's own place in the
@@ -77,13 +78,15 @@ school, gaps counted.
 ## A deck card
 
 A card is a **place** in the layout, not the maneuver in it. It keeps answering `:wire()` and `:key()`
-when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` goes `false`.
+when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` goes `false`. The window
+paints a fixed set of hotkey labels, so a deck longer than that set has slots with no label at all and
+`card:key()` says so with `nil` rather than inventing a number nobody can press.
 
 | Method | Returns | Description |
 |---|---|---|
 | `card:index()` | number \| nil | its **1-based** position in `:deck():list()`; `nil` for an emptied slot, which that list leaves out |
 | `card:wire()` | number | the raw 0-based deck index the write path takes — always answers |
-| `card:key()` | string | the hotkey label the window paints — always answers |
+| `card:key()` | string \| nil | the hotkey label the window paints; `nil` for a slot past the labels the window has |
 | `card:maneuver()` | `Maneuver` \| nil | the maneuver dealt here |
 | `card:res()` | string \| nil | that maneuver's resource name |
 | `card:name()` | string \| nil | that maneuver's display name |

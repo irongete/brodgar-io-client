@@ -126,13 +126,14 @@ end
 |---|---|---|
 | `s:player():hand()` | Hand \| nil | that character's cursor while something is on it, `nil` while it is empty |
 | `hand:item()` | [`Item`](ui/items.md#the-item-object) \| nil | what it is carrying |
+| `hand:info()` | table | a plain-table **snapshot**: `{ item = <that Item's own shape> }`, and `item` absent on an emptied cursor |
 | `hand:use(target, mods)` | the Hand | **protected**, `player.hand.use` — apply what it is carrying to `target` |
 
 `hand:use` is the one nested key in the catalogue: `player.hand.use` grants it exactly, and so does the
 group `player.*` — which grants `player.move` with it. Declare `player.hand.*` for the held-item gesture
 alone.
 
-The two reads are not protected and neither throws. `s:player():hand()` hands back the same object every
+The reads are not protected and none of them throws. `s:player():hand()` hands back the same object every
 call for as long as you keep the Player, so `==` works and there is nothing to release; it is the *cursor*
 rather than a snapshot of it, so one you kept across a drop answers `nil` from `:item()` instead of naming
 what it was carrying. Read it again rather than holding one.
@@ -150,7 +151,7 @@ the three the client itself has:
 |---|---|
 | an [`Item`](ui/items.md#the-item-object) | apply it onto that item, wherever the item is |
 | a [Position](position.md) | apply it to the ground there |
-| a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it |
+| a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it; the message names the object by its id, and carries the **server's** last point for it rather than the client's guess at where a walking one has got to |
 
 `mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together — and
 optional is not unchecked, so anything that is not a

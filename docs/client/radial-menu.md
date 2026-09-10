@@ -55,6 +55,12 @@ readable and still holds the input.
   `anims` is non-empty, so the opening animation swallows the press.
 - **`opts` is not final.** The fork appends a client-side petal in `added()` by replacing the array, so
   anything that captured `opts` before that point is holding the shorter one.
+- **`uimsg "act"` indexes `opts` with the server's number and never bounds it.** `FlowerMenu.uimsg` reads
+  `num` out of the message and dereferences `opts[num]` straight away, so a number outside the ring is an
+  `ArrayIndexOutOfBoundsException` raised **inside the message handler**, on the thread applying the
+  server's messages, for a widget that then never ends. Nothing between the socket and that line checks
+  it, and the fork's own seam reads the same index a second time. Anything else reading `num` from that
+  arm bounds it for itself.
 - **A client-side petal never reaches the server.** It sends `wdgmsg("cl", -1)` — cancelling the server's
   menu — and handles itself, so the close arrives through the `"cancel"` arm carrying a label the server
   never named.

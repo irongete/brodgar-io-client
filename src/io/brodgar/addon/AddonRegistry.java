@@ -138,6 +138,7 @@ public final class AddonRegistry {
                 // by the same sweep a disable runs, and its row still reports the error to the panel.
                 if(addon.error == null) {
                     addons.add(addon);
+                    addon.loaded = true;                      // ...so a Disable is owed to it (lc-05)
                     fireTo(addon, "Load");                    // the addon's file body just ran
                     log("loaded " + m.id + " v" + m.version);
                 } else {
@@ -191,7 +192,16 @@ public final class AddonRegistry {
     private static final List<Step> STEPS = Collections.unmodifiableList(Arrays.asList(
         // The addon's last chance to write its store tables... (isolation is per-handler in callLua; this
         // step's own guard is the backstop)
-        new Step("Disable", a -> fireTo(a, "Disable")),
+        //   ...and only for an addon that was told Load (audit2 B16, lc-05): runtime.md presents the two as
+        // a pair, and this fired the second half for an addon whose file body threw -- torn down without
+        // ever having loaded -- and for the console owner, which is an Addon that is torn down on every
+        // reload and never loads at all. Every other step gives something back and runs whatever happened.
+        new Step("Disable", a -> {
+            if(a.loaded) {
+                a.loaded = false;      // ...and exactly one, whichever path called the teardown
+                fireTo(a, "Disable");
+            }
+        }),
         // ...then persist them (spec 05: flushed at Disable)
         new Step("saved variables", StoreApi::flush),
         // 044.1: take every widget this addon stood in the world back OUT of its surface first, so the two

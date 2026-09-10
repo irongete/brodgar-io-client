@@ -263,27 +263,23 @@ public final class LuaCraft {
         return out;
     }
 
-    /** One slot as {@code {res, name, num, opt}}. Loading-guarded. */
+    /** One ingredient or product slot, through {@link LuaCraftSpec#snapshot} — the one builder of that
+     *  shape, so {@code craft:info()}'s rows and {@code spec:info()} cannot spell it two ways (cq-03).
+     *  Loading-guarded. */
     private static LuaValue spec(Makewindow.Spec spec) {
-        LuaTable t = new LuaTable();
         // The displayed resource is the constraint (a category, e.g. "any board") when the recipe accepts
         // one, else the concrete item — mirroring the window's own display: that is what fills the slot.
         Indir<Resource> res = (spec.constraint != null) ? spec.constraint.res : spec.item.res;
         String rid = AddonManager.resIdent(res);
-        if(rid != null)
-            t.set("res", LuaValue.valueOf(rid));
-        String nm = AddonManager.resTipName(res, rid);
-        if(nm != null)
-            t.set("name", LuaValue.valueOf(nm));
-        t.set("num", LuaValue.valueOf(spec.num));          // -1 = unspecified (~ 1); exposed faithfully
         boolean opt;
         try {
             opt = spec.opt();                              // reads info() — may Loading before resources land
         } catch(RuntimeException e) {
             opt = false;
         }
-        t.set("opt", LuaValue.valueOf(opt));
-        return t;
+        // -1 = unspecified (~ 1); exposed faithfully, as spec:count() is the read that answers 1 for it.
+        return LuaCraftSpec.snapshot(rid, AddonManager.resTipName(res, rid),
+                                     Integer.valueOf(spec.num), Boolean.valueOf(opt));
     }
 
     /** The quality inputs or the tools as {@code {res, name}} values, copied under the UI monitor. */
@@ -299,15 +295,10 @@ public final class LuaCraft {
         return out;
     }
 
-    /** A bare resource reference as {@code {res, name}} (a quality modifier or a tool). Loading-guarded. */
+    /** A tool or a quality input — the same slot shape with no count and no flag, through the same builder
+     *  {@code spec:info()} takes. Loading-guarded. */
     private static LuaValue res(Indir<Resource> r) {
-        LuaTable t = new LuaTable();
         String rid = AddonManager.resIdent(r);
-        if(rid != null)
-            t.set("res", LuaValue.valueOf(rid));
-        String nm = AddonManager.resTipName(r, rid);
-        if(nm != null)
-            t.set("name", LuaValue.valueOf(nm));
-        return t;
+        return LuaCraftSpec.snapshot(rid, AddonManager.resTipName(r, rid), null, null);
     }
 }

@@ -11,10 +11,10 @@ you the live objects.
 
 - **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`
   dealt. The live reads are `man:res()`, `:name()`, `:dealable()` and `:used()`.
-- **DeckCard** — `{ slot = number, key = string, res?, name?, used? }`, `slot` the raw 0-based deck
+- **DeckCard** — `{ slot = number, key = string?, res?, name?, used? }`, `slot` the raw 0-based deck
   index, which `card:wire()` reads — `card:index()` is the 1-based position — and `key` the hotkey
-  label such as `"1"` or `"⇧1"`. The maneuver half is absent for an empty slot, where the place
-  itself still reads.
+  label such as `"1"` or `"⇧1"`, absent for a slot past the labels the window paints. The maneuver half
+  is absent for an empty slot, where the place itself still reads.
 - **FightSummary** — `{ maxact, used, nact, nsave, usesave }`, in the window's own spelling; the live
   reads spell them out as `sum:maxActions()`, `:used()`, `:deckSize()`, `:saveCount()` and
   `:activeSave()`.

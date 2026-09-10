@@ -285,10 +285,17 @@ public final class LuaPagina {
                 if(b.pag instanceof AddonPagina)   // a custom entry sends nothing, so it has no tokens (059.1)
                     return new LuaTable();
                 try {
-                    String[] ad = b.act().ad;
+                    // audit2 B16 (ab-07): an ID-ONLY entry is the OTHER kind with no tokens, and it reached
+                    // here. Its resource carries no action layer, so act() is null and reading .ad off it
+                    // threw into the catch below and answered nil -- where the verb promises an array and
+                    // the empty one is exactly what "invoked by id, not by a path of tokens" means.
+                    Resource.AButton act = b.act();
                     LuaTable out = new LuaTable();
-                    for(int i = 0; i < ad.length; i++)
-                        out.set(i + 1, LuaValue.valueOf(ad[i]));
+                    String[] ad = (act == null) ? null : act.ad;
+                    if(ad != null) {
+                        for(int i = 0; i < ad.length; i++)
+                            out.set(i + 1, LuaValue.valueOf(ad[i]));
+                    }
                     return out;
                 } catch(RuntimeException e) {   // Loading etc.
                     return LuaValue.NIL;

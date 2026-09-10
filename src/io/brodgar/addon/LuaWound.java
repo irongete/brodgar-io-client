@@ -388,15 +388,6 @@ public final class LuaWound {
         return out;
     }
 
-    /** Every wound id, in tree order — the {@code WoundChanged} payload, before it is interned per owner. */
-    static int[] ids(String user) {
-        List<WoundWnd.Wound> ws = all(user);
-        int[] out = new int[ws.size()];
-        for(int i = 0; i < ws.size(); i++)
-            out[i] = ws.get(i).id;
-        return out;
-    }
-
     // ---- the collection -----------------------------------------------------------------------------
 
     /**

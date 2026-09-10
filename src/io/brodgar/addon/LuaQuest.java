@@ -180,12 +180,14 @@ public final class LuaQuest {
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
-        // status() — "pending" / "done" / "failed" / "disabled". It changes under a stashed handle.
+        // status() — "pending" / "done" / "failed" / "disabled". It changes under a stashed handle, and it
+        // is nil for a quest the log has dropped and for a status code this client has no word for.
         m.set("status", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaQuest h = handle(self, "status");
                 QuestWnd.Quest q = quest(h.user, h.id);
-                return (q == null) ? LuaValue.NIL : LuaValue.valueOf(status(q.done));
+                String st = (q == null) ? null : status(q.done);
+                return (st == null) ? LuaValue.NIL : LuaValue.valueOf(st);
             }
         });
         // modified() — the server's change stamp; higher is more recent, and it is what the log sorts on.
@@ -324,12 +326,19 @@ public final class LuaQuest {
         return AddonManager.resTipName(q.res, null);
     }
 
-    /** The API status word for a {@code Quest.done} code (QST_PEND/DONE/FAIL/DISABLED). */
+    /**
+     * The API status word for a {@code Quest.done} code, or {@code null} for a code this client has no word
+     * for (audit2 B16, cq-04). The four the log defines are the four it answers; a fifth the server invents
+     * is <b>not</b> pending, and saying so was the one silent wrong answer left on this surface — the events
+     * decline to name such a status (they fire neither outcome for it), while this called it pending for
+     * ever, so one fact had two answers and the wrong one was the one an addon read.
+     */
     static String status(int done) {
+        if(done == QuestWnd.Quest.QST_PEND)     return "pending";
         if(done == QuestWnd.Quest.QST_DONE)     return "done";
         if(done == QuestWnd.Quest.QST_FAIL)     return "failed";
         if(done == QuestWnd.Quest.QST_DISABLED) return "disabled";
-        return "pending";                            // QST_PEND (and any unexpected code)
+        return null;
     }
 
     /** The documented {@code Quest} snapshot, or {@code nil} once the quest has left the log. */
@@ -344,9 +353,22 @@ public final class LuaQuest {
         String r = AddonManager.resIdent(q.res);
         if(r != null)
             t.set("res", LuaValue.valueOf(r));
-        t.set("status", LuaValue.valueOf(status(q.done)));
+        String st = status(q.done);            // absent for a code this client has no word for, as :status() is
+        if(st != null)
+            t.set("status", LuaValue.valueOf(st));
         t.set("mtime", LuaValue.valueOf(q.mtime));
         return t;
+    }
+
+    /**
+     * <b>The one door that mints a Quest from an id</b> (audit2 B16, cq-17): the handle, or {@code nil} for
+     * an id the log has not got. Both doors of this collection go through it — {@code :get(id)} tested the
+     * id and {@code :selected()} minted straight off the open box, so the selection could hand back a Quest
+     * whose {@code :exists()} was already false while the lookup beside it refused that exact case. A
+     * collection answers one way about what it holds.
+     */
+    private static LuaValue mint(Addon owner, String user, int qid) {
+        return (quest(user, qid) == null) ? LuaValue.NIL : of(owner, user, qid);
     }
 
     /** {@code res} and {@code title} as one string a substring filter runs over (newline-separated). */
@@ -374,7 +396,7 @@ public final class LuaQuest {
                     throw new LuaError(CharApi.Q + ":selected() takes no arguments — it reads which quest"
                         + " is open in the log, and which one that is is the player's choice");
                 QuestWnd.Quest.Box b = box(user);
-                return (b == null) ? LuaValue.NIL : of(owner, user, b.id);
+                return (b == null) ? LuaValue.NIL : mint(owner, user, b.id);
             }
         });
         return LuaCollection.create(CharApi.Q, new LuaCollection.Source() {
@@ -402,7 +424,7 @@ public final class LuaQuest {
 
             public LuaValue getMember(LuaValue key) {
                 int qid = Args.integer(key, CharApi.Q + ":get", "id", "a quest's server id — " + CharApi.Q + ":find(\"<title>\") is the search by name");
-                return (quest(user, qid) == null) ? LuaValue.NIL : of(owner, user, qid);
+                return mint(owner, user, qid);
             }
 
             /** The key is the quest's server id. */

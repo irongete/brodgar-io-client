@@ -125,8 +125,8 @@ shapes a player could compose, and what the server does with more than that is t
 
 | Method | Key | Description |
 |---|---|---|
-| `s:flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively |
-| `s:flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1` |
+| `s:flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively, and hand the section back |
+| `s:flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1`, and hand the section back |
 | `s:flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does, and hand the section back |
 
 Picking and dismissing are separate keys, so an addon may declare one without the other; the group
@@ -157,6 +157,12 @@ missed is in the message.
 You can pick from inside a `FlowerMenuAdded` handler, and that is the usual place. The ring is still
 animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
 input until the animation finishes.
+
+> **One ring takes one pick, and nothing marks it as taken.** Every addon subscribed to `FlowerMenuAdded`
+> hears the same menu and may pick from it, the order between them is not defined, and the client sends
+> each pick as it is made. So an addon that picks unconditionally decides the ring for every other one.
+> Pick on a ring you recognise — `:gob()` says what it was opened on and the payload says what is in it —
+> and read `FlowerMenuRemoved` for the label that was actually committed.
 
 ## Drawn or not (unprotected)
 

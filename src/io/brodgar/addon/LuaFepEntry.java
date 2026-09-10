@@ -82,6 +82,22 @@ final class LuaFepEntry {
         return mt;
     }
 
+    /**
+     * <b>The one builder of the food-event shape</b> {@code {res?, name?, amount}} (audit2 B16, ch-15) —
+     * {@code fepentry:info()} here, and one row of {@code food:info()}'s {@code fep.entries} array over in
+     * {@link LuaFood}. It was written twice, from the same three values, and two builders of one shape are
+     * two spellings of it the day one of them grows a field.
+     */
+    static LuaValue snapshot(String res, String name, double amount) {
+        LuaTable t = new LuaTable();
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        t.set("amount", LuaValue.valueOf(amount));
+        return t;
+    }
+
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
         m.set("res", new OneArgFunction() {
@@ -104,13 +120,7 @@ final class LuaFepEntry {
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaFepEntry h = handle(self, "info");
-                LuaTable t = new LuaTable();
-                if(h.res != null)
-                    t.set("res", LuaValue.valueOf(h.res));
-                if(h.name != null)
-                    t.set("name", LuaValue.valueOf(h.name));
-                t.set("amount", LuaValue.valueOf(h.amount));
-                return t;
+                return snapshot(h.res, h.name, h.amount);
             }
         });
         return m;
