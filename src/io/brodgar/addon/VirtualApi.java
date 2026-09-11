@@ -226,7 +226,7 @@ final class VirtualApi {
 
             public LuaValue addMember(Varargs a) {
                 LuaValue rv = a.arg(2);
-                if(!rv.isstring() || rv.isnumber())
+                if(rv.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.virtual():ghost():add(res, p) expects a resource NAME string (e.g."
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
                         + " addon ships is hafen.virtual():sprite():add(asset, p) / :object():add(asset, p)");
@@ -1369,10 +1369,7 @@ final class VirtualApi {
 
     /** The {@code key} of {@code hafen.virtual():click(key, x, y)}, refused by name rather than ignored. */
     private static String pointerKey(LuaValue kv) {
-        if(!kv.isstring())
-            throw new LuaError("hafen.virtual():click(key, x, y): key is one of " + POINTER_KEYS + ", got "
-                + kv.typename());
-        String s = kv.tojstring();
+        String s = Args.str(kv, "hafen.virtual():click", "key", "one of " + POINTER_KEYS).tojstring();
         if(s.equals("MouseDown") || s.equals("MouseUp") || s.equals("MouseMove") || s.equals("Wheel"))
             return s;
         throw new LuaError("hafen.virtual():click(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
@@ -1443,7 +1440,7 @@ final class VirtualApi {
                     String nm = gh.visualName();   // audit2 B06: read under the monitor :res(name) writes under
                     return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
                 }
-                if(!rv.isstring() || rv.isnumber())
+                if(rv.type() != LuaValue.TSTRING)
                     throw new LuaError("ghost:res(res [, spawnData]) expects a resource NAME string, got "
                         + rv.typename());
                 setGhostRes(gh, rv.tojstring(), luaSdt(a.arg(3), "ghost:res"));   // swaps the visual; it streams in like new
@@ -1671,7 +1668,7 @@ final class VirtualApi {
      * distinguishable: a path string, a disposed mesh, anything else.
      */
     private static LuaMesh resolveObjectMesh(LuaValue modelv) {
-        if(modelv.isstring() && !modelv.isnumber())    // in LuaJ a number IS a string — that one is just a wrong type
+        if(modelv.type() == LuaValue.TSTRING)    // in LuaJ a number IS a string — that one is just a wrong type
             throw new LuaError("hafen.virtual():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
@@ -1797,7 +1794,7 @@ final class VirtualApi {
      * which is precisely what a {@code "screen"} blit is not and why the two were never the same word.
      */
     private static String facingArg(LuaValue mv, String kind) {
-        if(!mv.isstring() || mv.isnumber())
+        if(mv.type() != LuaValue.TSTRING)
             throw new LuaError(kind + ":facing(mode) expects a mode STRING — " + MODES + ", got "
                 + mv.typename());
         String s = mv.tojstring();
@@ -1843,7 +1840,7 @@ final class VirtualApi {
      * way in. The three failures are distinguishable: a path string, a disposed image, anything else.
      */
     private static LuaImage resolveSpriteImage(LuaValue imgv) {
-        if(imgv.isstring() && !imgv.isnumber())        // in LuaJ a number IS a string — that one is just a wrong type
+        if(imgv.type() == LuaValue.TSTRING)        // in LuaJ a number IS a string — that one is just a wrong type
             throw new LuaError("hafen.virtual():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");

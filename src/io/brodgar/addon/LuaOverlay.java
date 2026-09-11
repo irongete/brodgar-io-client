@@ -278,7 +278,7 @@ public final class LuaOverlay {
 
     /** A key argument: a string, and never a number — LuaJ counts a number as a string, so coerce nothing. */
     private static String keyArg(LuaValue kv, String verb) {
-        if(!kv.isstring() || kv.isnumber())
+        if(kv.type() != LuaValue.TSTRING)
             throw new LuaError(verb + "(key): the key must be a string -- it is YOUR name for this overlay"
                 + " (keys are per addon), and a native one is the overlay's resource name");
         String k = kv.tojstring();
@@ -451,8 +451,7 @@ public final class LuaOverlay {
                 LuaGobOverlay.Attach rec = writable(owner, self, "text");
                 if(sv == null)
                     return ((rec == null) || (rec.text == null)) ? LuaValue.NIL : LuaValue.valueOf(rec.text);
-                if(!sv.isstring())
-                    throw new LuaError("overlay:text(s) expects a string label, got " + sv.typename());
+                Args.str(sv, "overlay:text", "s", "the label to draw over the object");   // the TYPE: 42 is not one
                 // audit2 B15: bounded at the WRITE, because the label is drawn from Java and the render pass
                 // has no caller to refuse to -- LuaGOut.MAXTEXT's rule, at the door a gob's label comes through.
                 if(sv.tojstring().length() > MAXLABEL)

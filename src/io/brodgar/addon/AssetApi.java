@@ -119,10 +119,12 @@ final class AssetApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
+                // The TYPE, not isnumber()/isstring(): in LuaJ a number answers isstring() and a string that
+                // scans as a number answers isnumber(), so the pair refused a file named "1" as a number.
+                if(key.type() == LuaValue.TNUMBER)
                     throw new LuaError("hafen.asset():get(path): the key is an addon-relative PATH string (e.g."
                         + " \"icon.png\"), not a number");
-                if(!key.isstring())
+                if(key.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.asset():get(path): expected an addon-relative path string (e.g."
                         + " hafen.asset():get(\"icon.png\")), got " + key.typename());
                 return AssetApi.load(owner, key.tojstring());   // qualify: LuaValue also has a load(...)

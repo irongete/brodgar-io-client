@@ -176,10 +176,10 @@ public final class LuaSheet {
             public Varargs invoke(Varargs a) {
                 LuaSheet s = handle(a.arg1(), "rule");
                 LuaValue k = Args.required(a, 2, "sheet:rule", "selector");
-                if(k.isnumber())    // BEFORE isstring(): in LuaJ a number IS a string (the hafen.asset lesson)
+                if(k.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
                     throw new LuaError("sheet:rule(selector): a rule is named by a SELECTOR string (e.g. \"*\","
                         + " \"chat\", \"window.title\"), not a number");
-                if(!k.isstring())
+                if(k.type() != LuaValue.TSTRING)
                     throw new LuaError("sheet:rule(selector): expected a selector string, got " + k.typename());
                 return s.ruleFor(owner, k.tojstring());
             }
@@ -233,10 +233,10 @@ public final class LuaSheet {
                 LuaValue k = a.arg(2);
                 if(k.isnil())
                     return Stock.catalogue();
-                if(k.isnumber())    // BEFORE isstring(): in LuaJ a number IS a string (the hafen.asset lesson)
+                if(k.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
                     throw new LuaError("sheet:stock(key): a site is named by a SELECTOR string (e.g. \"*\","
                         + " \"chat\", \"window.frame\"), not a number");
-                if(!k.isstring())
+                if(k.type() != LuaValue.TSTRING)
                     throw new LuaError("sheet:stock(key): expected a selector string, got " + k.typename());
                 return Stock.one(k.tojstring());
             }

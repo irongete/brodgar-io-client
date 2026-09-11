@@ -128,10 +128,10 @@ final class FontApi {
      * handle. A path, a typo or a missing argument all raise an error naming this call and {@code hafen.asset}.
      */
     private static LuaValue builtin(Addon owner, LuaValue namev) {
-        if(namev.isnumber())        // BEFORE isstring(): in LuaJ a number IS a string
+        if(namev.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
             throw new LuaError("hafen.font():get(name): the key is a built-in font NAME (" + BUILTINS + "),"
                 + " not a number");
-        if(!namev.isstring())
+        if(namev.type() != LuaValue.TSTRING)
             throw new LuaError("hafen.font():get(name): expected a built-in font name (" + BUILTINS + "), got "
                 + namev.typename() + " — the addon's own .ttf/.otf is hafen.asset():get(\"fonts/Inter.ttf\")");
         final String name = namev.tojstring();
@@ -235,11 +235,11 @@ final class FontApi {
             k = n.arg1();
             if(k.isnil())
                 break;
-            // BEFORE isstring(): in LuaJ a number IS a string, so a numeric key would read as a property name
-            String p = (!k.isnumber() && k.isstring()) ? k.tojstring() : null;
+            // the TYPE: in LuaJ a number answers isstring(), so a numeric key would read as a property name
+            String p = (k.type() == LuaValue.TSTRING) ? k.tojstring() : null;
             LuaValue pv = n.arg(2);
             if("builtin".equals(p) || "asset".equals(p)) {
-                String s = (pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null;
+                String s = (pv.type() == LuaValue.TSTRING) ? pv.tojstring() : null;
                 if(s == null)
                     throw new LuaError(what + "." + p + ": expected "
                         + ("builtin".equals(p) ? "a built-in font name (" + BUILTINS + ")"

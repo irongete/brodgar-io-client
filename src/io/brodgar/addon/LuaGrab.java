@@ -117,7 +117,7 @@ public final class LuaGrab {
                 LuaGrab g = self(a.arg1(), "on");
                 LuaValue keyArg = Args.required(a, 2, "grab:on", "key");
                 LuaValue fnArg = Args.required(a, 3, "grab:on", "fn");
-                if(!keyArg.isstring() || !fnArg.isfunction())
+                if((keyArg.type() != LuaValue.TSTRING) || !fnArg.isfunction())   // the TYPE: 42 answers isstring()
                     throw new LuaError("grab:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
                 if(!"Move".equals(key) && !"Up".equals(key))

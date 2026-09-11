@@ -346,11 +346,16 @@ final class HttpApi {
         // has not come back yet, so arming a second listener is a moment rather than a mistake.
         m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue keyArg = Args.required(a, 2, "request:on", "key");
+                // Args first, and one argument at a time (the hafen.console():on shape). The key is asked for
+                // its TYPE: the old `isnumber() || !isstring()` pair refused "42" -- an ordinary string, since
+                // in LuaJ a string that scans as a number answers isnumber() too -- with the sentence meant
+                // for a missing pair. Now a real number is refused as the wrong kind, and a string that is
+                // not an event reaches the refusal below, which names it.
+                String key = Args.str(a, 2, "request:on", "key", "the event to hear, which is done").tojstring();
                 LuaValue fnArg = Args.required(a, 3, "request:on", "fn");
-                if(keyArg.isnumber() || !keyArg.isstring() || !fnArg.isfunction())
-                    throw new LuaError("request:on(key, fn) expects (string, function)");
-                String key = keyArg.tojstring();
+                if(!fnArg.isfunction())
+                    throw new LuaError("request:on(key, fn): fn must be a function -- it runs once with the"
+                        + " result, got " + fnArg.typename());
                 if(!LuaHttpRequest.DONE.equals(key))
                     throw new LuaError("request:on(key, fn): a request has no event '" + key + "' -- it has:"
                         + " done, which fires once with the result (res:ok() says whether the exchange"

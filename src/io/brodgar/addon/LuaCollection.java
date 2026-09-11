@@ -482,7 +482,7 @@ public final class LuaCollection {
                     if(msg != null)
                         throw new LuaError(msg);
                 }
-                if(key.isnumber())
+                if(key.type() == LuaValue.TNUMBER)
                     throw new LuaError(coll.name + " is a collection, not an array: " + coll.name
                         + ":list() is the array and you index that");
                 // The commonest reach for a verb a collection has not got. "has no verb 'get'" is true and

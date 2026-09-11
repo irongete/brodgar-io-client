@@ -111,7 +111,7 @@ final class LuaMouse {
             public Varargs invoke(Varargs a) {
                 LuaValue keyArg = Args.required(a, 2, "mouse():on", "key");
                 LuaValue fnArg = Args.required(a, 3, "mouse():on", "fn");
-                if(!keyArg.isstring() || !fnArg.isfunction())
+                if((keyArg.type() != LuaValue.TSTRING) || !fnArg.isfunction())   // the TYPE: 42 answers isstring()
                     throw new LuaError("mouse():on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
                 if(!PointerPick.KEY.equals(key))

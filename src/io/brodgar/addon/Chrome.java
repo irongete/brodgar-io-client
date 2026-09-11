@@ -207,7 +207,7 @@ final class Chrome {
 
     /** One of the nine {@link #CORNERS}, as its index. Anything else is a typo, and says so — naming all nine. */
     static int cornerOf(String ctx, String what, LuaValue v) {
-        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        String s = (v.type() == LuaValue.TSTRING) ? v.tojstring() : null;
         for(int i = 0; (s != null) && (i < CORNERS.length); i++) {
             if(CORNERS[i].equals(s))
                 return i;
@@ -321,7 +321,7 @@ final class Chrome {
     private static String modeOf(String ctx, String what, LuaValue v, String dflt) {
         if(v.isnil())
             return dflt;
-        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        String s = (v.type() == LuaValue.TSTRING) ? v.tojstring() : null;
         if(STRETCH.equals(s) || TILE.equals(s))
             return s;
         throw new LuaError(ctx + what + ".mode: expected \"" + STRETCH + "\" (scale the art across the run) or"
@@ -2021,7 +2021,7 @@ final class Chrome {
                     + " — hafen.asset():get(\"img/panel.png\")");
             return Src.of(li);
         }
-        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        String s = (v.type() == LuaValue.TSTRING) ? v.tojstring() : null;
         if(s == null)
             throw new LuaError(ctx + what + "." + prop + ": expected a "
                 + ("asset".equals(prop) ? "path string, relative to your addon's folder — \"img/panel.png\""
@@ -2410,7 +2410,7 @@ final class Chrome {
             } else if("parts".equals(p)) {
                 parts = parseParts(owner, ctx, ".border.parts", pv);
             } else if("box".equals(p)) {
-                box = (pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null;
+                box = (pv.type() == LuaValue.TSTRING) ? pv.tojstring() : null;
                 if(box == null)
                     throw new LuaError(ctx + ".border.box: expected the resource FOLDER of one of the client's"
                         + " own frames — { box = \"gfx/hud/wnd\" }, got " + pv.typename());
@@ -2621,6 +2621,6 @@ final class Chrome {
 
     /** A table key as a property name, or {@code null} for anything that is not a plain string (numbers included). */
     private static String key(LuaValue k) {
-        return (!k.isnumber() && k.isstring()) ? k.tojstring() : null;
+        return (k.type() == LuaValue.TSTRING) ? k.tojstring() : null;
     }
 }

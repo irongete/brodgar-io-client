@@ -160,7 +160,7 @@ final class LuaHudOverlay {
 
     /** A key argument: a string, and yours — keys are per addon, so two addons' {@code "hud"} never collide. */
     private static String keyArg(LuaValue kv, String verb) {
-        if(!kv.isstring() || kv.isnumber())
+        if(kv.type() != LuaValue.TSTRING)
             throw new LuaError(verb + "(key): the key must be a string — it is YOUR name for this painter,"
                 + " and keys are per addon");
         return kv.tojstring();

@@ -1064,7 +1064,7 @@ final class Layout {
             k = n.arg1();
             if(k.isnil())
                 break;
-            String p = (!k.isnumber() && k.isstring()) ? k.tojstring() : null;
+            String p = (k.type() == LuaValue.TSTRING) ? k.tojstring() : null;
             LuaValue pv = n.arg(2);
             if("to".equals(p)) {
                 LuaWidget h = LuaWidget.resolve(pv);
@@ -1075,7 +1075,7 @@ final class Layout {
                     // this parse free of the tree monitor, and either way the anchor takes the same inert path.
                     to = Anchor.WIDGET;
                     tgt = h.wdg;
-                } else if("screen".equals((pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null)) {
+                } else if("screen".equals((pv.type() == LuaValue.TSTRING) ? pv.tojstring() : null)) {
                     to = Anchor.SCREEN;
                 } else {
                     throw new LuaError(ctx + ".anchor.to: expected \"screen\" or a widget"

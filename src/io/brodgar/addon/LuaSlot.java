@@ -265,7 +265,7 @@ public final class LuaSlot {
                 // in pagina:use() (D-213). The gate answers "may this addon assign one of the game's actions";
                 // this string is not one, whoever asks — the caller wants the other verb, and that is decided
                 // at the line that wrote it rather than by what the manifest happens to declare.
-                if(rv.isstring() && !rv.isnumber() && rv.tojstring().trim().startsWith(AddonPagina.PREFIX)) {
+                if((rv.type() == LuaValue.TSTRING) && rv.tojstring().trim().startsWith(AddonPagina.PREFIX)) {
                     throw new LuaError("slot:res(resourceName): \"" + rv.tojstring().trim() + "\" is an entry"
                         + " an addon added to the menu, and the server has never heard of it — this verb"
                         + " assigns one of the game's own actions, by the name the server publishes. Hold the"
@@ -273,10 +273,10 @@ public final class LuaSlot {
                 }
                 AddonManager.requirePermission(AddonManager.current(), Permission.ACTIONBAR_RES);
                 LuaSlot h = handle(self, "res");
-                if(!rv.isstring())
-                    throw new LuaError("slot:res(resourceName): expected a resource name string, got "
-                        + rv.typename() + " (e.g. slot:res(\"gfx/hud/act/mine\"))");
-                String res = rv.tojstring().trim();
+                // The TYPE (Args.str): a protected write, and 42 answers isstring() in LuaJ, so the laxer test
+                // sent "42" to the server as a resource name -- the kin:add hole, on the action bar.
+                String res = Args.str(rv, "slot:res", "resourceName", "e.g. slot:res(\"gfx/hud/act/mine\")")
+                    .tojstring().trim();
                 if(res.isEmpty())
                     throw new LuaError("slot:res(resourceName): the resource name is empty");
                 // THAT character's own HUD sends it: GameUI.wdgmsg walks its own tree to its own Session, so

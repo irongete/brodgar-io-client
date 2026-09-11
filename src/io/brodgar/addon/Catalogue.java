@@ -128,7 +128,7 @@ final class Catalogue {
             k = it.arg1();
             if(k.isnil())
                 break;
-            String p = (!k.isnumber() && k.isstring()) ? k.tojstring() : null;
+            String p = (k.type() == LuaValue.TSTRING) ? k.tojstring() : null;   // the TYPE: "42" is a string key
             LuaValue v = it.arg(2);
             if("text".equals(p)) {
                 n = parseText(ctx, v, out, order);
@@ -158,12 +158,13 @@ final class Catalogue {
             k = it.arg1();
             if(k.isnil())
                 break;
-            // BEFORE isstring(): in LuaJ a number IS a string (the hafen.asset lesson), so a list of
-            // surfaces would read as a table of nameless ones.
-            if(k.isnumber())
+            // The TYPE, not isnumber()/isstring(): in LuaJ a number answers isstring(), so a list of
+            // surfaces would read as a table of nameless ones — and "42" answers isnumber(), so a string
+            // key that scans as a number read as a list.
+            if(k.type() == LuaValue.TNUMBER)
                 throw new LuaError(ctx + ".text: a surface is named by a string (\"button\", \"chat\","
                     + " \"*\"), not a number — this half of a catalogue is keyed, not a list");
-            if(!k.isstring())
+            if(k.type() != LuaValue.TSTRING)
                 throw new LuaError(ctx + ".text: a surface is named by a string, got " + k.typename());
             String surface = k.tojstring();
             surface(ctx, surface);
@@ -189,11 +190,11 @@ final class Catalogue {
             k = it.arg1();
             if(k.isnil())
                 break;
-            if(k.isnumber() || !k.isstring())
+            if(k.type() != LuaValue.TSTRING)
                 throw new LuaError(ctx + ": an entry is keyed on the STRING the client would draw, got "
                     + k.typename() + " — a catalogue matches text, not a position");
             LuaValue d = it.arg(2);
-            if(d.isnumber() || !d.isstring())
+            if(d.type() != LuaValue.TSTRING)
                 throw new LuaError(ctx + "[\"" + k.tojstring() + "\"]: what to display is a string, got "
                     + d.typename());
             into.put(k.tojstring(), d.tojstring());

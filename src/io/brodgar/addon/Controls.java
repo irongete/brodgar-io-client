@@ -811,7 +811,7 @@ final class Controls {
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex.back;
         }
-        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
+        if(v.type() == LuaValue.TSTRING) {       // in LuaJ a number IS a string — that one is just a wrong type
             String name = v.tojstring();
             if(fileish(name))
                 throw new LuaError("widget:image: \"" + name + "\" looks like a file in your own addon folder,"
@@ -854,7 +854,7 @@ final class Controls {
             // blits it every frame; the dead test above is one-shot, and nothing else re-asks it.
             return LuaImage.live(li, li.tex);
         }
-        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
+        if(v.type() == LuaValue.TSTRING) {       // in LuaJ a number IS a string — that one is just a wrong type
             String name = v.tojstring();
             if(fileish(name))
                 throw new LuaError("widget:image: \"" + name + "\" looks like a file in your own addon folder,"
@@ -1132,7 +1132,7 @@ final class Controls {
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return LuaImage.live(li, li.tex);   // audit2 B15: a live view — see faceTex
         }
-        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
+        if(v.type() == LuaValue.TSTRING) {       // in LuaJ a number IS a string — that one is just a wrong type
             String name = v.tojstring();
             if(fileish(name))
                 throw new LuaError("widget:source: \"" + name + "\" looks like a file in your own addon folder,"

@@ -974,10 +974,10 @@ final class UiApi {
      * {@code isstring()} because in LuaJ a number IS a string (the {@code hafen.asset} lesson, 028).
      */
     static Selector selArg(LuaValue v, String where) {
-        if(v.isnumber())
+        if(v.type() == LuaValue.TNUMBER)
             throw new LuaError(where + ": the argument is a SELECTOR string (e.g. \"window[title=Cupboard]\"),"
                 + " not a number — s:ui():node(id) is the one that takes a widget id");
-        if(!v.isstring())
+        if(v.type() != LuaValue.TSTRING)
             throw new LuaError(where + " expects a selector string (e.g. \"*\", \"inventory\","
                 + " \"@Equipory\", \"window[title=Cupboard]\"), got " + v.typename());
         return Selector.parse(v.tojstring());
@@ -1359,8 +1359,7 @@ final class UiApi {
                                              LuaValue fn) {
         final String where = UIS + ":on(selector, event, fn)";
         Selector sel = selArg(selv, where);
-        if(!eventv.isstring())
-            throw new LuaError(where + ": event must be \"Added\" or \"Removed\", got " + eventv.typename());
+        Args.str(eventv, where, "event", "\"Added\" or \"Removed\"");   // the TYPE: 42 answers isstring() in LuaJ
         // 097: a key that MOVED is caught HERE, before the event is decoded, so an addon written against the
         // old spelling dies naming the new one rather than being told its own spelling is not an event.
         String moved = Refusal.eventKey(UIS, eventv.tojstring());

@@ -2483,7 +2483,7 @@ public final class AddonManager {
                         + " stream object (hafen.event():" + nm + "():on(msg, fn))");
                 LuaValue nmv = Args.required(a, 2, "hafen.event():" + nm + "():on", "msg");
                 LuaValue fn = Args.required(a, 3, "hafen.event():" + nm + "():on", "fn");
-                if(!nmv.isstring() || !fn.isfunction())
+                if((nmv.type() != LuaValue.TSTRING) || !fn.isfunction())   // the TYPE: 42 answers isstring() in LuaJ
                     throw new LuaError("hafen.event():" + nm + "():on(msg, fn) expects (string, function)");
                 return subs.on(nmv.tojstring(), fn);
             }
@@ -5047,7 +5047,7 @@ public final class AddonManager {
                 Section.self(a.arg1(), "event", "on");
                 LuaValue nm = Args.required(a, 2, "hafen.event():on", "key");
                 LuaValue fn = Args.required(a, 3, "hafen.event():on", "fn");
-                if(!nm.isstring() || !fn.isfunction())
+                if((nm.type() != LuaValue.TSTRING) || !fn.isfunction())   // the TYPE: 42 answers isstring() in LuaJ
                     throw new LuaError("hafen.event():on(key, fn) expects (string, function)");
                 String key = nm.tojstring();
                 String moved = Refusal.eventKey("hafen.event()", key);

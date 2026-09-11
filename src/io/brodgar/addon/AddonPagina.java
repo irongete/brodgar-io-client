@@ -582,7 +582,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         LuaPagina h = LuaPagina.resolve(x);
         if(h != null)
             return h.res;
-        if(x.isnumber() || !x.isstring())
+        if(x.type() != LuaValue.TSTRING)   // the TYPE: in LuaJ "42" answers isnumber() and 42 isstring()
             throw new LuaError(CharApi.MG + ":remove(idOrPagina): expected the Pagina object :add() handed"
                 + " you, or its id as a string, got " + x.typename());
         String s = x.tojstring();
@@ -598,7 +598,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      */
     private static String relative(Addon owner, LuaValue key, String verb) {
         String call = CharApi.MG + ":" + verb + "(id" + (verb.equals("remove") ? "OrPagina" : "") + ")";
-        if(key.isnumber() || !key.isstring())
+        if(key.type() != LuaValue.TSTRING)   // the TYPE: an id that merely scans as a number ("42") is a string
             throw new LuaError(call + ": expected a string id, addon-relative like an asset path (\"dig\","
                 + " \"tools/dig\"), got " + key.typename());
         String s = key.tojstring();

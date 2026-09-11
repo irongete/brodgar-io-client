@@ -1,0 +1,8 @@
+{
+  "id": "138-a-numeric-string-is-a-string.1",
+  "name": "138.1 — a numeric string is a string",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Suite: at every door an argument's TYPE is what is checked — a string that scans as a number is a string, and a number where a string goes is refused naming tostring(n). Run :t138.",
+  "files": ["main.lua"]
+}

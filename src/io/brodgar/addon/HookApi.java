@@ -150,9 +150,10 @@ final class HookApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isstring())
-                    return LuaValue.NIL;
-                String nm = key.tojstring();
+                // The TYPE, and refused rather than nil: a name you never registered is nil (below), but a
+                // number is not a name -- and in LuaJ 42 answers isstring(), so the old test looked "42" up.
+                String nm = Args.str(key, "hafen.console():get", "name", "the word typed after the colon")
+                    .tojstring();
                 for(LuaSub s : owner.consoleSubs.live()) {
                     if(s.key.equals(nm))
                         return s.handle();

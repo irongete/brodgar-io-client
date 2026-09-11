@@ -440,10 +440,10 @@ final class Sheet {
             k = n.arg1();
             if(k.isnil())
                 break;
-            if(k.isnumber())     // BEFORE isstring(): in LuaJ a number IS a string (the hafen.asset lesson, 028)
+            if(k.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
                 throw new LuaError(ctx + ": a sheet key is a SELECTOR string (e.g. \"*\", \"chat\","
                     + " \"window.title\"), not a number — a sheet is keyed, not an array");
-            if(!k.isstring())
+            if(k.type() != LuaValue.TSTRING)
                 throw new LuaError(ctx + ": a sheet key is a SELECTOR string, got " + k.typename());
             keys.add(k.tojstring());
         }
@@ -515,7 +515,7 @@ final class Sheet {
             pk = n.arg1();
             if(pk.isnil())
                 break;
-            String p = (!pk.isnumber() && pk.isstring()) ? pk.tojstring() : null;
+            String p = (pk.type() == LuaValue.TSTRING) ? pk.tojstring() : null;
             LuaValue pv = n.arg(2);
             if("font".equals(p)) {
                 out.font = font(owner, ctx, pv);

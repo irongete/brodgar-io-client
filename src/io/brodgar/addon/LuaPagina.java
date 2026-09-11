@@ -242,7 +242,7 @@ public final class LuaPagina {
                     String n = dispname(button(self, "name"));
                     return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
                 }
-                if(v.isnumber() || !v.isstring())
+                if(v.type() != LuaValue.TSTRING)
                     throw new LuaError("pagina:name(text): the display name is a string — the one the grid"
                         + " paints over the button and shows in its tooltip; got " + v.typename());
                 LuaPagina h = handle(self, "name");
@@ -314,7 +314,7 @@ public final class LuaPagina {
                     String t = tooltip(button(self, "tooltip"));
                     return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
                 }
-                if(v.isnumber() || !v.isstring())
+                if(v.type() != LuaValue.TSTRING)
                     throw new LuaError("pagina:tooltip(text): the description is a string — the line the grid"
                         + " paints under the name; got " + v.typename());
                 LuaPagina h = handle(self, "tooltip");
@@ -346,7 +346,7 @@ public final class LuaPagina {
                 LuaValue self = a.arg1();
                 LuaValue keyArg = Args.required(a, 2, "pagina:on", "key");
                 LuaValue fnArg = Args.required(a, 3, "pagina:on", "fn");
-                if(keyArg.isnumber() || !keyArg.isstring() || !fnArg.isfunction())
+                if(keyArg.type() != LuaValue.TSTRING || !fnArg.isfunction())
                     throw new LuaError("pagina:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
                 if(!"use".equals(key))
@@ -485,7 +485,7 @@ public final class LuaPagina {
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li;
         }
-        if(v.isstring() && !v.isnumber())
+        if(v.type() == LuaValue.TSTRING)
             throw new LuaError("pagina:icon(image): \"" + v.tojstring() + "\" is a path, and an icon is the"
                 + " HANDLE the loader hands back — hafen.asset():get(\"" + v.tojstring() + "\"). A menu entry"
                 + " draws a file your addon ships, not one of the client's own resources.");
@@ -506,7 +506,7 @@ public final class LuaPagina {
     private static MenuGrid.Pagina category(String user, LuaValue v) {
         LuaPagina h = resolve(v);
         if(h == null) {
-            if(v.isstring() && !v.isnumber())
+            if(v.type() == LuaValue.TSTRING)
                 throw new LuaError("pagina:parent(pagOrNil): \"" + v.tojstring() + "\" is a key, and a parent is"
                     + " the Pagina object — " + CharApi.MG + ":get(\"" + v.tojstring() + "\"), or nil for the"
                     + " root screen");
@@ -901,11 +901,11 @@ public final class LuaPagina {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(key.isnumber())                  // BEFORE isstring(): in LuaJ a number IS a string
+                if(key.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
                     throw new LuaError(CharApi.MG + ":get(key): the menu has no positions to address — the"
                         + " catalogue grows on every discovery, so a position is not an index. Use a resource"
                         + " name (\"paginae/act/dig\") or a display name (\"Dig\").");
-                if(!key.isstring())
+                if(key.type() != LuaValue.TSTRING)
                     throw new LuaError(CharApi.MG + ":get(key): expected a string — one with a '/' is a"
                         + " resource name, any other is a display name; got " + key.typename());
                 String k = key.tojstring();

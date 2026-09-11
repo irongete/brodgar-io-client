@@ -637,10 +637,10 @@ public final class LuaSound {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(key.isnumber())              // BEFORE isstring(): in LuaJ a number IS a string
+                if(key.type() == LuaValue.TNUMBER)   // the TYPE: 42 answers isstring(), "42" isnumber()
                     throw new LuaError("hafen.sound():get(name): the key is a RESOURCE NAME string (e.g."
                         + " \"sfx/msg\"), not a number");
-                if(!key.isstring())
+                if(key.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.sound():get(name): expected a resource name string (e.g."
                         + " hafen.sound():get(\"sfx/msg\")), got " + key.typename());
                 String res = key.tojstring().trim();

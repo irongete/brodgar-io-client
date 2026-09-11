@@ -937,7 +937,7 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "on"));
                 LuaValue keyArg = Args.required(a, 2, "widget:on", "key");
                 LuaValue fnArg = Args.required(a, 3, "widget:on", "fn");
-                if(!keyArg.isstring() || !fnArg.isfunction())
+                if((keyArg.type() != LuaValue.TSTRING) || !fnArg.isfunction())   // the TYPE: 42 answers isstring()
                     throw new LuaError("widget:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
                 // THE TREE BEFORE THE KEY (084.5). A widget that is gone has no vocabulary of its own left to
@@ -1727,7 +1727,7 @@ public final class LuaWidget {
                     return a.arg1();               // 029.2: a write on a stale widget is a silent no-op
                 mine(owner, w, "name");
                 LuaValue nv = a.arg(2);
-                if(!nv.isstring() || nv.isnumber())
+                if(nv.type() != LuaValue.TSTRING)
                     throw new LuaError("widget:name(name): expected a string — the word your addon calls this"
                         + " widget by, which a theme then names back as [name=<your addon>/<the word>]");
                 String n = nv.tojstring().trim();
