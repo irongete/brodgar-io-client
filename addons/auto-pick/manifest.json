@@ -1,9 +1,0 @@
-{
-  "id": "auto-pick",
-  "name": "Auto Pick",
-  "version": "0.1.0",
-  "author": "irongete",
-  "description": "Whenever a radial menu offers a \"Pick\" petal, picks it automatically. One key toggles it on or off, per login; assign it in Options > Keybindings > Auto Pick.",
-  "files": ["main.lua"],
-  "permissions": ["flowermenu.select"]
-}

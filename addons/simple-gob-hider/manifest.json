@@ -1,8 +1,0 @@
-{
-  "id": "simple-gob-hider",
-  "name": "Simple Gob Hider",
-  "version": "0.1.0",
-  "author": "irongete",
-  "description": "One key hides the game objects whose resource is on its list and paints a yellow patch over the ground each of them stands on. Assign the key in Options > Keybindings > Simple Gob Hider.",
-  "files": ["main.lua"]
-}

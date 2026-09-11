@@ -1,9 +1,0 @@
-{
-  "id": "essentials",
-  "name": "Essentials",
-  "version": "0.1.0",
-  "author": "gonzalo",
-  "description": "What the client does for a character the moment it enters the world: the toggles, the inventory and the movement speed, each a row in Options > AddOns.",
-  "files": ["main.lua"],
-  "permissions": ["menugrid.use", "speed.set"]
-}

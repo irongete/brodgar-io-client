@@ -169,9 +169,9 @@ themed like anything else, and it needs to know nothing about themes to be:
   `[name^=actionbars/slot]`, and one of them alone with `[name=actionbars/slot7]`. The two weigh the same,
   so an exception goes in a **chain** — `["[name=actionbars/bar] [name=actionbars/slot7]"]` — which sums
   to 32 and wins outright.
-- **Ask the addon what it calls things**, or point [WidgetStack](../../../addons/widgetstack/) at it: names
-  are part of what an addon publishes, like its console commands, and a name nobody answers to matches
-  nothing rather than erroring.
+- **Ask the addon what it calls things**, or point the bundled **`widgetstack`** at it
+  ([the bundled addons](../examples.md)): names are part of what an addon publishes, like its console
+  commands, and a name nobody answers to matches nothing rather than erroring.
 
 ## Where it stops
 

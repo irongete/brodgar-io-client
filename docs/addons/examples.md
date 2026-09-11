@@ -4,13 +4,15 @@ The addons below ship with the client, in the same `addons/` folder yours goes i
 illustrates a surface — a reference page states its own. The **tools** are the ones you point at your own
 addon: what a widget on the screen is and how to name it, and what the client is doing as it does it.
 Beside them stands a **surface of the client's own**, written in Lua like any other addon: the switcher
-over the logins the client holds.
+over the logins the client holds. They are kept, with every other addon of the maintainer's, in a
+repository of their own — [brodgar-io-client-addons](https://github.com/irongete/brodgar-io-client-addons) —
+and a release copies these three beside the client.
 
 | Addon | Use it to |
 |---|---|
-| [`widgetstack`](../../addons/widgetstack/main.lua) | find out what a widget is, and how to name it |
-| [`eventstack`](../../addons/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
-| [`session-manager`](../../addons/session-manager/main.lua) | go between the characters you have logged in |
+| [`widgetstack`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/widgetstack/main.lua) | find out what a widget is, and how to name it |
+| [`eventstack`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
+| [`session-manager`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/session-manager/main.lua) | go between the characters you have logged in |
 
 The tools are **dormant** — installed and enabled, but drawing nothing and reading nothing until you press
 their hotkey or type their command — so having them on costs you an untouched login. The log is the one

@@ -3,6 +3,10 @@
 <project name="hafen" default="deftgt" xmlns:if="ant:if">
   <property file="build.properties" />
   <property name="ext-lib-base" value="http://www.havenandhearth.com/java" />
+  <!-- addon: the maintainer's addons live in their own repository, brodgar-io-client-addons, checked out
+       beside this one. bin/ (the sandbox) takes every addon it holds; a release takes only the ones
+       etc/release-addons names. Override with an `addons.repo=` line in build.properties. -->
+  <property name="addons.repo" value="../brodgar-io-client-addons" />
 
   <target name="build-env">
     <mkdir dir="build" />
@@ -209,8 +213,13 @@
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
       <fileset dir="lib/brodgar"><include name="*.jar" /></fileset>
     </copy>
+    <!-- addon: the suite in flight (addons/ holds nothing else), and every addon of the maintainer's from
+         the sibling checkout; the repository's own README stays behind, an addon's own README goes. -->
     <copy todir="bin/addons" failonerror="false" quiet="true">
       <fileset dir="addons" />
+    </copy>
+    <copy todir="bin/addons" failonerror="false" quiet="true">
+      <fileset dir="${addons.repo}" excludes="README.md,LICENSE*" />
     </copy>
     <copy todir="bin" failonerror="false" quiet="true">
       <fileset dir="build">
@@ -225,12 +234,13 @@
   <target name="deftgt" depends="jars, opt/panama, bin" />
 
   <!-- addon: a self-contained, playable install for handing to someone else. Unlike bin/ (the
-       development sandbox, which also carries whatever suite is in flight), dist/ holds only what
-       the client needs to run: the jars, the resource jars, the natives, the server config, the
-       addons, and run.bat. Every one of those is rebuilt from scratch, so an addon dropped from
-       addons/ leaves nothing of itself behind. savedata/ is the one exception, because it is the
-       store of whoever plays from this folder and the build has no business in it. A folder handed
-       to someone else is zipped WITHOUT savedata/. -->
+       development sandbox, which also carries whatever suite is in flight and every addon of the
+       maintainer's), dist/ holds only what the client needs to run: the jars, the resource jars, the
+       natives, the server config, the addons etc/release-addons names, and run.bat. Every one of
+       those is rebuilt from scratch, so an addon struck from the list leaves nothing of itself
+       behind. savedata/ is the one exception, because it is the store of whoever plays from this
+       folder and the build has no business in it. A folder handed to someone else is zipped WITHOUT
+       savedata/. -->
   <target name="release" depends="deftgt">
     <mkdir dir="dist" />
     <delete includeemptydirs="true">
@@ -256,11 +266,20 @@
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
       <fileset dir="lib/brodgar"><include name="*.jar" /></fileset>
     </copy>
-    <!-- The maintainer's own addons ship; a task suite (addons/<NNN>-<feature>.<X>/) does not. -->
-    <copy todir="dist/addons" failonerror="false" quiet="true">
-      <fileset dir="addons">
-	<filename regex="^[0-9]{3}-[^.]*[.][0-9]+" negate="true" />
-      </fileset>
+    <!-- The addons a release ships are the ids etc/release-addons lists, one per line, taken from the
+         sibling checkout; the suite in flight under addons/ never ships. The list is read into one
+         includes pattern (`id/**,` per line) and an empty list sets no property, so nothing is copied;
+         a bare includes="" would take the whole checkout. -->
+    <loadfile property="release-addons" srcFile="etc/release-addons" failonerror="false" quiet="true">
+      <filterchain>
+	<striplinecomments><comment value="#" /></striplinecomments>
+	<tokenfilter><trim /><ignoreblank /></tokenfilter>
+	<suffixlines suffix="/**," />
+	<striplinebreaks />
+      </filterchain>
+    </loadfile>
+    <copy todir="dist/addons" failonerror="false" quiet="true" if:set="release-addons">
+      <fileset dir="${addons.repo}" includes="${release-addons}" />
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="run.bat" destdir="dist" eol="crlf" />

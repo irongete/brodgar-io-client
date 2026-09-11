@@ -1,0 +1,6 @@
+# The addons a client release ships, one id per line, taken from the addons repository
+# (build.xml: addons.repo, ../brodgar-io-client-addons by default). A line starting with #
+# is a comment; an empty list ships none. The tools examples.md documents:
+widgetstack
+eventstack
+session-manager

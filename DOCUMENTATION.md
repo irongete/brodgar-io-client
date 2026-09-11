@@ -163,10 +163,11 @@ The docs describe what exists today. There is no release, no migration tier: his
 
 ## 9. Links, size, mechanics
 
-- **Relative paths only**, never a URL to the repo. Link the **page**, not an anchor, unless the
+- **Relative paths only**, never a URL to this repo. Link the **page**, not an anchor, unless the
   anchor is the actual answer. Link text is the thing linked (`s:world()`), never "here".
-- **No link leaves `docs/`**, with one exception: a shipped example addon under `addons/`, from the
-  page that also describes it — `examples.md`, and nothing else.
+- **No link leaves `docs/`**, with one exception: a shipped addon in the addons repository
+  (`brodgar-io-client-addons`, by URL, `blob/HEAD/<id>/main.lua`), from the page that also
+  describes it — `examples.md`, and nothing else.
 - **When you retitle a heading or move a page, you re-point every link into it in the same task.**
   The tree is link-clean at every task boundary, not only at a close.
 - **Ceiling: 300 lines**, and **split by subject, never by line count** — a 300-line page that is

@@ -11,8 +11,8 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `docs/addons/**` | **The contract.** What the API *is*, always current. The only model `/plan` and `/implement` need |
 | `docs/client/**` | **The map of the upstream `haven` engine**: where each subsystem lives, what owns what, and the gotchas that cost time. Written only by the task that had to read that source anyway |
 | `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
-| `addons/` | The maintainer's own addons, and the task suite in flight |
-| `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
+| `addons/` | The task suite in flight, and nothing else. The maintainer's own addons live in the sibling repository `brodgar-io-client-addons` (`../brodgar-io-client-addons`, `build.xml`'s `addons.repo`); `etc/release-addons` names the ones a release ships |
+| `bin/addons/` | What the running client actually scans, beside the jar. `ant bin` fills it from the sibling repository and from `addons/`; a suite is copied here to be run, and gitignored |
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
 | `tools/` | The checkers that hold `docs/` to `src/`: every documented verb resolved against its own **receiver's** vocabulary, and every verb a refusal offers as a replacement. Run them when either side moves — they exit non-zero, and they state their own blind spots |
@@ -139,10 +139,10 @@ the whole block back. Nothing needs interpreting — that round trip is the form
   stays around ≤ 15 output lines. More than that means it was two tasks.
 - `/implement` copies it to `bin/addons/` to be run, and re-copies it after every fix round. `/end`
   archives it into `specs/NNN-<feature>/addons/` and deletes the copy.
-- **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then.** Every
-  other folder under `addons/` is the maintainer's own: never archived, never deleted, never read
-  and never grown to carry a proof — fixed when a change breaks one, and that is all. A surface is
-  shown by its own page's example, never by a demo.
+- **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then**, and a
+  suite is the only thing `addons/` holds. The maintainer's own addons are the sibling repository's:
+  never archived, never deleted, never read and never grown to carry a proof — fixed when a change
+  breaks one, and that is all. A surface is shown by its own page's example, never by a demo.
 
 ## The cycle
 
