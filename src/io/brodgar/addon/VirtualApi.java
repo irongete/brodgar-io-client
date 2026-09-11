@@ -1451,10 +1451,11 @@ final class VirtualApi {
     }
 
     /**
-     * Destroy one world entity now (its {@code :destroy()}, and teardown): flip {@link LuaWorldEntity#dead} + hand
-     * off the slot/gob under the entity's monitor (so a still-pending deferred create sees {@code dead} and discards
-     * its un-added gob instead of leaking it), then remove the scene slot ({@link MapView#removeClientGob}, which
-     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the gob's visual.
+     * Destroy one world entity now (the collection's {@code :remove(x)}, and teardown): flip
+     * {@link LuaWorldEntity#dead} + hand off the slot/gob under the entity's monitor (so a still-pending deferred
+     * create sees {@code dead} and discards its un-added gob instead of leaking it), then remove the scene slot
+     * ({@link MapView#removeClientGob}, which swallows {@code SlotRemoved} for an already-torn-down scene) and
+     * dispose the gob's visual.
      * {@link LuaWorldEntity#unregister()} drops it from its addon's registry (ghosts / sprites). Shared by
      * ghosts and sprites. Idempotent.
      *
@@ -1537,7 +1538,7 @@ final class VirtualApi {
     /**
      * The {@link Resolve} retry body for a pending scene add (042.12) — runs on the UI thread via the tick's
      * resolve drain, never inline. Re-checks the entity is still live, visible and attached before touching
-     * the scene: the cancel/notify race (plan.md gotcha 10) means a {@code :reload} or a {@code :hide()} can
+     * the scene: the cancel/notify race (plan.md gotcha 10) means a {@code :reload} or a {@code :visible(false)} can
      * land between the register and the notify, and an entity destroyed/hidden/detached in that window must
      * not be added when the notify finally arrives. A further {@code Loading} (a second tile the placement
      * still needs) propagates out so {@link Resolve} re-registers on it — not caught here.
@@ -3495,7 +3496,7 @@ final class VirtualApi {
     }
 
     /**
-     * The entity's LIVE world position (a {@link Coord2d}) for {@code :pos()}: while anchored, the followed gob's
+     * The entity's LIVE world position (a {@link Coord2d}) for {@code :position()}: while anchored, the followed gob's
      * current position (+ offset) via {@code gob.getc()}; otherwise the entity's own {@code rc}. Caller holds the
      * entity monitor.
      */
@@ -3569,7 +3570,7 @@ final class VirtualApi {
      * message stream, which holds none. {@code threading.md} carries the row. So the handler is inside one
      * tree and reaches that tree only, and its entry into Lua does not wait: {@link #callLua} takes the
      * addon's lock or drops this one call rather than inverting the order and deadlocking. The entity lock is
-     * released before the dispatch so a handler may re-entrantly {@code :destroy()}/{@code :move()} it.
+     * released before the dispatch so a handler may re-entrantly {@code :remove(x)}/{@code :position(p)} it.
      */
     static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
         if(cg == null)

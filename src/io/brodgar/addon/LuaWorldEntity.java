@@ -18,20 +18,26 @@ import org.luaj.vm2.LuaValue;
  * the generalization of the V-series ghost core (spec {@code 16-virtual-entities.md}) into a reusable placement
  * engine (spec {@code 17-custom-rendering.md} §2, R-series): only the visual differs between subclasses —
  * <ul>
- *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.virtual():ghost()} (V1–V6);</li>
- *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.virtual():sprite()} (R2).</li>
+ *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.virtual():ghost()};</li>
+ *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.virtual():sprite()};</li>
+ *   <li>{@link LuaObject} — a glTF model of the addon's own, {@code hafen.virtual():object()};</li>
+ *   <li>{@link LuaWidgetEntity} — a widget standing in the world, {@code hafen.virtual():widget()};</li>
+ *   <li>{@link LuaPatch} — a shape lying on the terrain, {@code hafen.virtual():patch()}.</li>
  * </ul>
  * Everything else — the transform ({@link #rc}/{@link #a}), the look ({@link #alpha}/{@link #tint}/{@link #scale}),
  * pick-selectability ({@link #clickable}/{@link #onClick}), scene add/hide/show/destroy, the deferred-vs-immediate
- * publish, teardown, and the gizmo — is identical and lives here + in {@link AddonManager}'s {@code *Entity} scene
- * helpers. Because every entity is a {@link GhostGob} (whose {@code obstate} preps the click surface + look
- * states), a new visual only has to build a {@link haven.Drawable}; the transform/gizmo come for free.
+ * publish, teardown, and the gizmo — is identical and lives here + in {@link VirtualApi}. Because every entity is a
+ * {@link GhostGob} (whose {@code obstate} preps the click surface + look states), a new visual only has to build a
+ * {@link haven.Drawable}; the transform/gizmo come for free.
  *
  * <p><b>Handle, not a ref.</b> A world entity has no server identity, so re-resolution is meaningless; it is
- * addressed by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui():window()}. The common handle verbs
- * ({@code :move}/{@code :rotate}/{@code :scale}/{@code :alpha}/{@code :tint}/{@code :show}/{@code :hide}/
- * {@code :pos}/{@code :destroy}) are built by {@link AddonManager}'s {@code addEntityHandle}; each subclass adds
- * its own identity accessor ({@code :res()} for a ghost, {@code :image()} for a sprite).
+ * addressed by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui():window()}. The shared handle verbs
+ * ({@code :position}/{@code :offset}/{@code :rotate}/{@code :scale}/{@code :alpha}/{@code :tint}/{@code :visible}/
+ * {@code :clickable}/{@code :onClick}/{@code :exists}/{@code :drawn}/{@code :info}) are built by
+ * {@link VirtualApi}'s {@code entityHandle}, and the ending is the collection's — {@code hafen.virtual():<kind>():remove(x)},
+ * never a verb on the member; each kind adds its own verbs there ({@code :res()} for a ghost, {@code :image()} and
+ * {@code :facing()} for a sprite, {@code :mesh()} for an object, {@code :facing()} and {@code :screen()} for a
+ * standing widget, {@code :border()}, {@code :occluded()} and {@code :piece()} for a patch).
  *
  * <p><b>Desired-state fields.</b> {@link #alpha}, {@link #tint}, {@link #scale}, {@link #clickable}, and
  * {@link #hidden} are the entity's <i>desired</i> state, guarded by {@code this}. They are mirrored onto the
@@ -48,18 +54,19 @@ import org.luaj.vm2.LuaValue;
  * or has not.
  *
  * <p><b>Ownership (P2).</b> The entity is bridge-owned: it lives only in its addon's owned-resource registry
- * ({@link Addon#ghosts} / {@link Addon#sprites}). There is no global tick/poll list, because it is a passive
- * render node driven by the render tree's own tick, not the addon tick loop. {@code Disable} / {@code :reload} /
- * relogin teardown ({@link AddonManager}'s {@code teardownGhosts}/{@code teardownSprites}) destroys each (removes
- * its scene slot + disposes the visual), leaking nothing. The {@link #dead} flag makes any late handle call — or a
- * deferred create landing after a destroy — a clean no-op.
+ * ({@link Addon#ghosts}, {@link Addon#sprites}, {@link Addon#objects}, {@link Addon#surfaces}, {@link Addon#patches}).
+ * There is no global tick/poll list, because it is a passive render node driven by the render tree's own tick,
+ * not the addon tick loop. {@code Disable} / {@code :reload} / relogin teardown ({@link VirtualApi}'s
+ * {@code teardownGhosts}/{@code teardownSprites}/{@code teardownObjects}/{@code teardownSurfaces}/{@code teardownPatches})
+ * destroys each (removes its scene slot + disposes the visual), leaking nothing. The {@link #dead} flag makes any
+ * late handle call — or a deferred create landing after a remove — a clean no-op.
  *
  * <p><b>Threading.</b> The handle methods, the {@code new*} facade and teardown are the addon's own Lua,
  * serialized by its lock ({@code AddonManager.callLua}), and reached from every thread
  * {@code docs/addons/api/threading.md} lists — a {@code GhostClicked} handler answers from the pick
  * completion, a {@code Draw} painter from the frame. A ghost's one-shot deferred create runs on a loader
  * thread beside all of it, and {@code synchronized(this)} guards the transform/scene publish so it never
- * races a concurrent {@code :move}/{@code :destroy}.
+ * races a concurrent {@code :position(p)} or {@code :remove(x)}.
  */
 public abstract class LuaWorldEntity {
     final Addon owner;

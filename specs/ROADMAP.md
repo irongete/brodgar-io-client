@@ -9,7 +9,6 @@
 
 ## Defects
 
-- `LuaWorldEntity`'s javadoc calls five retired verbs "the common handle verbs" (filed: 055)
 - `widget:range()` reads `nil` on a BORROWED slider or scrollbar, so `widget:value(v)` can drive one but nothing can read the bounds it clamps into (filed: 061)
 - the rest of that family — `:rows()`, `:rowHeight()`, `:cell()`, `:columns()`, `:source()`, `:image()` — reads through the owned adapter alone too, so the inspector reports no configuration at all for one of the client's own lists, pictures or icon buttons (filed: 063)
 - a `haven.Progress` is only ever server-placed, so `widget:value(v)`'s refusal on one has no target a suite can reach (filed: 061)
