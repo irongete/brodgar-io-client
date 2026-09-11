@@ -62,7 +62,7 @@ adapter instead rebuilds the shape from `Scrollport`'s own public pieces.
 | What | Where |
 |---|---|
 | The inner container | `Scrollcont`, `public static` — reusable directly; its clip+scroll draw is `draw(GOut)`, offsetting each child by `-sy` via `xlate` and skipping one whose translated box misses the port entirely |
-| The bar's range, auto-derived | `Scrollcont.update()` (the constructor's override) sets `bar.max = max(0, contentsz().y + 10 - sz.y)` — runs from `Scrollcont.add` only, **not** from a later `resize()` on an existing child, so a child's final size must be set before it is added |
+| The bar's range, auto-derived | `Scrollcont.update()` (the constructor's override) sets `bar.max = max(0, contentsz().y + 10 - sz.y)` — runs from `Scrollcont.add`, and from `Scrollcont.cresize` and `cdestroy` (tagged `// addon:`), so a child that grows after it entered moves the range; **not** from the port's own `resize()`, which is the box changing and not the content |
 | The wire-protocol redirect | `Scrollport.addchild` forwards into `cont.addchild` — **`Widget.add` does NOT call `addchild`**, so any Java caller adding straight into a `Scrollport` (not through this override) drops the child beside the bar instead of inside `cont` |
 | Wheel + resize | `mousewheel` is `bar.ch(ev.s * UI.scale(15))`; `resize` re-anchors `bar` to the right edge and resizes `cont` to `sz` minus the bar's width |
 

@@ -61,6 +61,7 @@ back to anywhere.
 | A tab whose rows are a census | one list is built once and one is re-read — in `SettingsPanel.show()`, and again from `tick` whenever a generation counter it watches moves, because what belongs in it changes while the window sits there |
 | A row's identity across a re-read | `PanelEntry.key`, defaulting to the row's own name. The entries are minted fresh each time, so the selection cannot be remembered by identity |
 | Swapping a whole list | `SettingsPanel.Subject.reset(List)` — destroys every panel the old entries built, swaps the contents of `entries`, then re-picks the row with the same `key`, else the first. The `SListBox` needs no telling: `update()` re-reads `items()` every tick and diffs it by identity |
+| Where a supplier runs | inside the window's tree: `Subject.show` is reached from `PanelList.change` in the input pass and from `tick` through `reset`, `PButton.click` from the press — the gotcha below is what follows |
 
 ## Gotchas
 
@@ -72,6 +73,11 @@ back to anywhere.
   runs `resetcf(ui)` when `ui.gprefs` is not what `curcf` was built from, and `resetcf` destroys `curcf`
   and builds a fresh one — so the very checkbox a click just flipped is a **different widget** on the
   next frame. Hold the `VideoPanel`, never anything inside it.
+- **A page's supplier runs before the page is in the tree, and under the window's monitor.** `Subject.show`
+  calls `e.tgt.get()` and only then `holder.add`s the result, so `ui` is `null` throughout the constructor —
+  and the caller already holds the window's tree, so nothing built there may take another `UI`'s. A page
+  whose contents come from another tree builds its frame there, queues the rest for the step and fills a
+  frame after it opens.
 - **`Widget.cresize(Widget)` is a no-op.** A panel that repacks itself long after it was built tells its
   parent, and the news stops there — so a container that has to follow a child's box overrides it. The
   settings view deliberately does not: its holder is `OptWnd.PAGE` whatever `VideoPanel.resetcf` does

@@ -1410,6 +1410,7 @@ public final class AddonManager {
             // after the bus's, which is the order a surface handler sees.
             fireSurfaceUpdates(dtv);
             runTimers();
+            drainPendingPages();   // 140.1: the pages opened since the last step get their fill, holding no tree
 
             // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
             // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame.
@@ -6848,39 +6849,33 @@ public final class AddonManager {
     }
 
     /**
-     * One addon's declared options, for the <b>AddOns</b> tab of the settings window (spec
-     * {@code 115-the-addon-declares-its-options}). Immutable; built by {@link #describeOptions()}. Its
+     * One addon's <b>page</b> of the AddOns tab of the settings window (spec
+     * {@code 140-the-options-page-is-the-addons}, 140.1). Immutable; built by {@link #describePages()}. Its
      * {@link #addon} is the row the tab's list draws and the heading of the page behind it, and {@link #id}
      * is what that selection is remembered by across a re-read — the group object itself is minted fresh
-     * every time, so nothing may key on its identity.
+     * every time, so nothing may key on its identity. {@link #fn} is what {@code opts:panel(fn)} registered at
+     * the moment the census was taken, and {@link #mountPage} is what runs it.
      */
     public static final class OptionGroup {
         public final String id;                  // the manifest id — the row's stable key
         public final String addon;               // the addon's display name — what the list draws
-        public final List<OptionEntry> options;  // its rows, in declaration order
-        OptionGroup(String id, String addon, List<OptionEntry> options) {
-            this.id = id;
-            this.addon = addon;
-            this.options = options;
+        final Addon owner;                       // whose page it is: the column is built in its name
+        final LuaValue fn;                       // the fill, opts:panel(fn)
+        OptionGroup(Addon owner, LuaValue fn) {
+            this.id = owner.manifest.id;
+            this.addon = owner.manifest.name;
+            this.owner = owner;
+            this.fn = fn;
         }
     }
 
     /**
-     * One option row: the live {@link LuaOption} the panel draws a control from, reads every frame and
-     * writes through. It is the row itself rather than a copy of what it said, because a control that
-     * caches a value is a second place for it to be wrong.
-     */
-    public static final class OptionEntry {
-        public final LuaOption option;
-        OptionEntry(LuaOption option) { this.option = option; }
-    }
-
-    /**
-     * <b>How many declarations there have been</b> — bumped by every {@code :add()} that takes a name. The
-     * AddOns tab watches it beside {@link AddonRegistry#reloadGen()}, which is what makes its list what the
-     * addons have declared <i>now</i> rather than what they had declared when the window was last opened: an
-     * addon may declare a row at any point in its life, and one that speaks from a console command or a
-     * timer would otherwise be missing from a list built before it spoke.
+     * <b>How many times the census has moved</b> — bumped by every {@code opts:panel(fn)} and
+     * {@code :panel(nil)}, and by every {@code :add()} that takes a name. The AddOns tab watches it beside
+     * {@link AddonRegistry#reloadGen()}, which is what makes its list what the addons have declared <i>now</i>
+     * rather than what they had declared when the window was last opened: an addon may declare its page at
+     * any point in its life, and one that speaks from a console command or a timer would otherwise be
+     * missing from a list built before it spoke.
      */
     private static volatile int optionsGen;
 
@@ -6894,30 +6889,105 @@ public final class AddonManager {
         optionsGen++;
     }
 
+    /** A page was registered or withdrawn. Called from {@code opts:panel(fn)} / {@code :panel(nil)}. */
+    static void pageDeclared() {
+        optionsGen++;
+    }
+
     /**
-     * The declared addon options grouped by owning addon, for the AddOns tab of the settings window. Only
-     * addons with at least one <b>live</b> declared option appear — the same WoW-style rule
-     * {@link #describeKeyBinds()} follows, and for the same reason: a row for an addon with nothing to
-     * configure is a page the user opens once. Order is {@link #addons}, which is the order they were
-     * loaded in; within an addon, declaration order.
+     * The addons holding a page, for the AddOns tab of the settings window — one {@link OptionGroup} per
+     * addon whose {@code opts:panel(fn)} stands, in {@link #addons} order, which is the order they were
+     * loaded in. An addon with no page has no row: a page it would build nothing on is a page the user opens
+     * once. A disabled or unloaded addon holds none, so it does not appear — its stored values stay in the
+     * client's preference store, exactly as a re-mapped keybinding does.
      *
-     * <p>Read on the UI thread, when the tab is shown. A disabled or unloaded addon holds no live option, so
-     * it does not appear — its stored values stay in the client's preference store, exactly as a re-mapped
-     * keybinding does.
+     * <p>Read on the UI thread, when the tab is shown and whenever {@link #optionsGen} moves under it.
      */
-    public static List<OptionGroup> describeOptions() {
+    public static List<OptionGroup> describePages() {
         List<OptionGroup> out = new ArrayList<OptionGroup>();
         for(Addon a : addons) {
-            List<OptionEntry> rows = new ArrayList<OptionEntry>();
-            synchronized(a.addonOptions) {
-                for(LuaOption o : a.addonOptions.values())
-                    rows.add(new OptionEntry(o));
-            }
-            if(!rows.isEmpty())
-                out.add(new OptionGroup(a.manifest.id, a.manifest.name, rows));
+            LuaValue fn = a.optionsPanel;
+            if(fn != null)
+                out.add(new OptionGroup(a, fn));
         }
         return out;
     }
+
+    /** One page mounted and not yet filled: the addon, the fill it registered, and the column to hand it. */
+    private static final class PendingPage {
+        final Addon owner;
+        final LuaValue fn;
+        final AddonWidget root;
+        PendingPage(Addon owner, LuaValue fn, AddonWidget root) {
+            this.owner = owner;
+            this.fn = fn;
+            this.root = root;
+        }
+    }
+
+    /**
+     * The pages mounted since the last step and waiting for their fill (140.1). {@link #mountPage} adds to it
+     * from inside the settings view's tree; {@link #drainPendingPages} runs it on the layer's step, holding no
+     * monitor. Concurrent because the two ends are two threads' worth of callers.
+     */
+    private static final Queue<PendingPage> pendingPages = new ConcurrentLinkedQueue<PendingPage>();
+
+    /**
+     * <b>Mount one addon's page</b> (140.1): mint {@code root} — an {@link AddonWidget} column owned by the
+     * addon, its width pinned to {@code width} device pixels, armed at once and registered in the addon's owned
+     * registry like any widget it built — and queue its fill. Called by {@code AddonOptionsPanel}'s constructor,
+     * which then adds what comes back to its scroll port; the fill itself waits for {@link #drainPendingPages}.
+     *
+     * <p><b>Armed here, not through the arming queue.</b> {@code UiApi.queueArming} arms a widget by the tick
+     * of the tree it was attached to, and this one is not attached yet — the panel building it is added to
+     * the holder after its constructor returns — and the login screen's own {@code OptWnd} has no
+     * {@code SessionState} to queue on at all. It is the client's own build, complete when handed over, so
+     * there is nothing an arming tick would wait for.
+     *
+     * <p><b>Filled on the step, never here.</b> {@code Subject.show} runs inside the window's tree — from
+     * {@code PanelList.change} in the input pass, or from {@code tick} through {@code reset} — and every
+     * builder attaches to the layer first, whose monitor {@link LuaWidget#monitor} refuses from inside another
+     * tree's (112.2): a page filled synchronously could build no control at all. So the fill is queued and the
+     * page fills one frame after it opens, which is the latency an owned widget has anyway.
+     */
+    public static Widget mountPage(OptionGroup g, int width) {
+        AddonWidget root = new AddonWidget(g.owner, Coord.z, AddonWidget.Axis.COLUMN);
+        root.pinW = width;
+        root.resize(Coord.of(width, 0));   // the width is the box's from the first read; the height is the rows'
+        root.armed();
+        g.owner.widgets.add(root);
+        pendingPages.add(new PendingPage(g.owner, g.fn, root));
+        return root;
+    }
+
+    /**
+     * Run the fill of every page mounted since the last step, on the step: {@code fn(root)} through
+     * {@link #callLua} — the watchdog, the error isolation and the CPU account of every other handler — under
+     * {@link Addon#C_WIDGET}. A root whose page died before this ran ({@code fresh} destroying the previous
+     * build, or {@code Subject.reset} destroying every page on a census change) is skipped rather than filled
+     * into a destroyed tree; a fill that raises is logged by {@code callLua} and the page keeps its heading.
+     */
+    private static void drainPendingPages() {
+        for(int n = pendingPages.size(); n > 0; n--) {
+            PendingPage p = pendingPages.poll();
+            if(p == null)
+                break;
+            if(!pageAlive(p.root))
+                continue;
+            callLua(p.owner, Addon.C_WIDGET, p.fn, LuaWidget.of(p.owner, p.root));
+        }
+    }
+
+    /** Is {@code root} still standing in a live tree? The read {@link LuaWidget#live} makes, on a widget in hand. */
+    private static boolean pageAlive(AddonWidget root) {
+        UI u = root.ui;
+        if((u == null) || root.dead())
+            return false;
+        synchronized(LuaWidget.monitor(root)) {
+            return !u.destroyed && root.hasparent(u.root);
+        }
+    }
+
     /**
      * A HUD overlay ({@code hafen.ui():overlay():add(key)}): a draw fn painted on top of the HUD each frame
      * (2b). Built <b>bare</b> — {@code fn} is installed by {@code :draw(fn)} and is {@code volatile} because

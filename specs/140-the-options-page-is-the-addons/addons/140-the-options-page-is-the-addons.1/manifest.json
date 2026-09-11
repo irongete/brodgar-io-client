@@ -1,0 +1,9 @@
+{
+  "name": "140.1 — the page is a column",
+  "id": "140-the-options-page-is-the-addons.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 140.1: opts:panel(fn) registers the page, and root is an owned column of the addon's own inside the Options window, filled on the step.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

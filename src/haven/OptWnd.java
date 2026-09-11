@@ -1045,7 +1045,7 @@ public class OptWnd extends Window {
     public class SettingsPanel extends Panel {
 	private final Tabs tabs;
 	private final List<Subject> subjects = new ArrayList<Subject>();
-	/* addon: (115.3) the addons that declared an option of their own. Unlike the Game tab's fixed seven
+	/* addon: (115.3, 140.1) the addons holding a page of their own. Unlike the Game tab's fixed seven
 	 * this list is a census of what is loaded and what it has said so far, so it is re-read rather than
 	 * built: on the way in, and on either counter below moving under it. */
 	private final Subject addons;
@@ -1089,12 +1089,12 @@ public class OptWnd extends Window {
 	    return(ret);
 	}
 
-	/* addon: (115.3) one row per addon holding at least one live declared option, in the order the addons
-	 * were loaded. `fresh` on every one: an addon may declare a row at any point in its life, so the page
-	 * is built from what it has said at the moment it is opened rather than at the moment it was listed. */
+	/* addon: (115.3, 140.1) one row per addon holding a page, in the order the addons were loaded. `fresh`
+	 * on every one: the page is the addon's own fill, run from what it has said at the moment it is opened
+	 * rather than at the moment it was listed. */
 	private List<PanelEntry> addonpanels() {
 	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
-	    for(io.brodgar.addon.AddonManager.OptionGroup g : io.brodgar.addon.AddonManager.describeOptions()) {
+	    for(io.brodgar.addon.AddonManager.OptionGroup g : io.brodgar.addon.AddonManager.describePages()) {
 		final io.brodgar.addon.AddonManager.OptionGroup grp = g;
 		ret.add(new PanelEntry(g.id, g.addon,
 					() -> new io.brodgar.addon.ui.AddonOptionsPanel(OptWnd.this, grp), true));

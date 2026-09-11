@@ -66,6 +66,19 @@ public class Scrollport extends Widget {
 	    return(child);
 	}
 
+	/* addon: (140.1) the range follows the content on the two other seams it passes. update() ran from
+	 * add alone, so a child that grew AFTER it entered -- an addon's column filling with rows -- told
+	 * nobody, and the bar went on describing the box the child arrived with. */
+	public void cresize(Widget ch) {
+	    super.cresize(ch);
+	    update();
+	}
+
+	public void cdestroy(Widget w) {
+	    super.cdestroy(w);
+	    update();
+	}
+
 	public Coord xlate(Coord c, boolean in) {
 	    if(in)
 		return(c.add(0, -sy));

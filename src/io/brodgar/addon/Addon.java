@@ -818,6 +818,14 @@ public final class Addon {
     final LinkedHashMap<String, LuaOption> addonOptions = new LinkedHashMap<String, LuaOption>();
 
     /**
+     * This addon's <b>page</b> ({@code opts:panel(fn)}, 140.1) — the one function the client calls with
+     * {@code root}, a column of this addon's own inside its page of Options ▸ AddOns, each time the user opens
+     * that page; {@code null} while it has declared none, which is exactly when it has no row in the AddOns
+     * list. Volatile: written from Lua, read by the settings view's census on the frame.
+     */
+    volatile LuaValue optionsPanel;
+
+    /**
      * This addon's <b>Option metatables</b> ({@link LuaOption}), one per {@link LuaOption.Kind}, each built
      * on the first option of that kind. Per addon for the reason every metatable here is (D-017), and per
      * KIND because the kind is the vocabulary: a button has no value to read and a label has no default, and

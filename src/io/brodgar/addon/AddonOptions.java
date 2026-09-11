@@ -37,6 +37,12 @@ import java.util.List;
  * rule with no timing in it. Nothing is declared until then either, so a builder that is abandoned half-way
  * costs the registry nothing and cannot take a name.
  *
+ * <p><b>The page is the addon's</b> (spec {@code 140-the-options-page-is-the-addons}, 140.1): {@code :panel(fn)}
+ * registers the one function the client calls with {@code root} — an owned column inside the addon's page of
+ * Options ▸ AddOns, mounted by {@link io.brodgar.addon.ui.AddonOptionsPanel} and filled on the layer's step
+ * ({@link AddonManager#mountPage}) — each time the user opens that page. An addon has a row in the AddOns
+ * list exactly while it holds one.
+ *
  * <p><b>Unprotected, and client-scoped.</b> An addon's own option writes nothing outside itself, so it needs
  * no permission key — {@code client.settings} guards the <i>client's</i> settings, and gating this would
  * teach the wrong thing about what that key means. The value lands under
@@ -54,7 +60,7 @@ public final class AddonOptions {
     public static LuaValue create(final Addon owner) {
         return OptionsHandle.close(OptionsHandle.open("Options(addon)"), "addon options", methods(owner),
             "the options your addon declares",
-            "each of the six builders is dispatched by :add(), and :option() is what it declared");
+            "each builder is dispatched by :add(), :option() is what it declared, and :panel(fn) is its page");
     }
 
     private static LuaTable methods(final Addon owner) {
@@ -82,6 +88,33 @@ public final class AddonOptions {
                     throw new LuaError(HANDLE + ":option() takes no arguments — it IS the collection:"
                         + " :get(name) addresses one option and :list(filter) / :count(filter) search them");
                 return coll;
+            }
+        });
+        // panel(fn) / panel() / panel(nil) — THE PAGE (140.1). The one function the client calls with `root`,
+        // a column of this addon's own inside its page of Options ▸ AddOns, each time the user opens that
+        // page. Arity is the verb: no argument reads the function (or nil), a function registers it — a
+        // second call replaces the first — and an explicit nil withdraws it, which is the one nil this
+        // handle gives a meaning to. Each write bumps the census counter the AddOns tab watches, so the row
+        // appears the moment the page is declared and goes the moment it is withdrawn.
+        m.set("panel", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(!Args.passed(a, 2)) {
+                    LuaValue fn = owner.optionsPanel;
+                    return (fn == null) ? LuaValue.NIL : fn;
+                }
+                Args.only(a, 1, HANDLE + ":panel");
+                LuaValue fn = a.arg(2);
+                if(fn.isnil()) {
+                    owner.optionsPanel = null;
+                } else {
+                    if(!fn.isfunction())
+                        throw new LuaError(HANDLE + ":panel(fn): fn must be a function — the client calls it"
+                            + " with root, a column of yours inside your page of Options ▸ AddOns, each time"
+                            + " the user opens the page; got " + fn.typename());
+                    owner.optionsPanel = fn;
+                }
+                AddonManager.pageDeclared();   // the AddOns tab redraws its list from what stands now
+                return a.arg1();
             }
         });
         return m;

@@ -29,6 +29,7 @@ end)
 | [`s:ui():on(sel, "Added"/"Removed", fn)`](ui/replace.md) | the step, after the widget arrived or left | any |
 | [`item:on("Changed", fn)`](ui/items.md) | the step, after the description resolved | any |
 | an [HTTP](http.md) reply | the step | any |
+| [`opts:panel(fn)`](client/addon.md#the-page) — your addon's page | the step, one frame after the page is opened | any |
 | [`hafen.event():message():on(msg, fn)`](event/streams.md) — inbound | as the update arrives, before the widget applies it | any |
 | [`widget:on("Draw", fn)`](ui/custom.md) | the pass that paints that widget | its own only |
 | `widget:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)` | the input that dispatched it | its own only |

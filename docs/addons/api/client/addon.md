@@ -1,9 +1,10 @@
 # hafen.client: your addon's own options
 
 `hafen.client():options():addon()` is where your addon's own settings live. You name a row and its type;
-the client draws the control, stores the value in its own preference store and answers reads — so a setting
-of yours has the standing your [hotkeys](keybindings.md) already have, and the user finds it where they find
-every other setting. Nothing here is protected. The
+the client stores the value in its own preference store and answers reads — so a setting of yours has the
+standing your [hotkeys](keybindings.md) already have. The page the user finds it on, in **Options ▸ AddOns**,
+is yours to fill: [`opts:panel(fn)`](#the-page) registers the function the client calls with a column of
+your own each time the page is opened. Nothing here is protected. The
 [guide](../../guides/hotkeys-and-commands.md) puts it beside the hotkey and the command, the other two ways
 a user drives an addon by hand.
 
@@ -27,27 +28,27 @@ dispatches it. Every setter is legal until `:add()` and none after — `:add()` 
 checked whole, because it is the first moment every part of it is in hand. Nothing is declared until then,
 so a builder you abandon costs nothing and does not take its name.
 
-| Builder | Drawn as | Beyond `:label` and `:tooltip` |
+| Builder | Holds | Beyond `:label` and `:tooltip` |
 |---|---|---|
-| `opts:boolean(name)` | a checkbox | `:default(true)` or `:default(false)` |
-| `opts:number(name)` | a slider | `:range(lo, hi)` and `:default(n)`, both whole numbers |
-| `opts:choice(name)` | a dropdown | `:choices(t)`, a 1-based array of strings, and `:default(s)`, one of them |
-| `opts:text(name)` | a text field | `:default(s)` |
-| `opts:button(name)` | a button | `:press(fn)`, run when the user presses the row |
-| `opts:label(name)` | a line of text | `:text(s)`, the line, which you rewrite whenever you like |
+| `opts:boolean(name)` | `true` or `false` | `:default(true)` or `:default(false)` |
+| `opts:number(name)` | a whole number inside its range | `:range(lo, hi)` and `:default(n)`, both whole numbers |
+| `opts:choice(name)` | one of its choices | `:choices(t)`, a 1-based array of strings, and `:default(s)`, one of them |
+| `opts:text(name)` | a string | `:default(s)` |
+| `opts:button(name)` | no value: a function | `:press(fn)`, the function the row runs |
+| `opts:label(name)` | no value: a line of text | `:text(s)`, the line, which you rewrite whenever you like |
 
 `name` is **your own name for the row**, unique within your addon: it is what addresses the row afterwards
-and what the value is stored under. It never reaches the screen — `:label(s)` is what the user reads, and it
-falls back to the name when you give none. A `label` row is the exception: its caption is empty unless you
-give one, so a bare `opts:label("status"):text("idle"):add()` states the line and nothing else.
+and what the value is stored under. `:label(s)` is the row's caption, and it falls back to the name when you
+give none. A `label` row is the exception: its caption is empty unless you give one, so a bare
+`opts:label("status"):text("idle"):add()` states the line and nothing else.
 
 | Setter | Takes | On |
 |---|---|---|
-| `:label(s)` | the caption drawn for the row | every builder |
+| `:label(s)` | the caption of the row | every builder |
 | `:tooltip(s)` | the hover text | every builder |
 | `:default(v)` | the value a client that has never been told otherwise reads | the four that carry a value |
 | `:range(lo, hi)` | the inclusive bounds of a number row, `lo` below `hi` | `number` |
-| `:choices(t)` | what the dropdown offers, in order | `choice` |
+| `:choices(t)` | what the row offers, in order | `choice` |
 | `:press(fn)` | the function the row runs | `button` |
 | `:text(s)` | the line a label row states | `label` |
 | `:add()` | dispatch: the row is declared, and the Option comes back | every builder |
@@ -65,25 +66,58 @@ A `button` and a `label` carry no value and store nothing: a button runs the fun
 states the line you gave it. `value()` on either is an error naming what the row does carry, rather than
 answering `nil` and letting the mistake fail a line later.
 
-A **number** row is a whole number, because a slider is: `:range(1, 10)`, `:default(5)`, and a fractional
-write is refused. Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
+A **number** row is a whole number: `:range(1, 10)`, `:default(5)`, and a fractional write is refused. Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
 
-## Where the user finds them
+## The page
 
-Your rows are drawn in **Options ▸ AddOns**, on a page of your addon's own. The list there holds the
-addons that have declared a row, in the order they loaded; a page holds that addon's rows in the order it
-declared them. Your addon appears the moment its first `:add()` runs and is absent while it has declared
-none, so an addon with nothing to configure never puts an empty page there.
+`opts:panel(fn)` registers **the page**: the one function the client calls with `root`, a
+[column](../ui/column.md) of your addon's own inside your page of **Options ▸ AddOns**, each time the user
+opens that page. Your addon has a row in the AddOns list exactly while it holds a page — an addon with
+nothing to configure never puts an empty page there — and the row is the addon's display name, in the order
+the addons loaded.
 
-The client draws the control the type names, with `:label(s)` beside it and `:tooltip(s)` on hover. You
-build no widget and choose no file. **Declare as many rows as you have settings**: the page is a fixed box
-and your rows scroll inside it, so the window is the same size whether you declared three rows or forty —
-and the same size it is on every one of the client's own pages.
+| Verb | Returns | Description |
+|---|---|---|
+| `opts:panel(fn)` | the handle | register `fn(root)` as the page; a second call replaces the first; unprotected |
+| `opts:panel()` | function \| nil | the function registered, `nil` while there is none |
+| `opts:panel(nil)` | the handle | withdraw the page: the row leaves the list, and an open page closes |
 
-> **The page and your value are one thing.** Each control reads its option as it draws, so a `value(v)`
-> from your addon moves an open control with nothing to notify and no listener to register; and the user
-> moving that control is a write through the same verb, so it fires the same `Changed`. There is no third
-> place for the value to be, and nothing to keep in step.
+```lua
+local opts = hafen.client():options():addon()
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():label():parent(root):text("Harvest")
+  hafen.ui():check():parent(root):text("Only ripe")
+  hafen.ui():button():parent(root):size(120):text("Reset")
+end)
+```
+
+**What the page is.** The client draws the heading — your addon's display name — and under it a scrolling
+box the same size on every page of the window; `root` stands inside that box, and everything you build is
+placed by it. `root:role()` reads `"column"`, its width is pinned to the box and its height follows what you
+put in it, so a page taller than the box scrolls and a shorter one leaves the rest empty. It is a column
+you own, so `:gap`, `:stock` and `:enabled` answer on it, `:parent(root)` on a control you are building
+puts the control in, and a theme's rule for `["column"]` reaches it. Its `:parent()` is the client's:
+walking up from `root` reaches a window titled `Options`, in the tree of the character whose window it is.
+
+**When `fn` runs.** On the [step](../threading.md), one frame after the page is opened, holding no tree —
+like an `Added` handler it may build anything and reach any tree. It runs every time the page is opened:
+picking the row, coming back to it, once per Options window, and again after `:reload`. It runs with
+`hafen.client():stepping()` reading `true`, and the ordinary rule on
+[what a handler may reach](../threading.md#where-each-handler-runs) is the whole of what you need to know.
+
+**What it built dies with the page.** The client rebuilds the page on every visit, so `root` and every
+control you parented into it are destroyed when the user leaves the row, when the list is re-read, and when
+your addon reloads. A handle you kept reads `:exists()` `false` after that, and there is nothing of yours
+to end: build the page in `fn` and build it again the next time `fn` runs. A value the page shows belongs to
+an option, not to the page, so nothing is lost with it.
+
+**An error in `fn` is logged**, with the line that raised it, and the page shows the heading and whatever
+`fn` had built before it stopped.
+
+**Your rows are not drawn by the client.** A row you declare with the builders above is stored and
+answers reads and writes; it is placed on the page only where your `fn` puts a control for it.
 
 ## The Option object
 
@@ -94,7 +128,7 @@ every time after, so it works as a table key.
 |---|---|---|
 | `name()` | string | your own name for the row, its identity |
 | `type()` | string | which of the six it is: `"boolean"`, `"number"`, `"choice"`, `"text"`, `"button"`, `"label"` |
-| `label()` | string | the caption the client draws; empty on a label row you gave none |
+| `label()` | string | the caption you declared; empty on a label row you gave none |
 | `tooltip()` | string \| nil | the hover text, `nil` where you gave none |
 | `value()` | the value | what the row holds; **an error** on a `button` or a `label` |
 | `value(v)` | the option | write it, checked against the row's own declaration |
@@ -118,9 +152,8 @@ mode:value("wide")
 
 ## `Changed`: the one event
 
-`opt:on("Changed", fn)` runs `fn` with the **new value** whenever the value moves, whether your addon wrote
-it or the user moved the control. It is the only key an option has, and it is on the four that carry a
-value.
+`opt:on("Changed", fn)` runs `fn` with the **new value** whenever the value moves. It is the only key an
+option has, and it is on the four that carry a value.
 
 ```lua
 local show = opts:boolean("show-timer"):label("Show the timer"):default(true):add()
@@ -132,15 +165,9 @@ end)
 sub:off()                       -- stop listening; the option and its value stay
 ```
 
-The user moving a control moves the value as they move it, not when they are finished: `Changed` on a
-`text` row fires once per keystroke, and on a `number` row once per step of a drag. A handler that does
-something expensive with the new value does it that often, so do the expensive part on a
-[timer](../timer.md) the handler restarts.
-
-**A write of the value already held is not a change**: nothing is stored again and nothing fires. That is
-what lets a control write back what it just read without a loop, and what makes a handler counting edges
-count edges. Subscriptions are torn down with your addon like every other one, so there is nothing to end in
-`Disable`.
+**A write of the value already held is not a change**: nothing is stored again and nothing fires, which is
+what makes a handler counting edges count edges. Subscriptions are torn down with your addon like every
+other one, so there is nothing to end in `Disable`.
 
 ## The collection
 
