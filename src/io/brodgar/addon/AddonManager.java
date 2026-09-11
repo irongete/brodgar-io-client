@@ -6852,7 +6852,7 @@ public final class AddonManager {
     /**
      * One addon's <b>page</b> of the AddOns tab of the settings window (spec
      * {@code 140-the-options-page-is-the-addons}, 140.1). Immutable; built by {@link #describePages()}. Its
-     * {@link #addon} is the row the tab's list draws and the heading of the page behind it, and {@link #id}
+     * {@link #addon} is the row the tab's list draws, and {@link #id}
      * is what that selection is remembered by across a re-read — the group object itself is minted fresh
      * every time, so nothing may key on its identity. {@link #fn} is what {@code opts:panel(fn)} registered at
      * the moment the census was taken, and {@link #mountPage} is what runs it.
@@ -6966,7 +6966,7 @@ public final class AddonManager {
      * {@link #callLua} — the watchdog, the error isolation and the CPU account of every other handler — under
      * {@link Addon#C_WIDGET}. A root whose page died before this ran ({@code fresh} destroying the previous
      * build, or {@code Subject.reset} destroying every page on a census change) is skipped rather than filled
-     * into a destroyed tree; a fill that raises is logged by {@code callLua} and the page keeps its heading.
+     * into a destroyed tree; a fill that raises is logged by {@code callLua} and the page keeps what was built.
      */
     private static void drainPendingPages() {
         for(int n = pendingPages.size(); n > 0; n--) {

@@ -1,7 +1,6 @@
 package io.brodgar.addon.ui;
 
 import haven.Coord;
-import haven.Label;
 import haven.OptWnd;
 import haven.Scrollport;
 import haven.Widget;
@@ -11,8 +10,9 @@ import io.brodgar.addon.AddonManager;
 /**
  * <b>One addon's page</b> of the AddOns tab of the settings window (spec
  * {@code 140-the-options-page-is-the-addons}, 140.1) — what the tab puts in its holder when a row is picked:
- * the addon's display name as heading, a {@link Scrollport} under it, and inside the port {@link #root}, a
- * column of the addon's own that the addon fills.
+ * a {@link Scrollport} filling the box, and inside the port {@link #root}, a column of the addon's own that
+ * the addon fills. <b>No heading</b>: the row picked in the list beside it already reads the addon's name,
+ * and the other pages of the window carry none either.
  *
  * <p><b>The client builds the frame and the addon builds the page.</b> {@code root} comes from
  * {@link AddonManager#mountPage}: an owned column, its width pinned to the port's, armed at once and registered
@@ -26,12 +26,11 @@ import io.brodgar.addon.AddonManager;
  * addon's builders attach to the layer, whose monitor is refused from inside another tree's — so
  * {@code mountPage} queues {@code fn(root)} for the layer's step, and the page fills a frame after it opens.
  *
- * <p><b>The port is {@code OptWnd.PAGE} less the heading.</b> How tall the page is is the addon's to choose,
- * so this is the one panel in this window whose column nothing bounds — the shape {@code OptWnd.BindingPanel}
- * wears for exactly the same reason. The port is the page box less the heading above it at every height: a
- * short page leaves the rest of the box empty rather than shrinking, because the box is what the window is
- * drawn around, and a long one scrolls, the port's own {@code Scrollcont} re-measuring its range as the
- * column grows.
+ * <p><b>The port is {@code OptWnd.PAGE}.</b> How tall the page is is the addon's to choose, so this is the
+ * one panel in this window whose column nothing bounds — the shape {@code OptWnd.BindingPanel} wears for
+ * exactly the same reason. The port is the whole page box at every height: a short page leaves the rest of
+ * the box empty rather than shrinking, because the box is what the window is drawn around, and a long one
+ * scrolls, the port's own {@code Scrollcont} re-measuring its range as the column grows.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package through the qualified
  * {@code opt.super()} form, and carries <b>no caption</b>: it is drawn inside the settings view's holder, so
@@ -44,11 +43,7 @@ public class AddonOptionsPanel extends OptWnd.Panel {
 
     public AddonOptionsPanel(OptWnd opt, AddonManager.OptionGroup group) {
         opt.super();
-        // Wrapped at the page's own width: the heading is the addon's display name, and a long one would
-        // otherwise be the one thing on this page that reaches past the box.
-        Widget prev = add(new Label(group.addon, OptWnd.PAGE.x), 0, 0);
-        Coord pc = prev.pos("bl").adds(0, 10);
-        port = add(new Scrollport(OptWnd.PAGE.sub(0, pc.y)), pc);
+        port = add(new Scrollport(OptWnd.PAGE), Coord.z);
         root = port.cont.add(AddonManager.mountPage(group, port.cont.sz.x), Coord.z);
         resize(OptWnd.PAGE);   // the page IS the box, whatever ends up in it
     }

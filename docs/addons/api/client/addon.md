@@ -91,9 +91,9 @@ opts:panel(function(root)
 end)
 ```
 
-**What the page is.** The client draws the heading — your addon's display name — and under it a scrolling
-box the same size on every page of the window; `root` stands inside that box, and everything you build is
-placed by it. `root:role()` reads `"column"`, its width is pinned to the box and its height follows what you
+**What the page is.** The client draws a scrolling box the same size on every page of the window, and
+nothing else — no heading, the row picked in the list beside it already reads your addon's name; `root`
+stands inside that box, and everything you build is placed by it. `root:role()` reads `"column"`, its width is pinned to the box and its height follows what you
 put in it, so a page taller than the box scrolls and a shorter one leaves the rest empty. It is a column
 you own, so `:gap`, `:stock` and `:enabled` answer on it, `:parent(root)` on a control you are building
 puts the control in, and a theme's rule for `["column"]` reaches it. Its `:parent()` is the client's:
@@ -111,8 +111,8 @@ your addon reloads. A handle you kept reads `:exists()` `false` after that, and 
 to end: build the page in `fn` and build it again the next time `fn` runs. A value the page shows belongs to
 an option, not to the page, so nothing is lost with it.
 
-**An error in `fn` is logged**, with the line that raised it, and the page shows the heading and whatever
-`fn` had built before it stopped.
+**An error in `fn` is logged**, with the line that raised it, and the page shows whatever `fn` had built
+before it stopped.
 
 ## Binding: a control shows the option
 
