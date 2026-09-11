@@ -44,7 +44,7 @@
       window fails naming the client. The suite's own page holds the bound check.
       `[manual]`: tick the box on the suite's page — expect: a `Changed <value>` line from the option.
 
-- [ ] **140.4 — The six addons draw their pages.** `actionbars`, `builder-helper`, `essentials`, `hitboxes`,
+- [x] **140.4 — The six addons draw their pages.** `actionbars`, `builder-helper`, `essentials`, `hitboxes`,
       `simple-animal-radius`, `themes`: each an `opts:panel(fn)` of a column with its controls bound, `:label`
       and `:tooltip` gone, `button`/`label` rows as `hafen.ui():button()`/`:label()` in the panel, names
       unchanged so every stored value survives. `column.md`'s composed panel points at where it is

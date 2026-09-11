@@ -210,6 +210,15 @@ part relies on:
   `win:pack()` grows the window by that row before the call returns —
   [packing a surface](custom.md#packing-a-surface-around-what-is-inside-it) is the rule.
 
+**Where a panel is mounted.** In a window of your own, as above — or on
+[your addon's page of Options ▸ AddOns](../client/addon.md#the-page), where the client hands
+`opts:panel(fn)` a `root` that is already the column: `root:gap(4)` stands where the `panel` line does, the
+same rows go in with `:parent(root)`, and there is no window to pack — the page's own box scrolls what
+outgrows it. A control there that shows a setting is
+[bound](../client/addon.md#binding-a-control-shows-the-option) to the option rather than read on `Changed`,
+and the page is rebuilt on every visit, so a panel that keeps nothing between visits is the same panel in
+both places.
+
 ## See also
 
 - [custom](custom.md) — the bare surface a column is, and everything it inherits from one

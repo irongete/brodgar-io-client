@@ -4,9 +4,9 @@
 -- with no float and no gap, and one anchored to a Gob moves with that animal and ends with it. There is no
 -- toggle key.
 --
--- HOW a circle looks is the rows in Options > AddOns > Simple Animal Radius -- the GENERAL look -- and any
+-- HOW a circle looks is the page Options > AddOns > Simple Animal Radius -- the GENERAL look -- and any
 -- animal on the list may carry a look of its own that overrides it, field by field. WHICH animals is the
--- list below plus whatever the user adds: the "Animals..." row on that page opens a window with one line
+-- list below plus whatever the user adds: the "Animals..." button on that page opens a window with one line
 -- per name -- a checkbox, an Edit button for that animal's own look, an X to take it off the list -- and a
 -- field to add a resource name. All of it lives in the account's savedata (hafen.store(), "animals").
 
@@ -86,60 +86,20 @@ store.per     = store.per     or {}
 
 local function save() hafen.store():flush() end
 
--- ---------------------------------------------------------------- the options page: the general look
+-- ---------------------------------------------------------------- the options: the general look
 --
--- The rows are the WHOLE of the general look: the addon keeps no colour or size of its own beside them, so
--- the page and the circles cannot disagree. Every one is remembered by the client.
+-- The options are the WHOLE of the general look: the addon keeps no colour or size of its own beside them,
+-- so the page and the circles cannot disagree. Every one is remembered by the client. The page that shows
+-- them is further down, once the list window it opens is written.
 local opts = hafen.client():options():addon()
 
-local onOpt = opts:boolean("enabled")
-  :label("Draw circles")
-  :tooltip("lay a circle on the ground under every animal on the list")
-  :default(true)
-  :add()
-
-local radiusOpt = opts:number("radius")
-  :label("Radius")
-  :tooltip("world units from the animal's centre to the rim; a tile is 11 of them, so 110 is ten tiles")
-  :range(RADIUS[1], RADIUS[2])
-  :default(110)
-  :add()
-
-local fillOpt = opts:choice("fill")
-  :label("Fill colour")
-  :tooltip("the colour laid over the ground under the animal")
-  :choices(NAMES)
-  :default("red")
-  :add()
-
-local alphaOpt = opts:number("opacity")
-  :label("Fill opacity")
-  :tooltip("per cent: how much of the fill is there. 0 leaves the rim standing on bare ground")
-  :range(PERCENT[1], PERCENT[2])
-  :default(25)
-  :add()
-
-local edgeOpt = opts:choice("border")
-  :label("Border colour")
-  :tooltip("the rim round the circle, drawn solid whatever the opacity above says")
-  :choices(NAMES)
-  :default("red")
-  :add()
-
-local widthOpt = opts:number("border-width")
-  :label("Border thickness")
-  :tooltip("hundredths of a world unit; a tile is 11 units, so 30 is a thin line. 0 is the thinnest line " ..
-           "the screen can draw and not no line: to be rid of the rim, give it the fill's colour")
-  :range(WIDTH[1], WIDTH[2])
-  :default(30)
-  :add()
-
-local throughOpt = opts:boolean("through")
-  :label("Draw through the world")
-  :tooltip("on: hills, walls and trees in front of a circle stop hiding it, so one behind a house is drawn " ..
-           "whole. off: the world may hide it, as it hides the ground it lies on")
-  :default(false)
-  :add()
+local onOpt      = opts:boolean("enabled"):default(true):add()
+local radiusOpt  = opts:number("radius"):range(RADIUS[1], RADIUS[2]):default(110):add()
+local fillOpt    = opts:choice("fill"):choices(NAMES):default("red"):add()
+local alphaOpt   = opts:number("opacity"):range(PERCENT[1], PERCENT[2]):default(25):add()
+local edgeOpt    = opts:choice("border"):choices(NAMES):default("red"):add()
+local widthOpt   = opts:number("border-width"):range(WIDTH[1], WIDTH[2]):default(30):add()
+local throughOpt = opts:boolean("through"):default(false):add()
 
 -- The field names of a look, each with the general row it falls back to.
 local FIELDS = {
@@ -401,11 +361,11 @@ end
 
 -- ---------------------------------------------------------------- the list window
 --
--- The Options page draws only the client's six kinds of row, and none of them is a list -- so the list is a
--- window of this addon's own, opened from a button row on that page: a scrolling column with one line per
--- name -- the checkbox, Edit, X -- and under it a field and a button to add a name. Lines are added and
--- taken away IN PLACE: nothing is rebuilt, so the window stays where it is and shows what the list holds
--- the moment it changes.
+-- The Options page is rebuilt on every visit, and a list is edited in place -- so the list is a window of
+-- this addon's own, opened from a button on that page: a scrolling column with one line per name -- the
+-- checkbox, Edit, X -- and under it a field and a button to add a name. Lines are added and taken away IN
+-- PLACE: nothing is rebuilt, so the window stays where it is and shows what the list holds the moment it
+-- changes.
 local LIST_W, LIST_H, LINE_H, BTN_W = 300, 300, 22, 40
 local win                 -- the list window, while open
 local list                -- the scrolling column inside it
@@ -514,12 +474,49 @@ local function openList()
   win:on("Close", function() step(closeList) end)
 end
 
-opts:button("animals")
-  :label("Animals...")
-  :tooltip("the animals that wear a circle: tick and untick them, give one a look of its own, take one " ..
-           "off the list, or add a resource name of your own")
-  :press(function() step(openList) end)
-  :add()
+-- ---------------------------------------------------------------- the page
+--
+-- An option draws nothing; what shows it is a control built here, on the column the client hands over each
+-- time Options > AddOns > Simple Animal Radius is opened, and BOUND to it: a tick, a pick or a pull writes
+-- the option, and the client keeps the value. The page is rebuilt on every visit, so nothing built here is
+-- kept -- which is why the list is a window of its own, opened from the button at the foot.
+--
+-- A slider's caption carries its value, because a slider draws no number: the caption is written from the
+-- slider's own Changed, which is the user's hand and the only thing that moves these three.
+local function gauge(root, caption, opt, tooltip)
+  local lbl = hafen.ui():label():parent(root):text(caption .. ": " .. opt:value())
+  local sl  = hafen.ui():slider():parent(root):size(160):tooltip(tooltip):bind(opt)
+  sl:on("Changed", function(ev) lbl:text(caption .. ": " .. ev:value()) end)
+end
+
+local function pick(root, caption, opt, tooltip)
+  hafen.ui():label():parent(root):text(caption)
+  hafen.ui():dropdown():parent(root):size(120):tooltip(tooltip):bind(opt)
+end
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():check():parent(root):text("Draw circles")
+    :tooltip("lay a circle on the ground under every animal on the list"):bind(onOpt)
+  gauge(root, "Radius", radiusOpt,
+        "world units from the animal's centre to the rim; a tile is 11 of them, so 110 is ten tiles")
+  pick(root, "Fill colour", fillOpt, "the colour laid over the ground under the animal")
+  gauge(root, "Fill opacity", alphaOpt,
+        "per cent: how much of the fill is there. 0 leaves the rim standing on bare ground")
+  pick(root, "Border colour", edgeOpt,
+       "the rim round the circle, drawn solid whatever the opacity above says")
+  gauge(root, "Border thickness", widthOpt,
+        "hundredths of a world unit; a tile is 11 units, so 30 is a thin line. 0 is the thinnest line " ..
+        "the screen can draw and not no line: to be rid of the rim, give it the fill's colour")
+  hafen.ui():check():parent(root):text("Draw through the world")
+    :tooltip("on: hills, walls and trees in front of a circle stop hiding it, so one behind a house is " ..
+             "drawn whole. off: the world may hide it, as it hides the ground it lies on")
+    :bind(throughOpt)
+  local animals = hafen.ui():button():parent(root):size(120):text("Animals...")
+    :tooltip("the animals that wear a circle: tick and untick them, give one a look of its own, take one " ..
+             "off the list, or add a resource name of your own")
+  animals:on("Pressed", function() step(openList) end)
+end)
 
 -- ---------------------------------------------------------------- wiring
 

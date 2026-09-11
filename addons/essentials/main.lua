@@ -1,23 +1,36 @@
 -- Essentials: what the client does for a character the moment it enters the world.
 --
--- No window and no command. Every row is in Options ▸ AddOns ▸ Essentials, and each one is read when a
--- session enters the world: the toggles under Adventure ▸ Toggle, the inventory window, and the movement
--- speed. Nothing runs from the file body or from a timer of its own, and nothing runs for a character
--- already playing: a :reload announces SessionEnteredWorld again for every session in the world, and
--- that is not a login, so the sessions up when this file runs are skipped once.
+-- No window and no command. Every setting is on its page, Options ▸ AddOns ▸ Essentials, and each one is
+-- read when a session enters the world: the toggles under Adventure ▸ Toggle, the inventory window, and the
+-- movement speed. Nothing runs from the file body or from a timer of its own, and nothing runs for a
+-- character already playing: a :reload announces SessionEnteredWorld again for every session in the world,
+-- and that is not a login, so the sessions up when this file runs are skipped once.
 
 local opts = hafen.client():options():addon()
 
-opts:label("toggles"):label("Toggles at login"):add()
-local crime = opts:boolean("crime"):label("Criminal Acts")
-  :tooltip("Turn Criminal Acts on when a character enters the world"):default(false):add()
-local swim = opts:boolean("swim"):label("Swimming")
-  :tooltip("Turn Swimming on when a character enters the world"):default(false):add()
-local inventory = opts:boolean("inventory"):label("Open inventory on login")
-  :tooltip("Open the inventory window when a character enters the world"):default(false):add()
-local speed = opts:choice("speed"):label("Set speed at login")
-  :tooltip("The movement speed a character is put on when it enters the world; None leaves it as it is")
-  :choices{"None", "Crawl", "Walk", "Run", "Sprint"}:default("None"):add()
+local crime     = opts:boolean("crime"):default(false):add()
+local swim      = opts:boolean("swim"):default(false):add()
+local inventory = opts:boolean("inventory"):default(false):add()
+local speed     = opts:choice("speed"):choices{"None", "Crawl", "Walk", "Run", "Sprint"}:default("None"):add()
+
+-- THE PAGE. An option is a stored value and draws nothing; what shows it is a control built here, on the
+-- column the client hands over each time Options > AddOns > Essentials is opened, and bound to the option
+-- -- so ticking a box writes the option, and the box comes back ticked on the next visit, after a reload
+-- and after a restart, because the value never left the client.
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():label():parent(root):text("Toggles at login")
+  hafen.ui():check():parent(root):text("Criminal Acts")
+    :tooltip("Turn Criminal Acts on when a character enters the world"):bind(crime)
+  hafen.ui():check():parent(root):text("Swimming")
+    :tooltip("Turn Swimming on when a character enters the world"):bind(swim)
+  hafen.ui():check():parent(root):text("Open inventory on login")
+    :tooltip("Open the inventory window when a character enters the world"):bind(inventory)
+  hafen.ui():label():parent(root):text("Set speed at login")
+  hafen.ui():dropdown():parent(root):size(120)
+    :tooltip("The movement speed a character is put on when it enters the world; None leaves it as it is")
+    :bind(speed)
+end)
 
 -- The toggles, each by its resource name: the entry in the action menu, and the buff the server keeps on
 -- the bar while it is on — so a toggle already on is left on rather than pressed off.

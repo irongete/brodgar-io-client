@@ -203,6 +203,10 @@ tooltip.
 The count is the entries the addon wrote, so a `<prefix>.*` group counts as the one line you read rather
 than as the keys it covers.
 
+An addon's own settings are not on this panel: an addon that holds [a page](api/client/addon.md#the-page)
+has a row of its own on the **AddOns** tab of **Options**, beside the client's own settings, and that page
+is where its options are edited.
+
 **A checkbox is applied on the next reload**, never mid-session: ticking one and pressing **Reload UI** is
 the whole gesture, and a "changes pending" line says so until you do. **Enable all** turns on every addon
 that is not marked `[protected: N]`; a write addon is only ever enabled one at a time, through the consent

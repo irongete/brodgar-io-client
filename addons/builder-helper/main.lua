@@ -56,13 +56,19 @@ local PENDING = {255, 255, 255}
 local DONE = {140, 230, 140}
 
 -- The one option: a complete material is drawn green, or not at all. The value is cached in a local
--- because the painter reads it every frame.
-local hideDoneOpt = hafen.client():options():addon():boolean("hide-done")
-  :label("Hide completed materials")
-  :tooltip("Leave a material out of the column once the site holds all of it, instead of drawing it green")
-  :default(false):add()
+-- because the painter reads it every frame. The page that shows it -- Options > AddOns > Builder helper --
+-- is this addon's own column, filled each time it is opened, and the box on it is bound to the option:
+-- ticking it writes the value, and the client keeps the value.
+local opts = hafen.client():options():addon()
+local hideDoneOpt = opts:boolean("hide-done"):default(false):add()
 local hideDone = hideDoneOpt:value()
 hideDoneOpt:on("Changed", function(v) hideDone = v end)
+
+opts:panel(function(root)
+  hafen.ui():check():parent(root):text("Hide completed materials")
+    :tooltip("Leave a material out of the column once the site holds all of it, instead of drawing it green")
+    :bind(hideDoneOpt)
+end)
 
 -- Saved: [key] = {pos = Position, name = "Stonestead", rows = {{res = "gfx/invobjs/...", text = "2/150",
 -- have = 2, total = 150}, ...}}. Everything in it is plain data or a Position, so it round-trips as-is.

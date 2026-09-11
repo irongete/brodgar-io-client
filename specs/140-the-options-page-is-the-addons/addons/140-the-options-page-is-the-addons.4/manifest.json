@@ -1,0 +1,9 @@
+{
+  "name": "140.4 — the six addons draw their pages",
+  "id": "140-the-options-page-is-the-addons.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 140.4: the six addons that declare options each draw their page of Options > AddOns through opts:panel(fn), listed in load order and filled with bound controls.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

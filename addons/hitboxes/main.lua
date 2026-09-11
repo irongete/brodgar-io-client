@@ -44,10 +44,10 @@ local SETTLE = 0.1                  -- seconds a look row waits before the boxes
 
 local MODES = {"off", "ground", "over"}
 
--- THE PALETTE THE TWO DROPDOWNS OFFER. The client draws a checkbox, a slider, a dropdown, a text field, a
--- button and a line of text, and none of those six is a colour well -- so a colour is picked BY NAME here
--- and looked up when a patch is dressed. `blue` and `sky` are the two this addon has always drawn and they
--- are the defaults, so a client whose owner never opens the page looks exactly as it always did.
+-- THE PALETTE THE TWO DROPDOWNS OFFER. The client's controls are a checkbox, a slider, a dropdown, a radio,
+-- a text field, a button and a label, and none of them is a colour well -- so a colour is picked BY NAME
+-- here and looked up when a patch is dressed. `blue` and `sky` are the two this addon has always drawn and
+-- they are the defaults, so a client whose owner never opens the page looks exactly as it always did.
 local COLOURS = {
   {"blue",   { 60, 140, 255}},
   {"sky",    {120, 190, 255}},
@@ -67,50 +67,51 @@ local NAMES, RGB = {}, {}
 for i, c in ipairs(COLOURS) do NAMES[i], RGB[c[1]] = c[1], c[2] end
 
 -- WHAT THE BOXES ARE AND HOW THEY LOOK IS A SETTING, so all five are declared where the client keeps
--- settings: one page, Options > AddOns > Hitboxes. The rows are the WHOLE of the state -- this addon holds
--- no variable of its own beside them, and the key below moves the mode row rather than something of its
--- own -- so the page and the boxes cannot disagree, and neither can say something the other does not.
+-- settings: one page, Options > AddOns > Hitboxes. The options are the WHOLE of the state -- this addon
+-- holds no variable of its own beside them, and the key below moves the mode option rather than something
+-- of its own -- so the page and the boxes cannot disagree, and neither can say something the other does not.
 --
--- Every one of them is remembered, because the client stores what its own rows hold. A client left drawing
+-- Every one of them is remembered, because the client stores what an option holds. A client left drawing
 -- orange footprints comes back drawing orange footprints.
 local opts = hafen.client():options():addon()
 
-local modeOpt = opts:choice("mode")
-  :label("Footprints")
-  :tooltip("off, laid on the ground where each object stands, or drawn through everything in front of it")
-  :choices(MODES)
-  :default(MODES[1])
-  :add()
+local modeOpt  = opts:choice("mode"):choices(MODES):default(MODES[1]):add()
+local fillOpt  = opts:choice("fill"):choices(NAMES):default("blue"):add()
+local alphaOpt = opts:number("opacity"):range(0, 100):default(27):add()
+local edgeOpt  = opts:choice("border"):choices(NAMES):default("sky"):add()
+local widthOpt = opts:number("border-width"):range(0, 100):default(35):add()
 
-local fillOpt = opts:choice("fill")
-  :label("Fill colour")
-  :tooltip("the colour laid over the ground an object stands on")
-  :choices(NAMES)
-  :default("blue")
-  :add()
+-- THE PAGE. An option draws nothing; what shows it is a control built here, on the column the client hands
+-- over each time the page is opened, and BOUND to it: a pick on a dropdown or a pull on a slider writes the
+-- option, and a write to the option from anywhere -- the key cycling the mode -- moves the control. The page
+-- is rebuilt on every visit, so nothing built here is kept.
+--
+-- A slider's caption carries its value, because a slider draws no number: the caption is written from the
+-- slider's own Changed, which is the user's hand and the only thing that moves these two.
+local function gauge(root, caption, opt, tooltip)
+  local lbl = hafen.ui():label():parent(root):text(caption .. ": " .. opt:value())
+  local sl  = hafen.ui():slider():parent(root):size(160):tooltip(tooltip):bind(opt)
+  sl:on("Changed", function(ev) lbl:text(caption .. ": " .. ev:value()) end)
+end
 
-local alphaOpt = opts:number("opacity")
-  :label("Fill opacity")
-  :tooltip("per cent: how much of the fill is there, and so how much of the ground reads through it. " ..
-           "0 leaves the rim standing on bare ground, which is a box drawn as an outline")
-  :range(0, 100)
-  :default(27)
-  :add()
+local function pick(root, caption, opt, tooltip)
+  hafen.ui():label():parent(root):text(caption)
+  hafen.ui():dropdown():parent(root):size(120):tooltip(tooltip):bind(opt)
+end
 
-local edgeOpt = opts:choice("border")
-  :label("Border colour")
-  :tooltip("the rim round the ring, drawn solid whatever the opacity above says")
-  :choices(NAMES)
-  :default("sky")
-  :add()
-
-local widthOpt = opts:number("border-width")
-  :label("Border thickness")
-  :tooltip("hundredths of a world unit, and a tile is 11 of them -- so 35 is a thin line. 0 is the " ..
-           "thinnest line the screen can draw and not no line: to be rid of the rim, give it the fill's colour")
-  :range(0, 100)
-  :default(35)
-  :add()
+opts:panel(function(root)
+  root:gap(4)
+  pick(root, "Footprints", modeOpt,
+       "off, laid on the ground where each object stands, or drawn through everything in front of it")
+  pick(root, "Fill colour", fillOpt, "the colour laid over the ground an object stands on")
+  gauge(root, "Fill opacity", alphaOpt,
+        "per cent: how much of the fill is there, and so how much of the ground reads through it. " ..
+        "0 leaves the rim standing on bare ground, which is a box drawn as an outline")
+  pick(root, "Border colour", edgeOpt, "the rim round the ring, drawn solid whatever the opacity above says")
+  gauge(root, "Border thickness", widthOpt,
+        "hundredths of a world unit, and a tile is 11 of them -- so 35 is a thin line. 0 is the " ..
+        "thinnest line the screen can draw and not no line: to be rid of the rim, give it the fill's colour")
+end)
 
 -- THE STEP, AND NOT THE ROW. A row is answered inside the widget tree of whatever put the Options window
 -- up, and a mode change is a full sweep of everything in view -- work for a step rather than for a press,

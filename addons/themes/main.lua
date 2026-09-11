@@ -118,23 +118,24 @@ local function release()
   active = nil
 end
 
--- ------------------------------------------------------------------ the row that says which
+-- ------------------------------------------------------------------ the option that says which
 --
--- THE LOOK IS A SETTING, so it is declared where the client keeps settings: one row on
--- Options > AddOns > Themes, holding "off" and every theme the folder turned out to carry. It is declared
--- from `Load` rather than in the file body, because what it offers is what the index named and that is not
--- known until the folder has been read -- a row may be declared at any point in an addon's life, and the
--- tab re-reads its list when one is.
+-- THE LOOK IS A SETTING, so it is declared where the client keeps settings: one choice option, holding
+-- "off" and every theme the folder turned out to carry. It is declared from `Load` rather than in the file
+-- body, because what it offers is what the index named and that is not known until the folder has been
+-- read -- an option may be declared at any point in an addon's life.
 --
--- THE ROW IS ALSO THE ANSWER. The command below writes it instead of installing anything itself, so there
--- is one path into a theme and one place the theme in force lives. A theme the folder no longer carries is
--- simply not among the choices, and the client falls back to the row's default, which is the release.
+-- THE OPTION IS ALSO THE ANSWER. The command below writes it instead of installing anything itself, so
+-- there is one path into a theme and one place the theme in force lives. A theme the folder no longer
+-- carries is simply not among the choices, and the client falls back to the option's default, which is
+-- the release.
 
+local opts = hafen.client():options():addon()
 local row      -- the choice, once the folder has been read
 
--- THE STEP, AND NOT THE ROW. Installing a sheet sweeps every character's widget tree, and a row is answered
--- inside the tree of whatever put the Options window up -- a second tree, which no handler may take while
--- it holds one (api/threading.md).
+-- THE STEP, AND NOT THE PICK. Installing a sheet sweeps every character's widget tree, and a pick on the
+-- page is answered inside the tree of whatever put the Options window up -- a second tree, which no
+-- handler may take while it holds one (api/threading.md).
 local function step(fn)
   hafen.timer():after(0, fn)
 end
@@ -154,10 +155,10 @@ local function wear(name)
   end
 end
 
--- What the row reads on a client that has never been told otherwise. The theme in force used to be this
--- addon's own account-wide saved variable, so one remembered there seeds the row -- and this is the last
+-- What the option reads on a client that has never been told otherwise. The theme in force used to be this
+-- addon's own account-wide saved variable, so one remembered there seeds the option -- and this is the last
 -- thing that ever reads it from there, which is why it is taken out on the way past. One naming a theme the
--- folder has stopped carrying seeds nothing, exactly as a stored value the row no longer offers would.
+-- folder has stopped carrying seeds nothing, exactly as a stored value the option no longer offers would.
 local function seed()
   local was = settings.theme
   if was == nil then return RELEASE end
@@ -170,15 +171,27 @@ local function declare()
   local choices = {RELEASE}
   for i = 1, #order do choices[i + 1] = order[i] end
 
-  row = hafen.client():options():addon():choice("theme")
-    :label("Theme")
-    :tooltip('the look the client wears -- "' .. RELEASE .. '" is the client\'s own, to the pixel')
-    :choices(choices)
-    :default(seed())
-    :add()
+  row = opts:choice("theme"):choices(choices):default(seed()):add()
 
   row:on("Changed", function(name) step(function() wear(name) end) end)
 end
+
+-- THE PAGE: Options > AddOns > Themes. An option draws nothing; what shows it is a dropdown built here, on
+-- the column the client hands over each time the page is opened, and BOUND to the option -- a pick writes
+-- it, and `:theme <name>` at the console moves the dropdown, both being the one value. The page is rebuilt
+-- on every visit, so it is written from what stands at that moment: a folder that failed to read has no
+-- option to show, and says so.
+opts:panel(function(root)
+  root:gap(4)
+  if row == nil then
+    hafen.ui():label():parent(root):text("no theme loaded -- see " .. INDEX)
+    return
+  end
+  hafen.ui():label():parent(root):text("Theme")
+  hafen.ui():dropdown():parent(root):size(160)
+    :tooltip('the look the client wears -- "' .. RELEASE .. '" is the client\'s own, to the pixel')
+    :bind(row)
+end)
 
 -- ------------------------------------------------------------------ the command
 
@@ -210,7 +223,7 @@ hafen.console():on("theme", function(args)
     list()
     return
   end
-  -- THE ROW IS THE SETTING, so this moves it and the change above does the rest. Writing the value it
+  -- THE OPTION IS THE SETTING, so this moves it and the change above does the rest. Writing the value it
   -- already holds is not a change and fires nothing, so what is on is said here rather than in silence.
   if row:value() == name then
     hafen.log():write('themes: "' .. name .. '" is already what is on')
@@ -222,8 +235,8 @@ end)
 -- ------------------------------------------------------------------ start
 --
 -- The files are read once every `Load` -- which is every `:reload` too, so editing a theme and reloading is
--- the whole edit loop. The row is declared from what they turned out to hold, and what it holds is put back
--- on: a sheet lives as long as the addon does, so it has to be said again after a reload.
+-- the whole edit loop. The option is declared from what they turned out to hold, and what it holds is put
+-- back on: a sheet lives as long as the addon does, so it has to be said again after a reload.
 
 hafen.event():on("Load", function()
   load()

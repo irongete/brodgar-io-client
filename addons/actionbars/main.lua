@@ -13,11 +13,11 @@
 -- ACTIONBAR1 IS THE EXCEPTION, because it stands in for the bar the client draws: it shows whichever page
 -- the client is on, and the client's own "Go to page N" keys move it. See KEEP below.
 --
--- WHICH BARS THERE ARE AND WHICH WAY ROUND THEY STAND IS A SETTING, declared as twelve rows the client
--- draws on Options > AddOns > Actionbars: this addon has no window of its own and nothing to open. Where
--- each bar STANDS is not a setting -- it is a drag -- so that stays in the account's own saved variables.
--- The CONTENTS of the slots are neither: they are the server's, held per character, and this addon neither
--- copies them nor needs to.
+-- WHICH BARS THERE ARE AND WHICH WAY ROUND THEY STAND IS A SETTING, declared as twelve options and drawn
+-- as twelve rows on this addon's page of Options > AddOns: this addon has no window of its own and nothing
+-- to open. Where each bar STANDS is not a setting -- it is a drag -- so that stays in the account's own
+-- saved variables. The CONTENTS of the slots are neither: they are the server's, held per character, and
+-- this addon neither copies them nor needs to.
 --
 -- THE BARS HANG ON THE CHARACTER'S HUD, not in the addon layer, and that is forced rather than chosen: the
 -- action menu ends its drag with DropTarget.dropthing(ui.root, ...) on the SESSION's tree, and the addon
@@ -66,13 +66,14 @@ local BACK  = {43, 51, 44, 127}
 -- ---------------------------------------------------------------- what the user manages, and where
 --
 -- OPTIONS > ADDONS > ACTIONBARS, and no window of this addon's own. Which bars there are is a setting the
--- way the interface scale is a setting, so it is declared where the client keeps settings: twelve rows, one
--- per bar, each saying whether that bar is on and which way it stands. The client draws the page, stores the
--- value and answers the read -- there is nothing here to open, to lay out or to rebuild, and nothing that
--- has to remember where the user dragged it.
+-- way the interface scale is a setting, so it is declared where the client keeps settings: twelve options,
+-- one per bar, each saying whether that bar is on and which way it stands. The client stores the value and
+-- answers the read; this addon draws the page, on the column the client hands it each time the page is
+-- opened, and nothing here has to remember where the user dragged a bar.
 --
--- THE ROW IS THE VALUE. The page re-reads its option as it draws, so a change arrives as one event whether
--- the user moved the dropdown or something else wrote it, and there is no second copy to keep in step.
+-- THE OPTION IS THE VALUE. The dropdown on the page is BOUND to it, so a change arrives as one event whether
+-- the user moved the dropdown or something else wrote the option, and there is no second copy to keep in
+-- step.
 --
 -- WHAT IS NOT A SETTING stays in the account's own saved variables: where each bar STANDS. That is a drag
 -- rather than a choice -- a pair of numbers with no control to draw -- and it belongs to the account,
@@ -84,10 +85,11 @@ local OFF, FLAT, UP = "off", "flat", "upright"
 -- Everything the rows below drive is written further down, where the bars are.
 local dropBar, syncAll, resetBars
 
--- THE STEP, AND NOT THE PRESS. A row is answered inside the widget tree of whatever put the Options window
--- up -- one character's -- and every writer below reaches a bar in a character's HUD, which is a second
--- tree. Two of them held at once is the one thing this client refuses. So the work is handed to the next
--- step, which holds none and reaches every login; it lands a frame later, and nothing here can tell.
+-- THE STEP, AND NOT THE PRESS. A pick on the page is answered inside the widget tree of whatever put the
+-- Options window up -- one character's -- and every writer below reaches a bar in a character's HUD, which
+-- is a second tree. Two of them held at once is the one thing this client refuses. So the work is handed to
+-- the next step, which holds none and reaches every login; it lands a frame later, and nothing here can
+-- tell.
 local function step(fn)
   hafen.timer():after(0, fn)
 end
@@ -102,9 +104,9 @@ local function record(n)
   return nil
 end
 
--- WHAT A ROW READS ON A CLIENT THAT HAS NEVER BEEN TOLD OTHERWISE. Which bars existed used to be this
--- table's to say, so a bar with a place saved is a bar the user had: it seeds its own row, and this is the
--- last thing that ever reads an orientation from there.
+-- WHAT AN OPTION READS ON A CLIENT THAT HAS NEVER BEEN TOLD OTHERWISE. Which bars existed used to be this
+-- table's to say, so a bar with a place saved is a bar the user had: it seeds its own option, and this is
+-- the last thing that ever reads an orientation from there.
 local function seed(n)
   local r = record(n)
   if not r then return (n == KEEP) and FLAT or OFF end
@@ -115,26 +117,15 @@ end
 
 local opts = hafen.client():options():addon()
 
-opts:label("about")
-  :text("A bar is one page of the belt: ActionbarN is slots (N-1)x12+1 to Nx12. Actionbar1 follows the page"
-    .. " you are on, in place of the client's own bar.")
-  :add()
-
--- ONE ROW PER BAR, and the row says both things at once: a bar is off, lying flat, or standing upright.
--- Twelve rows rather than a list with an Add button under it, because a bar's NUMBER is its identity --
--- Actionbar4 is slots 37-48 for as long as the character exists, which is what lets a hotkey called
--- "Actionbar4 slot 5" name one button of the game. A row is a fact about one page of the belt, and the belt
--- has twelve.
+-- ONE OPTION PER BAR, and the option says both things at once: a bar is off, lying flat, or standing
+-- upright. Twelve options rather than a list with an Add button under it, because a bar's NUMBER is its
+-- identity -- Actionbar4 is slots 37-48 for as long as the character exists, which is what lets a hotkey
+-- called "Actionbar4 slot 5" name one button of the game. An option is a fact about one page of the belt,
+-- and the belt has twelve.
 local rows = {}
 
 for n = 1, MAXBARS do
   rows[n] = opts:choice("bar" .. n)
-    :label("Actionbar" .. n)
-    :tooltip((n == KEEP)
-      and "the page you are on, lying flat or standing upright -- it stands in for the client's own bar and"
-          .. " cannot be taken away"
-      or ("slots " .. (((n - 1) * SLOTS) + 1) .. "-" .. (n * SLOTS)
-          .. " -- off, lying flat, or standing upright"))
     :choices((n == KEEP) and {FLAT, UP} or {OFF, FLAT, UP})
     :default(seed(n))
     :add()
@@ -152,16 +143,12 @@ local function vertOf(n)
   return mode(n) == UP
 end
 
-opts:button("reset"):label("Reset bars position")
-  :tooltip("put every bar back in the middle of the screen, stacked -- for when one has ended up past an"
-    .. " edge and there is nothing left to drag")
-  :press(function() step(resetBars) end)
-  :add()
-
 -- THE LINE UNDER THE ROWS, which says the two things no row can: how many bars are up, and what the last
 -- press did. A reset that found no character in the world has nowhere else to report it, and the log is not
--- where somebody looking at this page is looking.
-local state = opts:label("state"):add()
+-- where somebody looking at this page is looking. It is a label on the page, so it is there exactly while
+-- the page is open: `state` is the one on the page now, dead or nil once the page has been left, and
+-- report() writes it where there is one.
+local state
 
 local function report(msg)
   local n = 0
@@ -170,12 +157,54 @@ local function report(msg)
   end
   local line = n .. " of " .. MAXBARS .. " bars on"
   if n >= MAXBARS then line = line .. " -- 144 slots is every one there is" end
-  state:text(msg and (line .. " -- " .. msg) or line)
+  if state and state:exists() then state:text(msg and (line .. " -- " .. msg) or line) end
 end
 
--- A ROW MOVED, and one path does all three things that can mean. `dropBar` takes every copy of that bar off
--- screen -- a rotation is a different box, so it is built again rather than resized -- and the sync behind
--- it puts back whatever the rows now say there is.
+-- THE PAGE. An option draws nothing; what shows it is a dropdown built here, on the column the client hands
+-- over each time Options > AddOns > Actionbars is opened, and BOUND to it: a pick writes the option, and
+-- the client keeps the value. The page is rebuilt on every visit, so nothing built here is kept.
+--
+-- A label is one line and never wraps, so the paragraph at the top is a bare surface as wide as the page,
+-- drawing the text wrapped to that width -- measured first, so the surface is as tall as the lines, and two
+-- pixels over so a descender on the last line is not clipped by a measure rounded to whole design pixels.
+local function paragraph(root, text)
+  local style = {width = root:size().w - 8}
+  local box = hafen.ui():measure(text, style)
+  local w = hafen.ui():widget():parent(root):size(style.width, box.h + 2)
+  w:on("Draw", function(ev) ev:g():text(text, 0, 0, style) end)
+end
+
+local function tip(n)
+  if n == KEEP then
+    return "the page you are on, lying flat or standing upright -- it stands in for the client's own bar"
+      .. " and cannot be taken away"
+  end
+  return "slots " .. (((n - 1) * SLOTS) + 1) .. "-" .. (n * SLOTS)
+    .. " -- off, lying flat, or standing upright"
+end
+
+opts:panel(function(root)
+  root:gap(4)
+  paragraph(root, "A bar is one page of the belt: ActionbarN is slots (N-1)x12+1 to Nx12. Actionbar1"
+    .. " follows the page you are on, in place of the client's own bar.")
+  -- One row per bar: the dropdown, then its name, on one line -- the dropdowns line up because every one is
+  -- the same width, and the label sits three pixels down to read level with the box beside it.
+  for n = 1, MAXBARS do
+    local line = hafen.ui():row():gap(6):parent(root)
+    hafen.ui():dropdown():parent(line):size(90):tooltip(tip(n)):bind(rows[n])
+    hafen.ui():label():parent(line):text("Actionbar" .. n):rule():margin(0, 3, 0, 0)
+  end
+  local reset = hafen.ui():button():parent(root):size(160):text("Reset bars position")
+    :tooltip("put every bar back in the middle of the screen, stacked -- for when one has ended up past an"
+      .. " edge and there is nothing left to drag")
+  reset:on("Pressed", function() step(resetBars) end)
+  state = hafen.ui():label():parent(root):text("")
+  report()
+end)
+
+-- AN OPTION MOVED, and one path does all three things that can mean. `dropBar` takes every copy of that bar
+-- off screen -- a rotation is a different box, so it is built again rather than resized -- and the sync
+-- behind it puts back whatever the options now say there is.
 for n = 1, MAXBARS do
   rows[n]:on("Changed", function()
     step(function()
@@ -750,5 +779,3 @@ hafen.console():on("actionbars", tell)
 -- the corner labels are re-read on a slow timer: the remap shows up within a couple of seconds, and the
 -- draw never pays for it.
 hafen.timer():every(2, relabel)
-
-report()                                    -- the line under the rows, before anything has moved
