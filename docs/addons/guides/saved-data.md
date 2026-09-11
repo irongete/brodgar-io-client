@@ -114,7 +114,7 @@ character is the one **on screen**, because a window stands over whichever sessi
 ## The other two kinds of file
 
 - **Files you ship** — an image, a font, a model, a data file — are read with
-  [`hafen.asset`](../api/asset.md), relative to your own folder. They are yours to read, not to write.
+  [`hafen.asset`](../api/asset/README.md), relative to your own folder. They are yours to read, not to write.
 - **Data from elsewhere** comes through [`hafen.http`](../api/http.md), which needs a host allowlist in the
   manifest and the user's approval of it, and lands in a saved variable if you want it to survive the session.
 

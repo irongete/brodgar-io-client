@@ -305,4 +305,4 @@ reversible to the pixel; and since a rule is only values, a whole look can
 - [the HUD's plates](hud.md) — the five the client blits whole, and the one property that dresses them
 - [`hafen.font`](../../font.md) — the handles a `font` property takes
 - [selectors](../selectors.md) — the grammar every key is written in
-- [`hafen.asset`](../../asset.md) — the fonts and images a rule points at
+- [`hafen.asset`](../../asset/README.md) — the fonts and images a rule points at

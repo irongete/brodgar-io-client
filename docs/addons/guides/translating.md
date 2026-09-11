@@ -119,7 +119,7 @@ local doc = hafen.json():parse(hafen.asset():get("es.json"):text())
 hafen.locale():load(doc):install()
 ```
 
-[`hafen.asset`](../api/asset.md) reads the file out of your own folder — `.json` comes back as text, so
+[`hafen.asset`](../api/asset/README.md) reads the file out of your own folder — `.json` comes back as text, so
 [`hafen.json`](../api/json.md) parses it. A language picker is two addons, or one addon choosing which file
 to read: choosing a language is installing a catalogue.
 

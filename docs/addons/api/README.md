@@ -130,7 +130,9 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 
 | Page | What it holds |
 |---|---|
-| [`hafen.asset`](asset.md) | one loader for every file in your folder — images, fonts, models, data |
+| [`hafen.asset`](asset/README.md) | the hub: one loader for every file in your folder — images, fonts, models, data — the sandbox, and the order to read these pages in |
+| [the collection](asset/collection.md) | loading, listing and freeing your files, and naming what a folder of yours holds |
+| [the handles](asset/handles.md) | what each kind of loaded file answers: every asset, an image, a font, a mesh, a data file's bytes and text |
 | [`hafen.font`](font.md) | a font handle: the built-ins, your own `.ttf`, and drawing with it |
 
 ## Your own things in the world

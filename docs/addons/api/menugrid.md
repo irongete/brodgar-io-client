@@ -84,7 +84,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:res()` | string | the resource name, the identity — always answers, even for a revoked entry |
 | `pag:addon()` | string \| nil | the id of the addon that added this entry; `nil` for the game's own |
 | `pag:name()` | string \| nil | the display name the grid shows |
-| `pag:icon()` | image \| nil | the [asset](asset.md) your addon gave this entry; `nil` on the game's own, whose art is not a file of yours |
+| `pag:icon()` | image \| nil | the [asset](asset/README.md) your addon gave this entry; `nil` on the game's own, whose art is not a file of yours |
 | `pag:tooltip()` | string \| nil | the description under the name, when the resource carries one |
 | `pag:hotkey()` | string \| nil | the letter the grid paints over the button while Alt is held |
 | `pag:categories()` | string[] \| nil | the categories above this entry, as the action tokens the message carries; **empty** for a category and for an id-only entry |
@@ -130,7 +130,7 @@ dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))  -- writes chain, like e
 | `s:menugrid():remove(idOrPagina)` | take one of your own back out; returns the collection, so removals chain |
 | `pag:name(text)` | the display name the grid paints and its tooltip shows |
 | `pag:tooltip(text)` | the description the tooltip paints under that name |
-| `pag:icon(image)` | the picture the button draws: an image [asset](asset.md) handle |
+| `pag:icon(image)` | the picture the button draws: an image [asset](asset/README.md) handle |
 | `pag:parent(pagOrNil)` | the category it hangs under; `nil` is the root screen |
 
 Nothing reaches the server — a custom entry is drawn by this client, and pressing it runs
@@ -185,7 +185,7 @@ addon's, raises naming whose it is: what the server granted is the server's to r
 `pag:name(text)` sets the label the grid paints under the pointer and sorts by; an entry you never name
 shows the id you gave it. `pag:tooltip(text)` is the description under that label, painted once the pointer
 has rested on the button — an entry with none has a tooltip that is its name alone. `pag:icon(image)` takes
-the handle [`hafen.asset():get("dig.png")`](asset.md) hands you and **never a path** — the loader is one
+the handle [`hafen.asset():get("dig.png")`](asset/README.md) hands you and **never a path** — the loader is one
 door, and a string here says so.
 
 An entry with no icon draws an empty cell. An image bigger than a cell is scaled down to fit, keeping its
@@ -308,6 +308,6 @@ display name, and there is no path-shaped way in beside it.
 
 - [session](session.md) — the address every read here goes through
 - [`session:actionbar`](actionbar.md) — putting a name on the hotbar, and holding a slot for an entry
-- [`hafen.asset`](asset.md) — loading the PNG a custom entry draws
+- [`hafen.asset`](asset/README.md) — loading the PNG a custom entry draws
 - [`Pagina`](types/ui.md#pagina) — the snapshot shape `:info()` returns
 - [`session:craft`](craft.md) — the window a recipe action opens

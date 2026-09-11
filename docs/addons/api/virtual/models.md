@@ -16,7 +16,7 @@ local o = hafen.virtual():object():add(mdl, p)
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
 ```
 
-`asset` is a [`hafen.asset`](../asset.md) **mesh handle** —
+`asset` is a [`hafen.asset`](../asset/README.md) **mesh handle** —
 [handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
 [anchor](README.md#the-anchor-is-an-argument) is a [Position](../position.md) to stand it
 at a point or a [Gob](../gob.md) to make it follow one.
@@ -24,12 +24,12 @@ A new object has scale `1`, full opacity, no tint and is not clickable.
 
 ## The model
 
-A model is a [`hafen.asset`](../asset.md) mesh handle — `hafen.asset():get("props/chair.glb")` — holding a
+A model is a [`hafen.asset`](../asset/README.md) mesh handle — `hafen.asset():get("props/chair.glb")` — holding a
 glTF 2.0 static model: your own `.glb`, the single-file binary form and the one to prefer, or a `.gltf` with
 its buffers beside it. The parser is pure Java with no native dependencies and decodes **synchronously**, so
 load it from setup code (`Load`, `SessionEnteredWorld`, a command) and never from inside a draw callback.
-The handle answers [`mdl:bounds()`](../asset.md#mesh) with a world-unit box and
-[`mdl:info()`](../asset.md#mesh) with
+The handle answers [`mdl:bounds()`](../asset/handles.md#mesh) with a world-unit box and
+[`mdl:info()`](../asset/handles.md#mesh) with
 what the parser produced.
 
 > **Sizing.** glTF authored units vary wildly — a model may be one unit tall or a hundred. Read
@@ -111,5 +111,5 @@ handles all three: click-select, drag on the ground, and persistence through
 
 - [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — an image in the world, and the anchoring both share
-- [`hafen.asset`](../asset.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
+- [`hafen.asset`](../asset/handles.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
 - [events](../event/bus/world.md#world-ghosts-and-sprites) — `ObjectClicked`

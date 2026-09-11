@@ -258,7 +258,7 @@ ordinary Lua tables you index normally.
 
 **A document names a file by path; a Lua call takes the handle.** A [stylesheet](ui/style/README.md) is a
 document rather than a call, so `{asset = "img/panel.png"}` and `{asset = "fonts/Inter.ttf", size = 12}`
-name a file your addon ships and load it through [`hafen.asset()`](asset.md)'s own door, interning to the
+name a file your addon ships and load it through [`hafen.asset()`](asset/README.md)'s own door, interning to the
 very object `:get(path)` hands you. That is the one place a path string stands for a file: everywhere else
 — a [sprite](virtual/sprites.md), an [object](virtual/models.md), a [draw verb](ui/drawing.md) — a path is
 refused and the handle is what goes in.

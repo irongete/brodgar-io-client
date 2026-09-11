@@ -62,7 +62,7 @@ miss is `nil`, and a **position** is an error too.
 
 ## Asset: a file your addon ships
 
-[`hafen.asset()`](asset.md) is a collection keyed by an **addon-relative path**: `:get(path)` is one
+[`hafen.asset()`](asset/README.md) is a collection keyed by an **addon-relative path**: `:get(path)` is one
 asset, `:list(filter)` the ones this addon holds. It is the one collection that hands back an **owned
 resource** rather than a view of client state — the type comes from the file's extension, the handle is
 interned per path, and it is freed on reload or disable, or by `hafen.asset():remove(a)`, after which the

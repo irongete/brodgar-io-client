@@ -248,7 +248,7 @@ nothing else, so every selector already written keeps meaning what it meant. `:p
 widget that *holds* a picture — a [picture control](controls/display.md#picture), a picture button, a
 picture checkbox — and `nil` on one that composes or paints its art instead of holding one, an inventory
 square or a meter's bar among them. It also answers `nil` for a picture that came out of **your own**
-[asset](../asset.md) file rather than the client's art: the name it hands back is a client resource name or
+[asset](../asset/README.md) file rather than the client's art: the name it hands back is a client resource name or
 nothing. One picture shared by two widgets names one resource on both, which is the true answer — they are
 showing the same art. Any argument raises.
 

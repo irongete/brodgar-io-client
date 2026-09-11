@@ -83,7 +83,7 @@ button is as tall as its art — so [`:size(w)`](controls/README.md#sizing) take
 the height to it, and [`:pack()`](widget.md#owned-vs-borrowed) sizes the box around a column of them.
 
 **An image you ship is measured in it too.** A 32×32 PNG is 32×32 to
-[`img:size()`](../asset.md#image) and covers 32 design pixels when drawn, so your art and the client's
+[`img:size()`](../asset/handles.md#image) and covers 32 design pixels when drawn, so your art and the client's
 sit at the same size at every scale.
 
 **The client's own art carries its own scale**, and a rule that [names one](style/chrome.md#naming-a-picture)

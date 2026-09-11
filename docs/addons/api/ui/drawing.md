@@ -32,8 +32,8 @@ end)
 | `g:line(x1, y1, x2, y2, width)` | a line; `width` defaults to 1 |
 | `g:poly(x1, y1, x2, y2, x3, y3, ...)` | a **filled** convex polygon of three points or more, in the current colour; the one verb here that is **not clipped** to the widget's box |
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie or progress wedge, `fraction` `0..1` — for cooldowns and meters |
-| `g:image(img, x, y, w, h)` | draw an [image asset](../asset.md) at native size, or scaled into `w × h` |
-| `g:aimage(img, x, y, ax, ay)` | draw an [image asset](../asset.md) anchored, like `g:atext` |
+| `g:image(img, x, y, w, h)` | draw an [image asset](../asset/README.md) at native size, or scaled into `w × h` |
+| `g:aimage(img, x, y, ax, ay)` | draw an [image asset](../asset/README.md) anchored, like `g:atext` |
 | `g:color(r, g, b, a)` / `g:color(c)` | set the draw colour, `0..255`; `g:color()` resets to white — see [below](#colour-here-is-also-loose-numbers) |
 | `g:resource(name, x, y, w, h)` | draw an engine `.res` image **by name**, at native size or scaled |
 
@@ -94,7 +94,7 @@ value out of [`seg:color()`](../meter.md#a-segment), [`kin:color()`](../kin.md) 
 
 ## Images
 
-To draw your own PNGs, load them with [`hafen.asset`](../asset.md) and blit the handle:
+To draw your own PNGs, load them with [`hafen.asset`](../asset/README.md) and blit the handle:
 
 ```lua
 local icon                                     -- upvalue for the draw callbacks below
@@ -117,7 +117,7 @@ PNG's transparency is preserved, so an icon with a transparent background compos
 behind it, the same as the client's own art.
 
 **Your PNG's own pixels are design pixels.** A 32×32 file is 32×32 to
-[`img:size()`](../asset.md#image) and covers 32×32 in the box you drew it in, on every client — so it sits
+[`img:size()`](../asset/handles.md#image) and covers 32×32 in the box you drew it in, on every client — so it sits
 beside the client's own art at the same size at every interface scale, and `g:image(icon, x, y)` covers
 exactly `icon:size()` from `x, y`. Authoring for a scaled client is authoring a bigger PNG and drawing it
 into the same box.
@@ -246,6 +246,6 @@ addon's cache holds and its hit rate. Rich-text markup is cached on the same ter
 - [custom](custom.md) — the callbacks `g` arrives in
 - [overlays](overlay.md) — the painters over the HUD and over one widget, each handed one too
 - [`hafen.font`](../font.md) — getting a handle to pass as `font`
-- [`hafen.asset`](../asset.md) — loading the images `g:image` draws
+- [`hafen.asset`](../asset/README.md) — loading the images `g:image` draws
 - [`hafen.client`](../client/profiling/counters.md#textcache) — the cache's own counters
 - [`hafen.virtual`](../virtual/sprites.md) — standing an image in the world instead of on screen

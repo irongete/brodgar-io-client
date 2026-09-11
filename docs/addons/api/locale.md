@@ -246,5 +246,5 @@ what the server hears is the English the client would have sent.
 
 - [`hafen.ui`: the stylesheet](ui/style/README.md) — what a surface is drawn with, keyed the same way
 - [`hafen.json`](json.md) — parsing the file a catalogue is shipped as
-- [`hafen.asset`](asset.md) — reading a file your addon ships
+- [`hafen.asset`](asset/README.md) — reading a file your addon ships
 - [conventions](conventions.md) — collections, snapshots and the grammar every verb here follows

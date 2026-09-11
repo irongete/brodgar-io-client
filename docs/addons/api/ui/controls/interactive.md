@@ -15,7 +15,7 @@ hafen.ui():button():image(up, down, hover)         -- the same builder, a pictur
 
 `up` is what the button shows at rest, `down` while it is held, and `hover` the one under the cursor;
 leave `hover` out and it is the same picture as `up`. Each face is either an
-[image asset](../../asset.md) your addon ships, passed as the handle, or a **string naming one of the
+[image asset](../../asset/README.md) your addon ships, passed as the handle, or a **string naming one of the
 client's own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from, scaled
 the way the client scales it so a button made of game art matches the buttons beside it; a file of yours is
 drawn at its own pixels instead.

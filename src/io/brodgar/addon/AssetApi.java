@@ -3,20 +3,26 @@ package io.brodgar.addon;
 import haven.TexI;
 
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaString;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -44,9 +50,11 @@ import javax.imageio.ImageIO;
  * <p><b>Dispatch is by extension</b> — {@code .png}/{@code .jpg}/{@code .jpeg}/{@code .gif}/{@code .bmp} &rarr;
  * an image ({@code ImageIO} &rarr; {@link TexI}), {@code .ttf}/{@code .otf} &rarr; a font ({@code
  * Font.createFont} + one AWT {@code registerFont}), {@code .glb}/{@code .gltf} &rarr; a mesh ({@link Gltf}),
- * {@code .json}/{@code .txt} &rarr; data (UTF-8 text, 033.3 — the door a {@code theme.json} comes through).
- * Anything else is an error listing the supported ones. Decoding is <b>synchronous</b> on the UI thread, as it
- * always was (small local assets — spec 17 §3): load from setup code, never inside a draw.
+ * and <b>every other extension</b> &rarr; data: the file's bytes, which {@code :bytes()} hands over as they
+ * are and {@code :text()} decodes as UTF-8 (the door a {@code theme.json} comes through, 033.3). The three
+ * decoded kinds are the ones whose loader has to recognise the format; a file is a file, and what it means is
+ * the addon's to read. Decoding is <b>synchronous</b> on the UI thread, as it always was (small local assets
+ * — spec 17 §3): load from setup code, never inside a draw.
  *
  * <p><b>One cache, keyed by the RESOLVED path</b> ({@link Cache}), so {@code hafen.asset("icon.png") ==
  * hafen.asset("icon.png")} for every type — including {@code .ttf}, which previously re-read the file and
@@ -81,16 +89,13 @@ import javax.imageio.ImageIO;
 final class AssetApi {
     private AssetApi() {}
 
-    /** The supported extensions, as the unknown-extension error lists them. */
-    private static final String EXTS =
-        ".png/.jpg/.jpeg/.gif/.bmp (image), .ttf/.otf (font), .glb/.gltf (mesh), .json/.txt (data)";
-
     /**
      * Build {@code hafen.asset} for {@code owner}: <b>the section object IS the collection</b> of the files this
      * addon ships (spec §2.1). {@code hafen.asset():get(path)} loads and interns one, {@code :list(filter)} reads
-     * the ones it currently holds, {@code :find} answers by path substring, and {@code :remove(a)} frees one
-     * <b>now</b> rather than waiting for teardown. There is no {@code :add} — an asset is a file the addon
-     * shipped, not something it creates here.
+     * the ones it currently holds, {@code :find} answers by path substring, {@code :remove(a)} frees one
+     * <b>now</b> rather than waiting for teardown, and {@code :files(dir)} names what is in one folder of the
+     * addon's own before any of it is loaded. There is no {@code :add} — an asset is a file the addon shipped,
+     * not something it creates here.
      */
     static void install(LuaTable hafen, final Addon owner) {
         Section.mount(hafen, "asset", collection(owner),
@@ -100,6 +105,21 @@ final class AssetApi {
 
     /** {@code hafen.asset()} — the addon's own loaded files, addressed by their addon-relative path. */
     static LuaValue collection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        // files(dir) -- the names in one folder of this addon's own, so an addon can offer what it ships
+        // without a list of it written somewhere else. It is the one read here that touches no cache: a
+        // folder's contents are read on every call, which is what lets a file dropped in while the client
+        // runs be seen without a :reload.
+        extra.set("files", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "hafen.asset()", "files");
+                String dir = Args.passed(a, 2)
+                    ? Args.str(a, 2, "hafen.asset():files", "dir",
+                               "a folder inside this addon's own, such as \"songs\"").tojstring()
+                    : ".";
+                return files(owner, dir);
+            }
+        });
         return LuaCollection.create("hafen.asset()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return owner.assets.members();
@@ -177,7 +197,43 @@ final class AssetApi {
                         + " files — grid:image(lvl) renders it and img:dispose() frees the one it handed back");
                 a.dispose();
             }
-        }, null);
+        }, extra);
+    }
+
+    /**
+     * {@code hafen.asset():files(dir)} — the <b>regular files</b> directly inside {@code dir}, a folder of this
+     * addon's own, as a 1-based array of addon-relative paths spelled with {@code /}, sorted by name. The one
+     * containment check ({@link Inside}) resolves {@code dir} and then <b>every entry</b> again: an entry whose
+     * real path leaves the folder — a link out of it — is not listed, because it is not a file this addon
+     * ships and {@code :get} would refuse it. A folder is not listed either: an addon that wants what is
+     * under one names it. Nothing here reads a file's contents or fills the cache.
+     */
+    static LuaValue files(Addon owner, String dir) {
+        Path folder = resolveAddonAsset(owner, dir, "hafen.asset():files");   // refuses the console first
+        Path base = Inside.inside(owner.dir, ".", "hafen.asset():files");     // the addon's folder, resolved
+        if(!Files.isDirectory(folder))
+            throw new LuaError("hafen.asset():files(dir): no such folder '" + dir + "' in this addon's folder");
+        List<String> names = new ArrayList<String>();
+        try(DirectoryStream<Path> entries = Files.newDirectoryStream(folder)) {
+            for(Path e : entries) {
+                Path real;
+                try {
+                    real = Inside.inside(owner.dir, base.relativize(e).toString(), "hafen.asset():files");
+                } catch(LuaError outside) {  // a link that leaves the folder: not a file this addon ships
+                    continue;
+                }
+                if(!Files.isRegularFile(real))
+                    continue;
+                names.add(base.relativize(real).toString().replace(File.separatorChar, '/'));
+            }
+        } catch(IOException e) {
+            throw new LuaError("hafen.asset():files(dir): could not read '" + dir + "': " + Refusal.reason(e));
+        }
+        Collections.sort(names);
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < names.size(); i++)
+            t.set(i + 1, LuaValue.valueOf(names.get(i)));
+        return t;
     }
 
     // ---- the per-addon intern cache ------------------------------------------------------------------
@@ -308,7 +364,7 @@ final class AssetApi {
      * {@code hafen.asset(path)}: resolve + sandbox the path, serve the interned asset if it is already loaded,
      * else dispatch on the file's extension and load it. The whole door — every addon-shipped file enters here.
      * Throws a clear, distinguishable {@link LuaError} for each way it can fail (absolute path, {@code ..}
-     * escape, unknown extension, missing file, undecodable file).
+     * escape, missing file, undecodable file).
      */
     static LuaValue load(Addon owner, String name) {
         Path p = resolveAddonAsset(owner, name, "hafen.asset");
@@ -327,10 +383,7 @@ final class AssetApi {
             return newFont(owner, name, key, requireFile(p, name));
         if(ext.equals("glb") || ext.equals("gltf"))
             return newMesh(owner, name, key, requireFile(p, name));
-        if(ext.equals("json") || ext.equals("txt"))
-            return newData(owner, name, key, requireFile(p, name));
-        throw new LuaError("hafen.asset: '" + name + "' has no supported extension — hafen.asset loads "
-            + EXTS);
+        return newData(owner, name, key, requireFile(p, name));
     }
 
     /**
@@ -707,28 +760,28 @@ final class AssetApi {
     // ---- data (033.3) --------------------------------------------------------------------------------
 
     /**
-     * Load a <b>data</b> asset — a {@code .json}/{@code .txt} file this addon ships, read as UTF-8 and handed to
-     * Lua as its {@code :text()}. It is the door a <b>theme</b> comes through ({@code 033-ui-stylesheet}, C1a):
-     * {@code hafen.json():parse(hafen.asset("theme.json"):text())} is a stylesheet as <i>data</i>, its font strings
-     * mapped through {@code hafen.asset} in Lua — an addon whose look is a file, not code.
+     * Load a <b>data</b> asset — any file this addon ships that is not a picture, a font or a model, read whole
+     * and handed to Lua as its {@code :bytes()}, or decoded as UTF-8 by {@code :text()}. It is the door a
+     * <b>theme</b> comes through ({@code 033-ui-stylesheet}, C1a): {@code hafen.json():parse(hafen.asset("theme.json"):text())}
+     * is a stylesheet as <i>data</i>, its font strings mapped through {@code hafen.asset} in Lua — an addon whose
+     * look is a file, not code — and it is the door a binary format comes through, parsed by the addon that
+     * knows it.
      *
-     * <p><b>It hands back the TEXT, not a parsed table</b>, and that is the one canonical way rule doing its job:
-     * reading a file is {@code hafen.asset}, parsing JSON is {@link Json} ({@code hafen.json}), and gluing them is
-     * one Lua call. Parsing here would also make the interned value <b>mutable shared state</b> — every re-load of
-     * the path handing back the same table, one addon's edit visible to its next reader — where a string is
-     * immutable and interning stays honest. Like a font asset it owns nothing releasable, so dropping the cache
-     * entry IS the whole of its freeing.
+     * <p><b>It hands back the BYTES or the TEXT, not a parsed table</b>, and that is the one canonical way rule
+     * doing its job: reading a file is {@code hafen.asset}, parsing JSON is {@link Json} ({@code hafen.json}),
+     * and gluing them is one Lua call. Parsing here would also make the interned value <b>mutable shared
+     * state</b> — every re-load of the path handing back the same table, one addon's edit visible to its next
+     * reader — where a string is immutable and interning stays honest. Like a font asset it owns nothing
+     * releasable, so dropping the cache entry IS the whole of its freeing.
      */
     private static LuaValue newData(Addon owner, String name, String key, Path p) {
-        String text;
+        byte[] bytes;
         try {
-            text = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
+            bytes = Files.readAllBytes(p);
         } catch(IOException | RuntimeException e) {
             throw new LuaError("hafen.asset: could not read '" + name + "': " + Refusal.reason(e));
         }
-        if(text.startsWith("\uFEFF"))
-            text = text.substring(1);      // a UTF-8 BOM is not JSON: it would fail parse() on the very first char
-        Data d = new Data(LuaValue.valueOf(text));
+        Data d = new Data(bytes);
         d.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // data owns nothing releasable — dropping the entry IS the dispose
@@ -740,17 +793,40 @@ final class AssetApi {
     }
 
     /**
-     * The record behind a data asset's handle: the file's text, read once, and the asset facet the shared verbs
+     * The record behind a data asset's handle: the file's bytes, read once, and the asset facet the shared verbs
      * read off it. It exists for the same reason {@link LuaImage} and {@link LuaMesh} do — a handle is userdata
      * over a record, and the record is what a shared metatable resolves. It owns nothing releasable.
+     *
+     * <p>The two Lua strings are made on the first call that asks for each and kept: a Lua string is a byte
+     * array of its own, so {@code :bytes()} is one copy of the file and {@code :text()} a decode of it, and a
+     * file read for its bytes never pays for a decode it did not ask for.
      */
     static final class Data implements Loaded {
-        /** The file's contents as an immutable Lua string, which is the whole of what {@code d:text()} is. */
-        final LuaValue text;
+        /** The file's contents, as read. */
+        final byte[] bytes;
+        private LuaValue luaBytes, luaText;
         private Asset asset;
 
-        Data(LuaValue text) {
-            this.text = text;
+        Data(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        /** The bytes as an immutable Lua string, which is the whole of what {@code d:bytes()} is. */
+        LuaValue bytes() {
+            if(luaBytes == null)
+                luaBytes = LuaString.valueOf(bytes);
+            return luaBytes;
+        }
+
+        /** The bytes decoded as UTF-8, a leading BOM dropped — a BOM is not JSON, and it would fail parse(). */
+        LuaValue text() {
+            if(luaText == null) {
+                String text = new String(bytes, StandardCharsets.UTF_8);
+                if(text.startsWith("\uFEFF"))
+                    text = text.substring(1);
+                luaText = LuaValue.valueOf(text);
+            }
+            return luaText;
         }
 
         public Asset asset() {
@@ -933,13 +1009,18 @@ final class AssetApi {
         default:
             m.set("text", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {
-                    return data(self, "text").text;
+                    return data(self, "text").text();
+                }
+            });
+            m.set("bytes", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return data(self, "bytes").bytes();
                 }
             });
             m.set("info", new OneArgFunction() {      // as-09: the same, for a data file
                 public LuaValue call(LuaValue self) {
                     LuaTable t = new LuaTable();
-                    t.set("bytes", LuaValue.valueOf(data(self, "info").text.length()));
+                    t.set("bytes", LuaValue.valueOf(data(self, "info").bytes.length));
                     return t;
                 }
             });

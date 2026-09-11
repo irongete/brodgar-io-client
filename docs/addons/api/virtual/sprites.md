@@ -13,7 +13,7 @@ sprite:rotate(math.pi / 2):alpha(0.8)                         -- 90 degrees, sli
 hafen.virtual():sprite():remove(sprite)                       -- or let reload or disable clear it
 ```
 
-`asset` is a [`hafen.asset`](../asset.md) **image handle** —
+`asset` is a [`hafen.asset`](../asset/README.md) **image handle** —
 [handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
 [anchor](README.md#the-anchor-is-an-argument) is a [Position](../position.md) to stand it
 at a point or a [Gob](../gob.md) to make it follow one.
@@ -122,6 +122,6 @@ drives the other unchanged.
 - [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [models](models.md) — the same thing with a glTF mesh instead of an image
 - [widgets](widgets.md) — the same three facing modes, on a whole window standing in the world
-- [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
+- [`hafen.asset`](../asset/README.md) — loading the PNG a sprite takes
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
 - [events](../event/bus/world.md#world-ghosts-and-sprites) — `SpriteClicked`

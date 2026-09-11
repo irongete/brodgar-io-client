@@ -2,7 +2,7 @@
 
 The picture a player recognises: the square the corner minimap paints for a piece of ground. A grid can
 render itself, and what you get back is an ordinary **image handle** — the same thing
-[`hafen.asset`](../asset.md) hands you for a PNG of your own.
+[`hafen.asset`](../asset/README.md) hands you for a PNG of your own.
 
 | Call | Returns | Description |
 |---|---|---|
@@ -70,7 +70,7 @@ A drawing is an **owned resource** like a loaded image: `img:dispose()` frees it
 than becoming an error — it still answers `:size()`, drawing it simply draws nothing, and the next
 `grid:image(level)` renders a fresh one.
 
-The ending is **on the handle**, which is where an [asset](../asset.md#the-collection) has not got one: a
+The ending is **on the handle**, which is where an [asset](../asset/collection.md#the-collection) has not got one: a
 file your addon shipped is a member of `hafen.asset()` and the collection frees it, while a drawing belongs
 to no collection at all. `hafen.asset():remove(img)` on one says so.
 
@@ -83,7 +83,7 @@ picture alive.
 > description, not a file you could load. An asset is a file your addon shipped; this is a picture the
 > client drew of the database.
 
-It is an [object like every other handle](../asset.md#every-asset) — you cannot write to it, and a name it
+It is an [object like every other handle](../asset/handles.md#every-asset) — you cannot write to it, and a name it
 does not answer raises naming the ones it does. `tostring` gives you `Asset(image, map:<gridId>@<level>)`
 for a drawing of the ground and `Asset(image, overlay:<tag>@<gridId>)` for a mask, so a log line says which
 picture it is holding. Beside `:size()`, `:type()` and `:path()` it answers two verbs an asset has not
@@ -102,5 +102,5 @@ paint it — `0` draw callbacks of your own while a map is on the screen.
 
 - [segments and grids](grids.md) — the `Grid` that renders itself
 - [overlays](overlays.md) — the recorded masks `grid:overlayImage` paints
-- [`hafen.asset`](../asset.md) — the image handle a drawing is one of, and its `:size()`
+- [`hafen.asset`](../asset/README.md) — the image handle a drawing is one of, and its `:size()`
 - [`hafen.virtual`](../virtual/sprites.md) — standing one of these in the 3D world

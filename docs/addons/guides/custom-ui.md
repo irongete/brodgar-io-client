@@ -49,7 +49,7 @@ end)
 ```
 
 `g` lives only for the length of the callback: stash it and draw later and nothing happens. To draw an
-image you ship, load it once with [`hafen.asset`](../api/asset.md) — in `Load`, never inside a draw —
+image you ship, load it once with [`hafen.asset`](../api/asset/README.md) — in `Load`, never inside a draw —
 and blit the handle with `g:image`. `g:resource(name, …)` draws the client's own art by name.
 
 **Cost.** Geometry is nearly free; text is not, so the engine

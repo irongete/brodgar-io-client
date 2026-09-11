@@ -96,6 +96,6 @@ Sound; exposing it would be its own section rather than a retrofit here.
 ## See also
 
 - [`hafen.client():options():audio()`](client/README.md) — master, UI, event and ambient volumes
-- [`hafen.asset`](asset.md) — the files *your* addon ships, as opposed to engine resources
+- [`hafen.asset`](asset/README.md) — the files *your* addon ships, as opposed to engine resources
 - [conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection
   shape this shares

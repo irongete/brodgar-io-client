@@ -21,7 +21,7 @@ savedata/
 ```
 
 The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a
-rename. Files your addon ships are read through [`hafen.asset`](api/asset.md), which resolves paths inside
+rename. Files your addon ships are read through [`hafen.asset`](api/asset/README.md), which resolves paths inside
 your own folder and rejects everything outside it. The `savedata/` tree is written for you — see
 [`hafen.store`](api/store.md).
 
@@ -132,7 +132,7 @@ all.
 
 Your addon also gets a global `ADDON` table with two fields: `ADDON.id`, its id, and `ADDON.dir`, the
 absolute path of its folder. Both are informational — reading a file is
-[`hafen.asset`](api/asset.md)'s job.
+[`hafen.asset`](api/asset/README.md)'s job.
 
 Almost everything your addon does runs on the client's **step**, one callback after another in the same
 frame as the drawing; a draw, a press and the two [message streams](api/event/streams.md) run where the

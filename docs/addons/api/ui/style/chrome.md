@@ -44,7 +44,7 @@ of your own art built on the client's frames mixes the two freely inside one rul
 | Written | Is |
 |---|---|
 | `{color = {r, g, b[, a]}}` | a flat fill, alpha included. It has no picture, so it takes none of the three fields below |
-| `{image = hafen.asset():get("img/panel.png")}` | a file your addon ships, as a [handle](../../asset.md) |
+| `{image = hafen.asset():get("img/panel.png")}` | a file your addon ships, as a [handle](../../asset/README.md) |
 | `{asset = "img/panel.png"}` | the same file, named by its path. The two intern to one art and one uploaded texture |
 | `{res = "gfx/hud/wnd/lg/bg"}` | one of the client's own images, named as the client names it |
 
@@ -330,4 +330,4 @@ if w then hafen.log():write("caption at " .. w:chrome().caption.x) end
 - [surfaces](surfaces.md) — what a panel and a window frame are on screen
 - [the HUD's plates](hud.md) — the five site keys `picture` reaches
 - [geometry](geometry.md) — the other way a rule moves something, and the only one that moves a widget
-- [`hafen.asset`](../../asset.md) — loading the images a `bg` or a `border` points at
+- [`hafen.asset`](../../asset/README.md) — loading the images a `bg` or a `border` points at

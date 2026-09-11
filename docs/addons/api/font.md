@@ -1,7 +1,7 @@
 # hafen.font: typography
 
 Get a font into a **private handle** your addon holds — one of the client's [built-ins](#the-built-ins) by
-name, or your own `.ttf` as an [asset](asset.md) — and then do one of exactly two things with it: draw with
+name, or your own `.ttf` as an [asset](asset/README.md) — and then do one of exactly two things with it: draw with
 it [yourself](#draw-with-it), or name it in a [stylesheet](ui/style/README.md) rule to restyle one of the
 client's own surfaces.
 
@@ -32,18 +32,18 @@ Neither takes options. Size and style are a [`:derive()`](#the-variant) away, ne
 `hafen.font()` is the collection of the client's built-in fonts: `:get(name)` is the handle for one of
 `"sans"`, `"serif"`, `"mono"`, `"fraktur"`, and `:list(filter)` is **all four, always** — the client's
 fonts, not your addon's history of asking for them. They are engine-owned, so they are *addressed by name* rather than loaded: interned, no file, no
-path, and **no lifetime**, so a built-in carries none of the [asset verbs](asset.md#every-asset). There is no
+path, and **no lifetime**, so a built-in carries none of the [asset verbs](asset/handles.md#every-asset). There is no
 `:add` — you cannot make a built-in — and no `:remove`, since there is no lifetime to end. A typo, a number
 or a path raises an error listing the four names and pointing paths at `hafen.asset`.
 
 ### Your own ttf
 
-A font file your addon ships is an [**asset**](asset.md), loaded through the same door as an image, a model
+A font file your addon ships is an [**asset**](asset/README.md), loaded through the same door as an image, a model
 or a data file: `hafen.asset():get("fonts/Inter.ttf")`. It is sandboxed — absolute paths and `..` escapes are
 rejected — **interned per path**, so one parse per file however many times you call it, and freed
 automatically on reload or disable. Loading also registers the family with the JVM, so `h:family()`
 resolves in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()` and
-`:path()`, and [`hafen.asset():remove(h)`](asset.md#the-collection) drops it early.
+`:path()`, and [`hafen.asset():remove(h)`](asset/collection.md#the-collection) drops it early.
 
 > **The family registration is the client's for the rest of its run.** There is no un-register, so a
 > family your file put there stays resolvable in a `$font[…]` tag after your handle is freed, after your
@@ -85,7 +85,7 @@ A derived handle is a **variant of a font, not a file**: like a built-in it carr
 the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the same reason.
 **`h:type()` is what says which of the three you are holding** — ask it before reaching for `:path()`, which a
 built-in and a variant have not got. A face is an
-[object, not a table](asset.md#every-asset), and it prints as what it is:
+[object, not a table](asset/handles.md#every-asset), and it prints as what it is:
 
 ```lua
 tostring(hafen.font():get("serif"))                 --> Font(Serif)
@@ -186,7 +186,7 @@ g:text(("$font[%s,16]{Fancy} normal"):format(h:family()), 6, 6)   -- two fonts, 
 g:text("$col[235,180,80]{$b{bold} orange} plain", 6, 26)          -- $col, $b, $i, $u, $size too
 ```
 
-This works because loading a `.ttf` [asset](asset.md) registers its family with the JVM, which is the one
+This works because loading a `.ttf` [asset](asset/README.md) registers its family with the JVM, which is the one
 shared thing a load leaves behind. Plain text with no `$` and no `font=` takes the stock render path;
 malformed markup falls back to drawing the literal string and never throws.
 
@@ -229,12 +229,12 @@ end)
 ```
 
 A whole look goes one step further: the face, the [chrome](ui/style/chrome.md) and every colour live in a
-data file read through [`hafen.asset`](asset.md#data) and [`hafen.json`](json.md), and the Lua that installs
+data file read through [`hafen.asset`](asset/handles.md#data) and [`hafen.json`](json.md), and the Lua that installs
 it never names a font, a size, a colour, a surface or a pixel. See [theming](../guides/theming.md).
 
 ## See also
 
-- [`hafen.asset`](asset.md) — the one door for a `.ttf` or `.otf` your addon ships
+- [`hafen.asset`](asset/README.md) — the one door for a `.ttf` or `.otf` your addon ships
 - [the stylesheet](ui/style/README.md) — installing a handle on the client's own surfaces
 - [drawing](ui/drawing.md) — `g:text`, `g:atext` and the raster cache behind them
 - [`hafen.client`](client/profiling/counters.md#textcache) — what that cache is holding

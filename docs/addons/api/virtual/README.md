@@ -101,9 +101,9 @@ kept in case the gob comes back: a gob that returns is bare, and re-anchoring is
 > ground that is not drawn right now, and ground the character on screen cannot locate at all, both
 > [wait](#the-ground-under-one-that-stands-still) rather than raising.
 
-An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset.md) **handle**, never
+An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset/README.md) **handle**, never
 a path string; a path raises an error naming `hafen.asset` as the way in. There is nothing to save by
-allowing one, since assets are [interned](../asset.md#interning) and loading the same path again is free.
+allowing one, since assets are [interned](../asset/README.md#interning) and loading the same path again is free.
 
 ## One vocabulary, every kind
 
@@ -346,7 +346,7 @@ which also depends on where the camera is pointing.
 
 ## See also
 
-- [`hafen.asset`](../asset.md) — the one door for the images and meshes these collections take
+- [`hafen.asset`](../asset/README.md) — the one door for the images and meshes these collections take
 - [Position](../position.md) — the place an anchor is given, and the placement snapping beside it
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
