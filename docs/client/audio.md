@@ -18,8 +18,26 @@
 | Music (MIDI) — **dead on this server** | `Music` is `javax.sound.midi` and sits entirely outside `Audio`/`ActAudio`; the Audio panel does not touch it. `Music.play` has exactly one caller, `RootWidget`'s `"bgm"` uimsg, which this server never sends. Do not build on it |
 | Muting one session (**fork**) | `ActAudio.RootChannel.mute(boolean)` writes the channel's `muted` flag and its live `VolAdjust`; `ActAudio.Root.mute` does all three channels at once. It is `synchronized` against `mixer()` for a real race — a first clip built while `muted` was stale sets itself audible, and every later `mute()` returns early on `m == muted`, so a background session that had made no sound yet stays audible for the rest of its life |
 
+## Instruments: the keyboard, and what the server plays back
+
+The instrument in a character's hands is played through published resource code, `ui/music` (v35), and
+heard through overlays the server puts on the musician's gob.
+
+| What | Where |
+|---|---|
+| The keyboard | `MusicWnd`, a `Window` the server opens with `mkwidget(name, maxpoly)`; it `grabkeys` while up. A press sends `wdgmsg("play", key, t)` and a release `wdgmsg("stop", key, t)`: `key` is `0..35` — three octaves, C3 to B5 — and `t` is seconds since the window's construction plus `latcomp` (`0.15`), sent as a `float`. `maxpoly` is the polyphony the server allows this instrument; past it the widget releases its oldest note before striking |
+| What comes back | Every note is relayed to everyone in earshot as an overlay on the musician's gob. `Decoder` reads a `key` — `255` is the `MusicOverlay` base, anything else a note — then `bid`, `ns` and `ne`, `float32` seconds on the base's clock. The instrument's own resource subclasses `Decoder` and hands `NoteOverlay` its clip |
+| Scheduling | `MusicOverlay.get` mixes each `NoteOverlay` in sample-accurately at `ns` against its own `start` — and **re-bases `start`** when a note's `ns` is more than a second ahead of it or already past, so a note dated badly plays now rather than never. What a sender times is the timestamps, not the moment it sends |
+| The sound of a key | `NoteOverlay.tuneclip`: the instrument's sample, re-pitched by `Audio.Resampler` at `2^((key - basekey) / 12)`. A key two octaves above the sample plays it four times faster, and so four times **shorter**. A `rep` audio layer loops until `stop` (a sustained instrument); without one the `cl` clip plays once and decays on its own, and holding the key sustains nothing |
+| The end of a note | `NoteOverlay.setvol` fades over `dt = 0.1` s past `ne`; there is no other release envelope |
+
 ## Gotchas
 
+- **The keyboard shows one octave and the wire takes three.** The published `MusicWnd` draws twelve keys,
+  `ZSXDCVGBHNJM`, and reaches the other twenty-four with Shift (up) and Ctrl (down); the server's `key`
+  is `0..35` whichever way it was reached.
+- **`t` is the one `float` the client sends the server.** `Message` writes a `Float` as `T_FLOAT32` and a
+  `Double` as `T_FLOAT64`; the server plays a note dated with either.
 - **A finished clip is dropped LAZILY, by the mixer thread.** `Audio.Mixer.get` removes a `CS` the moment
   its `get()` returns `< 0`, and that is the *only* end-of-clip signal: there is no callback and no
   `CS.done()`. So `Mixer.playing(cs)` is how you find out a clip has ended, and asking is also what drains

@@ -44,7 +44,7 @@ lookup instead of a search.
 | [the console](console.md) | the `:` command line: what registers a command, the three tiers a name resolves in, what a command that throws does, and which thread its body runs on |
 | [resources](resources.md) | what a `.res` carries: reading a layer by class, predicate or id, the `id == null` gotcha, and the `OD_RES` delta that carries a gob's resource and state bytes under the gob monitor |
 | [services](services.md) | keybindings, `Resource` and code adoption, the live fight, buffs, the vitals bars, the speed selector, the belt, the action menu, minimap icons, crafting, equipment |
-| [audio](audio.md) | the three channels, playing a clip and stopping one, per-clip volume, ambience, the per-session mute, and the mixer's lazy drain |
+| [audio](audio.md) | the three channels, playing a clip and stopping one, per-clip volume, ambience, the per-session mute, the mixer's lazy drain, and the instrument keyboard: what it sends, how the server plays it back, and why a high key is a short one |
 | [the character sheet](character-sheet.md) | `CharWnd` and its six tabs: attributes and FEP, study, skills and credos, the combat-school deck builder, the quest log, the wound tree |
 | [the Kin window](kin-window.md) | the buddy roster and its palette, the village and realm panels beside it, and the two uimsg arms that dereference `find(id)` unguarded |
 | [the radial menu](radial-menu.md) | `FlowerMenu`: what the server sends, the grabs a ring takes, the three ways one ends, and the fork seams in it |
