@@ -1,0 +1,9 @@
+{
+  "name": "140.2 — an option is the model",
+  "id": "140-the-options-page-is-the-addons.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 140.2: the four option kinds declare a stored value and nothing else; info() is the declaration and the value; the drawn spellings refuse naming the control to build in the panel.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

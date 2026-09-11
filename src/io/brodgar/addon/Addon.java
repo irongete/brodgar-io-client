@@ -801,13 +801,12 @@ public final class Addon {
 
     /**
      * This addon's <b>declared options</b> ({@code hafen.client():options():addon()}, 115.2), keyed by the
-     * addon's own name for the row and held in <b>declaration order</b> — which is the order the client
-     * draws them in, so the registry and the page are one fact. The handle above is the door; this is what
-     * it declared.
+     * addon's own name for the option and held in <b>declaration order</b>, which is the order
+     * {@code opts:option()} lists them in. The handle above is the door; this is what it declared.
      *
      * <p>Unlike its siblings on that handle this one holds state, and it holds it for as long as the addon
      * lives: an {@link LuaOption} carries the value in force, so a read costs a field rather than a
-     * {@code java.util.prefs} lookup on a path the panel walks every frame. There is still nothing to tear
+     * {@code java.util.prefs} lookup on a path a bound control walks every frame. There is still nothing to tear
      * down — a {@code :reload} builds a fresh {@link Addon} and the whole registry goes with the old one,
      * while the values are the client's and stay in its own preference store, exactly as a re-mapped
      * keybinding does.
@@ -828,8 +827,8 @@ public final class Addon {
     /**
      * This addon's <b>Option metatables</b> ({@link LuaOption}), one per {@link LuaOption.Kind}, each built
      * on the first option of that kind. Per addon for the reason every metatable here is (D-017), and per
-     * KIND because the kind is the vocabulary: a button has no value to read and a label has no default, and
-     * a single table would have to answer for verbs half of them have not got.
+     * KIND because the refusal names the kind (140.2): the vocabulary is the same on all four, and what
+     * differs is the shape of the value the kind checks.
      */
     final LuaValue[] optionMeta = new LuaValue[LuaOption.Kind.values().length];
 

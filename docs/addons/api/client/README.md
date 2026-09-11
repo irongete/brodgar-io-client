@@ -14,7 +14,7 @@ opts:audio()          -- volumes and output latency
 opts:camera()         -- the camera in force, and drag inversion
 opts:client()         -- client-wide toggles
 opts:keybindings()    -- declare, inspect and remap hotkeys
-opts:addon()          -- declare options of your own, which the window draws
+opts:addon()          -- declare options of your own, and the page the window shows them on
 ```
 
 The six client panels are **stateless proxies** over the client's live preference stores — each holds no
@@ -29,8 +29,8 @@ Each is also a [handle in the API's one shape](../conventions.md#snapshots-vs-ha
 option raises naming what the handle does answer, rather than reading `nil` and failing a call later, and
 nothing can be written onto one.
 
-[`opts:addon()`](addon.md) is the one that is not a panel of the client's: it is what **your** addon
-declares, which the window draws a page of. The frame profiler is the other half of this namespace:
+[`opts:addon()`](addon.md) is the one that is not a panel of the client's: it is the options **your**
+addon declares and the page it fills. The frame profiler is the other half of this namespace:
 [`hafen.client():profiling()`](profiling/README.md).
 
 ## Where your code is running
@@ -268,7 +268,7 @@ if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 
 ## See also
 
-- [your addon's own options](addon.md) — declaring a row the Options window draws, stores and answers reads for
+- [your addon's own options](addon.md) — a setting the client stores and answers reads for, and its page
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels

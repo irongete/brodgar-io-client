@@ -186,7 +186,7 @@ several of them look like writes:
 | [`hafen.virtual`](../api/virtual/README.md) | props only you can see — every verb but `:click`, which is `virtual.click` |
 | [`hafen.sound`](../api/sound.md) | what you hear |
 | [option **reads**](../api/client/README.md) | nothing — every one of the *client's* option writes is `client.settings` |
-| [`opt:value(v)`, `opt:text(s)`, `:add()`](../api/client/addon.md) | **your own** options panel: its rows are yours, and nobody else reads them |
+| [`opt:value(v)`, `:add()`, `opts:panel(fn)`](../api/client/addon.md) | **your own** options and page: the values are yours, and nobody else reads them |
 
 Subscribing, drawing and reading are not writes at all. The line is **whether the user would have to undo
 it by hand**: everything above is a display choice they can change back in a click, or something only your

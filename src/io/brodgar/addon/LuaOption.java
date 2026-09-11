@@ -12,25 +12,25 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.util.List;
 
 /**
- * One <b>option an addon declared</b> (spec {@code 115-the-addon-declares-its-options}) — what
- * {@code hafen.client():options():addon():<type>(name)…:add()} hands back, and the record the client draws a
- * control from and stores a value for.
+ * One <b>option an addon declared</b> (spec {@code 115-the-addon-declares-its-options}; the model half of
+ * spec {@code 140-the-options-page-is-the-addons}, 140.2) — what
+ * {@code hafen.client():options():addon():<type>(name)…:add()} hands back, and the record the client stores a
+ * value for.
  *
- * <p><b>Six kinds, and the kind decides the vocabulary.</b> Four of them carry a value — a
- * {@link Kind#BOOLEAN}, a {@link Kind#NUMBER} over a declared range, a {@link Kind#CHOICE} out of a declared
- * list and a {@link Kind#TEXT} — and answer {@code :value()}/{@code :value(v)}, {@code :default()} and
- * {@code :on("Changed", fn)}. Two do not: a {@link Kind#BUTTON} runs the function it was declared with and a
- * {@link Kind#LABEL} states a line the addon rewrites, and neither persists anything. {@code :value()} on
- * either of those is refused naming what the row does carry, rather than answering {@code nil} and leaving
- * the author to guess which half of the surface they are on.
+ * <p><b>An option is the model.</b> Four kinds, each a stored value and nothing else: a {@link Kind#BOOLEAN},
+ * a {@link Kind#NUMBER} over a declared range, a {@link Kind#CHOICE} out of a declared list and a
+ * {@link Kind#TEXT}. Every one answers {@code :value()}/{@code :value(v)}, {@code :default()},
+ * {@code :on("Changed", fn)} and {@code :info()}. Nothing here is drawn: the page an option is shown on is
+ * the addon's own ({@code opts:panel(fn)}, {@link AddonOptions}), built out of the client's controls, and
+ * a control is joined to an option by {@code w:bind(opt)} — so a caption, a hover text, a button and a
+ * line of text are a control's business, and the option carries none of them.
  *
  * <p><b>The value in force lives here, not in the preference store.</b> {@link #value} is loaded from
  * {@code addon/<addonid>/opt/<name>} once, at declaration, and written back on every change: nothing but this
- * client writes that key, so a read costs a field rather than a {@code java.util.prefs} lookup — which
- * matters because the panel that draws the row re-reads it every frame. A stored value the declaration can no
- * longer honour (a choice that is no longer offered, a number outside the range as it now reads) falls back
- * to the declared default, so narrowing a range in a new version of an addon cannot leave a value nothing
- * accepts.
+ * client writes that key, so a read costs a field rather than a {@code java.util.prefs} lookup. A stored value
+ * the declaration can no longer honour (a choice that is no longer offered, a number outside the range as it
+ * now reads) falls back to the declared default, so narrowing a range in a new version of an addon cannot
+ * leave a value nothing accepts.
  *
  * <p><b>{@code Changed} fires on a change, never on a write.</b> Writing the value already held is a no-op
  * with no event, which is what lets a control re-write what it reads without a feedback loop and what makes a
@@ -45,9 +45,9 @@ public final class LuaOption {
     /** How the collection is spelled in Lua, for its own messages and its members'. */
     static final String COLL = "hafen.client():options():addon():option()";
 
-    /** The six kinds of row, and the name each is spelled by in Lua. */
+    /** The four kinds of option, and the name each is spelled by in Lua. */
     public enum Kind {
-        BOOLEAN("boolean"), NUMBER("number"), CHOICE("choice"), TEXT("text"), BUTTON("button"), LABEL("label");
+        BOOLEAN("boolean"), NUMBER("number"), CHOICE("choice"), TEXT("text");
 
         /** The verb that builds this kind, and what {@code opt:type()} answers. */
         public final String word;
@@ -55,60 +55,42 @@ public final class LuaOption {
         Kind(String word) {
             this.word = word;
         }
-
-        /** Does this kind carry a value the client stores? (The other two run or state something.) */
-        public boolean valued() {
-            return (this != BUTTON) && (this != LABEL);
-        }
     }
 
-    /** The addon that declared it — whose store the value lands in, and whose panel page the row is on. */
+    /** The addon that declared it — whose store the value lands in. */
     public final Addon owner;
-    /** This addon's own name for the row, unique within it: the key, and the label's fallback. */
+    /** This addon's own name for the option, unique within it: the key, and its identity. */
     public final String name;
     public final Kind kind;
-    /** The caption the client draws beside the control. Defaults to {@link #name}; empty on a label row. */
-    public final String label;
-    /** The hover text, or {@code null}. */
-    public final String tooltip;
 
-    /** The declared default — {@code nil} on the two kinds that carry no value. */
+    /** The declared default. */
     final LuaValue def;
     /**
-     * The value in force, written through to the preference store. {@code nil} on the two kinds without one.
+     * The value in force, written through to the preference store.
      *
-     * <p><b>Volatile</b> (audit2 B06): Lua writes it from whatever thread the addon's handler ran on, and the
-     * control the client draws re-reads it every frame on the frame's own — two threads with no monitor
-     * between them, so the barrier is the field's.
+     * <p><b>Volatile</b> (audit2 B06): Lua writes it from whatever thread the addon's handler ran on, and a
+     * control bound to it reads it on the frame's own — two threads with no monitor between them, so the
+     * barrier is the field's.
      */
     private volatile LuaValue value;
-    /** A {@link Kind#NUMBER}'s inclusive bounds, whole numbers because the control that draws it is. */
+    /** A {@link Kind#NUMBER}'s inclusive bounds, whole numbers because the control that shows one is. */
     public final int lo, hi;
     /** A {@link Kind#CHOICE}'s offered values, in declaration order; {@code null} on every other kind. */
     public final List<String> choices;
-    /** A {@link Kind#BUTTON}'s handler — what the client runs when the row is pressed. */
-    final LuaValue press;
-    /** A {@link Kind#LABEL}'s line, the one piece of a row the addon rewrites live. Volatile for
-     *  {@link #value}'s reason: written from Lua, re-read by the row that draws it. */
-    private volatile String text;
 
-    /** {@code opt:on("Changed", fn)} — the only key, and only on a kind that carries a value. */
+    /** {@code opt:on("Changed", fn)} — the only key. */
     final Subs subs;
 
     LuaOption(AddonOptions.Builder b) {
         this.owner = b.owner;
         this.name = b.name;
         this.kind = b.kind;
-        this.label = (b.label != null) ? b.label : ((b.kind == Kind.LABEL) ? "" : b.name);
-        this.tooltip = b.tooltip;
         this.def = b.def;
         this.lo = b.lo;
         this.hi = b.hi;
         this.choices = b.choices;
-        this.press = b.press;
-        this.text = (b.text != null) ? b.text : "";
         this.subs = new Subs(b.owner, Addon.C_HOOK);
-        this.value = kind.valued() ? load() : LuaValue.NIL;
+        this.value = load();
     }
 
     /** {@code tostring(opt)} → {@code Option(show-timer, boolean)}. */
@@ -121,7 +103,7 @@ public final class LuaOption {
         return prefKey(owner, name);
     }
 
-    /** {@link #prefKey()} for a row that is not built yet — what {@code :add()} checks the length of. */
+    /** {@link #prefKey()} for an option that is not built yet — what {@code :add()} checks the length of. */
     static String prefKey(Addon owner, String name) {
         return "addon/" + owner.manifest.id + "/opt/" + name;
     }
@@ -158,16 +140,16 @@ public final class LuaOption {
         }
     }
 
-    /** The value in force, as Lua reads it. {@code nil} on the two kinds that carry none. */
+    /** The value in force, as Lua reads it. */
     public LuaValue value() {
         return value;
     }
 
     /**
-     * <b>The one write path</b>, and the whole of it: the value is checked against this row's own
-     * declaration, stored, and {@code Changed} is fired — once, and only where the value actually moved. The
-     * control the client draws writes through here too, which is what makes a panel's move and a Lua write
-     * one fact rather than two that have to be kept in step.
+     * <b>The one write path</b>, and the whole of it: the value is checked against this option's own
+     * declaration, stored, and {@code Changed} is fired — once, and only where the value actually moved. A
+     * control bound to the option writes through here too, which is what makes the user's move and a Lua
+     * write one fact rather than two that have to be kept in step.
      */
     public void value(LuaValue v) {
         LuaValue nv = check(v);
@@ -178,26 +160,26 @@ public final class LuaOption {
         subs.fire(CHANGED, nv);
     }
 
-    /** {@code v} as this row accepts it, or the refusal naming what this row does accept. */
+    /** {@code v} as this option accepts it, or the refusal naming what it does accept. */
     private LuaValue check(LuaValue v) {
         switch(kind) {
         case BOOLEAN:
             return LuaValue.valueOf(Args.bool(v, "option:value", "v",
-                                                 "the row '" + name + "' is a boolean"));
+                                                 "the option '" + name + "' is a boolean"));
         case NUMBER: {
-            int n = Args.integer(v, "option:value", "v", "between " + lo + " and " + hi + "; the row '" + name
-                                 + "' is drawn as a slider");
+            int n = Args.integer(v, "option:value", "v", "between " + lo + " and " + hi + "; the option '"
+                                 + name + "' is a whole number");
             if((n < lo) || (n > hi))
                 throw new LuaError("option:value(v): " + n + " is outside the range " + lo + ".." + hi
-                    + " the row '" + name + "' declared");
+                    + " the option '" + name + "' declared");
             return LuaValue.valueOf(n);
         }
         case CHOICE: {
-            Args.str(v, "option:value", "v", "one of the choices this row declared");
+            Args.str(v, "option:value", "v", "one of the choices this option declared");
             String s = v.tojstring();
             if(!choices.contains(s))
-                throw new LuaError("option:value(v): '" + s + "' is not one of the choices the row '" + name
-                    + "' declared — they are " + list(choices));
+                throw new LuaError("option:value(v): '" + s + "' is not one of the choices the option '"
+                    + name + "' declared — they are " + list(choices));
             return LuaValue.valueOf(s);
         }
         default: {
@@ -221,80 +203,6 @@ public final class LuaOption {
         return s;
     }
 
-    /** A label row's line, as it stands. */
-    public String text() {
-        return text;
-    }
-
-    /** Rewrite a label row's line — the one part of a row an addon moves without it being a value. */
-    void text(String s) {
-        this.text = s;
-    }
-
-    /** A button row's handler, for the client to run when the row is pressed. */
-    public LuaValue handler() {
-        return press;
-    }
-
-    // ---- the same value, in Java's words -------------------------------------------------------------
-    //
-    // The panel that draws the row is in another package and has no business holding LuaValues: it reads a
-    // boolean, an int or a String and writes one back. Every write below funnels through value(LuaValue)
-    // above -- THE one write path -- so a control's move and a Lua write are one fact, and the panel gets
-    // Changed and the store for free rather than having a second half to keep in step.
-
-    /** A boolean row's value. */
-    public boolean bool() {
-        return Args.truthy(value);
-    }
-
-    /** A number row's value, inside the range it declared. */
-    public int num() {
-        return value.toint();
-    }
-
-    /**
-     * A text row's line, or a choice row's pick — and on a choice, the element of {@link #choices}
-     * <b>by identity</b>. {@code SDropBox.change(I)} compares the incoming item against its own {@code sel}
-     * with {@code !=}, so a fresh String equal to the pick would rebuild the closed box on every frame the
-     * panel reads its value.
-     */
-    public String str() {
-        String s = value.tojstring();
-        if(choices != null) {
-            for(String c : choices) {
-                if(c.equals(s))
-                    return c;
-            }
-        }
-        return s;
-    }
-
-    /** Write a boolean row. */
-    public void set(boolean b) {
-        value(LuaValue.valueOf(b));
-    }
-
-    /** Write a number row. */
-    public void set(int n) {
-        value(LuaValue.valueOf(n));
-    }
-
-    /** Write a text or choice row. */
-    public void set(String s) {
-        value(LuaValue.valueOf(s));
-    }
-
-    /**
-     * Run a button row's handler — the client pressing the row on the user's behalf. It goes through
-     * {@link AddonManager#callLua}, the one watchdog-armed, CPU-accounted, error-isolated door into Lua, so
-     * a handler that throws cannot escape into the input pass that pressed it.
-     */
-    public void press() {
-        if(press != null)
-            AddonManager.callLua(owner, Addon.C_HOOK, press);
-    }
-
     /** The list of choices as an English list, for a refusal that has to say what is on offer. */
     private static String list(List<String> l) {
         StringBuilder sb = new StringBuilder();
@@ -308,14 +216,14 @@ public final class LuaOption {
 
     // ---- the Lua object ------------------------------------------------------------------------------
 
-    /** The one event key an option fires, on the four kinds that carry a value. */
+    /** The one event key an option fires. */
     static final String CHANGED = "Changed";
 
     /**
      * This option as Lua holds it, minted on the first ask and handed back by identity ever after —
      * interned on {@link Addon#optionHandles} (audit2 B10) rather than on a field of its own, so the check
      * and the mint are one act. {@code opts:addon():get("mode")} is read from a settings panel and from an
-     * addon's own Lua, and two of those racing used to be able to hand out two userdata for one row and
+     * addon's own Lua, and two of those racing used to be able to hand out two userdata for one option and
      * break the {@code ==} an option's identity is.
      */
     LuaValue handle() {
@@ -340,21 +248,18 @@ public final class LuaOption {
 
     /**
      * The metatable, built once per <b>kind</b> and cached on the {@link Addon} — per addon like every other
-     * metatable in the bridge (D-017), and per kind because the kind IS the vocabulary: a button has no
-     * value to read and a label has no default, and answering those with {@code nil} is the one answer that
-     * teaches nothing.
+     * metatable in the bridge (D-017), and per kind because the refusal names the kind: the vocabulary is
+     * the same on all four, and what differs is the shape of the value it checks.
      */
     private LuaValue meta() {
         LuaValue mt = owner.optionMeta[kind.ordinal()];
         if(mt != null)
             return mt;
-        LuaTable m = methods(kind);
+        LuaTable m = methods();
         LuaTable t = new LuaTable();
-        t.set(LuaValue.INDEX, Refusal.closedIndex("option", m, "an option your addon declared",
-            kind.valued() ? "its value is read as :value() and written as :value(v)"
-                          : ("a " + kind.word + " row carries no value: "
-                             + ((kind == Kind.BUTTON) ? "it runs the function you gave :press(fn)"
-                                                      : "it states the line :text(s) holds"))));
+        t.set(LuaValue.INDEX, Refusal.closedIndex("option", m, "a " + kind.word + " option your addon"
+            + " declared", "its value is read as :value() and written as :value(v); what shows it on your"
+            + " page is a control you build inside " + AddonOptions.HANDLE + ":panel(fn)"));
         t.set("__name", LuaValue.valueOf("Option"));
         t.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {
@@ -366,116 +271,69 @@ public final class LuaOption {
         return t;
     }
 
-    private static LuaTable methods(final Kind kind) {
+    private static LuaTable methods() {
         LuaTable m = new LuaTable();
-        // name() — this addon's own name for the row: what it declared, and what addresses it in the
+        // name() — this addon's own name for the option: what it declared, and what addresses it in the
         // collection. Its identity, so there is nothing to write.
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(self(self, "name").name);
             }
         });
-        // type() — which of the six kinds this row is, spelled as the builder that made it.
+        // type() — which of the four kinds this option is, spelled as the builder that made it.
         m.set("type", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(self(self, "type").kind.word);
             }
         });
-        // label() / tooltip() — what the client draws for the row. Reads only: they are the declaration, and
-        // the builder is where a declaration is made.
-        m.set("label", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(self(self, "label").label);
+        // value() reads and value(v) writes, because arity is the verb. The write returns the OPTION, so
+        // writes chain, and it fires Changed only where the value actually moved.
+        m.set("value", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOption o = self(a.arg1(), "value");
+                LuaValue v = Args.written(a, 2, "option:value", "v");
+                if(v == null)
+                    return o.value();
+                o.value(v);
+                return a.arg1();
             }
         });
-        m.set("tooltip", new OneArgFunction() {
+        // default() — the value the option was declared with, which is what it reads on a client that has
+        // never been told otherwise. It never moves, so there is nothing to write.
+        m.set("default", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                String t = self(self, "tooltip").tooltip;
-                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                return self(self, "default").def;
             }
         });
-        if(kind.valued()) {
-            // value() reads and value(v) writes, because arity is the verb. The write returns the OPTION, so
-            // writes chain, and it fires Changed only where the value actually moved.
-            m.set("value", new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    LuaOption o = self(a.arg1(), "value");
-                    LuaValue v = Args.written(a, 2, "option:value", "v");
-                    if(v == null)
-                        return o.value();
-                    o.value(v);
-                    return a.arg1();
-                }
-            });
-            // default() — the value the row was declared with, which is what it reads on a client that has
-            // never been told otherwise. It never moves, so there is nothing to write.
-            m.set("default", new OneArgFunction() {
-                public LuaValue call(LuaValue self) {
-                    return self(self, "default").def;
-                }
-            });
-            // on("Changed", fn) — the API's one notification verb, on the object that changed. It carries the
-            // NEW value, and it does not fire for a write of the value already held.
-            m.set("on", new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    LuaOption o = self(a.arg1(), "on");
-                    LuaValue key = Args.required(a, 2, "option:on", "key");
-                    LuaValue fn = Args.required(a, 3, "option:on", "fn");
-                    if(key.type() != LuaValue.TSTRING)
-                        throw new LuaError("option:on(key, fn): key must be a string, got " + key.typename());
-                    if(!fn.isfunction())
-                        throw new LuaError("option:on(key, fn): fn must be a function — it runs with the new"
-                            + " value when the option changes, got " + fn.typename());
-                    if(!CHANGED.equals(key.tojstring()))
-                        throw new LuaError("option:on(key, fn): an option has no event '" + key.tojstring()
-                            + "' — it has: Changed, which fires with the new value whenever the value moves,"
-                            + " whether you wrote it or the user did");
-                    return o.subs.on(CHANGED, fn);
-                }
-            });
-        } else {
-            // value() is REFUSED on the two kinds that carry none, rather than answering nil: a button and a
-            // label are the halves of this surface an author reaches for by analogy, and nil would let the
-            // mistake fail one line later saying nothing about which half they are on.
-            m.set("value", new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    LuaOption o = self(a.arg1(), "value");
-                    throw new LuaError("option:value(): the row '" + o.name + "' is a " + o.kind.word
-                        + " row and carries no value — "
-                        + ((o.kind == Kind.BUTTON)
-                           ? "it runs the function you gave :press(fn), and nothing about it is stored"
-                           : "it states the line :text(s) holds, which is what to write instead"));
-                }
-            });
-        }
-        if(kind == Kind.LABEL) {
-            // text() reads the line, text(s) rewrites it. A label is the one row an addon moves that is not a
-            // value: nothing is stored and nothing is notified, because the client re-reads it as it draws.
-            m.set("text", new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    LuaOption o = self(a.arg1(), "text");
-                    LuaValue v = Args.written(a, 2, "option:text", "s");
-                    if(v == null)
-                        return LuaValue.valueOf(o.text());
-                    o.text(Args.str(v, "option:text", "s", null).tojstring());
-                    return a.arg1();
-                }
-            });
-        }
-        // info() — the one snapshot escape hatch, carrying exactly what this kind of row has.
+        // on("Changed", fn) — the API's one notification verb, on the object that changed. It carries the
+        // NEW value, and it does not fire for a write of the value already held.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOption o = self(a.arg1(), "on");
+                LuaValue key = Args.required(a, 2, "option:on", "key");
+                LuaValue fn = Args.required(a, 3, "option:on", "fn");
+                if(key.type() != LuaValue.TSTRING)
+                    throw new LuaError("option:on(key, fn): key must be a string, got " + key.typename());
+                if(!fn.isfunction())
+                    throw new LuaError("option:on(key, fn): fn must be a function — it runs with the new"
+                        + " value when the option changes, got " + fn.typename());
+                if(!CHANGED.equals(key.tojstring()))
+                    throw new LuaError("option:on(key, fn): an option has no event '" + key.tojstring()
+                        + "' — it has: Changed, which fires with the new value whenever the value moves,"
+                        + " whether you wrote it or the user did");
+                return o.subs.on(CHANGED, fn);
+            }
+        });
+        // info() — the one snapshot escape hatch: the declaration and the value in force, and on a number
+        // its bounds, on a choice what it offers. Nothing about how it is shown: that is the page's.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOption o = self(self, "info");
                 LuaTable t = new LuaTable();
                 t.set("name", LuaValue.valueOf(o.name));
                 t.set("type", LuaValue.valueOf(o.kind.word));
-                t.set("label", LuaValue.valueOf(o.label));
-                if(o.tooltip != null)
-                    t.set("tooltip", LuaValue.valueOf(o.tooltip));
-                if(o.kind.valued()) {
-                    t.set("value", o.value());
-                    t.set("default", o.def);
-                }
+                t.set("value", o.value());
+                t.set("default", o.def);
                 if(o.kind == Kind.NUMBER) {
                     t.set("min", LuaValue.valueOf(o.lo));
                     t.set("max", LuaValue.valueOf(o.hi));
@@ -486,8 +344,6 @@ public final class LuaOption {
                         c.set(i + 1, LuaValue.valueOf(o.choices.get(i)));
                     t.set("choices", c);
                 }
-                if(o.kind == Kind.LABEL)
-                    t.set("text", LuaValue.valueOf(o.text()));
                 return t;
             }
         });

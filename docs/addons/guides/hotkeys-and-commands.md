@@ -84,21 +84,20 @@ your addon stops offering, or a command it hands over, ends that way.
 ```lua
 local opts = hafen.client():options():addon()
 
-local rows = opts:number("rows"):label("Rows to show"):range(1, 20):default(8):add()
+local rows = opts:number("rows"):range(1, 20):default(8):add()
 
 rows:on("Changed", function(n) resize(n) end)
 ```
 
-The third way, and the one the user reaches for when they are not in the middle of anything: a row on your
-addon's own page in **Options ▸ AddOns**. You name the row and its type; the client draws the control,
-stores the value and answers reads. A checkbox, a slider, a dropdown, a text field, a button that runs a
-function of yours, a line of text you rewrite — the [reference](../api/client/addon.md) has the builder for
-each and what it takes.
+The third way, and the one the user reaches for when they are not in the middle of anything: a setting on
+your addon's own page in **Options ▸ AddOns**. You name the option and its type — a boolean, a number in a
+range, a choice out of a list, a text — and the client stores the value, checks every write and answers
+reads; the [reference](../api/client/addon.md) has the builder for each and what it takes. The page itself
+is yours: [`opts:panel(fn)`](../api/client/addon.md#the-page) registers the function the client calls with
+a column of your own each time the page is opened, and the controls you build into it are what the user
+sees. Your addon is in the AddOns list exactly while it holds a page.
 
-Your page is there from the moment your first `:add()` runs, and your addon is not in that list at all
-while it has declared nothing. Read the value whenever you need it and subscribe to `Changed` for the
-moment it moves; the control the user is looking at and the value you read are the same thing, so neither
-of you has to tell the other.
+Read the value whenever you need it and subscribe to `Changed` for the moment it moves.
 
 A value here is the **client's**, not your addon's: it survives `:reload`, a disable and a restart, it is
 one per client rather than one per character, and you write no file for it. Reach for

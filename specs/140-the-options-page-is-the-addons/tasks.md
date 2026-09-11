@@ -17,7 +17,7 @@
       `:panel(nil)` reads `nil`, a second `:panel(g)` reads `g`. A fill that never comes fails naming the
       window that was not opened.
 
-- [ ] **140.2 — An option is the model.** `LuaOption.Kind` down to the four; `label`, `tooltip`, `text`,
+- [x] **140.2 — An option is the model.** `LuaOption.Kind` down to the four; `label`, `tooltip`, `text`,
       `press` and their reads gone; `info()` is `{name, type, value, default}` plus `min`/`max` or
       `choices`; `AddonOptions.Builder` keeps `default`/`range`/`choices`/`add`, and `:label`/`:tooltip`,
       `opts:button()`, `opts:label()` are `Refusal` rows naming `hafen.ui():check():text(s)` / `:tooltip(s)`,

@@ -12,34 +12,41 @@ import java.util.List;
 
 /**
  * The <b>addon's own options</b> — {@code hafen.client():options():addon()} (spec
- * {@code 115-the-addon-declares-its-options}), the sibling of {@code keybindings()} that gives a setting of
- * an addon's own the standing its hotkeys already have. The addon names a row and its type; the client
- * renders the control, stores the value in its own preference store and answers reads.
+ * {@code 115-the-addon-declares-its-options}; spec {@code 140-the-options-page-is-the-addons}), the sibling
+ * of {@code keybindings()} that gives a setting of an addon's own the standing its hotkeys already have. The
+ * addon names an option and its type; the client stores the value in its own preference store, checks a
+ * write and answers reads.
  *
  * <pre>
  *   local opts = hafen.client():options():addon()
- *   local show = opts:boolean("show-timer"):label("Show the timer"):default(true):add()
+ *   local show = opts:boolean("show-timer"):default(true):add()
  *   show:value(false)
  *   show:on("Changed", function(v) end)
- *   opts:button("reset"):label("Reset to defaults"):press(reset):add()
+ *   opts:panel(function(root) hafen.ui():check():parent(root):text("Show the timer") end)
  * </pre>
  *
- * <p><b>Six typed builders, one per control the client draws.</b> All six take {@code :label} and
- * {@code :tooltip} and are dispatched by {@code :add()}; beyond that the kind decides the vocabulary, which
- * is why there are six verbs here rather than one {@code add(name, type, …)}: a single verb could not carry
- * {@code :range} for a number and {@code :choices} for a choice without both being ignorable on the wrong
- * type. A verb the kind does not carry is refused naming the kind that does and what this one takes instead
- * ({@link Builder#misfit}), because {@code has no verb 'press'} says the call is wrong without saying which
- * builder to reach for.
+ * <p><b>Four typed builders, one per shape of value</b> (140.2): a boolean, a number over a range, a choice
+ * out of a list, a text. Each is dispatched by {@code :add()}; beyond {@code :default} the kind decides the
+ * vocabulary, which is why there are four verbs here rather than one {@code add(name, type, …)}: a single
+ * verb could not carry {@code :range} for a number and {@code :choices} for a choice without both being
+ * ignorable on the wrong type. A verb the kind does not carry is refused naming the kind that does and what
+ * this one takes instead ({@link Builder#misfit}), because {@code has no verb 'range'} says the call is
+ * wrong without saying which builder to reach for.
+ *
+ * <p><b>An option is the model, and draws nothing.</b> What shows it is a control the addon builds on its
+ * own page, {@code opts:panel(fn)}, and joins to it with {@code w:bind(opt)} (140.3); so a caption, a hover text, a
+ * button and a line of text are the page's, not the option's. The spellings that carried them —
+ * {@code :label(s)} and {@code :tooltip(s)} on a builder, {@code opts:button(name)} and
+ * {@code opts:label(name)} — are rows of {@link Refusal}, each naming the control to build in the panel.
  *
  * <p><b>Built bare, dispatched on purpose</b> — the {@link HttpApi} request's shape, and the rule the API's
  * grammar states for every builder: every setter is legal until {@code :add()} and none after, which is a
  * rule with no timing in it. Nothing is declared until then either, so a builder that is abandoned half-way
  * costs the registry nothing and cannot take a name.
  *
- * <p><b>The page is the addon's</b> (spec {@code 140-the-options-page-is-the-addons}, 140.1): {@code :panel(fn)}
- * registers the one function the client calls with {@code root} — an owned column inside the addon's page of
- * Options ▸ AddOns, mounted by {@link io.brodgar.addon.ui.AddonOptionsPanel} and filled on the layer's step
+ * <p><b>The page is the addon's</b> (140.1): {@code :panel(fn)} registers the one function the client calls
+ * with {@code root} — an owned column inside the addon's page of Options ▸ AddOns, mounted by
+ * {@link io.brodgar.addon.ui.AddonOptionsPanel} and filled on the layer's step
  * ({@link AddonManager#mountPage}) — each time the user opens that page. An addon has a row in the AddOns
  * list exactly while it holds one.
  *
@@ -67,15 +74,16 @@ public final class AddonOptions {
         final LuaValue coll = collection(owner);
         LuaTable m = new LuaTable();
         for(final LuaOption.Kind kind : LuaOption.Kind.values()) {
-            // boolean(name) / number(name) / choice(name) / text(name) / button(name) / label(name) — the six
-            // builders. The name is this addon's own, and it is not taken until :add().
+            // boolean(name) / number(name) / choice(name) / text(name) — the four builders. The name is this
+            // addon's own, and it is not taken until :add(). `button` and `label` are not among them: an
+            // option carries a value, and those two are controls of the page (rows in Refusal say so).
             m.set(kind.word, new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     String verb = "addon options:" + kind.word;
                     String name = Args.str(a, 2, verb, "name",
-                        "your own name for the row, and how you address it afterwards").tojstring();
+                        "your own name for the option, and how you address it afterwards").tojstring();
                     if(name.isEmpty())
-                        throw new LuaError(verb + ": name must not be empty — it is what addresses the row");
+                        throw new LuaError(verb + ": name must not be empty — it is what addresses the option");
                     return new Builder(owner, name, kind).handle();
                 }
             });
@@ -121,9 +129,9 @@ public final class AddonOptions {
     }
 
     /**
-     * {@code opts:option()} — every option this addon has declared, in declaration order, which is the order
-     * the client draws them in. Another addon's options are not reachable through it: remapping any key is
-     * something a user asks an addon to do, and writing another addon's settings behind its back is not.
+     * {@code opts:option()} — every option this addon has declared, in declaration order. Another addon's
+     * options are not reachable through it: remapping any key is something a user asks an addon to do, and
+     * writing another addon's settings behind its back is not.
      */
     private static LuaValue collection(final Addon owner) {
         return LuaCollection.create(LuaOption.COLL, new LuaCollection.Source() {
@@ -169,15 +177,14 @@ public final class AddonOptions {
     // ---- the builder ---------------------------------------------------------------------------------
 
     /**
-     * One row being declared. Bare at construction and dispatched by {@code :add()}, which is the whole of its
-     * lifetime rule: everything below is legal until then and nothing after.
+     * One option being declared. Bare at construction and dispatched by {@code :add()}, which is the whole of
+     * its lifetime rule: everything below is legal until then and nothing after.
      */
     static final class Builder {
         final Addon owner;
         final String name;
         final LuaOption.Kind kind;
-        String label, tooltip, text;
-        LuaValue def, press;
+        LuaValue def;
         int lo, hi;
         boolean ranged;
         List<String> choices;
@@ -194,49 +201,43 @@ public final class AddonOptions {
             return "OptionBuilder(" + name + ", " + kind.word + (added ? ", added" : "") + ")";
         }
 
-        /** A setter refuses once the row has been ADDED: it is declared, and writing the field would lie. */
+        /** A setter refuses once the option has been ADDED: it is declared, and writing the field would lie. */
         void requireBare(String verb) {
             if(added)
-                throw new LuaError("option:" + verb + ": the row '" + name + "' has already been added —"
-                    + " configure it before :add(), which is the whole of the rule. What a declared row"
+                throw new LuaError("option:" + verb + ": the option '" + name + "' has already been added —"
+                    + " configure it before :add(), which is the whole of the rule. What a declared option"
                     + " answers is on the Option " + LuaOption.COLL + ":get(\"" + name + "\") hands back");
         }
 
         /**
-         * The refusal for a setter this kind does not carry — {@code :press} on a boolean, {@code :range} on
-         * a text row. It names the builder that does take it and what this one takes instead, which is the
-         * half a bare "has no verb" cannot say.
+         * The refusal for a setter this kind does not carry — {@code :range} on a choice, {@code :choices} on
+         * a text option. It names the builder that does take it and what this one takes instead, which is
+         * the half a bare "has no verb" cannot say.
          */
         LuaError misfit(String verb, String owns, String instead) {
-            return new LuaError("option:" + verb + ": only a " + owns + " row takes it, and '" + name
-                + "' is a " + kind.word + " row — " + HANDLE + ":" + owns + "(name) is the builder that"
-                + " does. A " + kind.word + " row takes " + instead);
+            return new LuaError("option:" + verb + ": only a " + owns + " option takes it, and '" + name
+                + "' is a " + kind.word + " option — " + HANDLE + ":" + owns + "(name) is the builder that"
+                + " does. A " + kind.word + " option takes " + instead);
         }
 
-        /** What this kind carries beyond {@code :label} and {@code :tooltip}, for {@link #misfit}. */
+        /** What this kind carries, for {@link #misfit}. */
         String carries() {
             switch(kind) {
             case BOOLEAN: return ":default(true|false)";
             case NUMBER:  return ":range(lo, hi) and :default(n)";
             case CHOICE:  return ":choices(t) and :default(s)";
-            case TEXT:    return ":default(s)";
-            case BUTTON:  return ":press(fn)";
-            default:      return ":text(s)";
+            default:      return ":default(s)";
             }
         }
 
         LuaValue handle() {
             LuaTable m = new LuaTable();
-            m.set("label", setter("label"));
-            m.set("tooltip", setter("tooltip"));
-            m.set("default", (kind.valued()) ? valueSetter()
-                  : misfitSetter("default", "boolean", "a button row runs :press(fn) and a label row states"
-                                 + " :text(s), and neither stores anything to have a default for"));
+            m.set("default", valueSetter());
             m.set("range", (kind == LuaOption.Kind.NUMBER) ? rangeSetter() : misfitSetter("range", "number"));
             m.set("choices", (kind == LuaOption.Kind.CHOICE) ? choicesSetter()
                   : misfitSetter("choices", "choice"));
-            m.set("press", (kind == LuaOption.Kind.BUTTON) ? pressSetter() : misfitSetter("press", "button"));
-            m.set("text", (kind == LuaOption.Kind.LABEL) ? setter("text") : misfitSetter("text", "label"));
+            // No :label, :tooltip, :text or :press: an option draws nothing. The first two are Refusal rows
+            // keyed "option:label" / "option:tooltip", naming the control that carries a caption.
             m.set("add", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     return Builder.this.add();
@@ -244,8 +245,10 @@ public final class AddonOptions {
             });
             final LuaValue h = LuaValue.userdataOf(this);
             LuaTable mt = new LuaTable();
-            mt.set(LuaValue.INDEX, Refusal.closedIndex("option", m, "a row your addon is declaring",
-                "it is dispatched by :add(): every setter is legal until then and none after"));
+            mt.set(LuaValue.INDEX, Refusal.closedIndex("option", m, "an option your addon is declaring",
+                "it is dispatched by :add(): every setter is legal until then and none after, and what"
+                + " shows it — a caption, a hover text — is a control you build inside " + HANDLE
+                + ":panel(fn)"));
             mt.set("__name", LuaValue.valueOf("OptionBuilder"));
             mt.set("__tostring", new OneArgFunction() {
                 public LuaValue call(LuaValue v) {
@@ -259,23 +262,6 @@ public final class AddonOptions {
 
         /** This builder as Lua holds it — what every setter chains back. */
         private LuaValue self;
-
-        /** A plain string setter ({@code :label}, {@code :tooltip}, a label row's {@code :text}). */
-        private VarArgFunction setter(final String verb) {
-            return new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    requireBare(verb);
-                    String s = Args.str(a, 2, "option:" + verb, "s", null).tojstring();
-                    if("label".equals(verb))
-                        label = s;
-                    else if("tooltip".equals(verb))
-                        tooltip = s;
-                    else
-                        text = LuaOption.capped(s, "option:text");
-                    return self;
-                }
-            };
-        }
 
         /** {@code :default(v)} — checked at {@link #add}, where the range and the choices are both known. */
         private VarArgFunction valueSetter() {
@@ -292,11 +278,13 @@ public final class AddonOptions {
             return new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     requireBare("range");
-                    int l = Args.integer(a, 2, "option:range", "lo", "the lowest whole number the row takes");
-                    int h = Args.integer(a, 3, "option:range", "hi", "the highest whole number the row takes");
+                    int l = Args.integer(a, 2, "option:range", "lo",
+                                         "the lowest whole number the option takes");
+                    int h = Args.integer(a, 3, "option:range", "hi",
+                                         "the highest whole number the option takes");
                     if(l >= h)
                         throw new LuaError("option:range(lo, hi): lo must be below hi, got " + l + " and "
-                            + h + " for the row '" + name + "'");
+                            + h + " for the option '" + name + "'");
                     lo = l;
                     hi = h;
                     ranged = true;
@@ -312,7 +300,7 @@ public final class AddonOptions {
                     LuaValue t = Args.required(a, 2, "option:choices", "t");
                     if(!t.istable())
                         throw new LuaError("option:choices(t): t must be an array of strings — what the"
-                            + " dropdown offers, got " + t.typename());
+                            + " option may hold, got " + t.typename());
                     List<String> l = new ArrayList<String>();
                     for(int i = 1; ; i++) {
                         LuaValue v = t.get(i);
@@ -322,23 +310,9 @@ public final class AddonOptions {
                                   .tojstring());
                     }
                     if(l.isEmpty())
-                        throw new LuaError("option:choices(t): the row '" + name + "' offers nothing — t is"
-                            + " a 1-based array of the strings the dropdown lists");
+                        throw new LuaError("option:choices(t): the option '" + name + "' offers nothing — t is"
+                            + " a 1-based array of the strings it may hold");
                     choices = l;
-                    return self;
-                }
-            };
-        }
-
-        private VarArgFunction pressSetter() {
-            return new VarArgFunction() {
-                public Varargs invoke(Varargs a) {
-                    requireBare("press");
-                    LuaValue fn = Args.required(a, 2, "option:press", "fn");
-                    if(!fn.isfunction())
-                        throw new LuaError("option:press(fn): fn must be a function — it runs when the user"
-                            + " presses the row, got " + fn.typename());
-                    press = fn;
                     return self;
                 }
             };
@@ -360,45 +334,38 @@ public final class AddonOptions {
 
         /**
          * <b>Dispatch.</b> The declaration is checked whole here — this is the first moment every part of it
-         * is in hand — the row is registered under its name, and the {@link LuaOption} it becomes is what
+         * is in hand — the option is registered under its name, and the {@link LuaOption} it becomes is what
          * comes back.
          */
         LuaValue add() {
             if(added)
-                throw new LuaError("option:add(): the row '" + name + "' has already been added — build"
+                throw new LuaError("option:add(): the option '" + name + "' has already been added — build"
                     + " another with " + HANDLE + ":" + kind.word + "(name)");
             String key = LuaOption.prefKey(owner, name);
             if(key.length() > java.util.prefs.Preferences.MAX_KEY_LENGTH)
-                throw new LuaError("option:add(): the row '" + name + "' stores under '" + key + "', which is"
-                    + " " + key.length() + " characters and the client's preference store takes "
-                    + java.util.prefs.Preferences.MAX_KEY_LENGTH + " — give the row a shorter name");
-            if(kind == LuaOption.Kind.BUTTON) {
-                if(press == null)
-                    throw new LuaError("option:add(): the button row '" + name + "' does nothing — give it"
-                        + " the function to run with :press(fn)");
-            }
+                throw new LuaError("option:add(): the option '" + name + "' stores under '" + key + "', which"
+                    + " is " + key.length() + " characters and the client's preference store takes "
+                    + java.util.prefs.Preferences.MAX_KEY_LENGTH + " — give the option a shorter name");
             if(kind == LuaOption.Kind.CHOICE) {
                 if(choices == null)
-                    throw new LuaError("option:add(): the choice row '" + name + "' offers nothing — list"
-                        + " what the dropdown holds with :choices(t)");
+                    throw new LuaError("option:add(): the choice option '" + name + "' offers nothing — list"
+                        + " what it may hold with :choices(t)");
             }
             if(kind == LuaOption.Kind.NUMBER) {
                 if(!ranged)
-                    throw new LuaError("option:add(): the number row '" + name + "' has no bounds — the"
-                        + " client draws it as a slider, so declare them with :range(lo, hi)");
+                    throw new LuaError("option:add(): the number option '" + name + "' has no bounds — a"
+                        + " slider bound to it has none without them, so declare them with :range(lo, hi)");
             }
-            if(kind.valued()) {
-                if(def == null)
-                    throw new LuaError("option:add(): the " + kind.word + " row '" + name + "' carries a"
-                        + " value, so it needs the one it reads on a client that has never been told"
-                        + " otherwise — declare it with :default(v)");
-                checkDefault();
-            }
+            if(def == null)
+                throw new LuaError("option:add(): the " + kind.word + " option '" + name + "' carries a"
+                    + " value, so it needs the one it reads on a client that has never been told"
+                    + " otherwise — declare it with :default(v)");
+            checkDefault();
             synchronized(owner.addonOptions) {
                 if(owner.addonOptions.containsKey(name))
                     throw new LuaError("option:add(): this addon already declared an option named '" + name
-                        + "' — " + LuaOption.COLL + ":get(\"" + name + "\") is the one it has, and a row"
-                        + " needs a name of its own");
+                        + "' — " + LuaOption.COLL + ":get(\"" + name + "\") is the one it has, and an"
+                        + " option needs a name of its own");
                 added = true;
                 LuaOption o = new LuaOption(this);
                 owner.addonOptions.put(name, o);
@@ -412,15 +379,14 @@ public final class AddonOptions {
             switch(kind) {
             case BOOLEAN:
                 if(!def.isboolean())
-                    throw new LuaError("option:add(): the row '" + name + "' is a boolean and its default is"
-                        + " " + def.typename() + " — pass true or false to :default(v)");
+                    throw new LuaError("option:add(): the option '" + name + "' is a boolean and its default"
+                        + " is " + def.typename() + " — pass true or false to :default(v)");
                 break;
             case NUMBER: {
                 int n = Args.integer(def, "option:add", "the default of '" + name + "'",
-                                     "between " + lo + " and " + hi + "; the client draws a number row"
-                                     + " as a slider");
+                                     "between " + lo + " and " + hi + "; a number option is a whole number");
                 if((n < lo) || (n > hi))
-                    throw new LuaError("option:add(): the default " + n + " of the row '" + name + "' is"
+                    throw new LuaError("option:add(): the default " + n + " of the option '" + name + "' is"
                         + " outside the range " + lo + ".." + hi + " it declared — widen :range(lo, hi) or"
                         + " move :default(v) inside it");
                 def = LuaValue.valueOf(n);
@@ -429,7 +395,7 @@ public final class AddonOptions {
             case CHOICE: {
                 Args.str(def, "option:add", "the default of '" + name + "'", "one of the choices it offers");
                 if(!choices.contains(def.tojstring()))
-                    throw new LuaError("option:add(): the default '" + def.tojstring() + "' of the row '"
+                    throw new LuaError("option:add(): the default '" + def.tojstring() + "' of the option '"
                         + name + "' is not one of the choices it offers — :default(v) takes one of them");
                 break;
             }

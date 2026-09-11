@@ -155,7 +155,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 |---|---|
 | [`hafen.client`](client/README.md) | the settings the Options window edits: interface, video, audio, camera, client |
 | [keybindings](client/keybindings.md) | the hotkey registry: declare your own, read or remap any |
-| [your addon's options](client/addon.md) | the rows your addon declares, what the client stores and answers reads for, and the page your addon fills |
+| [your addon's options](client/addon.md) | the options your addon declares — a stored value each, which the client keeps and answers reads for — and the page your addon fills |
 | [profiling](client/profiling/README.md) | arming the frame profiler, and reading a frame, a history and its overhead |
 | [the counters](client/profiling/counters.md) | memory, net, loader, render, what stands in the world, the other sessions, the text cache — readable with it off |
 | [attribution](client/profiling/attribution.md) | who spent the frame: addons, your own scopes, widgets, passes, GL |

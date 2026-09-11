@@ -1,72 +1,69 @@
 # hafen.client: your addon's own options
 
-`hafen.client():options():addon()` is where your addon's own settings live. You name a row and its type;
-the client stores the value in its own preference store and answers reads — so a setting of yours has the
-standing your [hotkeys](keybindings.md) already have. The page the user finds it on, in **Options ▸ AddOns**,
-is yours to fill: [`opts:panel(fn)`](#the-page) registers the function the client calls with a column of
-your own each time the page is opened. Nothing here is protected. The
+`hafen.client():options():addon()` is where your addon's own settings live. An **option** is a stored value:
+you name it and its type, the client keeps the value in its own preference store, checks every write and
+answers reads — so a setting of yours has the standing your [hotkeys](keybindings.md) already have. An
+option draws nothing. The page the user finds it on, in **Options ▸ AddOns**, is yours to fill:
+[`opts:panel(fn)`](#the-page) registers the function the client calls with a column of your own each time
+the page is opened, and what shows an option there is a control you build. Nothing here is protected. The
 [guide](../../guides/hotkeys-and-commands.md) puts it beside the hotkey and the command, the other two ways
 a user drives an addon by hand.
 
 ```lua
 local opts = hafen.client():options():addon()
 
-local show = opts:boolean("show-timer"):label("Show the timer"):default(true):add()
+local show = opts:boolean("show-timer"):default(true):add()
 
 hafen.log():write("timer shown: " .. tostring(show:value()))
 show:value(false)
 show:on("Changed", function(v) hafen.log():write("now " .. tostring(v)) end)
 ```
 
-Declare your rows in your file body. A row exists from the moment `:add()` runs and goes with your addon on
-`:reload` or a disable — the value the user set stays, because it belongs to the client.
+Declare your options in your file body. One exists from the moment `:add()` runs and goes with your addon
+on `:reload` or a disable — the value the user set stays, because it belongs to the client.
 
-## The six rows
+## Declaring an option
 
-Each row is a **builder**: you call the verb for the type you want, chain the setters, and `:add()`
+Each option is a **builder**: you call the verb for the type you want, chain the setters, and `:add()`
 dispatches it. Every setter is legal until `:add()` and none after — `:add()` is where the declaration is
 checked whole, because it is the first moment every part of it is in hand. Nothing is declared until then,
 so a builder you abandon costs nothing and does not take its name.
 
-| Builder | Holds | Beyond `:label` and `:tooltip` |
+| Builder | Holds | Beyond `:default` |
 |---|---|---|
-| `opts:boolean(name)` | `true` or `false` | `:default(true)` or `:default(false)` |
-| `opts:number(name)` | a whole number inside its range | `:range(lo, hi)` and `:default(n)`, both whole numbers |
-| `opts:choice(name)` | one of its choices | `:choices(t)`, a 1-based array of strings, and `:default(s)`, one of them |
-| `opts:text(name)` | a string | `:default(s)` |
-| `opts:button(name)` | no value: a function | `:press(fn)`, the function the row runs |
-| `opts:label(name)` | no value: a line of text | `:text(s)`, the line, which you rewrite whenever you like |
+| `opts:boolean(name)` | `true` or `false` | nothing |
+| `opts:number(name)` | a whole number inside its range | `:range(lo, hi)`, both whole numbers |
+| `opts:choice(name)` | one of its choices | `:choices(t)`, a 1-based array of strings |
+| `opts:text(name)` | a string | nothing |
 
-`name` is **your own name for the row**, unique within your addon: it is what addresses the row afterwards
-and what the value is stored under. `:label(s)` is the row's caption, and it falls back to the name when you
-give none. A `label` row is the exception: its caption is empty unless you give one, so a bare
-`opts:label("status"):text("idle"):add()` states the line and nothing else.
+`name` is **your own name for the option**, unique within your addon: it is what addresses the option
+afterwards and what the value is stored under.
 
 | Setter | Takes | On |
 |---|---|---|
-| `:label(s)` | the caption of the row | every builder |
-| `:tooltip(s)` | the hover text | every builder |
-| `:default(v)` | the value a client that has never been told otherwise reads | the four that carry a value |
-| `:range(lo, hi)` | the inclusive bounds of a number row, `lo` below `hi` | `number` |
-| `:choices(t)` | what the row offers, in order | `choice` |
-| `:press(fn)` | the function the row runs | `button` |
-| `:text(s)` | the line a label row states | `label` |
-| `:add()` | dispatch: the row is declared, and the Option comes back | every builder |
+| `:default(v)` | the value a client that has never been told otherwise reads | every builder |
+| `:range(lo, hi)` | the inclusive bounds of a number, `lo` below `hi` | `number` |
+| `:choices(t)` | what the option offers, in order | `choice` |
+| `:add()` | dispatch: the option is declared, and the Option comes back | every builder |
 
 Every setter returns the builder, so they chain. A setter the type has not got is an error naming the
 builder that does take it and what this one takes instead.
 
-## Four carry a value, two do not
+**An option carries no caption, no hover text, no button and no line of text.** Those belong to the
+control that shows it, and you build that control on [your page](#the-page): a caption is
+`hafen.ui():check():text(s)` or a `hafen.ui():label()` beside a slider, a hover text is the control's
+`:tooltip(s)`, a button is `hafen.ui():button()`, a line of text is `hafen.ui():label()`. A builder given a
+caption or a hover text, and the handle asked for a button or a label, each refuse naming the control to
+build instead.
 
-The four value rows persist. Their value is stored by the client, under a key of your addon's own, and it
-survives `:reload`, a disable and a restart — it is **one per client**, like every other setting the Options
-window edits, never one per character. Your addon cannot wipe it and does not have to save it.
+## The value
 
-A `button` and a `label` carry no value and store nothing: a button runs the function you gave it, a label
-states the line you gave it. `value()` on either is an error naming what the row does carry, rather than
-answering `nil` and letting the mistake fail a line later.
+Every option persists. Its value is stored by the client, under a key of your addon's own, and it survives
+`:reload`, a disable and a restart — it is **one per client**, like every other setting the Options window
+edits, never one per character. Your addon cannot wipe it and does not have to save it.
 
-A **number** row is a whole number: `:range(1, 10)`, `:default(5)`, and a fractional write is refused. Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
+A **number** option is a whole number: `:range(1, 10)`, `:default(5)`, and a fractional write is refused.
+Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
 
 ## The page
 
@@ -116,35 +113,30 @@ an option, not to the page, so nothing is lost with it.
 **An error in `fn` is logged**, with the line that raised it, and the page shows the heading and whatever
 `fn` had built before it stopped.
 
-**Your rows are not drawn by the client.** A row you declare with the builders above is stored and
-answers reads and writes; it is placed on the page only where your `fn` puts a control for it.
-
 ## The Option object
 
-`:add()` hands back the row, and so does `opts:option():get(name)`. It is the **same object** both ways and
-every time after, so it works as a table key.
+`:add()` hands back the option, and so does `opts:option():get(name)`. It is the **same object** both ways
+and every time after, so it works as a table key.
 
 | Method | Returns | Description |
 |---|---|---|
-| `name()` | string | your own name for the row, its identity |
-| `type()` | string | which of the six it is: `"boolean"`, `"number"`, `"choice"`, `"text"`, `"button"`, `"label"` |
-| `label()` | string | the caption you declared; empty on a label row you gave none |
-| `tooltip()` | string \| nil | the hover text, `nil` where you gave none |
-| `value()` | the value | what the row holds; **an error** on a `button` or a `label` |
-| `value(v)` | the option | write it, checked against the row's own declaration |
-| `default()` | the value | the default you declared; on the four that carry a value |
-| `text()` / `text(s)` | string / the option | a `label` row's line, and the rewrite of it |
-| `on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | on the four that carry a value; see below |
-| `info()` | table | `{name=, type=, label=}`, plus `tooltip` where you gave one, `value` and `default` on the four that carry a value, `min`/`max` on a number, `choices` on a choice and `text` on a label |
+| `name()` | string | your own name for the option, its identity |
+| `type()` | string | which builder made it: `"boolean"`, `"number"`, `"choice"` or `"text"` |
+| `value()` | the value | what the option holds |
+| `value(v)` | the option | write it, checked against the option's own declaration |
+| `default()` | the value | the default you declared |
+| `on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | see below |
+| `info()` | table | `{name=, type=, value=, default=}`, plus `min` and `max` on a number and `choices` on a choice |
 
 Reading and writing is [arity as the verb](../conventions.md#verbs-arity-is-the-verb), as everywhere else:
 `value()` reads, `value(v)` writes and hands the option back so writes chain. A write is checked against
-what the row declared — a boolean takes `true` or `false`, a number a whole one inside its range, a choice
-one of the choices it offers, a text row a string — and an invalid one raises rather than being clipped.
+what the option declared — a boolean takes `true` or `false`, a number a whole one inside its range, a
+choice one of the choices it offers, a text option a string — and an invalid one raises rather than being
+clipped.
 
 ```lua
-local size = opts:number("rows"):label("Rows"):range(1, 20):default(8):add()
-local mode = opts:choice("mode"):label("Mode"):choices{"compact", "wide"}:default("compact"):add()
+local size = opts:number("rows"):range(1, 20):default(8):add()
+local mode = opts:choice("mode"):choices{"compact", "wide"}:default("compact"):add()
 
 size:value(size:value() + 1)
 mode:value("wide")
@@ -153,10 +145,10 @@ mode:value("wide")
 ## `Changed`: the one event
 
 `opt:on("Changed", fn)` runs `fn` with the **new value** whenever the value moves. It is the only key an
-option has, and it is on the four that carry a value.
+option has.
 
 ```lua
-local show = opts:boolean("show-timer"):label("Show the timer"):default(true):add()
+local show = opts:boolean("show-timer"):default(true):add()
 
 local sub = show:on("Changed", function(v)
   hafen.log():write("the timer is " .. (v and "on" or "off"))
@@ -192,34 +184,29 @@ end
 
 | The mistake | What you get |
 |---|---|
-| a value row with no `:default` | the setter to call |
+| an option with no `:default` | the setter to call |
 | a `:default` outside the `:range` it declared | widen the range or move the default |
-| a `number` row with no `:range` | a slider has no bounds without it |
-| a `choice` row with no `:choices` | the dropdown offers nothing |
-| a `button` row with no `:press` | the row would do nothing |
-| a name your addon already declared | the row it already has, addressed |
-| a setter after `:add()` | the row is declared; configure it before |
-| a name too long for the client's store | give the row a shorter name |
+| a `number` with no `:range` | a slider bound to it has no bounds without it |
+| a `choice` with no `:choices` | the option offers nothing |
+| a name your addon already declared | the option it already has, addressed |
+| a setter after `:add()` | the option is declared; configure it before |
+| a name too long for the client's store | give the option a shorter name |
 
 ## Example
 
 ```lua
 local opts = hafen.client():options():addon()
 
-local show  = opts:boolean("show"):label("Show the panel"):default(true):add()
-local rows  = opts:number("rows"):label("Rows"):tooltip("how many lines"):range(1, 20):default(8):add()
-local sort  = opts:choice("sort"):label("Sort by"):choices{"name", "amount"}:default("name"):add()
-local title = opts:text("title"):label("Title"):default("Stock"):add()
-local state = opts:label("state"):text("idle"):add()
+local show  = opts:boolean("show"):default(true):add()
+local rows  = opts:number("rows"):range(1, 20):default(8):add()
+local sort  = opts:choice("sort"):choices{"name", "amount"}:default("name"):add()
+local title = opts:text("title"):default("Stock"):add()
 
-opts:button("reset"):label("Reset to defaults"):press(function()
-  for _, o in ipairs(opts:option():list()) do
-    if o:type() ~= "button" and o:type() ~= "label" then o:value(o:default()) end
-  end
-  state:text("reset")
-end):add()
+hafen.console():on("stockreset", function()
+  for _, o in ipairs(opts:option():list()) do o:value(o:default()) end
+end)
 
-show:on("Changed", function(v) state:text(v and "showing" or "hidden") end)
+show:on("Changed", function(v) hafen.log():write(v and "showing" or "hidden") end)
 
 hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .. sort:value())
 ```
@@ -228,6 +215,6 @@ hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .
 
 - [`hafen.client():options()`](README.md) — the client's own settings, beside yours in the same window
 - [keybindings](keybindings.md) — the hotkey your addon declares, the other thing of yours this window holds
+- [columns and rows](../ui/column.md) — what `root` is, and how it places what you build on your page
 - [conventions](../conventions.md) — builders, collections, and arity as the verb
-- [`hafen.console`](../console.md) — a console command, the other way a user drives an addon by hand
 - [`hafen.store`](../store.md) — your addon's own saved variables, for what is not a setting

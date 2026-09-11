@@ -58,7 +58,7 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
   * A collection spelled at runtime. `LuaCollection.create(verb, …)` with `verb` a local is not a spelling
     this can read; the four such collections are named by hand in HAND_SPELLINGS, which is a list to keep.
     A verb set from an enum's field (`m.set(kind.word, …)`) is the same blindness one level down, and the
-    six such verbs are named in HAND_VERBS.
+    four such verbs are named in HAND_VERBS.
   * A hole in an expression hides the mention that ran through it: `coll.name + ":" + verb + "()"` is not
     a mention, because neither half is known here. Such a message is resolved at the call that BUILT the
     name, where the literal was written -- which is the whole reason every `LuaCollection.create` spelling
@@ -175,7 +175,7 @@ HAND_SPELLINGS = {
 # Verbs installed from an ENUM's field rather than a literal -- `m.set(kind.word, …)` over LuaOption.Kind --
 # which no literal scan can see. Named by hand, beside the list above, and a list to keep.
 HAND_VERBS = {
-    "addon options": {"boolean", "number", "choice", "text", "button", "label"},
+    "addon options": {"boolean", "number", "choice", "text"},
 }
 COLLECTION_CORE = {"list", "count", "find", "get", "add", "remove"}
 ENUMERATE = {"list", "count", "find"}

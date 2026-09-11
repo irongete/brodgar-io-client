@@ -107,6 +107,24 @@ final class Refusal {
                   + " has left");
         MOVED.put("session:ui():find", "session:ui():find(selector) is session:ui():match(selector): the one"
                   + " widget a selector names, and session:ui():matchAll(selector) is every one");
+        // 140.2: an option is the MODEL — a stored value — and draws nothing. Its caption and hover text belong
+        // to the control that shows it, built on the addon's own page (opts:panel(fn)); a button and a line
+        // of text ARE controls, so the two builders that used to declare them are rows here.
+        MOVED.put("option:label", "option:label(s) is not a verb of an option: an option is a value and draws"
+                  + " nothing. The caption belongs to the control that shows it on your page —"
+                  + " hafen.ui():check():text(s) inside hafen.client():options():addon():panel(fn), or a"
+                  + " hafen.ui():label() beside a slider or a dropdown");
+        MOVED.put("option:tooltip", "option:tooltip(s) is not a verb of an option: an option is a value and"
+                  + " draws nothing. The hover text belongs to the control that shows it on your page —"
+                  + " hafen.ui():check():tooltip(s) inside hafen.client():options():addon():panel(fn)");
+        MOVED.put("addon options:button", ":button(name) on hafen.client():options():addon() declares"
+                  + " nothing: a button carries no value, so it is not an option. Build it on your page —"
+                  + " hafen.ui():button() inside hafen.client():options():addon():panel(fn), with :text(s)"
+                  + " for its caption and :on(\"Pressed\", fn) for what it runs");
+        MOVED.put("addon options:label", ":label(name) on hafen.client():options():addon() declares"
+                  + " nothing: a line of text carries no value, so it is not an option. Build it on your"
+                  + " page — hafen.ui():label() inside hafen.client():options():addon():panel(fn), with"
+                  + " :text(s) for the line");
         KEYS.put("widget|Destroy", "widget:on(\"Destroy\", fn): the key is Removed — widget:on(\"Removed\","
                  + " fn) fires when the widget leaves its tree");
         KEYS.put("hafen.event()|FlowerMenuOpened", "hafen.event():on(\"FlowerMenuOpened\", fn): the key is"
