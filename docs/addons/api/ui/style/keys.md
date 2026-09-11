@@ -130,8 +130,9 @@ s:install()
 
 Every *drawing* property is accepted on **every** key — a sheet never errors because a surface cannot use
 one — and what differs is what the surface *does* with it. Two exceptions, and both are places where the
-value itself would have to mean something different rather than merely land on nothing: the three that lay
-widgets out, which only a tree key may carry, and `color` on the two keys whose colour the client
+value itself would have to mean something different rather than merely land on nothing: the four that are
+about a widget's place — three that lay it out, and the `margin` a column keeps around it — which only a
+tree key may carry, and `color` on the two keys whose colour the client
 [walks rather than holds](chat.md#the-two-colours-the-client-walks), which take a sequence and refuse a
 colour. First the two that write text:
 
@@ -235,13 +236,14 @@ through pictures the **server** places, which are told apart by nothing but wher
 | every other site key | **inert** | a text site draws no picture, and a surface that draws a box wears [`bg`](chrome.md#bg) and [`border`](chrome.md#border) instead. Readable back through `:style()`, and inert everywhere it lands |
 | a tree key matching anything else | **inert** | nothing else in the client shows a picture of its own |
 
-And the three that lay widgets out. This table is short because the answer is: a widget, or an error.
+And the four that are about a widget's place: three that lay it out, and the room a column keeps around it.
+This table is short because the answer is: a widget, or an error.
 
-| Key | `position` / `anchor` | `size` | Worth knowing |
-|---|---|---|---|
-| any tree key | **unless a column places it** | **unless the widget owns its size** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A child a [column](../column.md) lays out has no place of its own, and a column's box is its content's: inert on both, never an error. A window that packs around its contents re-packs itself: inert the same way |
-| any site key, `*` included | **error** | **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
-| `widget:rule()` | **error** | **error** | the hand-named level is the verb, [`w:position(x, y)`](../native.md) — the error says so |
+| Key | `position` / `anchor` | `size` | `margin` | Worth knowing |
+|---|---|---|---|---|
+| any tree key | **unless a column places it** | **unless the widget owns its size** | **inside a column** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A child a [column](../column.md) lays out has no place of its own, and a column's box is its content's: inert on both, never an error. A window that packs around its contents re-packs itself: inert the same way. [`margin`](geometry.md#margin) is the other way about — honoured on a child a column lays out, inert on a widget placed by hand |
+| any site key, `*` included | **error** | **error** | **error** | a site is where the client draws text, and text has no position and no box for a column to keep room around. The error names the fix: select the widget |
+| `widget:rule()` | **error** | **error** | yes | the hand-named level of a place is the verb, [`w:position(x, y)`](../native.md) — the error says so. No verb spells a margin, so here this level *is* the hand-named one, as it is for `padding`; a [`:stock`](../custom.md#naming-and-dressing-your-own-surfaces) takes it the same way |
 
 **Where `color` is inert, the glyph colour is thrown away before anything reaches the screen.** Most of
 those surfaces are *embossed*: the client renders the text as a mask, tiles a texture through it and blurs

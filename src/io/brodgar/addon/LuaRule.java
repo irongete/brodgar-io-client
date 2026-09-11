@@ -23,7 +23,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * the hand-named level on <b>one</b> widget (034.3), above every matched rule. They differ in which widgets
  * they reach and in nothing else, which is why they are the same object with the same verbs — and why the two
  * that cannot apply say so: layout is refused on a site key and on a widget's own level, naming the verb
- * ({@code widget:position(x, y)}) that already is the hand-named level of the layout cascade.
+ * ({@code widget:position(x, y)}) that already is the hand-named level of the layout cascade. {@code margin}
+ * (139.2) is refused on a site key alone: no verb spells the room a column keeps around a widget, so a
+ * widget's own level is where it is said by hand.
  *
  * <p><b>A rule is a NAME for a level, never the record itself</b> (D-065's shape). What it says lives in the
  * sheet (or, for a widget's own level, in {@link Sheet}'s per-widget map), and every read and write goes there
@@ -145,7 +147,8 @@ public final class LuaRule {
             sheet.changed();
         } else {
             Sheet.setWidgetProps(owner, LuaWidget.live(wdg), p);
-            Column.applied(LuaWidget.live(wdg));   // 139.1: a padding this level names is a column's inner room
+            Column.applied(LuaWidget.live(wdg));   // 139.1: a padding this level names is a column's inner room,
+                                                   //   139.2: a margin, the room the column keeps around this one
         }
     }
 
@@ -159,6 +162,16 @@ public final class LuaRule {
             Sheet.layoutable(where(), prop, sheet.site(selector), sheet.selector(selector));
         else
             Sheet.layoutable(where(), prop, null, null);
+    }
+
+    /**
+     * The first of those two refusals alone (139.2): {@code margin} is about a widget, so a site key refuses
+     * it, but a widget's own level takes it — there is no verb for the room around a widget, so this level is
+     * the hand-named one, as it is for {@code padding}.
+     */
+    private void notSite(String prop) {
+        if(sheet != null)
+            Sheet.notSite(where(), prop, sheet.site(selector));
     }
 
     // ---- the metatable -----------------------------------------------------------------------------
@@ -329,12 +342,33 @@ public final class LuaRule {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "padding");
                 Sheet.Props cur = r.read(owner);
-                Args.only(a, 1, r.where() + ":padding");
+                Args.only(a, 4, r.where() + ":padding");   // one number, four, or the {l=,t=,r=,b=} table
                 LuaValue v = Args.written(a, 2, r.where() + ":padding", "pixels");
                 if(v == null)
                     return ((cur == null) || (cur.padding == null)) ? LuaValue.NIL : cur.padding.toLua();
                 Sheet.Props p = r.edit(owner);
-                p.padding = Chrome.parsePadding(r.where(), a, 2);
+                p.padding = Chrome.parseInsets(r.where(), "padding", a, 2);
+                r.commit(owner, p);
+                return self;
+            }
+        });
+        // margin(n) / margin(l, t, r, b) — the room a COLUMN or a ROW keeps around the matched widget (139.2):
+        // the same four insets padding is, said about the outside of the box rather than the inside of the
+        // frame, and added to the gap, never collapsed. Inert everywhere else, like a padding on a surface
+        // that does not own its layout. Refused on a site key (a site is no widget); legal on widget:rule()
+        // and in a stock, unlike position/size, because no verb spells it -- this level IS the hand-named one.
+        m.set("margin", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "margin");
+                Sheet.Props cur = r.read(owner);
+                Args.only(a, 4, r.where() + ":margin");    // one number, four, or the {l=,t=,r=,b=} table
+                LuaValue v = Args.written(a, 2, r.where() + ":margin", "pixels");
+                if(v == null)
+                    return ((cur == null) || (cur.margin == null)) ? LuaValue.NIL : cur.margin.toLua();
+                r.notSite("margin");
+                Sheet.Props p = r.edit(owner);
+                p.margin = Chrome.parseInsets(r.where(), "margin", a, 2);
                 r.commit(owner, p);
                 return self;
             }

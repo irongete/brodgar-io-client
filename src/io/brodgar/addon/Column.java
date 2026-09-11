@@ -10,16 +10,17 @@ import org.luaj.vm2.LuaError;
 /**
  * <b>A column lays its rows out</b> (spec {@code 139-a-column-lays-its-rows-out}, task 139.1) — the layout behind
  * {@code hafen.ui():column()} / {@code :row()}: an {@link AddonWidget} with an {@link AddonWidget.Axis}, whose
- * children are placed along that axis in tree order, {@code gap} apart, one {@code padding} in from the edge, and
- * whose box is its content's unless {@code :size} pinned an axis.
+ * children are placed along that axis in tree order, {@code gap} apart, one {@code padding} in from the edge, each
+ * inside its own {@code margin} (139.2), and whose box is its content's unless {@code :size} pinned an axis.
  *
  * <p><b>Laid out on the events that change it, never per frame</b> — {@code geometry.md}'s discipline for an
  * anchor, kept here. Every change of a child already passes a seam: entering ({@link AddonWidget#add}),
  * resizing ({@link AddonWidget#cresize}, reached from {@code Widget.resize}), leaving
  * ({@link AddonWidget#cdestroy}), hiding (the {@code visible} write in {@link LuaWidget}, the only writer for an
  * owned child), and the cascade moving ({@link Layout#apply}, the {@code stock} write and a {@code widget:rule()}
- * write). Each of those calls {@link #relayout} or {@link #childChanged}, so by the time the call that changed a
- * child returns, the rest of the column is where it belongs.
+ * write — the column's own {@code padding}, or a child's {@code margin}). Each of those calls {@link #relayout}
+ * or {@link #childChanged}, so by the time the call that changed a child returns, the rest of the column is
+ * where it belongs.
  *
  * <p><b>It never resizes a child</b>, only moves it and resizes the column itself — which is what keeps the walk
  * from cycling: a column's own resize reaches its parent's {@code cresize}, so a column inside a column re-lays
@@ -63,8 +64,9 @@ final class Column {
     }
 
     /**
-     * {@link Layout#apply} ran for {@code w}: its own cascade (a {@code padding} it now wears) or its parent's
-     * (the size the rule gave it) may have moved something. Caller holds {@code w}'s tree monitor.
+     * {@link Layout#apply} ran for {@code w}: its own cascade (a {@code padding} it now wears, or the
+     * {@code margin} the column around it keeps) or its parent's (the size the rule gave it) may have moved
+     * something. Caller holds {@code w}'s tree monitor.
      */
     static void applied(Widget w) {
         AddonWidget col = of(w);
@@ -100,10 +102,17 @@ final class Column {
 
     /**
      * <b>The layout</b>: walk the visible children in tree order, place each one padding in and {@code gap} after
-     * the previous, and size the column to the content unless an axis is pinned. Idempotent — a child already
-     * where the walk puts it takes no write, and {@code Widget.resize} returns early on an equal box — which is
-     * what lets every seam call it freely. Device pixels throughout: {@code gap} and the padding convert at the
-     * one line each meets the tree.
+     * the previous, inside its own margin, and size the column to the content unless an axis is pinned.
+     * Idempotent — a child already where the walk puts it takes no write, and {@code Widget.resize} returns
+     * early on an equal box — which is what lets every seam call it freely. Device pixels throughout:
+     * {@code gap}, the padding and each margin convert at the one line each meets the tree.
+     *
+     * <p><b>A margin is the child's, read from its own cascade</b> (139.2) — a tree rule that names it, its
+     * stock, or its {@code widget:rule()} — and it is room <i>around</i> the child on all four sides: the child
+     * is placed its left and top inset further in, and the walk advances by its box plus both insets along the
+     * axis, then by the gap. Two margins that meet across a gap are both kept, never collapsed, so
+     * {@code :position()} on the next child reads what the arithmetic says. Across the axis the margin widens
+     * the content the column measures itself to, so a right or bottom inset is room the box keeps too.
      */
     static void relayout(AddonWidget col) {
         if((col == null) || col.dead())
@@ -124,11 +133,15 @@ final class Column {
                 if(!first)
                     at += gap;
                 first = false;
-                Coord want = down ? Coord.of(tl.x, at) : Coord.of(at, tl.y);
+                Sheet.Resolved cr = Sheet.styleOf(ch);    // the CHILD's cascade: its margin is its own
+                Chrome.Pad m = (cr == null) ? null : cr.margin;
+                Coord mtl = (m == null) ? Coord.z : m.tlIn();
+                Coord mbr = (m == null) ? Coord.z : m.brIn();
+                Coord want = down ? Coord.of(tl.x + mtl.x, at + mtl.y) : Coord.of(at + mtl.x, tl.y + mtl.y);
                 if(!want.equals(ch.c))
                     ch.move(want);
-                at += down ? ch.sz.y : ch.sz.x;
-                across = Math.max(across, down ? ch.sz.x : ch.sz.y);
+                at += down ? (mtl.y + ch.sz.y + mbr.y) : (mtl.x + ch.sz.x + mbr.x);
+                across = Math.max(across, down ? (mtl.x + ch.sz.x + mbr.x) : (mtl.y + ch.sz.y + mbr.y));
             }
             Coord content = down ? Coord.of(tl.x + across + br.x, at + br.y)
                                  : Coord.of(at + br.x, tl.y + across + br.y);

@@ -40,7 +40,8 @@ import java.util.WeakHashMap;
  *
  * <p><b>They travel as a bag</b> (065.1). A resolved style carries its chrome half as one opaque
  * {@code Map<String, Object>} ({@code Fonts.Style#prop}), keyed by the very property names a rule is written
- * with — {@link #BG}, {@link #BORDER}, {@link #PADDING} — and folded key by key by {@code Fonts.combine}. So a
+ * with — {@link #BG}, {@link #BORDER}, {@link #PADDING}, {@link #MARGIN} — and folded key by key by
+ * {@code Fonts.combine}. So a
  * new theme property costs a parser here, a slot in {@link Sheet.Props}, a setter in {@link LuaRule} and a
  * reader at its site, and <b>no edit to {@code haven}</b>. The casts back out of the bag live in one place, the
  * three accessors below, which is what keeps them honest.
@@ -89,6 +90,14 @@ final class Chrome {
     static final String BORDER = "border";
     /** The {@code padding} property's key. Its value is a {@link Pad}. */
     static final String PADDING = "padding";
+    /**
+     * The {@code margin} property's key (139.2). Its value is a {@link Pad} too — the same four insets, said
+     * about the OUTSIDE of a widget: the room a column or a row keeps around that child. It rides the bag so
+     * the interned style is the whole of what a widget resolved to, but no site reads it out of one: a site
+     * key refuses it ({@code Sheet.notSite}), and its one reader, {@code Column.relayout}, takes it from
+     * {@code Sheet.Resolved} directly, as it takes {@code padding}.
+     */
+    static final String MARGIN = "margin";
     /** The {@code caption} property's key (065.4). Its value is a {@link Spot}. */
     static final String CAPTION = "caption";
     /** The {@code sizer} property's key (065.4). Its value is an {@link Art}. */
@@ -163,12 +172,13 @@ final class Chrome {
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Emboss emboss, Glow glow,
-                                     Spot caption, Art sizer, Close close, Seq seq) {
-        if((bg == null) && (border == null) && (padding == null) && (picture == null) && (emboss == null)
-           && (glow == null) && (caption == null) && (sizer == null) && (close == null) && (seq == null))
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pad margin, Pic picture, Emboss emboss,
+                                     Glow glow, Spot caption, Art sizer, Close close, Seq seq) {
+        if((bg == null) && (border == null) && (padding == null) && (margin == null) && (picture == null)
+           && (emboss == null) && (glow == null) && (caption == null) && (sizer == null) && (close == null)
+           && (seq == null))
             return null;
-        Map<String, Object> m = new LinkedHashMap<String, Object>(10);
+        Map<String, Object> m = new LinkedHashMap<String, Object>(11);
         if(seq != null)
             m.put(COLORSEQ, seq);
         if(emboss != null)
@@ -181,6 +191,8 @@ final class Chrome {
             m.put(BORDER, border);
         if(padding != null)
             m.put(PADDING, padding);
+        if(margin != null)
+            m.put(MARGIN, margin);
         if(picture != null)
             m.put(PICTURE, picture);
         if(caption != null)
@@ -1527,19 +1539,21 @@ final class Chrome {
         }
     }
 
-    // ---- padding -----------------------------------------------------------------------------------
+    // ---- padding, and margin -----------------------------------------------------------------------
 
     /**
-     * A rule's {@code padding}: the room a surface keeps between its frame and its content, on <b>each of the
-     * four sides</b> — one number for all of them, or {@code {l, t, r, b}}. It answers the same pair
-     * {@link Border} does, {@link #tlIn}/{@link #brIn}, because the two are summed side by side by the one
-     * method that lays a window out ({@link SkinDeco#iresize}): the frame's own insets and the breathing room
-     * inside them.
+     * Four insets, in design pixels — a rule's {@code padding}, the room a surface keeps between its frame and
+     * its content, and (139.2) its {@code margin}, the room a column or a row keeps <b>around</b> that widget.
+     * One number for all four sides, or {@code {l, t, r, b}}; parsed by {@link #parseInsets} for both. It
+     * answers the same pair {@link Border} does, {@link #tlIn}/{@link #brIn}, because the two are summed side
+     * by side by the one method that lays a window out ({@link SkinDeco#iresize}): the frame's own insets and
+     * the breathing room inside them — and {@code Column.relayout} sums a child's margin the same way, around
+     * the child's box.
      *
      * <p><b>Design pixels, converted where they are spent</b>: {@code iresize} adds them to
      * {@code Window.dlmrgn}/{@code dsmrgn}, which are {@code UI.scale}d, so an unconverted padding would be the
-     * one term in that sum meaning something else. Kept as written, so {@code rule:padding()} reads back the
-     * four numbers the rule said on every client.
+     * one term in that sum meaning something else. Kept as written, so {@code rule:padding()} and
+     * {@code rule:margin()} read back the four numbers the rule said on every client.
      *
      * <p>Immutable, with value equality: the resolved style is interned on it ({@code Sheet.SKey}) and the
      * window chrome compares it by value to decide whether a changed rule has to re-lay a window out.
@@ -1583,8 +1597,9 @@ final class Chrome {
         }
 
         /**
-         * {@code rule:padding()} — the four numbers, keyed. The same shape a border's {@code slice} reads back
-         * as, and the same reason: it is an argument the setter takes, so a read round-trips into a write.
+         * {@code rule:padding()} / {@code rule:margin()} — the four numbers, keyed. The same shape a border's
+         * {@code slice} reads back as, and the same reason: it is an argument the setter takes, so a read
+         * round-trips into a write.
          */
         LuaValue toLua() {
             LuaTable t = new LuaTable();
@@ -2539,49 +2554,55 @@ final class Chrome {
     }
 
     /**
-     * Parse a rule's {@code padding} — the room a surface keeps between its frame and its content, in
-     * <b>design</b> px: one number for all four sides, or the four themselves.
+     * Parse a rule's {@code padding} or {@code margin} — four insets in <b>design</b> px: one number for all
+     * four sides, or the four themselves. {@code prop} is the property's own name, so each refusal spells the
+     * call the reader wrote.
      *
      * <p><b>Four sides rather than one number</b>, because that is what the client's own margins are: a window's
      * stock breathing room is {@code 23x14} on one side and the same on the other, and a theme whose caption
      * needs height at the top wants exactly that asymmetry. One property and one slot, so a read hands the four
-     * back and the write takes them again.
+     * back and the write takes them again. One parser for the two properties (139.2), because they are one
+     * value said about the two sides of an edge — inside the frame, outside the box — and a shape that
+     * differed between them would be the dual style the grammar forbids.
      */
-    static Pad parsePadding(String ctx, LuaValue v) {
+    static Pad parseInsets(String ctx, String prop, LuaValue v) {
         // type() rather than a number door: which of the two SHAPES was written is the question here, and
         // the value each of them holds is read by Args.integer below (`padding = "6"` is a typo either way).
+        String what = "." + prop;
         if(v.type() == LuaValue.TNUMBER) {
-            int p = Args.integer(v, ctx + ".padding", "padding", "design pixels, for all four sides");
+            int p = Args.integer(v, ctx + what, prop, "design pixels, for all four sides");
             int[] s = {p, p, p, p};
-            nonneg(ctx, ".padding", "padding", s);
+            nonneg(ctx, what, prop, s);
             return new Pad(p, p, p, p);
         }
         if(!v.istable())
-            throw new LuaError(ctx + ".padding: expected a number of pixels for all four sides — padding(6) — or"
-                + " the four themselves — padding(8, 4, 8, 8), got " + v.typename());
-        int[] s = insets(ctx, ".padding", "padding", v);
+            throw new LuaError(ctx + what + ": expected a number of pixels for all four sides — " + prop + "(6)"
+                + " — or the four themselves — " + prop + "(8, 4, 8, 8), got " + v.typename());
+        int[] s = insets(ctx, what, prop, v);
         return new Pad(s[0], s[1], s[2], s[3]);
     }
 
     /**
-     * {@code rule:padding(…)} as the setter is written: one number, four numbers, or the {@code {l=,t=,r=,b=}}
-     * table the read hands back. Two or three numbers is the refusal that names both shapes — a padding is all
-     * four sides or one, and there is no third arity worth guessing at.
+     * {@code rule:padding(…)} / {@code rule:margin(…)} as the setter is written: one number, four numbers, or
+     * the {@code {l=,t=,r=,b=}} table the read hands back. Two or three numbers is the refusal that names both
+     * shapes — the insets are all four sides or one, and there is no third arity worth guessing at.
      */
-    static Pad parsePadding(String ctx, Varargs a, int i) {
-        LuaValue first = a.arg(i);
-        if(first.istable())
-            return parsePadding(ctx, first);
+    static Pad parseInsets(String ctx, String prop, Varargs a, int i) {
         int n = 0;
         LuaTable t = new LuaTable();
         for(int j = i; (j <= a.narg()) && (a.arg(j).type() == LuaValue.TNUMBER); j++)
             t.set(++n, a.arg(j));
+        if((n == 2) || (n == 3))
+            throw new LuaError(ctx + "." + prop + ": expected one number for all four sides — " + prop + "(6)"
+                + " — or four, {left, top, right, bottom} — " + prop + "(8, 4, 8, 8), got " + n);
+        int used = (n == 4) ? 4 : 1;                // what the shape written consumes: the four, or one value
+        if(a.narg() > (i - 1) + used)               // ...and a value past it is refused, never dropped
+            throw new LuaError(ctx + "." + prop + ": takes one number for all four sides — " + prop + "(6) —"
+                + " or four, {left, top, right, bottom} — " + prop + "(8, 4, 8, 8), got " + (a.narg() - (i - 1))
+                + " arguments");
         if(n == 4)
-            return parsePadding(ctx, t);
-        if(n > 1)
-            throw new LuaError(ctx + ".padding: expected one number for all four sides — padding(6) — or four,"
-                + " {left, top, right, bottom} — padding(8, 4, 8, 8), got " + n);
-        return parsePadding(ctx, first);   // one number, or none: one message, said in one place
+            return parseInsets(ctx, prop, t);
+        return parseInsets(ctx, prop, a.arg(i));   // one number, a table or none: one message, said in one place
     }
 
     /**

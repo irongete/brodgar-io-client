@@ -1,8 +1,9 @@
 # hafen.ui: columns and rows
 
 A **column** lays its children out top to bottom, and a **row** left to right — in tree order, a `:gap(n)`
-apart, the cascade's `padding` in from the edge — and its box is exactly what they take. Reach for one
-wherever you were adding `y` up by hand: a panel of labels, a line of an icon and a checkbox, a form.
+apart, the cascade's `padding` in from the edge and each child's own `margin` around it — and its box is
+exactly what they take. Reach for one wherever you were adding `y` up by hand: a panel of labels, a line of
+an icon and a checkbox, a form.
 
 Both are surfaces of your own, built bare like [a window or a bare widget](custom.md) and torn down with your
 addon; the client's own controls and your bare widgets go inside them.
@@ -49,13 +50,14 @@ child's `x` at the left edge, a row writes `x` and keeps `y` at the top. The fir
 `padding` the column resolves to — `0` until a [rule](style/chrome.md#padding), a
 [`:stock`](custom.md#naming-and-dressing-your-own-surfaces) or a
 [`widget:rule()`](style/README.md#restyle-one-widget) gives it one — and each next child `:gap()` further
-on. A child sits at its own width: across the axis it is at the start edge, and there is no alignment or
-stretch.
+on, each inside [its own `margin`](#the-room-around-a-child) where it has one. A child sits at its own
+width: across the axis it is at the start edge, and there is no alignment or stretch.
 
 **Laid out on the events that change it, never per frame.** A child entering, changing size, being hidden
-or shown, or leaving; a `:gap`, a `:size` or a `padding` written on the column — each is re-laid before the
-call that made it returns, so the line after `two:visible(false)` reads `three:position()` already moved
-up, and the line after `one:text("a longer caption")` reads the column already as wide as it:
+or shown, or leaving; a `:gap`, a `:size` or a `padding` written on the column, a `margin` written on a
+child — each is re-laid before the call that made it returns, so the line after `two:visible(false)` reads
+`three:position()` already moved up, and the line after `one:text("a longer caption")` reads the column
+already as wide as it:
 
 ```lua
 local col = hafen.ui():column():gap(6)
@@ -72,9 +74,9 @@ resizes a child — and moves everything after it.
 
 ## The box follows the content
 
-A column is exactly as wide as its widest visible child and as tall as the lot, gaps and padding
-included; an empty one is `0` by `0`. `:size()` reads that back, and the three writes below say how much
-of it you take over:
+A column is exactly as wide as its widest visible child and as tall as the lot, gaps, padding and each
+child's margin included; an empty one is `0` by `0`. `:size()` reads that back, and the three writes below
+say how much of it you take over:
 
 | Verb | Meaning |
 |---|---|
@@ -106,6 +108,38 @@ col:stock{ bg = {color = {0, 0, 0, 120}}, padding = 8 }   -- the default look, 8
 hafen.ui():label():parent(col):text("first")               -- sits at 8, 8
 ```
 
+## The room around a child
+
+`margin` is the room the column keeps **around one child** — four insets outside that child's box, where
+`padding` is the column's own, inside its edge. It is a property of the same
+[cascade](style/README.md#the-cascade), said in the same three places about the *child*: a tree rule that
+names it, its own `:stock`, or `widget:rule()` on it. [geometry](style/geometry.md#margin) is the
+property's page; this is what a column does with it.
+
+```lua
+local col = hafen.ui():column():gap(4)
+local one = hafen.ui():widget():parent(col):size(40, 20)
+local two = hafen.ui():widget():parent(col):size(40, 20)
+two:rule():margin(16, 2, 0, 3)                  -- left, top, right, bottom, in design pixels
+two:position()                                   --> {x = 16, y = 20 + 4 + 2}
+```
+
+- **Added to the gap, never collapsed.** The child sits its left and top inset further in; the next child
+  starts after its bottom inset *and* the gap; two margins that meet across a gap are both kept. So
+  `:position()` on any child is the arithmetic — the padding, then for each child before it its top inset,
+  its box, its bottom inset and one gap — and the line after the rule is written reads it moved. The sum is
+  made in the client's own pixels: a [control's height](pixels.md) is its art's and not a whole design pixel
+  on a scaled client, so a total you add up from `:size()` reads of controls can differ from the read by
+  one, while a bare widget you sized adds up exactly.
+- **Room across the axis too.** A column is as wide as its widest child *with* that child's left and right
+  insets, so a right inset is room the box keeps, and a left one is an indent for that row alone.
+- **Whose margin it is.** A rule that names a child gives *that child* room; a rule that names the column
+  gives the column room in whatever it stands in, and nothing otherwise. A default for the rows is a
+  [`:stock`](custom.md#naming-and-dressing-your-own-surfaces) each declares, under any theme's rule.
+- **Outside a column or a row it moves nothing.** A widget placed by hand keeps its `:position()`; the
+  property still resolves and [`widget:style()`](style/README.md#restyle-one-widget) reads it, inert like
+  `padding` on a surface that does not own its layout.
+
 ## A child's place is its order
 
 A child has no position of its own: it sits where the column put it, and the column puts it after the
@@ -115,7 +149,8 @@ child before it. So on a child:
   the order — `:parent(other)` while it is being built takes it out, `:destroy()` at any time — or the
   gap.
 - **A rule's `position` or `anchor` is inert.** `s:rule("[name=myaddon/two]"):position(50, 50)` installs,
-  matches, and moves nothing; [`widget:style()`](style/README.md#restyle-one-widget) still reports it.
+  matches, and moves nothing; [`widget:style()`](style/README.md#restyle-one-widget) still reports it. Its
+  [`margin`](#the-room-around-a-child) is the one layout property a rule *does* write on a child.
 - **`:position()` still reads**, and it reads the slot the column chose, in design pixels within the column.
 
 Nesting is the vocabulary for everything else. A row inside a column is an icon and a checkbox on one
@@ -128,5 +163,6 @@ the outer one in the same call, because a child changing size is one of the even
 - [custom](custom.md) — the bare surface a column is, and everything it inherits from one
 - [controls](controls/README.md) — what goes inside, and the one-number `:size(w)` a control takes
 - [chrome](style/chrome.md#padding) — `padding`, the property that is a column's inner room
-- [geometry](style/geometry.md) — `position`, `size` and `anchor`: honoured on the column, inert on a child
+- [geometry](style/geometry.md) — `position`, `size` and `anchor`, honoured on the column and inert on a
+  child; `margin`, the other way about
 - [widget](widget.md) — every read a column answers, `:gap()` among them

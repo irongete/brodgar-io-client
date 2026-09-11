@@ -21,7 +21,7 @@
       <!-- extra context: src/io/brodgar/addon/CScrollport.java (the container adapter to mirror for the
       parent redirect and pending gate) -->
 
-- [ ] **139.2 — `margin` is the room around a row.** `Chrome.MARGIN` beside `PADDING`, parsed by the shared
+- [x] **139.2 — `margin` is the room around a row.** `Chrome.MARGIN` beside `PADDING`, parsed by the shared
       insets parser; `Sheet.Props`/`Resolved`/`SKey` fields; the `"margin"` arm of the data loader;
       `LuaRule` `margin(n | l, t, r, b)` / `margin()`; `widget:style().margin`; `:stock{ margin = … }`; a
       site key refuses it with `Sheet.layoutable`'s site message, `widget:rule()` takes it. `Column.relayout`

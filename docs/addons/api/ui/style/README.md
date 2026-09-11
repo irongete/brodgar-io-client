@@ -83,8 +83,8 @@ every run, which is what the table itself could not promise. When two rules of t
 be ordered a particular way, write them as rules: `sheet:rule(sel)` applies them in the order you call it.
 
 Inside a loaded table the properties are the setter names: `font`, `color`, `emboss`, `glow`, `bg`,
-`border`, `padding`, `picture`, `caption`, `sizer`, `closeButton`, `position`, `anchor`, `size`. An
-unknown one is an **error** naming the ones that exist, and so is a rule
+`border`, `padding`, `margin`, `picture`, `caption`, `sizer`, `closeButton`, `position`, `anchor`, `size`.
+An unknown one is an **error** naming the ones that exist, and so is a rule
 that says both `position` and `anchor` — two spellings of [one property](geometry.md#anchor), and in a table
 there is no *later* to pick the winner.
 
@@ -147,6 +147,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r,g,b[,a]}, width = n}` | your own 9-slice frame, one of the client's own, or a plain line — see [chrome](chrome.md#border) |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
+| `rule:margin(n)` | [design px](../pixels.md), `>= 0` | the room a [column](../column.md) keeps around the widget it lays out, one number or `(l, t, r, b)` — **tree keys and `widget:rule()`**, see [`margin`](geometry.md#margin) |
 | `rule:picture(t)` | one [surface](chrome.md#naming-a-picture), with a face per state | the whole plate a surface **is**, where the client blits a picture — see [`picture`](chrome.md#picture) |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](chrome.md#ornaments) |
 | `rule:sizer(t)` | a [surface](chrome.md#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where — see [ornaments](chrome.md#ornaments) |
@@ -167,8 +168,9 @@ so it says which rule it came off, and it is **not** itself one of the per-rule 
 own font exactly as it is, a `border`-only rule leaves its background. A rule carrying none styles nothing.
 
 An **unknown property is an error** naming the ones that exist — unlike an unresolved key, a misspelt
-property has no later meaning to wait for. So is `:position()`, `:anchor()` or `:size()` on a key that names
-a render **site** rather than a widget: those three lay out a *widget*, and a site is where the client draws.
+property has no later meaning to wait for. So is `:position()`, `:anchor()`, `:size()` or `:margin()` on a
+key that names a render **site** rather than a widget: those four are about a *widget* — three lay it out,
+one is the room a column keeps around it — and a site is where the client draws.
 
 ## Restyle one widget
 
@@ -202,6 +204,8 @@ n:rule():release()                      -- give the level back
   child, so a child inside a styled window still reads `nil`.
 - **`widget:rule():position(…)` is an error**, and so are `:size()` and `:anchor()`: the hand-named level of
   the layout cascade is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
+  [`:margin(…)`](geometry.md#margin) is not: no verb spells the room a column keeps around a widget, so
+  this level is where it is said by hand.
 - **On a window, it dresses that window's chrome**, and one level down, a [panel's](surfaces.md#panels) box,
   a [button's](surfaces.md#button) face or a [field's](surfaces.md#textentry). On anything that wears no
   chrome the three chrome properties are inert, still readable through `:style()`.
@@ -253,8 +257,8 @@ patch.
 [site keys](keys.md#site-keys)), any widget a [selector](../selectors.md) names, and any single widget you
 point at with `widget:rule()`. *What* — the text (`font`, `color`, the `emboss` that decides which of
 the two a carved surface listens to, and the `glow` behind it), the surfaces that paint (`bg`,
-`border`), the room around content (`padding`), the whole plate a surface is where the client blits one
-(`picture`), what a window's decoration draws its ornaments as and where
+`border`), the room inside a frame (`padding`) and around a row (`margin`), the whole plate a surface is
+where the client blits one (`picture`), what a window's decoration draws its ornaments as and where
 it puts them (`caption`, `sizer`, `closeButton`), and where a widget is and how big (`position`, `size`,
 `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and
 reversible to the pixel; and since a rule is only values, a whole look can

@@ -1,0 +1,9 @@
+{
+  "name": "139.2 — margin is the room around a row",
+  "id": "139-a-column-lays-its-rows-out.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 139.2: a child's margin is honoured by the column that lays it out — from widget:rule(), a stock, a Lua tree rule and the same rule loaded from JSON — reads back as {l, t, r, b}, is refused on a site key, and moves nothing outside a column. Run :t139.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

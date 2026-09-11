@@ -1,7 +1,9 @@
-# hafen.ui: position, size and anchor
+# hafen.ui: position, size, anchor and margin
 
-The [sheet](README.md) can say **where** a widget is, not only what it looks like. These three are the only
-properties that lay a widget out, and they are the only ones a [site key](keys.md#site-keys) may not carry.
+The [sheet](README.md) can say **where** a widget is, not only what it looks like. Three properties lay a
+widget out, and a fourth, [`margin`](#margin), is the room a [column](../column.md) keeps around one; the
+four are the only properties that are about a widget's place, and the only ones a
+[site key](keys.md#site-keys) may not carry.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -124,10 +126,47 @@ window is laid out by that window and is not the client's to clamp — there you
 an anchor, `position` for a plain one — while [`widget:position()`](../widget.md#read) answers where the
 widget actually is right now.
 
+## margin
+
+`position` and `anchor` say where a widget is. `margin` says how much room a [column or a row](../column.md)
+keeps **around** it: the same four insets [`padding`](chrome.md#padding) is, said about the outside of the
+widget's box rather than the inside of a frame. Only a column honours it — on a widget placed by hand the
+property resolves, reads back and moves nothing.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("[name=myaddon/two]"):margin(16, 2, 0, 3)   -- left, top, right, bottom
+s:rule("[name^=myaddon/row]"):margin(4)             -- all four sides
+s:install()
+```
+
+| Call | Value | Meaning |
+|---|---|---|
+| `rule:margin(n)` | [design px](../pixels.md), `>= 0` | the room the column keeps around the widget, on all four sides |
+| `rule:margin(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
+| `rule:margin()` | — | reads it back as `{l =, t =, r =, b =}`, or `nil` when this rule says nothing; the setter takes that table again |
+
+- **One property and one slot.** One number is all four sides and four are `left, top, right, bottom`; the
+  later call replaces the earlier; two or three numbers is an error naming both spellings, and so is a
+  negative side — every one of the four is a distance. `widget:style().margin` reads the resolved answer in
+  the same `{l =, t =, r =, b =}`.
+- **A site key refuses it**, with the error `position` gets there: a site is where the client draws, not a
+  widget a column lays out. **A tree key carries it — and so do the two hand-named levels**,
+  `widget:rule()` and a [`:stock`](../custom.md#naming-and-dressing-your-own-surfaces), which is where it
+  parts from the three: no verb spells the room around a widget, so `widget:rule():margin(…)` *is* the
+  hand-named level, exactly as it is for `padding`.
+- **Honoured by the column the widget stands in**, which re-lays itself before the call that wrote the
+  property returns — a sheet installed, a level written, a stock declared — and drops it the same way when
+  the rule goes. [What the arithmetic is](../column.md#the-room-around-a-child) is the column's page.
+  Everywhere else the property is inert, never an error, like `padding` on a surface that does not own its
+  layout.
+
 ## See also
 
 - [native](../native.md) — the verb above every rule in this cascade
 - [the pixel](../pixels.md) — what a coordinate in a rule is counted in
-- [keys](keys.md#what-each-key-accepts) — why a site key may not carry these three
-- [chrome](chrome.md#padding) — `padding`, the drawing property that also moves a window
+- [keys](keys.md#what-each-key-accepts) — why a site key may not carry these four
+- [chrome](chrome.md#padding) — `padding`, the drawing property that also moves a window, and the insets
+  `margin` shares
+- [column](../column.md) — the one surface that honours a `margin`, and what it does with one
 - [style](README.md#the-cascade) — how the verb and the rules fold together

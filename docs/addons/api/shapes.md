@@ -26,6 +26,7 @@ space they are in.
 | `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:world():worldToScreen(p)`, `ev:pixel(i)` |
 | `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cellSize()`, `img:size()`, `mapImg:size()` and `mapImg:info().size`, `rule:size()` |
 | `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:fill()` |
+| `{l=, t=, r=, b=}` | four insets, in design pixels: left, top, right, bottom | `rule:padding()`, `rule:margin()`, the `padding` and `margin` of `widget:style()`, a border's `slice` |
 | `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `extent` of `mdl:bounds()` |
 
 **A size is `{w=, h=}` and a place is `{x=, y=}`**, and neither answers the other's keys: `w:size().x`

@@ -1794,8 +1794,8 @@ public final class LuaWidget {
                     return a.arg1();               // 029.2
                 mine(owner, w, "stock");
                 Sheet.setWidgetStock(owner, w, Sheet.stockProps(owner, "widget:stock", a.arg(2)));
-                Column.applied(w);                 // 139.1: a padding it declares is its inner room -- after the
-                return a.arg1();                   //   registry call, never inside it (Sheet.class is held there)
+                Column.applied(w);                 // 139.1: a padding it declares is its inner room, 139.2: a margin
+                return a.arg1();                   //   its own room -- after the registry call, never inside it
             }
         });
         // gap() / gap(n) — 139.1: THE ROOM BETWEEN TWO CHILDREN of a column or a row, in design pixels, 0 from

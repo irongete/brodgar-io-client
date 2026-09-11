@@ -83,8 +83,8 @@ import java.util.WeakHashMap;
 final class Sheet {
     /** The style properties a rule may carry — the whole of a rule's vocabulary, in both its shapes. */
     static final String PROPS =
-        "\"font\", \"color\", \"emboss\", \"glow\", \"bg\", \"border\", \"padding\", \"picture\","
-        + " \"caption\", \"sizer\", \"closeButton\", \"position\", \"anchor\" and \"size\"";
+        "\"font\", \"color\", \"emboss\", \"glow\", \"bg\", \"border\", \"padding\", \"margin\","
+        + " \"picture\", \"caption\", \"sizer\", \"closeButton\", \"position\", \"anchor\" and \"size\"";
 
     /**
      * <b>What one rule says</b> — the properties below, each independently optional, and mutable because a
@@ -105,6 +105,7 @@ final class Sheet {
         Chrome.Bg bg;             // the rule's `bg` property (035.1), or null
         Chrome.Border border;     // the rule's `border` property (035.1), or null
         Chrome.Pad padding;       // the rule's `padding` property (065.1), or null
+        Chrome.Pad margin;        // the rule's `margin` property (139.2), or null — never on a SITE key
         Chrome.Pic picture;       // the rule's `picture` property (065.12), or null
         Chrome.Spot caption;      // the rule's `caption` property (065.4), or null
         Chrome.Art sizer;         // the rule's `sizer` property (065.4), or null
@@ -115,7 +116,7 @@ final class Sheet {
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
             return (font == null) && (color == null) && (seq == null) && (emboss == null) && (glow == null)
-                && (bg == null) && (border == null) && (padding == null) && (picture == null)
+                && (bg == null) && (border == null) && (padding == null) && (margin == null) && (picture == null)
                 && (caption == null) && (sizer == null) && (close == null) && (pos == null) && (size == null);
         }
 
@@ -127,7 +128,7 @@ final class Sheet {
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
             return (font != null) || (color != null) || (seq != null) || (emboss != null) || (glow != null)
-                || (bg != null) || (border != null) || (padding != null) || (picture != null)
+                || (bg != null) || (border != null) || (padding != null) || (margin != null) || (picture != null)
                 || (caption != null) || (sizer != null) || (close != null);
         }
 
@@ -148,6 +149,7 @@ final class Sheet {
             bg = p.bg;
             border = p.border;
             padding = p.padding;
+            margin = p.margin;
             picture = p.picture;
             caption = p.caption;
             sizer = p.sizer;
@@ -183,6 +185,8 @@ final class Sheet {
                 t.set("border", border.toLua(reader));
             if(padding != null)
                 t.set("padding", padding.toLua());
+            if(margin != null)
+                t.set("margin", margin.toLua());
             if(picture != null)
                 t.set("picture", picture.toLua(reader));
             if(caption != null)
@@ -215,6 +219,7 @@ final class Sheet {
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
         final Chrome.Pad padding; // the rule's `padding` property (065.1), or null
+        final Chrome.Pad margin;  // the rule's `margin` property (139.2), or null — TREE rules only
         final Chrome.Pic picture; // the rule's `picture` property (065.12), or null
         final Chrome.Spot caption;   // the rule's `caption` property (065.4), or null
         final Chrome.Art sizer;   // the rule's `sizer` property (065.4), or null
@@ -234,6 +239,7 @@ final class Sheet {
             this.bg = p.bg;
             this.border = p.border;
             this.padding = p.padding;
+            this.margin = p.margin;
             this.picture = p.picture;
             this.caption = p.caption;
             this.sizer = p.sizer;
@@ -245,7 +251,7 @@ final class Sheet {
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
             return (font == null) && (color == null) && (seq == null) && (emboss == null) && (glow == null)
-                && (bg == null) && (border == null) && (padding == null) && (picture == null)
+                && (bg == null) && (border == null) && (padding == null) && (margin == null) && (picture == null)
                 && (caption == null) && (sizer == null) && (close == null) && (pos == null) && (size == null);
         }
 
@@ -257,7 +263,7 @@ final class Sheet {
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
             return (font != null) || (color != null) || (seq != null) || (emboss != null) || (glow != null)
-                || (bg != null) || (border != null) || (padding != null) || (picture != null)
+                || (bg != null) || (border != null) || (padding != null) || (margin != null) || (picture != null)
                 || (caption != null) || (sizer != null) || (close != null);
         }
     }
@@ -394,8 +400,8 @@ final class Sheet {
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color, Chrome.props(r.bg, r.border, r.padding, r.picture, r.emboss, r.glow,
-                                             r.caption, r.sizer, r.close, r.seq));
+                       r.color, Chrome.props(r.bg, r.border, r.padding, r.margin, r.picture, r.emboss,
+                                             r.glow, r.caption, r.sizer, r.close, r.seq));
         }
     }
 
@@ -500,6 +506,12 @@ final class Sheet {
      *       per operation: a second spelling of the same level is exactly what this API does not ship.</li>
      * </ul>
      *
+     * <p><b>{@code margin} takes the first of those two refusals and not the second</b> (139.2). It is about a
+     * widget — the room a column keeps around it — so a site key refuses it exactly as it refuses
+     * {@code position}; but no verb spells it, because it is not where the widget sits but what surrounds it,
+     * so {@code widget:rule():margin(…)} and {@code widget:stock{margin = …}} are legal and are the hand-named
+     * level, as they are for {@code padding}.
+     *
      * <p><b>{@code position} and {@code anchor} are ONE property said two ways</b> (036.3):
      * {@code position = {x, y}} is the anchor to the widget's own parent's top-left, so a rule <i>table</i>
      * carrying both is asking one question twice and gets an error rather than a winner picked by iteration
@@ -539,7 +551,10 @@ final class Sheet {
             } else if("border".equals(p)) {
                 out.border = Chrome.parseBorder(owner, ctx, pv);
             } else if("padding".equals(p)) {
-                out.padding = Chrome.parsePadding(ctx, pv);
+                out.padding = Chrome.parseInsets(ctx, p, pv);
+            } else if("margin".equals(p)) {
+                notSite(ctx, p, site);
+                out.margin = Chrome.parseInsets(ctx, p, pv);
             } else if("picture".equals(p)) {
                 out.picture = Chrome.parsePicture(owner, ctx, ".picture", pv);
             } else if("caption".equals(p)) {
@@ -592,19 +607,33 @@ final class Sheet {
      * Refuse a layout property said somewhere that can never lay anything out (036.2) — see {@link #propsOf} and
      * {@link LuaRule}. Two messages, because the two are different mistakes: a site key is the <i>wrong kind of
      * key</i> and the fix is to name the widget, while {@code widget:rule()} is the <i>wrong spelling of the
-     * right level</i> and the fix is the verb that already does it.
+     * right level</i> and the fix is the verb that already does it. {@code margin} takes only the first
+     * ({@link #notSite}): its hand-named level IS {@code widget:rule()}, there being no verb for it.
      */
     static void layoutable(String ctx, String prop, String site, Selector sel) {
-        if(site != null)
-            throw new LuaError(ctx + "." + prop + ": \"" + prop + "\" lays out a WIDGET, and this key names a"
-                + " render site (\"" + site + "\"" + ("default".equals(site) ? ", which is what \"*\" means" : "")
-                + ") — a site is where the client draws, not something with a position. Name the widget instead:"
-                + " sheet:rule(\"window[title=Equipment]\"):" + prop + "("
-                + ("anchor".equals(prop) ? "{ at = \"bottomright\" })" : "40, 200)"));
+        notSite(ctx, prop, site);
         if(sel == null)
             throw new LuaError(ctx + "." + prop + ": layout is not a rule property here — the hand-named level of"
                 + " the cascade is the VERB: widget:position(x, y) and widget:size(w, h), undone with"
                 + " widget:position(nil). widget:rule() says what a widget is drawn WITH; the verbs say where it is");
+    }
+
+    /**
+     * The first half of {@link #layoutable}: a property that is about a <b>widget</b> — where it sits, how big
+     * it is, or (139.2) the room a column keeps around it — refused on a SITE key, naming the fix. A site is
+     * where the client draws, and has no box for any of them to be said about.
+     */
+    static void notSite(String ctx, String prop, String site) {
+        if(site == null)
+            return;
+        boolean m = "margin".equals(prop);
+        throw new LuaError(ctx + "." + prop + ": \"" + prop + "\" "
+            + (m ? "is the room around a WIDGET" : "lays out a WIDGET") + ", and this key names a render site (\""
+            + site + "\"" + ("default".equals(site) ? ", which is what \"*\" means" : "")
+            + ") — a site is where the client draws, not "
+            + (m ? "a widget a column lays out" : "something with a position") + ". Name the widget instead:"
+            + " sheet:rule(\"" + (m ? "[name=myaddon/row]" : "window[title=Equipment]") + "\"):" + prop + "("
+            + ("anchor".equals(prop) ? "{ at = \"bottomright\" })" : m ? "4)" : "40, 200)"));
     }
 
     // ---- the PER-WIDGET cascade: tree rules (034.1) + widget:rule() (034.3) -------------------------
@@ -641,6 +670,12 @@ final class Sheet {
         final Chrome.Border border;
         /** The winning {@code padding} property (065.1), or {@code null}. */
         final Chrome.Pad padding;
+        /**
+         * The winning {@code margin} property (139.2), or {@code null}. Read by {@code Column.relayout} for a
+         * child it places, and by nothing at the draw: like {@code padding}, it rides the interned style so a
+         * widget's resolution is whole, and its meaning is one container's.
+         */
+        final Chrome.Pad margin;
         /** The winning {@code picture} property (065.12), or {@code null}. */
         final Chrome.Pic picture;
         /** The winning {@code caption} property (065.4), or {@code null}. */
@@ -679,8 +714,8 @@ final class Sheet {
         int recheck;
 
         Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Seq seq, Chrome.Emboss emboss,
-                 Chrome.Glow glow, Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding, Chrome.Pic picture,
-                 Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close, int gen) {
+                 Chrome.Glow glow, Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding, Chrome.Pad margin,
+                 Chrome.Pic picture, Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close, int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
@@ -690,6 +725,7 @@ final class Sheet {
             this.bg = bg;
             this.border = border;
             this.padding = padding;
+            this.margin = margin;
             this.picture = picture;
             this.caption = caption;
             this.sizer = sizer;
@@ -708,7 +744,7 @@ final class Sheet {
          */
         boolean drawEmpty() {
             return (font == null) && (color == null) && (seq == null) && (emboss == null) && (glow == null)
-                && (bg == null) && (border == null) && (padding == null) && (picture == null)
+                && (bg == null) && (border == null) && (padding == null) && (margin == null) && (picture == null)
                 && (caption == null) && (sizer == null) && (close == null);
         }
     }
@@ -844,6 +880,8 @@ final class Sheet {
      * {@code widget:stock(t)} (107) — the table a stock is written in: the very vocabulary a rule is
      * written in, minus the three that lay a widget out. Those are refused by the same gate
      * {@code widget:rule()} refuses them with, and for the same reason: where a widget SITS is the verb.
+     * {@code margin} (139.2) is taken, as {@code padding} is: it is the room a column keeps around this
+     * widget, and a default for it belongs at the bottom of the cascade like any other default.
      */
     static Props stockProps(Addon owner, String ctx, LuaValue t) {
         if(!t.istable())
@@ -917,14 +955,15 @@ final class Sheet {
         final Chrome.Bg bg;
         final Chrome.Border border;
         final Chrome.Pad padding;
+        final Chrome.Pad margin;
         final Chrome.Pic picture;
         final Chrome.Spot caption;
         final Chrome.Art sizer;
         final Chrome.Close close;
 
         SKey(FontHandle font, Color color, Chrome.Seq seq, Chrome.Emboss emboss, Chrome.Glow glow,
-             Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding, Chrome.Pic picture, Chrome.Spot caption,
-             Chrome.Art sizer, Chrome.Close close) {
+             Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding, Chrome.Pad margin, Chrome.Pic picture,
+             Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close) {
             this.font = font;
             this.color = color;
             this.seq = seq;
@@ -933,6 +972,7 @@ final class Sheet {
             this.bg = bg;
             this.border = border;
             this.padding = padding;
+            this.margin = margin;
             this.picture = picture;
             this.caption = caption;
             this.sizer = sizer;
@@ -946,6 +986,7 @@ final class Sheet {
                 + ((glow == null) ? 0 : glow.hashCode() * 47)
                 + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13)
                 + ((padding == null) ? 0 : padding.hashCode() * 23)
+                + ((margin == null) ? 0 : margin.hashCode() * 59)
                 + ((picture == null) ? 0 : picture.hashCode() * 43)
                 + ((caption == null) ? 0 : caption.hashCode() * 29)
                 + ((sizer == null) ? 0 : sizer.hashCode() * 37)
@@ -964,6 +1005,7 @@ final class Sheet {
                 && ((bg == null) ? (k.bg == null) : bg.equals(k.bg))
                 && ((border == null) ? (k.border == null) : border.equals(k.border))
                 && ((padding == null) ? (k.padding == null) : padding.equals(k.padding))
+                && ((margin == null) ? (k.margin == null) : margin.equals(k.margin))
                 && ((picture == null) ? (k.picture == null) : picture.equals(k.picture))
                 && ((caption == null) ? (k.caption == null) : caption.equals(k.caption))
                 && ((sizer == null) ? (k.sizer == null) : sizer.equals(k.sizer))
@@ -1275,8 +1317,8 @@ final class Sheet {
      * site every frame). Caller holds {@code Sheet.class}.
      */
     private static Fonts.Style specFor(Resolved r) {
-        SKey k = new SKey(r.font, r.color, r.seq, r.emboss, r.glow, r.bg, r.border, r.padding, r.picture,
-                          r.caption, r.sizer, r.close);
+        SKey k = new SKey(r.font, r.color, r.seq, r.emboss, r.glow, r.bg, r.border, r.padding, r.margin,
+                          r.picture, r.caption, r.sizer, r.close);
         Fonts.Style s = specs.get(k);
         if(s == null) {
             FontHandle font = r.font;
@@ -1286,9 +1328,9 @@ final class Sheet {
                                             (font == null) ? null : font.font,
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
-                                            r.color, Chrome.props(r.bg, r.border, r.padding, r.picture,
-                                                                  r.emboss, r.glow, r.caption, r.sizer,
-                                                                  r.close, r.seq)));
+                                            r.color, Chrome.props(r.bg, r.border, r.padding, r.margin,
+                                                                  r.picture, r.emboss, r.glow, r.caption,
+                                                                  r.sizer, r.close, r.seq)));
         }
         return s;
     }
@@ -1311,6 +1353,7 @@ final class Sheet {
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Chrome.Pad padding = null;
+        Chrome.Pad margin = null;
         Chrome.Pic picture = null;
         Chrome.Spot caption = null;
         Chrome.Art sizer = null;
@@ -1319,7 +1362,7 @@ final class Sheet {
         Coord size = null;
         Addon posOwner = null, sizeOwner = null;
         int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
-        int arank = -1, srank = -1, krank = -1, qrank = -1, erank = -1, lrank = -1, wrank = -1;
+        int arank = -1, srank = -1, krank = -1, qrank = -1, erank = -1, lrank = -1, wrank = -1, mrank = -1;
         /* 107: the widget's own stock goes in FIRST, with every rank left at -1 -- so the first rule that
          * names this widget, at any specificity, wins the property outright, and what the addon declared
          * survives only where no rule spoke. That is the whole ordering, and it costs one lookup. */
@@ -1327,7 +1370,7 @@ final class Sheet {
         if(st0 != null) {
             Props p = st0.p;
             font = p.font; color = p.color; seq = p.seq; emboss = p.emboss; glow = p.glow;
-            bg = p.bg; border = p.border; padding = p.padding; picture = p.picture;
+            bg = p.bg; border = p.border; padding = p.padding; margin = p.margin; picture = p.picture;
             caption = p.caption; sizer = p.sizer; close = p.close;
             if(font != null)
                 fontOwner = st0.owner;
@@ -1364,6 +1407,9 @@ final class Sheet {
                 }
                 if((r.padding != null) && (r.rank >= prank)) {
                     padding = r.padding; prank = r.rank;
+                }
+                if((r.margin != null) && (r.rank >= mrank)) {
+                    margin = r.margin; mrank = r.rank;
                 }
                 if((r.picture != null) && (r.rank >= qrank)) {
                     picture = r.picture; qrank = r.rank;
@@ -1405,6 +1451,8 @@ final class Sheet {
                 border = s.p.border;
             if(s.p.padding != null)
                 padding = s.p.padding;
+            if(s.p.margin != null)
+                margin = s.p.margin;           // 139.2: legal here, unlike position/size — no verb spells it
             if(s.p.picture != null)
                 picture = s.p.picture;
             if(s.p.caption != null)
@@ -1416,8 +1464,8 @@ final class Sheet {
             // No layout here: widget:rule() cannot carry position/size (LuaRule refuses it). The hand-named level
             // of the LAYOUT cascade is the verb, and Layout folds it in above this whole result.
         }
-        Resolved out = new Resolved(font, fontOwner, color, seq, emboss, glow, bg, border, padding, picture,
-                                    caption, sizer, close, treegen);
+        Resolved out = new Resolved(font, fontOwner, color, seq, emboss, glow, bg, border, padding, margin,
+                                    picture, caption, sizer, close, treegen);
         out.pos = pos;
         out.posOwner = posOwner;
         out.size = size;
@@ -1572,6 +1620,8 @@ final class Sheet {
             t.set("border", r.border.toLua(reader));
         if(r.padding != null)
             t.set("padding", r.padding.toLua());
+        if(r.margin != null)
+            t.set("margin", r.margin.toLua());
         if(r.picture != null)
             t.set("picture", r.picture.toLua(reader));
         if(r.caption != null)
