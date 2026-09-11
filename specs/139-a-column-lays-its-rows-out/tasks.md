@@ -52,7 +52,7 @@
       `[manual]`: press the greyed button — expect: no `PRESSED` line, and the window does not drag.
       `[manual]`: look at the three — expect: dimmed, the box and the entry included.
 
-- [ ] **139.4 — A panel is columns inside columns.** No new verb: this task proves the composition the
+- [x] **139.4 — A panel is columns inside columns.** No new verb: this task proves the composition the
       options page will be built from, and writes it as `column.md`'s worked example and
       `guides/custom-ui.md`'s panel section. A column in a `:scroll()`; a window packed around a column;
       a row of `:image()` + `:check()` on one line; a column nested with a left `padding` as an indent; a

@@ -22,8 +22,8 @@ text only: `:image(...)` refuses on one, naming the [button](interactive.md#a-ca
 ## Picture
 
 `hafen.ui():image()` is a static picture with no interaction of its own. `:source(h)` gives it its content —
-an [asset](../../asset/README.md) handle or a string naming one of the client's own resources, the same two doors a
-button's [face](interactive.md#a-caption-or-a-picture) resolves:
+an [asset](../../asset/README.md) handle or a string naming one of the client's own resources, the same two
+doors a button's [face](interactive.md#a-caption-or-a-picture) resolves:
 
 ```lua
 hafen.ui():image():source(hafen.asset():get("logo.png")):position(0, 0)
@@ -32,6 +32,12 @@ hafen.ui():image():source(hafen.asset():get("logo.png")):position(0, 0)
 Unlike a button's face, the picture is **not** chosen while the control is built: `:source(h)` may replace it
 at any time, on screen or not. The bare `:source()` reads back exactly what was named, and `nil` before the
 first `:source(h)`.
+
+**The box is the picture's own until you write one.** `:size(w, h)` scales the picture to the box you give
+it — a skill icon the client draws large is a 24-pixel icon on a row with `:size(24, 24)` — and a later
+`:source(h)` keeps that box, where it would otherwise take the new picture's own; `:size(nil)` gives the box
+back to the picture. The one-number `:size(w)` refuses, there being no art to answer for the height. A
+[`picture`](../style/chrome.md#picture) rule that names the control fills the same box by its own `mode`.
 
 [`:picture()`](../selectors.md#the-picture-is-a-different-read) is the other half, and it asks a different
 question: not what you named, but what the control is **showing**. On a client resource the two agree; on an

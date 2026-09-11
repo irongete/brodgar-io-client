@@ -110,6 +110,7 @@ PER_FILE = {
     "counters.md": {"p": None},
     "display.md": {"p": None},
     "interactive.md": {"sp": None, "p": None},
+    "column.md": {"sp": None},                # the worked panel's scroll, not a speed
     "flowermenu.md": {"p": "petal"},          # `p` is a petal on that page, not a Position
     "lists.md":  {"grid": None},              # a UI grid control, not the map's Grid
     "drawings.md": {"grid": None},

@@ -25,7 +25,7 @@ lookup instead of a search.
 | [GameUI's own windows](gameui-windows.md) | the `Hidewnd` wrappers, the menu bars, the one private `togglewnd`/`wndstate` path, and the client's own window-position store |
 | [chrome](ui-chrome.md) | what draws a **frame**: `Window.deco` and the `Deco` contract (the ctor's `sz` is the CONTENT size), `IBox`, and the window-less panels |
 | [controls](ui-controls.md) | `SIWidget`'s rasterise-once cache, `Button`, `IButton`, `ACheckBox`'s value spine, the four plain display controls, `RadioGroup` |
-| [panels and tabs](ui-panels.md) | `Tabs`, which is not a widget, and `OptWnd`'s panel model: the caption that follows the panel, the list that is the navigation, and where a re-fit stops |
+| [panels and tabs](ui-panels.md) | `Tabs`, which is not a widget, `OptWnd`'s panel model: the caption that follows the panel, the list that is the navigation, and where a re-fit stops — and `PackCont`, the container that stays packed |
 | [lists, text and scrolling](ui-lists.md) | `HSlider`/`Scrollbar`, `TextEntry` and its `ReadLine`, `Scrollport`, and the model-backed family — `SListWidget`/`SListBox`, `SDropBox`, `GridList`, `TableBox` |
 | [state roots](state.md) | where game state lives: `Glob`, `OCache`/`Gob` and the `GAttrib` lifetime, `MCache`, player, inventory and `ItemInfo`, party, time |
 | [networking](network.md) | `Session`/`Connection`, `uimsg` in and `wdgmsg` out, and the full action channel |

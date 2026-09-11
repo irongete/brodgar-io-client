@@ -56,11 +56,18 @@ final class Column {
         return (w != null) && stacks(w.parent);
     }
 
-    /** A child of {@code w} moved, resized, hid or showed: re-lay the column it stands in, if it stands in one. */
+    /**
+     * {@code w} moved, resized, hid or showed: re-lay the column it stands in, if it stands in one — or, when it
+     * stands in a surface that has been packed, re-pack that ({@link AddonWidget#repackAround}, 139.4). One
+     * seam for the two containers that follow their content, so the {@code visible} and {@code position} writes
+     * and {@link Layout#apply} name one call.
+     */
     static void childChanged(Widget w) {
         AddonWidget col = (w == null) ? null : of(w.parent);
         if(col != null)
             relayout(col);
+        else
+            AddonWidget.repackAround(w);
     }
 
     /**

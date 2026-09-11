@@ -11,7 +11,7 @@ assume you have a folder that loads.
 |---|---|
 | [reading the world](reading-the-world.md) | find game objects, read one, and ask what is on the ground |
 | [events and timers](events-and-timers.md) | run your code at the right moment, and not on every frame |
-| [custom UI](custom-ui.md) | a window, an overlay, and painting your own pixels |
+| [custom UI](custom-ui.md) | a window, a panel of controls, an overlay, and painting your own pixels |
 | [saved data](saved-data.md) | keep settings and layouts across sessions |
 | [hotkeys, commands and settings](hotkeys-and-commands.md) | let the user drive your addon by hand |
 | [permissions](permissions.md) | drive the character: the catalogue of keys, and what declaring one costs you |

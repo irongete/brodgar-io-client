@@ -621,6 +621,7 @@ public final class LuaWidget {
                             rec.posSeq = Layout.nextSeq();         // 058.3: the level speaks the sheet's own space,
                         } else {                                   //   and Anchor.resolve is where it converts
                             w.move(Px.in(to));                     // your own widget: no layer, no cascade...
+                            Column.childChanged(w);                // 139.4: ...and the packed surface it stands in follows
                         }
                     }
                     // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
@@ -655,9 +656,13 @@ public final class LuaWidget {
                     if(a.arg(2).isnil()) {                // w:size(nil) — undo OUR resize, back to the stock value
                         if(w != null) {
                             AddonWidget col = column(owner, w);   // 139.1: a column's undo is its pins
+                            Owned content = ownedContent(owner, w);
                             if(col != null)
                                 pin(col, -1, -1);
-                            else
+                            else if(content instanceof CImg) {    // 139.4: a picture's is its own box again
+                                synchronized(monitor(w)) { ((CImg)content).unpin(); }
+                                Layout.moved(w);
+                            } else
                                 UiApi.releaseMoved(owner, w, false);
                         }
                         return self;
@@ -721,6 +726,8 @@ public final class LuaWidget {
                             rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
                             rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
                         } else {
+                            if(content instanceof AddonWidget)   // 139.4: the box is yours again, and follows nothing
+                                ((AddonWidget)content).packed = false;
                             content.widget().resize(dev);
                             if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
@@ -1079,14 +1086,9 @@ public final class LuaWidget {
         // Window or bare: the `content.widget() != w` guard that made this a no-op on a hafen.ui():widget() is
         // gone, and with it the only reason an addon still had to add up its own rows. OWNED-only, and chains.
         //
-        // THE TWO CASES ARE ONE CALL, and the order is the point. Widget.pack() is resize(contentsz()), the max
-        // bottom-right over the children — so a BARE surface simply packs, its children being its content. A
-        // WINDOW's controls are children of the CHROME (widget:parent(win) adds them there), siblings of the
-        // painted canvas rather than children of it, so packing the canvas first empties it — it has no children
-        // of its own, by construction — and stops it flooring the measurement at the box it was built with. The
-        // chrome then measures the controls alone (Window.contentsz skips the deco, and now meets a 0x0 canvas),
-        // and the canvas is given the content area that came out of it, so a window that BOTH paints and holds
-        // controls still has its full surface to paint on afterwards.
+        // THE TWO CASES ARE ONE CALL, and the order is the point -- packSurface, below, is that call, and 139.4
+        // re-runs it from every seam a child passes once the surface has been packed (AddonWidget.repack): a
+        // window packed around a column follows the column, before the statement that grew it returns.
         //   061.7: AND IT ANSWERS ON ONE OF THE CLIENT'S OWN WINDOWS, where it is the same LEVEL :size(w, h)
         // is — the box the pack came out at becomes this addon's size level on Moved, so :size(nil), :reload
         // and disable all give the stock outer box back (nativePack, below). A borrowed widget that is not a
@@ -1107,11 +1109,13 @@ public final class LuaWidget {
                         throw Column.packed(role(w));
                     synchronized(monitor(w)) {
                         Widget cw = content.widget();
-                        cw.pack();
-                        if(cw != w) {              // a window: refit the chrome, then give the canvas what is left
-                            w.pack();
-                            cw.resize(sizeArg(w));
-                        }
+                        packSurface(w, cw);
+                        // 139.4: ...AND FROM HERE ON THE BOX FOLLOWS WHAT IS INSIDE IT. A surface packed once
+                        // and left behind is the panel that clips the row added after it -- so the flag
+                        // stays up, every seam a child passes re-packs (AddonWidget.repack), and :size(w, h)
+                        // is what takes the box back. PackCont's own rule, for the client's own panels.
+                        if(cw instanceof AddonWidget)
+                            ((AddonWidget)cw).packed = true;
                     }
                     // 036.3: a corner anchor reads the box that just changed — and 112.6: below the
                     // block, since that anchor's own widget may stand in another tree.
@@ -2508,6 +2512,25 @@ public final class LuaWidget {
      */
     static Coord sizeArg(Widget w) {
         return (w instanceof Window) ? ((Window)w).csz() : w.sz;
+    }
+
+    /**
+     * <b>Size a surface to what is inside it</b> — {@code widget:pack()}'s body (058.4), and what
+     * {@link AddonWidget#repack} re-runs on every seam a child passes once the surface is packed (139.4).
+     * {@code w} is the root (the chrome, or the bare widget itself) and {@code cw} the content: a bare surface
+     * simply packs, its children being its content; a window's controls are children of the CHROME, siblings
+     * of the painted canvas, so the canvas packs first — it has no children of its own, so that empties it and
+     * stops it flooring the measurement at the box it was built with — the chrome then measures the controls
+     * alone ({@code Window.contentsz} skips the deco and meets a 0x0 canvas), and the canvas is given the
+     * content area that came out, so a window that BOTH paints and holds controls keeps its full surface to
+     * paint on. Caller holds the tree monitor.
+     */
+    static void packSurface(Widget w, Widget cw) {
+        cw.pack();
+        if(cw != w) {
+            w.pack();
+            cw.resize(sizeArg(w));
+        }
     }
 
     /** This owner's own layout record for a widget, or {@code null} (identity-keyed; the list is per-addon tiny). */

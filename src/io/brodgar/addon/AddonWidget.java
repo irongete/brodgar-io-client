@@ -89,6 +89,15 @@ import org.luaj.vm2.LuaValue;
  * background, the {@code Draw} handlers and every child paint through the one tinted {@code GOut}), and the
  * keyboard. For a window the flag sits here, on the content, and the chrome reads it through
  * {@link Owned#of}: the anonymous {@code Window} in {@link UiApi} tints its whole box, frame included.
+ *
+ * <p><b>And once packed, it follows what is inside it</b> (139.4): {@link #packed} is set by {@code :pack()}
+ * and cleared by {@code :size(w, h)}, and while it is set every seam a child passes — entering, leaving,
+ * moving, resizing, hiding, showing — runs {@link #repack}, so a window packed around a column grows by a
+ * row when the column does, before the call that added the row returns. It is {@code PackCont}'s own rule
+ * (once {@code pack()} ran, {@code add}/{@code cresize}/{@code cdestroy} re-pack) and {@code OptWnd.cresize}'s,
+ * kept for the same reason: a box that was measured once and then left behind is the panel that clips its
+ * own rows. Like {@code enabled}, the flag sits here for a window too, on the content, and the chrome's seams
+ * reach it as {@code content.repack()}.
  */
 final class AddonWidget extends Widget implements DropTarget, Owned {
     /** What a surface does with its children: nothing, or lay them out top to bottom, or left to right. */
@@ -104,6 +113,14 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
      * still follows the content. {@code :size(nil)} puts both back to {@code -1}. Meaningless off a column.
      */
     int pinW = -1, pinH = -1;
+    /**
+     * {@code :pack()} ran on this surface (139.4) — a bare widget, or a window's content — and from then on its
+     * box follows what is inside it ({@link #repack}), until {@code :size(w, h)} takes the box back. Never set
+     * on a column, whose {@code :pack()} refuses.
+     */
+    boolean packed;
+    /** {@link #repack} is running: the pack resizes the canvas and the deco, and each passes back through the chrome's seams. */
+    private boolean repacking;
     private volatile FontHandle defaultFont;       // :font(h) — the default font for this widget's g:text draws
     private volatile LuaValue fontVal = LuaValue.NIL;   // ...and the handle itself, so :font() reads back what was set
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
@@ -123,17 +140,17 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         this.axis = axis;
     }
 
-    // ---------------------------------------------------------------- the seams a column re-lays on (139.1)
+    // ------------------------------------------ the seams a column re-lays on (139.1) and a packed surface re-packs on (139.4)
 
     /**
      * A child entered. {@code Widget.add0} is private and {@code add(T, Coord)} and {@code adda} all reach this
      * one, so it is the door; the coordinate the caller passed is overwritten by the layout, which is the
-     * contract of a column. Off a column it is {@code Widget.add} unchanged.
+     * contract of a column. Off a column a packed surface re-measures, and an unpacked one is
+     * {@code Widget.add} unchanged.
      */
     public <T extends Widget> T add(T child) {
         T r = super.add(child);
-        if(axis != Axis.NONE)
-            Column.relayout(this);
+        childChanged();
         return r;
     }
 
@@ -145,15 +162,55 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
      */
     public void cresize(Widget ch) {
         super.cresize(ch);
-        if((axis != Axis.NONE) && !dead)
-            Column.relayout(this);
+        childChanged();
     }
 
     /** A child left ({@code Widget.remove} → {@code parent.cdestroy}), already unlinked: the rest close up. */
     public void cdestroy(Widget w) {
         super.cdestroy(w);
-        if((axis != Axis.NONE) && !dead)
+        childChanged();
+    }
+
+    /** The one answer the three seams share: a column re-lays its rows, a packed surface re-measures its box. */
+    private void childChanged() {
+        if(dead)
+            return;
+        if(axis != Axis.NONE)
             Column.relayout(this);
+        else
+            repack();
+    }
+
+    /**
+     * <b>Re-pack the surface this content belongs to</b> (139.4) — this widget, or the window chrome around it
+     * — because a child of it entered, left, moved, resized, hid or showed. Nothing while {@link #packed} is
+     * off, and nothing re-entrantly: the pack itself resizes the canvas and the chrome's deco, and each of those
+     * resizes passes back through the chrome's {@code cresize}. Idempotent, like {@link Column#relayout} — a box
+     * already right takes no write, {@code Widget.resize} returning early on an equal size — and it takes the
+     * tree monitor the same way, for the same caller conventions.
+     */
+    void repack() {
+        if(!packed || dead || repacking)
+            return;
+        synchronized(LuaWidget.monitor(root)) {
+            repacking = true;
+            try {
+                LuaWidget.packSurface(root, this);
+            } finally {
+                repacking = false;
+            }
+        }
+    }
+
+    /**
+     * A child moved, hid or showed by a verb, or a rule placed it: re-pack the packed surface it stands in, if it
+     * stands in one — the {@link Column#childChanged} half for a surface with no axis. {@code w.parent} is the
+     * surface itself, or the chrome whose content {@link Owned#of} answers.
+     */
+    static void repackAround(Widget w) {
+        Owned o = (w == null) ? null : Owned.of(w.parent);
+        if(o instanceof AddonWidget)
+            ((AddonWidget)o).repack();
     }
 
     /** The widget's default font handle as Lua set it ({@code w:font()}), and the resolved half behind it. */

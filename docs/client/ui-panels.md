@@ -1,9 +1,9 @@
 # Panels and tabs
 
-> Where `OptWnd` keeps its pages and how one is swapped in, and `Tabs` — the client's one tab
-> coordinator, which is not a widget at all. The frame around a window is [chrome](ui-chrome.md); the
-> controls inside a panel are [controls](ui-controls.md) and [lists](ui-lists.md); the tree itself is
-> [the widget system](widgets.md).
+> Where `OptWnd` keeps its pages and how one is swapped in, `Tabs` — the client's one tab
+> coordinator, which is not a widget at all — and `PackCont`, the one container that keeps itself packed.
+> The frame around a window is [chrome](ui-chrome.md); the controls inside a panel are
+> [controls](ui-controls.md) and [lists](ui-lists.md); the tree itself is [the widget system](widgets.md).
 
 ## `Tabs` — a coordinator that never joins the tree
 
@@ -85,6 +85,25 @@ back to anywhere.
   There is no local of that name anywhere in it. It is harmless only because a widget is linked into its
   parent *after* its constructor has run, which overwrites the field; the same idiom inside a method
   would corrupt the child list of whatever it ran on.
+
+## `PackCont` — the client's one container that follows its content
+
+The base of the client's linear layouts, and the one place `src/haven` states the rule *a box packed once
+stays packed*: after the first `pack()`, every child entering, leaving or resizing re-packs the container.
+`GobIcon`'s settings window is its one user in `src/haven` (a `VPack` with `packpar(true)`); the wire type
+`linpack` mints one for the server.
+
+| What | Where |
+|---|---|
+| The flag | `PackCont.packed`, private — set by the first `pack()` and never cleared, so following is a one-way switch |
+| The seams | `add(T)`, `cdestroy`, `cresize` → `repack0()`, which is `repack()` + `pack()` **only while `packed`**; before the first `pack()` a child entering is placed and nothing is measured |
+| Up the tree | `packpar(true)` makes `pack()` end in `parent.pack()`, so a window around a `VPack` refits on every change — the window's own `cresize` stays the base no-op |
+| The linear layout | `LinPack` keeps its own `order` list beside the child list — `last`/`insert`/`after`/`before(child, …, pad)` place a child in it, `cdestroy` takes it out — and `repack()` walks `order`: `VPack` writes `y` and keeps each child's `x`, `HPack` the mirror, `margin` between two. `addchild`'s spec is a char, `'l'`/`'i'`/`'a'`/`'b'`, for the same four |
+
+⚠️ **A child moved or hidden reaches no seam.** `contentsz()` skips a hidden child, but neither `hide()` nor
+`move()` calls anything on the parent, so a packed container keeps the box of the child's old place until
+the next add, resize or destroy. `GameUI.Hidepanel` ([GameUI's own windows](gameui-windows.md)) has the same
+hole, and a container of your own that wants to follow those two has to be told from the writer's side.
 
 ## See also
 

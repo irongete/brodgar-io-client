@@ -36,6 +36,11 @@ import org.luaj.vm2.LuaValue;
  * this task exists to not fall into</b>: {@code Widget.add} does not route through {@code addchild}, and this
  * class (like the engine's own {@code Scrollport}) only overrides {@code addchild} — so a plain {@code add()}
  * would drop the child beside the bar instead of inside the scrolling area, and it would look almost right.
+ *
+ * <p><b>The range follows the content</b> (139.4). {@code Scrollcont.update} — the one line that sets
+ * {@code bar.max} — runs from {@code Scrollcont.add} alone, so a column parented into the port EMPTY and filled
+ * afterwards never moved the bar: {@link #cont} here re-measures on a child's {@code cresize} and
+ * {@code cdestroy} as well, and re-clamps the position when the range narrows, without reporting {@code Changed}.
  */
 final class CScrollport extends Widget implements Owned.Control {
     /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
@@ -52,6 +57,28 @@ final class CScrollport extends Widget implements Owned.Control {
         this.cont = add(new Scrollport.Scrollcont(sz.sub(bar.sz.x, 0)) {
             public void update() {
                 bar.max = Math.max(0, contentsz().y + 10 - sz.y);
+                // 139.4: a range that narrowed re-clamps the position, silently -- the rule :range(min, max)
+                // keeps, since a child shrinking is not something the user did. Written straight, not through
+                // bar.ch(0), which reports Changed.
+                if(bar.val > bar.max) {
+                    bar.val = bar.max;
+                    sy = bar.val;
+                }
+            }
+
+            // 139.4: Scrollcont.update runs on add alone -- a child that grows AFTER it entered (a column filling
+            // up with rows, a label whose text got longer) told nobody, and the bar went on describing the box the
+            // child arrived with, which for a column is 0x0. A child's resize and its leaving are the two other
+            // seams the content passes, so the range follows both. (The port's own resize is not one of them: it
+            // is the box changing, not the content, and it is unchanged from haven.Scrollport.)
+            public void cresize(Widget ch) {
+                super.cresize(ch);
+                update();
+            }
+
+            public void cdestroy(Widget w) {
+                super.cdestroy(w);
+                update();
             }
         }, Coord.z);
     }

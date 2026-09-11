@@ -13,7 +13,7 @@ local col = hafen.ui():column():gap(4):position(40, 60)
 hafen.ui():label():parent(col):text("Harvest")
 hafen.ui():check():parent(col):text("Only ripe")
 hafen.ui():button():parent(col):size(120):text("Go")
-col:size()                     -- the three stacked: as wide as the widest, as tall as the lot plus two gaps
+col:size()                   -- as wide as the widest of the three, as tall as the lot plus two gaps
 ```
 
 ## The two builders
@@ -87,8 +87,10 @@ say how much of it you take over:
 `:size(w)` is the one-number arity a [control's own art](controls/README.md#sizing) earns it, and it means
 the same thing here: the height is the one measurement you do not make, because the children answer it.
 **`:pack()` is refused** on a column, naming this — a column is packed by construction, and there is nothing
-a second measure could add. A window *around* a column still packs: [`win:pack()`](custom.md) sizes the
-window to the column inside it, and the column has already sized itself.
+a second measure could add. A window *around* a column still packs:
+[`win:pack()`](custom.md#packing-a-surface-around-what-is-inside-it) sizes the window to the column inside
+it, the column having already sized itself — and from then on the window follows the column, so a row
+added to it re-packs the window before the call returns.
 
 A rule's `size` on the column is inert, as it is on every
 [widget that owns its size](style/keys.md#what-each-key-accepts); its `position` and `anchor` are honoured,
@@ -156,7 +158,57 @@ child before it. So on a child:
 Nesting is the vocabulary for everything else. A row inside a column is an icon and a checkbox on one
 line; a column inside a column with a left `padding` is an indent; a column inside a
 [scroll](controls/interactive.md#scroll) scrolls once it outgrows the box. An inner column that grows re-lays
-the outer one in the same call, because a child changing size is one of the events above.
+the outer one in the same call, because a child changing size is one of the events above — and
+[a panel](#a-panel-composed) is the three of them in one window.
+
+## A panel, composed
+
+A panel is columns inside columns. The one below is a window packed around a column, and in that column: a
+row holding an icon and a checkbox on one line, a switch, the group it governs — a column indented by a
+left `padding`, greyed out until the switch is ticked — and a scroll holding a column of rows too tall for
+its box.
+
+```lua
+local win   = hafen.ui():window():title("Harvest"):position(80, 120)
+local panel = hafen.ui():column():gap(4):parent(win):position(0, 0)
+
+local row = hafen.ui():row():gap(4):parent(panel)                -- an icon and a checkbox, one line
+hafen.ui():image():source("gfx/hud/chr/farming"):size(24, 24):parent(row)
+hafen.ui():check():parent(row):text("Only ripe")
+
+local sw    = hafen.ui():check():parent(panel):text("Advanced")  -- the switch, outside the group
+local group = hafen.ui():column():gap(4):parent(panel)
+group:stock{ padding = {16, 0, 0, 0} }                            -- a left padding is an indent
+hafen.ui():check():parent(group):text("Also unripe")
+hafen.ui():entry():parent(group):size(120)
+group:enabled(false)                                             -- greyed and silent, rows included
+sw:on("Changed", function(on) group:enabled(on) end)
+
+local sp   = hafen.ui():scroll():parent(panel):size(160, 120)    -- a fixed box in the column...
+local list = hafen.ui():column():parent(sp):position(0, 0)       -- ...and a column that outgrows it
+for i = 1, 30 do hafen.ui():label():parent(list):text("row " .. i) end
+
+win:pack()                                                        -- the window is exactly the panel
+```
+
+Every piece is placed by the column it stands in, so the only `:position` written is the panel's own inside
+the window and the list's inside the scroll — the two parents that do not lay children out. What each
+part relies on:
+
+- **The row** keeps both children at `y = 0` and places the checkbox `:gap()` after the icon's box — the
+  24 pixels [`:size(24, 24)`](controls/display.md#picture) gave a skill icon the client draws far larger; a
+  wider icon moves the checkbox and nothing else.
+- **The indent is the group's `padding`**: its first child sits 16 further right than the panel's, and the
+  group is 16 wider than its rows. It is the same property a rule writes, so a theme that names the group
+  can change it; a [`margin`](#the-room-around-a-child) on the group would move the group itself instead.
+- **The switch stands outside the group**, so `group:enabled(false)` reaches the rows and not the thing
+  that brings them back; each row's own [`:enabled()`](writes.md#enabled-and-disabled) stays `true`, and
+  enabling the group restores them as they were.
+- **The scroll's bar** is one of `sp:children()`, and its [`:range()`](controls/interactive.md#scroll)
+  follows the column inside: `max` is `0` while the column is empty and moves with every row it gains.
+- **The window** was packed once and follows the panel from then on: a row added to the panel after
+  `win:pack()` grows the window by that row before the call returns —
+  [packing a surface](custom.md#packing-a-surface-around-what-is-inside-it) is the rule.
 
 ## See also
 

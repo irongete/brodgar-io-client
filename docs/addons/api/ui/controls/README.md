@@ -69,9 +69,10 @@ outright, and on [one of the client's](../edit.md#what-a-window-says) it is a le
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`
 rather than throwing. Both halves answer on one of the client's own controls as well, but the write means
 something else there — [driving](../edit.md#driving-one-protected) a control the user is looking at, which
-the server sees, so that one is protected. A write is checked by the control it lands on: a [progress bar](display.md#progress-bar)
-refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](interactive.md#slider) instead
-CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
+the server sees, so that one is protected. A write is checked by the control it lands on: a
+[progress bar](display.md#progress-bar) refuses one outside `0..1`, naming the rule, while a
+[slider or scrollbar](interactive.md#slider) instead CLAMPS a write outside its own `:range` to the nearer
+bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 What all three refuse first is the **type**: a number is a number here, and `"50"` is
 [still a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number) — the
@@ -113,9 +114,10 @@ than its box is drawn clipped, not wrapped.
 
 **And you rarely add a container up.** A [column](../column.md) places the controls put in it one under the
 other and is exactly their size, so a panel of rows is neither positioned nor measured by hand — and
-[`:pack()`](../writes.md#owned-vs-borrowed) sizes the window around it, or around controls you placed
-yourself, so the box that holds them is read rather than computed. A whole list of rows lays out this way:
-every row on one grid, not one of them given a height.
+[`:pack()`](../custom.md#packing-a-surface-around-what-is-inside-it) sizes the window around it, or
+around controls you placed yourself, and keeps it sized as they change, so the box that holds them is read
+rather than computed. A whole list of rows lays out this way: every row on one grid, not one of them
+given a height.
 
 ## Subscribing
 

@@ -8,7 +8,7 @@ write that has no borrowed half at all: [greying a widget out](#enabled-and-disa
 
 ```lua
 local win = hafen.ui():window():title("Harvest"):position(80, 120)   -- owned: every write answers
-local inv = hafen.session():current():ui():inventory()               -- borrowed: the reads, and a few writes
+local inv = hafen.session():current():ui():inventory()      -- borrowed: the reads, and a few writes
 inv:position(40, 40)                     -- a level over the client's own place, and it restores
 win:enabled(false)                       -- greyed out, whole: no press, no key, dimmed
 inv:enabled(false)                       -- error: its state is the client's
@@ -22,9 +22,9 @@ you can ask rather than provoke the error.
 | Method | Owned | Borrowed |
 |---|---|---|
 | `:position(x, y)` | move, and chain | **works** — [it is a layer, and it restores](native.md) |
-| `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
+| `:size(w, h)` | resize the content, chrome repacks around it, and chain — and the box is yours from then on, where a [pack](custom.md#packing-a-surface-around-what-is-inside-it) had it following the content | **works**, same |
 | `:size(w)` | set the width and keep the height a [control](controls/README.md#sizing)'s own art gives it, or a [column](column.md#the-box-follows-the-content)'s children | **error** — the client's widget has no art of yours to ask |
-| `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain; a [column](column.md#the-box-follows-the-content) refuses, being packed by construction | **works on a window** — [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows); a control refuses |
+| `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and [follow it from then on](custom.md#packing-a-surface-around-what-is-inside-it); chains. A [column](column.md#the-box-follows-the-content) refuses, being packed by construction | **works on a window** — [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows); a control refuses |
 | `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **works** — [take it into a surface of yours, and `nil` gives it back](native.md#taking-one-into-a-surface-of-your-own-unprotected); a window you take keeps the id the client tracks it by, and gets it back with the window |
 | `:destroy()` | remove it and everything in it, and chain | **error**, same reason |
 | `:revert()` | give back everything your addon holds on it and on what is inside it | **works**, same — [the one undo for a whole edit](edit.md#taking-the-whole-edit-back) |
@@ -98,8 +98,9 @@ disable the [column](column.md) the group stands in, and every row in it is grey
 switch is flipped.
 
 ```lua
-local sw    = hafen.ui():check():parent(win):text("Advanced")
-local group = hafen.ui():column():gap(4):parent(win)
+local panel = hafen.ui():column():gap(4):parent(win):position(0, 0)
+local sw    = hafen.ui():check():parent(panel):text("Advanced")
+local group = hafen.ui():column():gap(4):parent(panel)
 hafen.ui():check():parent(group):text("Only ripe")
 hafen.ui():entry():parent(group):size(120)
 group:enabled(false)                                       -- greyed, and the entry takes no key

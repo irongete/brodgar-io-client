@@ -141,6 +141,8 @@ Sizes and positions are [design pixels](pixels.md): what you write is what you r
 whatever the user's interface scale. `:position` is within the parent; on a window `:size` is the
 **content** size, so the outer box it reads back is that plus the chrome.
 
+### Packing a surface around what is inside it
+
 **A surface has no art of its own**, so the one-number `:size(w)` a [control](controls/README.md#sizing)
 takes refuses here, naming the two-number write and `:pack()` — which sizes a window or a bare widget to
 the controls inside it, so a panel's box is read rather than added up. A [column](column.md) is the
@@ -152,6 +154,12 @@ local win = hafen.ui():window():title("Harvest"):position(80, 120)
 hafen.ui():button():parent(win):position(0, 0):size(120):text("Go")
 win:pack()                                       -- the window is now exactly that button
 ```
+
+**Once packed, a surface follows what is inside it.** From the `:pack()` on, a child that enters, leaves,
+moves, resizes, hides or shows re-packs the surface before the call that changed it returns: a window
+packed around a [column](column.md) grows by a row when the column does, and a caption written longer
+widens the window around it. `:size(w, h)` takes the box back — the surface is that size whatever happens
+inside it, until you `:pack()` it again.
 
 ## Subscribing
 
@@ -247,9 +255,9 @@ refusal names what a Widget is and where to get the one you meant.
 ### `Drop` makes a widget a drop target
 
 `:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
-`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local [design pixels](pixels.md) and `ev:thing()` a neutral descriptor,
-`{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon with
-[`g:resource`](drawing.md), persist it with [`hafen.store`](../store.md), put it on the bar with
+`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local [design pixels](pixels.md) and `ev:thing()` a neutral
+descriptor, `{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon
+with [`g:resource`](drawing.md), persist it with [`hafen.store`](../store.md), put it on the bar with
 [`slot:res(name)`](../actionbar.md#write-protected), which takes it for every kind of action the menu holds.
 It is absent only while the action's resource is still loading, so a descriptor with `kind` alone is an
 action dropped a beat too early, never a kind of action. Firing the dropped action is not part of it.

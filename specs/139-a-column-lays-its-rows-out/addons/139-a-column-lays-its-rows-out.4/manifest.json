@@ -1,0 +1,9 @@
+{
+  "name": "139.4 — a panel is columns inside columns",
+  "id": "139-a-column-lays-its-rows-out.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 139.4: a column in a scroll moves the bar, a packed window follows the column inside it, a row puts an icon and a checkbox on one line, a nested column with a left padding is an indent, and a disabled group keeps its rows' own flags. Run :t139.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

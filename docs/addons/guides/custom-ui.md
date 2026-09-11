@@ -1,9 +1,10 @@
 # Custom UI
 
 Your own pixels: a window the user can drag, a bare rectangle, or a layer painted over the HUD and the 3D
-world. All of it is unprotected, and all of it disappears cleanly when your addon does. To restyle the
-*client's* surfaces instead of drawing your own, see [theming](theming.md) — and for the third way, where
-you build the surface and let **somebody else** restyle it, see [below](#let-somebody-else-restyle-it).
+world — or a panel of the client's own controls, laid out for you. All of it is unprotected, and all of it
+disappears cleanly when your addon does. To restyle the *client's* surfaces instead of drawing your own, see
+[theming](theming.md) — and for the third way, where you build the surface and let **somebody else** restyle
+it, see [below](#let-somebody-else-restyle-it).
 
 ## A window
 
@@ -57,6 +58,38 @@ and blit the handle with `g:image`. `g:resource(name, …)` draws the client's o
 same words in the same font every frame is one rasterisation total; a string whose characters change every
 frame — a clock, a coordinate readout — is a rasterisation every frame. Budget a live readout by how often
 its *text* changes, and round anything you do not need to the digit you do.
+
+## A panel of controls
+
+A window that holds the client's own [controls](../api/ui/controls/README.md) rather than pixels of yours
+is laid out by a [column](../api/ui/column.md): parent each control into it and it stacks them, sizes
+itself to them and re-lays them when one changes. A row inside it puts two on one line, a column inside it
+with a left `padding` is an indent, and [`:enabled(false)`](../api/ui/writes.md#enabled-and-disabled) on
+that inner column greys a whole group until a switch outside it is ticked:
+
+```lua
+local win   = hafen.ui():window():title("Harvest"):position(80, 120)
+local panel = hafen.ui():column():gap(4):parent(win):position(0, 0)
+
+local row = hafen.ui():row():gap(4):parent(panel)
+hafen.ui():image():source("gfx/hud/chr/farming"):size(24, 24):parent(row)
+hafen.ui():check():parent(row):text("Only ripe")
+
+local sw    = hafen.ui():check():parent(panel):text("Advanced")
+local group = hafen.ui():column():gap(4):parent(panel):stock{ padding = {16, 0, 0, 0} }
+hafen.ui():check():parent(group):text("Also unripe")
+hafen.ui():entry():parent(group):size(120)
+group:enabled(false)
+sw:on("Changed", function(on) group:enabled(on) end)
+
+win:pack()                                 -- the window fits the panel, and follows it from here on
+```
+
+Nothing inside the panel is positioned by hand — a child of a column has no `:position` to write, its
+place being its order — and nothing is measured: `win:pack()` reads the panel's box, and a row you add
+later grows the window by itself. A list too long for the window goes in a
+[scroll](../api/ui/controls/interactive.md#scroll) with a column inside it, and the whole panel, scroll
+included, is worked through on [column](../api/ui/column.md#a-panel-composed).
 
 ## Let somebody else restyle it
 

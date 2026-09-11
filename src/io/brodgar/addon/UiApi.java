@@ -1197,6 +1197,31 @@ final class UiApi {
                     if(!content.pending())   // 139.3: a disabled window is dimmed WHOLE, its frame with its content
                         super.draw(content.enabled() ? g : g.tinted(Owned.DIM));
                 }
+
+                // 139.4: A WINDOW YOU HAVE PACKED FOLLOWS WHAT IS INSIDE IT. Its controls are children of this
+                // chrome, so the three seams a child passes are here, and each hands the news to the content,
+                // which holds the flag (AddonWidget.packed, beside `enabled`) and does the work
+                // (AddonWidget.repack -- a no-op until :pack() has run, and re-entrant-safe, since the pack
+                // itself resizes the canvas and the deco and each passes back through cresize). The canvas is
+                // skipped at every seam: its box is what the pack WRITES, never what it measures.
+                public <T extends Widget> T add(T child) {
+                    T r = super.add(child);
+                    if(child != content)
+                        content.repack();
+                    return r;
+                }
+
+                public void cresize(Widget ch) {
+                    super.cresize(ch);
+                    if(ch != content)
+                        content.repack();
+                }
+
+                public void cdestroy(Widget w) {
+                    super.cdestroy(w);
+                    if(w != content)
+                        content.repack();
+                }
             };
             win.add(content, Coord.z);
             content.root(win);
