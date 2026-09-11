@@ -159,7 +159,7 @@ abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Co
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(g);
+        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
     }
 
     /** An array of column descriptors ({@code {title=, width=, of=}}), each key required and type-checked. */

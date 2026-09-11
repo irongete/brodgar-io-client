@@ -953,6 +953,42 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // enabled() / enabled(b) — 139.3: A WIDGET YOU BUILT CAN BE DISABLED. Arity is the verb, a bare
+        // adjective like :visible: the read is the widget's OWN flag, true from birth, and the write sets it and
+        // chains. What the flag does is decided once, on Owned: while it or any Owned ancestor is off the widget
+        // is drawn dimmed (a button and a checkbox in the `disabled` face a rule names), a press on it is
+        // swallowed before any listener -- so Pressed, Changed and Submitted never fire, and neither does a
+        // MouseDown of yours -- and no key reaches it. Every write of yours still lands: :value(v), :text(s),
+        // the geometry. The read is the OWN flag and not the effective state, the shape :visible()/tvisible
+        // already has, so a child of a disabled column reads true.
+        //   THE READ ANSWERS ON ANY WIDGET: the flag of whoever built it, and true on one of the client's own,
+        // which nobody disables through this API. THE WRITE IS YOURS ALONE: a borrowed widget refuses naming
+        // the client -- its state is the client's own, set from the server and kept by the client's own logic,
+        // and a greyed native control would go on changing under the grey.
+        m.set("enabled", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:enabled() → narg 1 · w:enabled(b) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "enabled"));
+                LuaValue v = Args.written(a, 2, "widget:enabled", "b");
+                if(v == null) {
+                    Owned o = (w == null) ? null : Owned.of(w);
+                    return LuaValue.valueOf((o == null) || o.enabled());
+                }
+                boolean b = Args.bool(v, "widget:enabled", "b", "a widget is enabled or it is not");
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Owned c = ownedContent(owner, w);
+                if(c == null)
+                    throw new LuaError("widget:enabled(b) greys out a widget YOUR addon built, and "
+                        + typeName(w) + " is " + ((Owned.of(w) != null) ? "another addon's" : "one of the client's own")
+                        + " — its state is the client's: the server sets it and the client's own logic keeps"
+                        + " driving it, so a grey of yours over it would still change underneath. widget:enabled()"
+                        + " still reads. To stop what one of the client's controls does, subscribe on it and"
+                        + " ev:preventDefault(); to keep it off the screen, widget:visible(false).");
+                synchronized(monitor(w)) { Owned.enable(c, b); }
+                return self;
+            }
+        });
         // on(key, fn) — THE ONE address for everything a widget can say: input on ANY widget, found or built
         // (041.3, over Widget.listen/deafen rather than the three magic hafen.hook():input tokens), plus the
         // REST of the widget vocabulary (041.4) — a control's own notifications, a surface's Draw/Tick/Drop/
@@ -1608,7 +1644,7 @@ public final class LuaWidget {
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
             }
         });
-        // info() — the one SNAPSHOT escape hatch ({type,role,res,id,pos,size,visible,text,owned}), for logging.
+        // info() — the one SNAPSHOT escape hatch ({type,role,res,id,pos,size,visible,enabled,text,owned}), for logging.
         // An absent value is simply an unset key; nil for a stale widget (there is nothing to snapshot). `owned`
         // is the provenance 029.2 introduced — true iff THIS addon created the widget, i.e. iff the write verbs
         // answer on it — and it is how you ask instead of provoking the error.
@@ -3560,6 +3596,8 @@ public final class LuaWidget {
         if(w.sz != null)
             t.set("size", whTable(Px.out(w.sz)));
         t.set("visible", LuaValue.valueOf(w.visible()));
+        Owned en = Owned.of(w);                    // 139.3: the own flag, as :enabled() reads it; true on the client's own
+        t.set("enabled", LuaValue.valueOf((en == null) || en.enabled()));
         String tx = text(w);
         if(tx != null)
             t.set("text", LuaValue.valueOf(tx));

@@ -18,7 +18,7 @@ inv:remember("bag")       -- ...and have it come back there next session
 ```
 
 `:destroy()` stays refused on a widget you do not own: that destroys the client's work rather than sits on
-top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
+top of it. See [owned vs borrowed](writes.md#owned-vs-borrowed) for the whole table.
 
 This page is about **where** one of the client's widgets sits, whether it is on screen, and who decides
 either — you, or the person playing. Changing what
@@ -423,7 +423,7 @@ Dropping a level on a widget you are holding nothing on is a no-op, so the callb
 
 ## See also
 
-- [widget](widget.md#owned-vs-borrowed) — which writes answer on which widget
+- [writes](writes.md#owned-vs-borrowed) — which writes answer on which widget
 - [edit](edit.md) — changing what one of the client's controls does
 - [replace](replace.md) — hiding a whole window and standing yours in its place
 - [style/geometry](style/geometry.md) — saying the same placement as a rule instead of a verb

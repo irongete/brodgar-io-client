@@ -1194,8 +1194,8 @@ final class UiApi {
             // selector, deco and toggle that names one keeps matching. A named subclass would rename the widget.
             final Window win = new Window(Px.in(Coord.of(DEF_W, DEF_H)), "") {
                 public void draw(GOut g) {
-                    if(!content.pending())
-                        super.draw(g);
+                    if(!content.pending())   // 139.3: a disabled window is dimmed WHOLE, its frame with its content
+                        super.draw(content.enabled() ? g : g.tinted(Owned.DIM));
                 }
             };
             win.add(content, Coord.z);

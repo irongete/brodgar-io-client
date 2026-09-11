@@ -29,7 +29,7 @@ end)
 window. Every setter is optional, and what you get back is a [Widget](../api/ui/widget.md) — the same
 type the client's own windows are, so `:position`, `:size`, `:visible` and `:destroy` all answer on it.
 The difference between yours and the client's is
-[ownership](../api/ui/widget.md#owned-vs-borrowed), and it decides which writes are allowed.
+[ownership](../api/ui/writes.md#owned-vs-borrowed), and it decides which writes are allowed.
 
 ## Draw
 

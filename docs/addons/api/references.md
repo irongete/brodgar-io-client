@@ -94,7 +94,7 @@ the one [`s:ui():on`](ui/replace.md#watching-for-a-widget) hands your callback a
 [Widget](ui/widget.md). It is interned per addon, so `hafen.ui():hit(x, y) == hafen.ui():hit(x, y)` and `==`
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
-[owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
+[owned vs borrowed](ui/writes.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
 *bound*, which is what the protected [`widget:send`](ui/widget.md#send-a-message-protected) needs.
 
 **The domain objects cross back to it.** A [Buff](buff.md), a [Meter](meter.md), a

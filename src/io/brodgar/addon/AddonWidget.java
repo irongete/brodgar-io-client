@@ -83,6 +83,12 @@ import org.luaj.vm2.LuaValue;
  * them and never per frame. Those events are the three seams below ({@link #add}, {@link #cresize},
  * {@link #cdestroy}), the {@code visible} write in {@link LuaWidget}, and {@link Layout#apply}. The box follows
  * the content unless {@code :size} pinned an axis ({@link #pinW}/{@link #pinH}).
+ *
+ * <p><b>And it can be disabled</b> (139.3): {@link #enabled} is its own flag, and what the flag does is decided
+ * on {@link Owned} — the input cut, the dim ({@link Owned#dim}, taken at the top of {@link #draw} so the
+ * background, the {@code Draw} handlers and every child paint through the one tinted {@code GOut}), and the
+ * keyboard. For a window the flag sits here, on the content, and the chrome reads it through
+ * {@link Owned#of}: the anonymous {@code Window} in {@link UiApi} tints its whole box, frame included.
  */
 final class AddonWidget extends Widget implements DropTarget, Owned {
     /** What a surface does with its children: nothing, or lay them out top to bottom, or left to right. */
@@ -103,6 +109,8 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
     private boolean dead;           // set on teardown so a late tick/draw callback is a no-op
     private volatile boolean pending = true;   // built, not yet drawing — armed on the next AddonManager tick
+    /** {@code widget:enabled(b)} (139.3) — this surface's own flag; the draw and the input cut read it off-thread. */
+    private volatile boolean enabled = true;
 
     AddonWidget(Addon owner, Coord sz) {
         this(owner, sz, Axis.NONE);
@@ -216,6 +224,21 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         root.destroy();
     }
 
+    public boolean enabled() {
+        return enabled;
+    }
+
+    /**
+     * The flag ({@link Owned#enable} is the door). A surface is never focusable itself, so there is no
+     * {@code canfocus} to keep; {@code setcanfocus(false)} is still called, because its {@code delfocusable}
+     * is what moves the keyboard off an entry INSIDE this surface — a column's, or a window's.
+     */
+    public void enabled(boolean b) {
+        enabled = b;
+        if(!b)
+            setcanfocus(false);
+    }
+
     // ---------------------------------------------------------------- lifecycle forwards
 
     /**
@@ -240,6 +263,7 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     public void draw(GOut g) {
         if(pending)     // built this frame and not armed yet: a half-configured widget paints NOTHING (§2.5)
             return;
+        g = Owned.dim(this, g);   // 139.3: the topmost disabled widget tints the GOut, and its whole subtree paints through it
         /* addon: (107) the surface this widget WEARS -- its own stock under every rule that names it,
          * resolved once here and painted in the order Frame uses for the client's own panels: the
          * background under the contents, the frame over them. Null is the answer for a widget nobody has

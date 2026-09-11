@@ -39,6 +39,6 @@ final class CLabel extends Label implements Owned.Control {
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(g);
+        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
     }
 }

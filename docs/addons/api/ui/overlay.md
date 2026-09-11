@@ -104,7 +104,7 @@ pack:overlay():add("frame"):draw(function(g, w, h)
 end)
 ```
 
-It answers on **any** widget, [owned or borrowed](widget.md#owned-vs-borrowed), and it is unprotected on
+It answers on **any** widget, [owned or borrowed](writes.md#owned-vs-borrowed), and it is unprotected on
 both: what you paint over one of the client's own widgets is your own drawing over a picture the client
 has already drawn.
 

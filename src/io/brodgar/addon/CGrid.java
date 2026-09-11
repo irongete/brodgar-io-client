@@ -129,7 +129,7 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(g);
+        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
     }
 
     /** An array of arbitrary, non-nil Lua values — the item shape itself is entirely {@code :onCell}'s to read. */

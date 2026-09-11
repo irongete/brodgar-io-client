@@ -22,11 +22,12 @@ every selector search hand you live `Widget` objects, not this table.
 | `pos` | `{x, y}` | its top-left in its parent, [design pixels](../ui/pixels.md); optional |
 | `size` | `{w, h}` | its box, design pixels; optional |
 | `visible` | bool | whether it and its parents are showing — always present |
+| `enabled` | bool | whether it takes input — its own flag, the live [`w:enabled()`](../ui/widget.md#read); `true` on the client's own — always present |
 | `text` | string | the label or content it draws; optional (most widgets carry none) |
 
 The live reads are `w:type()`, `:role()`, `:res()`, `:id()`, `:position()`, `:size()`, `:visible()`,
-`:text()` and `:owned()`. `pos` and `size` are spelled for the snapshot; the verbs that read them one at a
-time are `:position()` and `:size()`.
+`:enabled()`, `:text()` and `:owned()`. `pos` and `size` are spelled for the snapshot; the verbs that read
+them one at a time are `:position()` and `:size()`.
 
 ## Meter
 

@@ -68,9 +68,14 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
         Controls.fire(this, "Changed", LuaValue.valueOf(val));
     }
 
+    /** 139.3: the box and its tick wear the {@code disabled} face a rule names while the EFFECTIVE state is off. */
+    protected String chromeState() {
+        return Owned.effective(this) ? super.chromeState() : "disabled";
+    }
+
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(g);
+        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole box paints dimmed
     }
 }

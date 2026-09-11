@@ -93,7 +93,7 @@ public class CheckBox extends ACheckBox {
         // always resolves that one. Null is the answer a stock client always gets, and then the two statics
         // are blitted at exactly the coordinates they always were. Neither is an SIWidget: nothing caches
         // this, so a changed rule lands on the next frame with nothing to invalidate.
-        String st = state() ? "checked" : null;
+        String st = chromeState();
         // addon: (065.17) what this box and its tick are made of. A checkbox is built large or small and the
         // two wear different art, so what the catalogue carries is the pair the LAST one drawn was wearing.
         Fonts.stock("checkbox", "bg", Fonts.piece(box));
@@ -114,6 +114,14 @@ public class CheckBox extends ACheckBox {
         }
         super.draw(g);
     }
+
+    /* addon: (139.3) the state the box and its tick are asked for. A checkbox of the client's own enters
+     * `checked` and nothing else; one an addon built can be disabled, and its adapter overrides this to
+     * answer "disabled" while it is. */
+    protected String chromeState() {
+	return(state() ? "checked" : null);
+    }
+
     public boolean mousedown(MouseDownEvent ev) {
 	if(ev.b == 1) {
 	    // addon: 061 -- the Changed seam, where the client receives the CLICK, before its own click().

@@ -452,4 +452,25 @@ public final class AddonWidgets {
     public static void relayout(Widget parent) {
         io.brodgar.addon.AddonManager.relayout(parent);
     }
+
+    /**
+     * The <b>disabled seam</b> (spec {@code 139-a-column-lays-its-rows-out}, task 139.3) — asked first thing
+     * in {@link Widget#handle}: is {@code ev} an input a widget takes no part in while disabled (a mouse event
+     * or a key), and is {@code wdg} disabled — itself, or through a widget above it that an addon built and
+     * greyed out? {@code true} = do not handle it: the caller swallows a press and lets a move or a key pass by.
+     *
+     * <p>Only a widget an addon built can be disabled, so on a stock client this is two {@code instanceof}
+     * checks and nothing else; a tick, a tooltip query and a cursor query never reach the walk.
+     */
+    public static boolean disabled(Widget wdg, Widget.Event ev) {
+        return io.brodgar.addon.AddonManager.disabled(wdg, ev);
+    }
+
+    /**
+     * The read half of the same seam — is {@code wdg} enabled, itself and everything above it? Asked by the
+     * Tab cycle in {@link Widget#keydown}, so the keyboard never lands on a widget that would take no key.
+     */
+    public static boolean enabled(Widget wdg) {
+        return io.brodgar.addon.AddonManager.enabled(wdg);
+    }
 }

@@ -150,15 +150,17 @@ it. The caption is drawn **between** them, as it always was: over the fill, unde
 
 - **Three states reach a button**, and they ride inside the `bg`
   [as a face per state](chrome.md#a-face-per-state): `pressed` while it is held down, `hover` while the
-  pointer is on it, `disabled` on a button the client has greyed out. The stock face has no hover of its
-  own, so a button follows the pointer only once a rule gives it something to follow it with. `checked`
-  belongs to a checkbox and is never asked for here.
+  pointer is on it, `disabled` on a button greyed out — by the client, or
+  [by you](../writes.md#enabled-and-disabled) on one you built. The stock face has no hover of its own, so
+  a button follows the pointer only once a rule gives it something to follow it with. `checked` belongs to
+  a checkbox and is never asked for here.
 - **A face never resizes a button.** Its box is the width it was built with and the height of the client's
   own art, decided before any rule existed, so a picture is drawn into that rectangle. A frame heavier than
   the stock edge overlaps the caption rather than pushing it aside.
 - **A disabled button is greyed by the client**, as it always was — it monochromises the picture it
   rasterised, which is the caption and whatever of its own art the rule left in place. The fill beside it is
-  the `disabled` face you named, at the colour you named it.
+  the `disabled` face you named, at the colour you named it. One you
+  [greyed out](../writes.md#enabled-and-disabled) yourself is dimmed on top of both.
 - **`padding` is inert here.** A button's caption is centred in a box it does not own, so there is no room
   to make.
 
@@ -239,10 +241,12 @@ s:install()
   thumb fills the box the client's own thumb has, and a tick the box the client's own tick has, wherever the
   control currently puts it. So art of another size is scaled into that rectangle, the grab shape a drag is
   measured against never moves, and `padding` has nothing to move either.
-- **`checked` is the one state a checkbox enters**, and it rides
+- **`checked` is the one state a checkbox enters on its own**, and it rides
   [inside the value](chrome.md#a-face-per-state) like every other: `bg{ …, checked = { … } }` on `checkbox`
-  is the ticked box, and on `checkbox.mark` it is the only face the tick ever wears, the mark being drawn in
-  no other state. `hover`, `pressed` and `disabled` are never asked for here. A flat `color` on
+  is the ticked box, and on `checkbox.mark` it is the face the tick wears, the mark being drawn in no other
+  state. `disabled` is asked for by one thing only — a checkbox you built and
+  [greyed out](../writes.md#enabled-and-disabled), box and tick both, drawn dimmed whether or not a rule names
+  the face — and `hover` and `pressed` never. A flat `color` on
   `checkbox.mark` fills the tick's whole rectangle, which is the box's, and buries the face underneath — give
   the mark a **picture**, whose transparency is what lets the box show through it.
 - **A picture checkbox is deliberately not in this key**, exactly as an icon button is not in

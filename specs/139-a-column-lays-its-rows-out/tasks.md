@@ -35,7 +35,7 @@
       and the same rule loaded from JSON both land; `["*"]:margin(4)` fails naming a render site;
       a label outside any column keeps its `:position()` under a margin.
 
-- [ ] **139.3 — A widget you built can be disabled.** `Owned.enabled()`/`enabled(boolean)` on `Owned.State`
+- [x] **139.3 — A widget you built can be disabled.** `Owned.enabled()`/`enabled(boolean)` on `Owned.State`
       and `AddonWidget`; the effective walk up `parent` over `Owned` ancestors; ONE tagged line at the top
       of `Widget.handle(Event)` (a press swallowed, a move and a key passed by, queries untouched);
       `setcanfocus(false)` while disabled; the topmost disabled widget draws inside `g.chcolor(DIM)`;

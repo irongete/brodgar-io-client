@@ -78,6 +78,7 @@ among them, where a column needs none.
 - `docs/client/widgets.md`, `docs/client/ui-controls.md`, `docs/client/widget-input.md` — 1, 3
 - `src/io/brodgar/addon/CScrollport.java` — 1
 - `src/io/brodgar/addon/Column.java` (`relayout`, the refusal texts), `docs/addons/api/ui/column.md` — 2, 3, 4
+- `docs/addons/api/ui/writes.md` (`:enabled(b)`, and the *Owned vs borrowed* table it holds now) — 4
 - `src/io/brodgar/addon/{AddonWidget,Owned,Controls,UiApi,LuaWidget}.java` — 1, 3
 - `src/io/brodgar/addon/Layout.java` (`apply`, `applyHalf`) — 1, 2
 - `src/io/brodgar/addon/Sheet.java`, `Chrome.java`, `LuaRule.java` (`padding` end to end, which `margin`

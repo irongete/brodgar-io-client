@@ -1020,6 +1020,7 @@ public class Widget {
     }
 
     public boolean handle(Event ev) {
+	if(AddonWidgets.disabled(this, ev)) return(!((ev instanceof MouseMoveEvent) || (ev instanceof KbdEvent)));   // addon: (139.3) a disabled widget of an addon's: a press is swallowed, a move and a key pass by, a query and a tick are not asked
 	if(listening != null) {
 	    for(EventHandler.Listener<?> l : listening) {
 		if(l.check(ev))
@@ -1550,7 +1551,7 @@ public class Widget {
 			Widget p = f.rprev();
 			f = ((p == null) || (p == this) || !p.hasparent(this)) ? this.lchild : p;
 		    }
-		    if((f.canfocus && f.tvisible()) || (f == focused))
+		    if((f.canfocus && f.tvisible() && AddonWidgets.enabled(f)) || (f == focused))   // addon: (139.3) Tab skips a disabled widget of an addon's
 			break;
 		}
 		setfocus(f);

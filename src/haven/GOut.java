@@ -50,13 +50,20 @@ public class GOut {
     private final Pipe def2d, cur2d;
 
     protected GOut(GOut o) {
+	this(o, o.def2d);
+    }
+
+    /* addon: (139.3) the copy above, over a DEFAULT of the caller's -- what tinted() builds. Every sub-view
+     * starts from def2d and never from the parent's cur2d, so a colour a parent set with chcolor reaches no
+     * child: the only state that descends a subtree is the default itself. */
+    private GOut(GOut o, Pipe def2d) {
 	this.out = o.out;
 	this.ul = o.ul;
 	this.br = o.br;
 	this.tx = o.tx;
 	this.ftx = o.ftx; this.fty = o.fty;   // addon: a sub-view keeps the fraction
 	this.root = o.root;
-	this.def2d = o.def2d;
+	this.def2d = def2d;
 	this.cur2d = def2d.copy();
     }
 
@@ -443,7 +450,7 @@ public class GOut {
     }
 
     public void chcolor(Color c) {
-	usestate(new BaseColor(c));
+	usestate(new BaseColor(tint(c)));   // addon: (139.3) under a tinted() default, a colour is that colour times the tint
     }
 
     public void chcolor(int r, int g, int b, int a) {
@@ -451,7 +458,28 @@ public class GOut {
     }
 
     public void chcolor() {
-	usestate(BaseColor.slot);
+	cur2d.put(BaseColor.slot, def2d.get(BaseColor.slot));   // addon: (139.3) back to the DEFAULT's colour: none, as ever, or a tinted() view's tint
+    }
+
+    /* addon: (139.3) A VIEW OF THIS TARGET WHOSE DEFAULT CARRIES A TINT -- what a disabled widget of an addon's
+     * paints its whole subtree through. Every reclip taken from it copies this default, so every widget drawn
+     * below starts tinted; chcolor() comes back to the tint rather than to no colour; and a chcolor(c) inside
+     * it is c multiplied by the tint, so a fill or a caption that names its own colour is dimmed like the art
+     * beside it. The parent's own GOut is untouched. */
+    public GOut tinted(Color c) {
+	Pipe d = def2d.copy();
+	new BaseColor(c).apply(d);
+	return(new GOut(this, d));
+    }
+
+    /* addon: (139.3) c through this view's default tint, or c itself where the default carries none. */
+    private Color tint(Color c) {
+	BaseColor t = def2d.get(BaseColor.slot);
+	if(t == null)
+	    return(c);
+	FColor f = t.color;
+	return(new Color(Math.round(c.getRed() * f.r), Math.round(c.getGreen() * f.g),
+			 Math.round(c.getBlue() * f.b), Math.round(c.getAlpha() * f.a)));
     }
 
     public Color getcolor() {

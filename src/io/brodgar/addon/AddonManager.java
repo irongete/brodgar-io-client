@@ -2287,6 +2287,20 @@ public final class AddonManager {
     public static void relayout(Widget parent) {         Layout.reapply(parent);         }
 
     /**
+     * The <b>disabled seam</b> (139.3) — called from {@code haven.AddonWidgets} first thing in
+     * {@code Widget.handle(Event)}: is this an input a disabled widget takes no part in, on a widget that is
+     * disabled? ({@link Owned#cuts}.) On a stock client it is two {@code instanceof} checks per event.
+     */
+    public static boolean disabled(Widget wdg, Widget.Event ev) {
+        return Owned.cuts(wdg, ev);
+    }
+
+    /** The read half (139.3), for the Tab cycle in {@code Widget.keydown}: enabled, itself and all the way up? */
+    public static boolean enabled(Widget wdg) {
+        return Owned.effective(wdg);
+    }
+
+    /**
      * The <b>radial-menu seams</b> (047.1) — the four {@code // addon:} lines in {@link FlowerMenu} that turn
      * the client's own context menu into {@code FlowerMenuAdded}/{@code FlowerMenuRemoved} and feed
      * {@code s:flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls

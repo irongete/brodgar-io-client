@@ -1,0 +1,9 @@
+{
+  "name": "139.3 — a widget you built can be disabled",
+  "id": "139-a-column-lays-its-rows-out.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 139.3: widget:enabled(b) on a column of a button, a checkbox and an entry — the own flag, the snapshot, writes that still land, the borrowed refusal, and the greyed look and silence checked by hand.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

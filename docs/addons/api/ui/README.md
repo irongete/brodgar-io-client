@@ -52,7 +52,8 @@ draw it,
 and [lists](lists.md) does the same for a listbox, a dropdown or a menu of rows.
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget in one character's tree,
-[widget](widget.md) reads it, [items](items.md) reads the ones it draws, [mouse](mouse.md) says
+[widget](widget.md) reads it, [writes](writes.md) says which writes it takes and greys out one of yours,
+[items](items.md) reads the ones it draws, [mouse](mouse.md) says
 where the pointer is. At a screen point, `hafen.ui():hit(x, y)` is what is under it and
 [`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it. All of them,
 and every box below, are measured in [design pixels](pixels.md).
@@ -73,7 +74,8 @@ and layout.
 | [controls](controls/README.md) | the client's own controls, built and owned by your addon |
 | [column](column.md) | a column or a row that lays its children out, gap apart and padding in, and sizes itself to them |
 | [lists](lists.md) | a listbox, dropdown or menu of rows, and the row source they share with a radio |
-| [widget](widget.md) | the Widget object: every read, and which writes answer on a widget you do not own |
+| [widget](widget.md) | the Widget object: every read, subscribing on one, tooltips and focus |
+| [writes](writes.md) | which writes answer on a widget you built and on one you found, and greying one out |
 | [selectors](selectors.md) | naming a widget: the grammar, the roles, the inspector, hit-testing |
 | [items](items.md) | the items the client draws: the object, its reads, and the four verbs on one |
 | [contents](contents.md) | what one item holds: a stack's items, a bucket's stated line and fill |

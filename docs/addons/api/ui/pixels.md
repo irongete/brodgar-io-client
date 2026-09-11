@@ -81,7 +81,7 @@ s:ui():match("window[title=Equipment]"):position()   -- {x = 40, y = 200}, at an
 **A control's own height is not a number you write at all.** It is a fact of the client's pictures — a
 button is as tall as its art — so [`:size(w)`](controls/README.md#sizing) takes the width alone and leaves
 the height to it, a [column](column.md) stacks controls without your adding their heights up, and
-[`:pack()`](widget.md#owned-vs-borrowed) sizes a window around the lot.
+[`:pack()`](writes.md#owned-vs-borrowed) sizes a window around the lot.
 
 **An image you ship is measured in it too.** A 32×32 PNG is 32×32 to
 [`img:size()`](../asset/handles.md#image) and covers 32 design pixels when drawn, so your art and the client's

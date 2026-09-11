@@ -82,10 +82,21 @@ final class CtlButton extends Button implements Owned.Control, Controls.Press {
         Controls.fire(this, "Pressed");
     }
 
+    /** What {@code Button.disable} was last told — {@code dis} is private there, and {@code disable} always redraws. */
+    private boolean disabled;
+
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(g);
+        // 139.3: the client's own disable follows the EFFECTIVE state, so a button in a greyed column wears the
+        // `disabled` face the sheet names and the monochrome raster the client draws, over the dim. Written
+        // only on a change: Button.disable() throws the cached raster away every time it is called.
+        boolean dis = !Owned.effective(this);
+        if(dis != disabled) {
+            disabled = dis;
+            disable(dis);
+        }
+        super.draw(Owned.dim(this, g));
     }
 
     public void resize(Coord sz) {

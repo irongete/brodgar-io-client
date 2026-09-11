@@ -113,7 +113,7 @@ than its box is drawn clipped, not wrapped.
 
 **And you rarely add a container up.** A [column](../column.md) places the controls put in it one under the
 other and is exactly their size, so a panel of rows is neither positioned nor measured by hand — and
-[`:pack()`](../widget.md#owned-vs-borrowed) sizes the window around it, or around controls you placed
+[`:pack()`](../writes.md#owned-vs-borrowed) sizes the window around it, or around controls you placed
 yourself, so the box that holds them is read rather than computed. A whole list of rows lays out this way:
 every row on one grid, not one of them given a height.
 
@@ -176,7 +176,7 @@ hand the widget. The five universal input keys — `MouseDown`, `MouseUp`, `Mous
 
 ## Owned and borrowed
 
-A control your addon built is [owned](../widget.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
+A control your addon built is [owned](../writes.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
 it, and a `:reload` or a disable removes it for you. The client's own controls are **borrowed** — the reads
 answer, and every setter on this page refuses, naming what to do instead (`:info().owned` is how you ask
 rather than provoke the error). Its capability key is not a setter and answers on both:

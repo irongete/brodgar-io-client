@@ -277,7 +277,7 @@ reversible to the pixel; and since a rule is only values, a whole look can
   instead, where the surface drawing itself already knows which one it is in: a
   [`bg`](chrome.md#a-face-per-state) or a [`picture`](chrome.md#picture) names a face per state, and the
   surfaces that have one wear it. Your
-  own widgets draw themselves differently in `onDraw`.
+  own widgets draw themselves differently in a `Draw` handler.
 - **Every relationship except containment.** A key may be a [chain](keys.md#tree-keys) — a space is the
   descendant combinator, so `window[title=Cupboard] label` names the labels in one window and nowhere else
   — but there is no `window > button` (direct child), no pseudo-class, no sibling combinator and no
