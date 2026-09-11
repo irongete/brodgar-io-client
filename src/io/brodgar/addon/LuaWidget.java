@@ -516,7 +516,10 @@ public final class LuaWidget {
                 Owned c = owned(owner, w, "parent(w)");
                 if(!c.pending())
                     throw new LuaError("widget:parent(w) chooses the parent while the widget is being BUILT, and"
-                        + " this one is already on screen — move it with widget:position(x, y) instead");
+                        + " this one is already on screen — " + (Column.stacked(w)
+                        ? "it stands in a " + role(w.parent) + ", where its place is its order; widget:destroy()"
+                          + " takes it out, and a new one is built into the parent you meant"
+                        : "move it with widget:position(x, y) instead"));
                 LuaWidget h = resolve(v);
                 if(h == null)
                     throw new LuaError("widget:parent(w) expects a Widget — a surface of yours is in the addon"
@@ -539,6 +542,11 @@ public final class LuaWidget {
                 }
                 if(p == w.parent)
                     return self;
+                // 139.1: a column lays out what an addon BUILT and can measure -- a window's chrome measures
+                // itself and never reaches the parent's cresize, so it is refused at the door, naming the
+                // two shapes that do work. (A borrowed widget is refused in rehomeNative, the other direction.)
+                if(Column.stacks(p) && (c.rootw() != c.widget()))
+                    throw Column.refuseChild(role(p), typeName(w), true);
                 // 072.1: the DESTINATION's monitor, and this is the one site that has to choose — a re-home
                 // writes two parents' child lists, and the lock direction forbids taking both (see
                 // docs/client/multi-session.md). `p` is the tree the widget is in when the block ends, so it is
@@ -591,6 +599,8 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "position"));
                 if(a.narg() < 2)
                     return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(Px.out(w.c));
+                if(Column.stacked(w))                     // 139.1: its place is its order -- both writes refuse
+                    throw Column.placed((a.narg() < 3) ? "widget:position(nil)" : "widget:position(x, y)");
                 if(a.narg() < 3) {                        // w:position(nil) — undo OUR move, back to the stock value
                     if(!a.arg(2).isnil())                 // w:position(x) is a mistake, not an undo
                         throw new LuaError("widget:position(x, y) takes BOTH coordinates; widget:position() reads"
@@ -643,8 +653,13 @@ public final class LuaWidget {
                     return ((w == null) || (w.sz == null)) ? LuaValue.NIL : whTable(Px.out(w.sz));
                 if(a.narg() < 3) {
                     if(a.arg(2).isnil()) {                // w:size(nil) — undo OUR resize, back to the stock value
-                        if(w != null)
-                            UiApi.releaseMoved(owner, w, false);
+                        if(w != null) {
+                            AddonWidget col = column(owner, w);   // 139.1: a column's undo is its pins
+                            if(col != null)
+                                pin(col, -1, -1);
+                            else
+                                UiApi.releaseMoved(owner, w, false);
+                        }
                         return self;
                     }
                     // w:size(w) — the width; the art answers for the height
@@ -652,6 +667,12 @@ public final class LuaWidget {
                     if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                         return self;
                     Owned content = ownedContent(owner, w);
+                    AddonWidget col = column(owner, w);   // 139.1: on a column the CHILDREN answer for the height
+                    if(col != null) {
+                        pin(col, Px.in(width), -1);
+                        Layout.moved(w);
+                        return self;
+                    }
                     Coord min = (content == null) ? null : content.minsz();
                     if(min == null)
                         throw new LuaError("widget:size(w) sets the width and leaves the height to the control's"
@@ -676,6 +697,12 @@ public final class LuaWidget {
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
                     Coord dev = Px.in(to);
+                    AddonWidget col = column(owner, w);   // 139.1: both axes pinned; the content no longer decides
+                    if(col != null) {
+                        pin(col, dev.x, dev.y);
+                        Layout.moved(w);
+                        return self;
+                    }
                     if(content != null) {
                         Coord min = content.minsz();
                         if(min != null) {                 // a control: the art has a box it will not fit under
@@ -907,13 +934,19 @@ public final class LuaWidget {
                     // w:replace(nil) found no record and was inert. This is that ending, and it is a no-op on
                     // a window that carries no view.
                     UiApi.unreplace(owner, w);
-                    synchronized(monitor(w)) { w.show(); }
+                    synchronized(monitor(w)) {
+                        w.show();
+                        Column.childChanged(w);           // 139.1: it takes its room back, and the rest move down
+                    }
                     dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
                 } else {
                     boolean borrowed = (ownedContent(owner, w) == null);
                     if(borrowed)
                         refuseSecondOwner(owner, w, "widget:visible(false)");   // 031.2: one window, one owner
-                    synchronized(monitor(w)) { w.hide(); }
+                    synchronized(monitor(w)) {
+                        w.hide();
+                        Column.childChanged(w);           // 139.1: a hidden child takes no room; the rest close up
+                    }
                     if(borrowed)                          // BORROWED: remember to give it back on teardown
                         recordHidden(owner, w);
                 }
@@ -1034,6 +1067,8 @@ public final class LuaWidget {
                         nativePack(owner, w);
                         return self;
                     }
+                    if(Column.stacks(w))           // 139.1: its box is its content's already, and the pin is :size
+                        throw Column.packed(role(w));
                     synchronized(monitor(w)) {
                         Widget cw = content.widget();
                         cw.pack();
@@ -1759,10 +1794,58 @@ public final class LuaWidget {
                     return a.arg1();               // 029.2
                 mine(owner, w, "stock");
                 Sheet.setWidgetStock(owner, w, Sheet.stockProps(owner, "widget:stock", a.arg(2)));
-                return a.arg1();
+                Column.applied(w);                 // 139.1: a padding it declares is its inner room -- after the
+                return a.arg1();                   //   registry call, never inside it (Sheet.class is held there)
+            }
+        });
+        // gap() / gap(n) — 139.1: THE ROOM BETWEEN TWO CHILDREN of a column or a row, in design pixels, 0 from
+        // birth. Arity is the verb: the bare call reads, one number writes and chains, and the column re-lays
+        // before the call returns. Off a column the read answers nil (there is nothing between children a widget
+        // does not place) and the write refuses naming the two builders that do.
+        m.set("gap", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:gap() → narg 1 · w:gap(n) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "gap"));
+                LuaValue v = Args.written(a, 2, "widget:gap", "n");
+                AddonWidget col = (w == null) ? null : Column.of(w);
+                if(v == null)
+                    return (col == null) ? LuaValue.NIL : LuaValue.valueOf(col.gap);
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(col == null)
+                    throw new LuaError("widget:gap(n) is the room between the children a COLUMN or a ROW lays"
+                        + " out, and " + typeName(w) + " places no children — hafen.ui():column() and"
+                        + " hafen.ui():row() are the builders that do. widget:gap() still reads, as nil.");
+                mine(owner, w, "gap");
+                int n = Args.integer(a, 2, "widget:gap", "n", "the room between two children, in design pixels");
+                if(n < 0)
+                    throw new LuaError("widget:gap(" + n + "): the room between two children is 0 or more"
+                        + " design pixels — a negative gap would draw the children over each other");
+                col.gap = n;
+                Column.relayout(col);
+                Layout.moved(w);                          // 036.3: a corner anchor reads the box that just changed
+                return self;
             }
         });
         return m;
+    }
+
+    /**
+     * The column or row behind {@code w} <b>when this addon built it</b> (139.1) — {@code null} for every other
+     * widget, another addon's column included, which the size verbs then treat as the borrowed surface it is.
+     */
+    private static AddonWidget column(Addon owner, Widget w) {
+        AddonWidget col = Column.of(w);
+        return ((col != null) && (ownedContent(owner, w) == col)) ? col : null;
+    }
+
+    /** Pin (or, with {@code -1}, free) a column's two axes and re-lay it — the body of {@code :size} on one. */
+    private static void pin(AddonWidget col, int w, int h) {
+        synchronized(monitor(col)) {
+            col.pinW = w;
+            col.pinH = h;
+            Column.relayout(col);
+        }
     }
 
     // ---- widget:on(key, fn)'s vocabulary (041.3/041.4) --------------------------------------------------
@@ -2113,6 +2196,8 @@ public final class LuaWidget {
         Widget dest = pc.widget();
         if(dest instanceof CScrollport)            // the 040.8 trap: a scrollport's children go in its container
             dest = ((CScrollport)dest).cont;
+        if(Column.stacks(dest))                    // 139.1: a column places only what the addon built
+            throw Column.refuseChild(role(dest), typeName(w), false);
         if(w.parent == null)
             throw new LuaError("widget:parent(p) — " + typeName(w) + " is the root of its own tree: it hangs"
                 + " under nothing, so there is nothing to take it out of and nothing to put it back into");
@@ -2992,6 +3077,11 @@ public final class LuaWidget {
     static String role(Widget w) {
         if(w == null)
             return null;
+        // 139.1: a surface of an addon's with an axis IS a column or a row -- the one role an addon's own
+        // widget carries, and the word the selector vocabulary needs per axis (`["column"]` is a tree key).
+        AddonWidget col = Column.of(w);
+        if(col != null)
+            return (col.axis == AddonWidget.Axis.COLUMN) ? "column" : "row";
         if((w instanceof Inventory) || (w instanceof Equipory))
             return "inventory";
         // 104, widened by 137.2: the icon ONE item is drawn as, WHEREVER it is drawn -- a slot in a container,

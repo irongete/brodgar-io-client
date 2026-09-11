@@ -67,7 +67,7 @@ RECEIVERS = {
     "channel": "channel", "ch": "channel", "msg": "message",
     "sp": "speed", "skill": "skill", "credo": "credo", "attr": "attr", "exp": "experience",
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
-    "w": "widget", "widget": "widget", "win": "widget", "ev": None, "sub": "sub",
+    "w": "widget", "widget": "widget", "win": "widget", "col": "widget", "row": "widget", "ev": None, "sub": "sub",
     "h": None, "asset": "asset", "req": "request", "res": "res", "sheet": "sheet",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",

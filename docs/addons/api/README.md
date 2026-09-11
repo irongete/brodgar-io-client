@@ -100,6 +100,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [controls](ui/controls/README.md) | the hub: what a control is, the roster, and the order to read these pages in |
 | [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
 | [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |
+| [columns and rows](ui/column.md) | a surface that lays its children out along one axis, and sizes itself to them |
 | [lists](ui/lists.md) | a listbox, dropdown or menu of rows, and the row source they share with a radio |
 | [the Widget object](ui/widget.md) | what every widget answers, which writes owned and borrowed ones take, subscribing on one, tooltips and focus |
 | [the mouse](ui/mouse.md) | where the pointer is, what is under it, the modifier keys, and the grab that makes a drag yours |

@@ -202,7 +202,7 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
 | a tree key **matching a button or a field** | yes | yes | per surface | likewise again: each asks itself, so `["@Button"]` or `["window[title=…] @TextEntry"]` dresses those alone. `padding` follows the two rows above; a field's **height** does not, being read where a field is built and so from the site half alone |
-| a tree key **matching a widget an addon built** | yes | yes | **inert** | a bare surface from [`hafen.ui():widget()`](../custom.md#naming-and-dressing-your-own-surfaces) wears what a rule that *names* it says, over its own [stock](../custom.md#naming-and-dressing-your-own-surfaces). Its `bg` goes under whatever that addon's `Draw` handler paints and its `border` over the lot; `padding` has nothing to move, the addon having laid its own contents out |
+| a tree key **matching a widget an addon built** | yes | yes | **on a column** | a bare surface from [`hafen.ui():widget()`](../custom.md#naming-and-dressing-your-own-surfaces) wears what a rule that *names* it says, over its own [stock](../custom.md#naming-and-dressing-your-own-surfaces). Its `bg` goes under whatever that addon's `Draw` handler paints and its `border` over the lot. `padding` is the room inside a [column or a row](../column.md), which lays its own children out; on any other surface of an addon's it has nothing to move, the addon having placed the contents itself |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
 | `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, on a button its face, anywhere else it is inert |
 
@@ -239,7 +239,7 @@ And the three that lay widgets out. This table is short because the answer is: a
 
 | Key | `position` / `anchor` | `size` | Worth knowing |
 |---|---|---|---|
-| any tree key | yes | **unless the widget owns its size** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A window that packs around its contents re-packs itself: inert, never an error |
+| any tree key | **unless a column places it** | **unless the widget owns its size** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A child a [column](../column.md) lays out has no place of its own, and a column's box is its content's: inert on both, never an error. A window that packs around its contents re-packs itself: inert the same way |
 | any site key, `*` included | **error** | **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
 | `widget:rule()` | **error** | **error** | the hand-named level is the verb, [`w:position(x, y)`](../native.md) — the error says so |
 

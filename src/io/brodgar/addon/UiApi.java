@@ -583,6 +583,24 @@ final class UiApi {
                 return newUi(owner, a, false);
             }
         });
+        // :column() / :row() — 139.1, A COLUMN LAYS ITS ROWS OUT. The same bare surface :widget() builds, with an
+        // axis: a child :parent()'d into one is placed along it in tree order, :gap(n) apart, the cascade's
+        // padding in from the edge, and the box follows the content. Two builders rather than one with a
+        // :horizontal(b): the axis is a building-time fact, and a role ("column"/"row") reads back what a
+        // boolean would have hidden. Not a control adapter: a panel needs :name, :stock and Draw, which only a
+        // surface has.
+        m.set("column", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "column");
+                return newStack(owner, a, AddonWidget.Axis.COLUMN);
+            }
+        });
+        m.set("row", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "row");
+                return newStack(owner, a, AddonWidget.Axis.ROW);
+            }
+        });
         // :button() — 040.1, THE CONTROLS. The client already has them — Button, TextEntry, SListBox and fifteen
         // more, the same classes its own windows are built from — and until now nothing in the bridge so much as
         // named one: an addon that wanted a button drew a rectangle, drew a caption in it, read :onClick, and
@@ -1195,6 +1213,23 @@ final class UiApi {
     }
 
     /**
+     * Build one column or row for {@code hafen.ui():column()} / {@code :row()} (139.1): an {@link AddonWidget}
+     * with an axis — the bare surface of {@link #newUi} without the chrome option, born empty ({@code 0×0},
+     * since its box is its content's) at the client's own default place, attached and queued for its arming
+     * tick exactly as every other surface is. Everything else — the pending gate, the {@code Draw} fire, the
+     * stock, the name — is the surface's own; the axis is the only thing this adds.
+     */
+    private static LuaValue newStack(final Addon owner, Varargs a, AddonWidget.Axis axis) {
+        String what = (axis == AddonWidget.Axis.COLUMN) ? "column" : "row";
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():" + what + "() takes no arguments — it is built bare and configured"
+                + " by chained setters: hafen.ui():" + what + "():gap(4):parent(win), and a child is"
+                + " hafen.ui():label():parent(" + ((axis == AddonWidget.Axis.COLUMN) ? "col" : "row") + ")");
+        UI u = requireUi(what);
+        return attach(u, owner, new AddonWidget(owner, Coord.z, axis));
+    }
+
+    /**
      * <b>The tree a builder puts its surface in</b> — the {@link AddonManager#layer() addon layer} (074.1),
      * never the session on screen. Your own windows are a layer above the sessions: one tree for the client's
      * life, drawn over whichever session holds the screen and over the login screen when none does. That is
@@ -1263,11 +1298,19 @@ final class UiApi {
         synchronized(LuaWidget.monitor(oldw)) {
             Widget parent = oldw.parent;
             Coord at = oldw.c;
+            Widget prev = oldw.prev;          // 139.1: its SLOT among its siblings, read before the kill
             boolean shown = oldw.visible();
             old.kill();                       // unlink + dispose: the old face texture goes with it
             if(!shown)
                 neww.hide();
             ((parent != null) ? parent : u.root).add(neww, at);
+            // 139.1: Widget.link appends at the end of its z, which in a column is the end of the column --
+            // the rebuilt control would move below every sibling. Put it back where the old one stood, and
+            // the column re-lays with the order it always had.
+            if(Column.stacks(parent) && (neww.prev != prev)) {
+                LuaWidget.relink(neww, prev);
+                Column.relayout((AddonWidget)parent);
+            }
         }
         owner.widgets.remove(old);
         owner.widgets.add(neu);

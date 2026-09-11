@@ -141,10 +141,12 @@ public final class LuaRule {
 
     /** ...and where a write lands: the sheet re-applies if it is installed, a widget level applies at once. */
     private void commit(Addon owner, Sheet.Props p) {
-        if(sheet != null)
+        if(sheet != null) {
             sheet.changed();
-        else
+        } else {
             Sheet.setWidgetProps(owner, LuaWidget.live(wdg), p);
+            Column.applied(LuaWidget.live(wdg));   // 139.1: a padding this level names is a column's inner room
+        }
     }
 
     /**

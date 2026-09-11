@@ -369,6 +369,7 @@ final class Layout {
             Sheet.Resolved r = Sheet.styleOf(w);      // ONE fold, read once and used for both halves
             applyHalf(u, w, r, false);
             applyHalf(u, w, r, true);
+            Column.applied(w);                        // 139.1: a column's padding, or a child's box, may have moved
             if(depth < MAXDEPTH)                      // 112.6: collected here, spent below the block
                 deps = dependentsOf(w);
         }
@@ -464,6 +465,16 @@ final class Layout {
      * design and back.
      */
     private static void applyHalf(UI u, Widget w, Sheet.Resolved r, boolean pos) {
+        // 139.1: a child a column lays out has no position of its own -- its place is its order, so a rule's
+        // position/anchor on it is inert and nothing of it is tracked; and a column's box is its content's, so a
+        // rule's size on the column is inert too (the pin is the verb, widget:size). Both skip the fold whole:
+        // neither ever records a stock value, which is why widget:position(nil) on a child has nothing to
+        // restore and refuses like the write does.
+        if(pos ? Column.stacked(w) : Column.stacks(w)) {
+            if(pos)
+                track(w, null);
+            return;
+        }
         Anchor place = null;
         Coord want = null;
         Addon owner = null;
@@ -735,6 +746,7 @@ final class Layout {
      * deadlock is made of.
      */
     static void sweep() {
+        Column.sweep();                               // 139.1: a padding a rule gives a column is its inner room
         if(!active())
             return;                                   // no rule, nothing held: a stock client sweeps nothing
         for(AddonManager.SessionState st : AddonManager.allStates())

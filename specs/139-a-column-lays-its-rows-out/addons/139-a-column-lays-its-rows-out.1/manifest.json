@@ -1,0 +1,9 @@
+{
+  "id": "139-a-column-lays-its-rows-out.1",
+  "name": "139.1 — a column lays its rows out",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Suite: hafen.ui():column() and :row() place their children in tree order, gap apart and padding in, re-laid before the call that changed a child returns; the box follows the content unless :size pins it; a child's place is its order, and the four refusals name the fix. Run :t139.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

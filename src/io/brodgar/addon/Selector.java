@@ -65,7 +65,7 @@ import java.util.List;
 final class Selector {
     /** The roles that classify a real widget today ({@link LuaWidget#role} answers one of these, or {@code null}). */
     static final String[] WIDGET_ROLES = {
-        "window", "inventory", "button", "label", "textentry", "chat", "menu", "item",
+        "window", "inventory", "button", "label", "textentry", "chat", "menu", "item", "column", "row",
     };
     /**
      * The remaining promoted {@link haven.Fonts#SCOPES} names: valid roles that name a <b>render site</b> rather

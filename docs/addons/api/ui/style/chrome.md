@@ -228,9 +228,11 @@ s:install()
 [tooltip](surfaces.md#tooltip) both grow **outward**: each is built around its content, so the box widens
 and what is inside stays where it was. A [text field](surfaces.md#textentry) is the third and the other
 way round — its width is whoever built it's, so the room comes out of that width and the text moves in.
-Everything else ignores it: a surface whose layout was decided when it was built cannot honour one, so
-nothing is refused and nothing warns. That includes every [panel](surfaces.md#panels).
-[The key table](keys.md#what-each-key-accepts) says which is which.
+A [column](../column.md) is the fourth, and grows outward like a window: the first child starts one padding
+in from its edge, and the box ends one padding after the last. Everything else ignores it: a surface whose
+layout was decided when it was built cannot honour one, so nothing is refused and nothing warns. That
+includes every [panel](surfaces.md#panels). [The key table](keys.md#what-each-key-accepts) says which is
+which.
 
 ## picture
 

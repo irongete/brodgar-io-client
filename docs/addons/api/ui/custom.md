@@ -40,8 +40,9 @@ is the widget, `==` is its identity, and `w:match(selector)` searches **inside**
 |---|---|---|
 | `hafen.ui():window()` | [Widget](widget.md) | a draggable, titled window wrapping your content |
 | `hafen.ui():widget()` | [Widget](widget.md) | a bare content rectangle, no chrome |
+| `hafen.ui():column()` / `:row()` | [Widget](widget.md) | the bare rectangle with an axis: it [lays its children out](column.md) and sizes itself to them |
 
-Neither takes an argument. A surface is born with the client's own defaults — no caption, a place and a
+None takes an argument. A surface is born with the client's own defaults — no caption, a place and a
 size it did not choose — and every property is a setter on the [Widget](widget.md) it hands back:
 
 | Setter | Read | Meaning |
@@ -142,7 +143,9 @@ whatever the user's interface scale. `:position` is within the parent; on a wind
 
 **A surface has no art of its own**, so the one-number `:size(w)` a [control](controls/README.md#sizing)
 takes refuses here, naming the two-number write and `:pack()` — which sizes a window or a bare widget to
-the controls inside it, so a panel's box is read rather than added up:
+the controls inside it, so a panel's box is read rather than added up. A [column](column.md) is the
+exception both ways: its children answer for its height, so `:size(w)` pins its width alone, and it is
+packed by construction, so `:pack()` refuses on it.
 
 ```lua
 local win = hafen.ui():window():title("Harvest"):position(80, 120)

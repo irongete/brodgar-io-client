@@ -75,9 +75,29 @@ import org.luaj.vm2.LuaValue;
  * and this class already answers everything the contract requires. What that buys is a second kind of owned
  * widget — a {@code haven} control an addon built ({@link CtlButton} and its siblings) — answering the owned
  * verbs without this one growing a wrapper role it should not have.
+ *
+ * <p><b>A column is this widget with an {@link Axis}</b> (139.1). {@code hafen.ui():column()} / {@code :row()}
+ * mint one exactly as {@code :widget()} does and hand it to the same {@link UiApi#attach}, so everything a panel
+ * needs — {@code :name}, {@code :stock}, the {@code "Draw"} fire — is already here; what the axis adds is that
+ * the children are <b>placed by {@link Column#relayout}</b> along it, in tree order, on the events that change
+ * them and never per frame. Those events are the three seams below ({@link #add}, {@link #cresize},
+ * {@link #cdestroy}), the {@code visible} write in {@link LuaWidget}, and {@link Layout#apply}. The box follows
+ * the content unless {@code :size} pinned an axis ({@link #pinW}/{@link #pinH}).
  */
 final class AddonWidget extends Widget implements DropTarget, Owned {
+    /** What a surface does with its children: nothing, or lay them out top to bottom, or left to right. */
+    enum Axis { NONE, COLUMN, ROW }
+
     private final Addon owner;
+    /** The axis this surface lays its children out along — {@link Axis#NONE} for a plain painted widget. */
+    final Axis axis;
+    /** {@code col:gap(n)} — the room between two children, in DESIGN pixels; {@code 0} from birth. */
+    volatile int gap;
+    /**
+     * The axis {@code col:size(w)} / {@code :size(w, h)} pinned, in DEVICE pixels, or {@code -1} where the box
+     * still follows the content. {@code :size(nil)} puts both back to {@code -1}. Meaningless off a column.
+     */
+    int pinW = -1, pinH = -1;
     private volatile FontHandle defaultFont;       // :font(h) — the default font for this widget's g:text draws
     private volatile LuaValue fontVal = LuaValue.NIL;   // ...and the handle itself, so :font() reads back what was set
     private Widget root = this;     // the widget to destroy on kill(): the window chrome, or this
@@ -85,8 +105,47 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     private volatile boolean pending = true;   // built, not yet drawing — armed on the next AddonManager tick
 
     AddonWidget(Addon owner, Coord sz) {
-        super(sz);
+        this(owner, sz, Axis.NONE);
+    }
+
+    /** A column or a row (139.1): born EMPTY, because its box is its content's and it has none yet. */
+    AddonWidget(Addon owner, Coord sz, Axis axis) {
+        super((axis == Axis.NONE) ? sz : Coord.z);
         this.owner = owner;
+        this.axis = axis;
+    }
+
+    // ---------------------------------------------------------------- the seams a column re-lays on (139.1)
+
+    /**
+     * A child entered. {@code Widget.add0} is private and {@code add(T, Coord)} and {@code adda} all reach this
+     * one, so it is the door; the coordinate the caller passed is overwritten by the layout, which is the
+     * contract of a column. Off a column it is {@code Widget.add} unchanged.
+     */
+    public <T extends Widget> T add(T child) {
+        T r = super.add(child);
+        if(axis != Axis.NONE)
+            Column.relayout(this);
+        return r;
+    }
+
+    /**
+     * A child changed size — a label whose text grew, a control {@code :size(w)}'d, a nested column whose
+     * own content moved. {@code Widget.resize} calls this on the parent after the box is written, and a
+     * {@code Window} never does (it dispatches to its own {@code resize2}), which is one more reason a window
+     * is refused as a child.
+     */
+    public void cresize(Widget ch) {
+        super.cresize(ch);
+        if((axis != Axis.NONE) && !dead)
+            Column.relayout(this);
+    }
+
+    /** A child left ({@code Widget.remove} → {@code parent.cdestroy}), already unlinked: the rest close up. */
+    public void cdestroy(Widget w) {
+        super.cdestroy(w);
+        if((axis != Axis.NONE) && !dead)
+            Column.relayout(this);
     }
 
     /** The widget's default font handle as Lua set it ({@code w:font()}), and the resolved half behind it. */

@@ -40,6 +40,8 @@ point at both.
 | `hafen.ui():slider()` | [Widget](../widget.md) | a draggable position within a range | [interactive](interactive.md#slider) |
 | `hafen.ui():scroll()` | [Widget](../widget.md) | a scrolling container for other controls | [interactive](interactive.md#scroll) |
 | `hafen.ui():scrollbar()` | [Widget](../widget.md) | a bare scroll thumb, for driving something yourself | [interactive](interactive.md#scrollbar) |
+| `hafen.ui():column()` | [Widget](../widget.md) | not a control — a surface of yours that stacks the controls put in it top to bottom | [column](../column.md) |
+| `hafen.ui():row()` | [Widget](../widget.md) | the same surface, placing them left to right | [column](../column.md) |
 
 Every builder here takes no argument. A control is born bare, with the client's own defaults, and everything
 about it is a chained setter on the Widget it hands back — the same shape [`:window()` and
@@ -109,9 +111,11 @@ A control the client stretches to whatever box it is given — a [listbox](../li
 so it takes `:size(w, h)` and refuses `:size(w)`, exactly as a [surface](../custom.md) does. A caption wider
 than its box is drawn clipped, not wrapped.
 
-**And you rarely add a container up.** [`:pack()`](../widget.md#owned-vs-borrowed) sizes a window or a bare
-widget to the controls inside it, so the box that holds a column of rows is read rather than computed. A
-whole list of rows lays out this way: every row on one grid, not one of them given a height.
+**And you rarely add a container up.** A [column](../column.md) places the controls put in it one under the
+other and is exactly their size, so a panel of rows is neither positioned nor measured by hand — and
+[`:pack()`](../widget.md#owned-vs-borrowed) sizes the window around it, or around controls you placed
+yourself, so the box that holds them is read rather than computed. A whole list of rows lays out this way:
+every row on one grid, not one of them given a height.
 
 ## Subscribing
 

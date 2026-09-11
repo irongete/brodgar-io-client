@@ -48,6 +48,7 @@ screen or over one widget the client already drew instead of building anything,
 [drawing](drawing.md) is the surface both hand you — and the box a line of text will take before you
 draw it,
 [controls](controls/README.md) puts the client's own buttons in a window of yours rather than painting them,
+[column](column.md) lays them out for you, top to bottom or left to right,
 and [lists](lists.md) does the same for a listbox, a dropdown or a menu of rows.
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget in one character's tree,
@@ -70,6 +71,7 @@ and layout.
 | [custom](custom.md) | your own windows and bare rectangles, and their callbacks |
 | [overlays](overlay.md) | painting over the screen or over one widget: the collection, the key, the draw order |
 | [controls](controls/README.md) | the client's own controls, built and owned by your addon |
+| [column](column.md) | a column or a row that lays its children out, gap apart and padding in, and sizes itself to them |
 | [lists](lists.md) | a listbox, dropdown or menu of rows, and the row source they share with a radio |
 | [widget](widget.md) | the Widget object: every read, and which writes answer on a widget you do not own |
 | [selectors](selectors.md) | naming a widget: the grammar, the roles, the inspector, hit-testing |
