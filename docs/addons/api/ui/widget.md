@@ -247,6 +247,12 @@ the client's own included, and never throws: a plain string as it was given, the
 client's own keybound tips (the shortcut it appends is the keymap's, not the text's), or `nil` where there
 is none. `w:tooltip(s)` writes it on a control you built — like `:text(s)` — and `""` clears it.
 
+The string may carry rich-text markup — `$col[r,g,b]{…}`, `$b`, `$i`, `$u`, `$size`, `$font` — under the
+same rule as [`g:text`](drawing.md#text): plain text with no markup takes the stock tooltip path
+unchanged, markup is rendered the way the client renders its own buttons' tips (wrapped, and with the
+widget's own keybinding appended where it has one), and malformed markup is shown literally rather than
+raising. `w:tooltip()` answers the string as you wrote it, markup and all.
+
 **Which widget's tooltip the client would actually *show* at a point is a different question**, because a
 tooltip is inherited from whatever ancestor carries one, so it is not always the widget under the pointer:
 

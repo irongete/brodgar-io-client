@@ -26,6 +26,7 @@ import haven.MenuGrid;
 import haven.Progress;
 import haven.RadioGroup;
 import haven.Resource;
+import haven.RichText;
 import haven.SListWidget;
 import haven.Scrollbar;
 import haven.Text;
@@ -1409,6 +1410,13 @@ public final class LuaWidget {
         // is a control YOU built, like :text(s) and for the same reason — a native widget's tooltip is the
         // client's own words about its own button. Which widget's tooltip the client would actually SHOW at a
         // point is hafen.ui():tipAt(x, y), because that is a question about a place rather than about a widget.
+        //   THE STRING MAY CARRY MARKUP, under g:text's own rule (LuaGOut.render0): no `$` is the plain tip the
+        // client draws from a bare String, unchanged; a `$` makes it the rich tip the client writes for its own
+        // buttons — Widget.settip(s, true), a KeyboundTip rendered through RichText, so $col/$b/$i/$u/$size/$font
+        // land and a keybinding the widget carries is appended the way the client appends it; and markup that
+        // does not parse is written plain and shown literally. The parse is done HERE, at the write (richTip):
+        // a KeyboundTip renders on the draw thread, where a FormatException would end the UI thread. The read
+        // answers the string as written either way — tip(w) reads a KeyboundTip's base.
         m.set("tooltip", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:tooltip() → narg 1 · w:tooltip(s) → narg 2
                 LuaValue self = a.arg1();
@@ -1423,7 +1431,15 @@ public final class LuaWidget {
                 Args.str(v, "widget:tooltip", "s", "the line the tooltip shows");
                 owned(owner, w, "tooltip(s)");
                 String s = v.tojstring();
-                synchronized(monitor(w)) { w.tooltip = s.isEmpty() ? null : s; }
+                boolean rich = richTip(s);
+                synchronized(monitor(w)) {
+                    if(s.isEmpty())
+                        w.tooltip = null;
+                    else if(rich)
+                        w.settip(s, true);
+                    else
+                        w.tooltip = s;
+                }
                 return self;
             }
         });
@@ -3573,6 +3589,27 @@ public final class LuaWidget {
         if(t instanceof Text)
             return ((Text)t).text;
         return null;
+    }
+
+    /**
+     * Is {@code s} a tooltip the client should render RICH ({@code widget:tooltip(s)})? The rule is
+     * {@code g:text}'s ({@code LuaGOut.render0}): a string with no {@code $} is plain and takes the stock path, one
+     * that parses as markup is rich, and one that does not parse is plain — shown literally, never thrown. The
+     * parse is {@link RichText.Parser#parse(String)} alone, which builds the parts and rasterises nothing, so it
+     * is safe on the addon's own thread; it is judged here because the render itself happens inside
+     * {@link Widget.KeyboundTip#get()} on the draw thread, where a {@code FormatException} would take the UI
+     * thread with it. What it catches is any {@code RuntimeException}: the parser's own, and a {@code Loading}
+     * from an {@code $img} whose resource has not streamed in yet.
+     */
+    static boolean richTip(String s) {
+        if(s.indexOf('$') < 0)
+            return false;
+        try {
+            RichText.std.parse(s);
+            return true;
+        } catch(RuntimeException e) {
+            return false;
+        }
     }
 
     /**
