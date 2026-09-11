@@ -1,0 +1,9 @@
+{
+  "name": "140.3 — bind is the one link",
+  "id": "140-the-options-page-is-the-addons.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 140.3: w:bind(opt) joins a control to an option both ways and typed — the control takes the value, a write to the option moves it silently, the user's move writes the option; bind() reads, bind(nil) unbinds, a second bind replaces, a mismatch and a borrowed control are refused.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

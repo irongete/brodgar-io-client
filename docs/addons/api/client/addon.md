@@ -5,7 +5,8 @@ you name it and its type, the client keeps the value in its own preference store
 answers reads — so a setting of yours has the standing your [hotkeys](keybindings.md) already have. An
 option draws nothing. The page the user finds it on, in **Options ▸ AddOns**, is yours to fill:
 [`opts:panel(fn)`](#the-page) registers the function the client calls with a column of your own each time
-the page is opened, and what shows an option there is a control you build. Nothing here is protected. The
+the page is opened, and what shows an option there is a control you build and
+[bind](#binding-a-control-shows-the-option) to it. Nothing here is protected. The
 [guide](../../guides/hotkeys-and-commands.md) puts it beside the hotkey and the command, the other two ways
 a user drives an addon by hand.
 
@@ -113,6 +114,60 @@ an option, not to the page, so nothing is lost with it.
 **An error in `fn` is logged**, with the line that raised it, and the page shows the heading and whatever
 `fn` had built before it stopped.
 
+## Binding: a control shows the option
+
+`w:bind(opt)` joins a [control](../ui/controls/README.md) you built to an option, and from then on the two
+are one value: the control takes the option's value at once, the user moving the control writes
+`opt:value(v)` — so the option's `Changed` fires — and a write to the option from anywhere moves every
+control bound to it.
+
+| Verb | Returns | Description |
+|---|---|---|
+| `w:bind(opt)` | the widget | join the control to `opt`: configured from the option, it takes the value in force; a second call replaces the first; unprotected |
+| `w:bind()` | Option \| nil | the option the control is bound to, `nil` while none — and on anything that binds nothing |
+| `w:bind(nil)` | the widget | unbind: the control keeps what it shows and moves with the option no more |
+
+| Control | Binds to | Configured from the option |
+|---|---|---|
+| `hafen.ui():check()` | `boolean` | the tick |
+| `hafen.ui():slider()` | `number` | `:range()` is the option's bounds, then the position |
+| `hafen.ui():dropdown()`, `hafen.ui():radio()` | `choice` | `:rows()` are the choices, in order, then the pick |
+| `hafen.ui():entry()` | `text` | the text |
+
+```lua
+local opts = hafen.client():options():addon()
+local show = opts:boolean("show"):default(true):add()
+local rows = opts:number("rows"):range(1, 20):default(8):add()
+local sort = opts:choice("sort"):choices{"name", "amount"}:default("name"):add()
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():check():parent(root):text("Show the stock"):bind(show)
+  hafen.ui():label():parent(root):text("Rows")
+  hafen.ui():slider():parent(root):size(160):bind(rows)          -- 1..20, at the value in force
+  hafen.ui():dropdown():parent(root):size(120):bind(sort)
+end)
+```
+
+**Both ways, and the option is what fires.** The user ticking the box is `show:value(true)`: the option's
+`Changed` fires with the new value, and a handler on the control itself — `check:on("Changed", fn)` — runs
+after it, so a handler on either side reads the two in step. `show:value(false)` from your own code moves the box
+and fires no `Changed` on the box: a write of yours is not something the user did,
+[as on every control](../ui/controls/README.md#subscribing). A bound control standing in a tree other than
+the one the write was made from — your own window, when the user moved the control on your page — moves on
+the next [step](../threading.md).
+
+**One option, many controls.** A control is bound to one option; an option may have any number of controls,
+and they all move together. A binding ends with the control: when your page is rebuilt or the control is
+`:destroy()`ed there is nothing of it to end, and the option and its value stay. A control you `:range` or
+`:rows` past what its option declared can be moved to a value the option refuses; the refusal is logged and
+the option keeps its value.
+
+**What is refused.** A control and an option of different kinds — `slider:bind(show)` names the check a
+boolean takes. A control that holds nothing an option stores — a button, a label, a listbox — names the
+pairs above. One of the client's own controls names the client: what it holds is the client's, and
+[driving it](../ui/edit.md#driving-one-protected) is `:value(v)`.
+
 ## The Option object
 
 `:add()` hands back the option, and so does `opts:option():get(name)`. It is the **same object** both ways
@@ -188,6 +243,7 @@ end
 | a `:default` outside the `:range` it declared | widen the range or move the default |
 | a `number` with no `:range` | a slider bound to it has no bounds without it |
 | a `choice` with no `:choices` | the option offers nothing |
+| a choice listed twice in `:choices` | the repeat, by index: each choice is offered once, and a radio bound to the option shows one row per choice |
 | a name your addon already declared | the option it already has, addressed |
 | a setter after `:add()` | the option is declared; configure it before |
 | a name too long for the client's store | give the option a shorter name |
@@ -208,6 +264,14 @@ end)
 
 show:on("Changed", function(v) hafen.log():write(v and "showing" or "hidden") end)
 
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():check():parent(root):text("Show the stock window"):bind(show)
+  hafen.ui():slider():parent(root):size(160):bind(rows)
+  hafen.ui():radio():parent(root):bind(sort)
+  hafen.ui():entry():parent(root):size(160):bind(title)
+end)
+
 hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .. sort:value())
 ```
 
@@ -216,5 +280,6 @@ hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .
 - [`hafen.client():options()`](README.md) — the client's own settings, beside yours in the same window
 - [keybindings](keybindings.md) — the hotkey your addon declares, the other thing of yours this window holds
 - [columns and rows](../ui/column.md) — what `root` is, and how it places what you build on your page
+- [controls](../ui/controls/README.md) — what you bind an option to, and what each control holds
 - [conventions](../conventions.md) — builders, collections, and arity as the verb
 - [`hafen.store`](../store.md) — your addon's own saved variables, for what is not a setting

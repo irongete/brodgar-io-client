@@ -81,5 +81,5 @@ rows.
   (`OptionGroup`, `describePages`, `mountPage`, `optionsGen`, `callLua`) — 2
 - `src/io/brodgar/addon/{AddonWidget,Column,UiApi,Owned}.java` (an owned column in a session tree) — 2
 - `src/io/brodgar/addon/Controls.java`, `C{Check,Slider,Dropdown,Radio,Entry}.java` (`value`, `changed`,
-  `onChange`), `LuaWidget.java` (the verb table) — 3
+  `onChange`), `LuaWidget.java` (the verb table), `Binding.java` (the link, both ways) — 3
 - `addons/{actionbars,builder-helper,essentials,hitboxes,simple-animal-radius,themes}/main.lua` — 4

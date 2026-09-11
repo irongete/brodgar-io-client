@@ -468,10 +468,16 @@ final class Controls {
      * to have. Looks up the widget's {@link WidgetSubs} WITHOUT minting one ({@link Addon#widgetSubsOrNull}), so
      * a control nobody subscribed to costs one map lookup and nothing else — the {@code hasSub} gate one level
      * up from {@link Subs#has}.
+     *
+     * <p><b>A {@code "Changed"} on a bound control is the option's write first</b> (140.3, {@link Binding#push}):
+     * the option takes the control's own value ahead of the control's handlers, so a handler on either side
+     * reads the two in step.
      */
     static void fire(Owned c, String key, LuaValue... args) {
         if(c.dead())
             return;
+        if(LuaOption.CHANGED.equals(key))
+            Binding.push(c);
         WidgetSubs s = c.profOwner().widgetSubsOrNull(c.widget());
         if(s != null)
             s.subs.fire(key, args);

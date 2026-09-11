@@ -60,10 +60,18 @@ it moves by `:position(x, y)`. A row-source control has its own page: [lists](..
 | `:source(h)` | `:source()` | the picture a [picture control](display.md#picture) shows |
 | `:rows(t)` | `:rows()` | the row source a [radio](interactive.md#radio) or a [listbox, dropdown, menu or grid](../lists.md) takes |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](interactive.md#slider) |
+| `:bind(opt)` | `:bind()` | the [option of your addon's](../../client/addon.md#binding-a-control-shows-the-option) a checkbox, slider, dropdown, radio or entry shows and writes; `:bind(nil)` unbinds |
 
 Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
 answers on any text-bearing widget, and so does `:text(s)` — on a control you built it writes the caption
 outright, and on [one of the client's](../edit.md#what-a-window-says) it is a level that restores.
+
+**`:bind(opt)` is what a control's `:value` becomes when the value is a setting.** Bound to one of your
+addon's options, the control takes the option's value at once and is configured from it — a slider's
+`:range` from the option's bounds, a dropdown's or a radio's `:rows` from its choices — the user moving it
+writes `opt:value(v)`, and a write to the option moves the control without firing its own `Changed`. Each
+kind of option has its control, and a control of another kind is refused naming the one it takes; a control
+that holds no value, or one of the client's own, is refused the same way.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`

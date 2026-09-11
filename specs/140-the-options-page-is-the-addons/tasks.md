@@ -30,7 +30,7 @@
       `opts:option():count()` is four; and the four refusals — `:label("x")` on a builder, `:tooltip("x")`,
       `opts:button("b")`, `opts:label("l")` — each fail naming the control to build in the panel.
 
-- [ ] **140.3 — `bind` is the one link.** `Binding.java`; `w:bind(opt)` / `:bind()` / `:bind(nil)` in
+- [x] **140.3 — `bind` is the one link.** `Binding.java`; `w:bind(opt)` / `:bind()` / `:bind(nil)` in
       `LuaWidget` on owned controls, kinds checked against the adapter, the control configured from the
       option (`range` from `lo/hi`, `rows` from `choices`) and set through the silent `value(LuaValue)`;
       the push in `Controls.fire` reading the adapter's `value()`; the pull in `LuaOption.value(v)` after

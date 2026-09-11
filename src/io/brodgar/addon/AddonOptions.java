@@ -263,6 +263,9 @@ public final class AddonOptions {
         /** This builder as Lua holds it — what every setter chains back. */
         private LuaValue self;
 
+        // Inside the anonymous functions below a bare `name` is LibFunction's own field (null), not this
+        // builder's: every message names the option as Builder.this.name.
+
         /** {@code :default(v)} — checked at {@link #add}, where the range and the choices are both known. */
         private VarArgFunction valueSetter() {
             return new VarArgFunction() {
@@ -284,7 +287,7 @@ public final class AddonOptions {
                                          "the highest whole number the option takes");
                     if(l >= h)
                         throw new LuaError("option:range(lo, hi): lo must be below hi, got " + l + " and "
-                            + h + " for the option '" + name + "'");
+                            + h + " for the option '" + Builder.this.name + "'");
                     lo = l;
                     hi = h;
                     ranged = true;
@@ -306,12 +309,19 @@ public final class AddonOptions {
                         LuaValue v = t.get(i);
                         if(v.isnil())
                             break;
-                        l.add(Args.str(v, "option:choices", "t[" + i + "]", "every choice is a string")
-                                  .tojstring());
+                        String s = Args.str(v, "option:choices", "t[" + i + "]", "every choice is a string")
+                                       .tojstring();
+                        // 140.3: a choice offered twice is one choice, and a radio bound to the option would
+                        // refuse the repeat as a row — so it is refused here, where the list is written.
+                        if(l.contains(s))
+                            throw new LuaError("option:choices(t): \"" + s + "\" is repeated at t[" + i + "] —"
+                                + " the option '" + Builder.this.name + "' offers each choice once, and a"
+                                + " radio bound to it shows one row per choice");
+                        l.add(s);
                     }
                     if(l.isEmpty())
-                        throw new LuaError("option:choices(t): the option '" + name + "' offers nothing — t is"
-                            + " a 1-based array of the strings it may hold");
+                        throw new LuaError("option:choices(t): the option '" + Builder.this.name + "' offers"
+                            + " nothing — t is a 1-based array of the strings it may hold");
                     choices = l;
                     return self;
                 }

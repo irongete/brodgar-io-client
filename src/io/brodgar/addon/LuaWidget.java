@@ -1585,6 +1585,43 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // bind(opt) / bind() / bind(nil) — 140.3: THE ONE LINK between a control you built and an option your
+        // addon declared, both ways and typed (Binding). Arity is the verb: the bare call reads the option (nil
+        // while none, and on anything that binds nothing), one Option joins the control to it, and an explicit
+        // nil unbinds — the one nil this verb gives a meaning to. A check takes a boolean, a slider a number, a
+        // dropdown or a radio a choice, an entry a text; the control is configured from the option (its range,
+        // its rows) and takes the value at once, the user moving it writes opt:value(v), and a write to the
+        // option from anywhere moves every bound control without firing the control's own Changed. A second
+        // bind replaces the first, and a binding ends with the control.
+        //   THE WRITE IS YOURS ALONE, like every builder setter: a borrowed control refuses naming the client --
+        // what one of its controls holds is the client's, driven by the server and read back by it, and
+        // widget:value(v) under widget.value is how that one is driven. The read still answers, as nil.
+        m.set("bind", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:bind() → narg 1 · w:bind(opt)/(nil) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "bind"));
+                if(!Args.passed(a, 2))
+                    return Binding.read((w == null) ? null : ownedContent(owner, w));
+                Args.only(a, 1, Binding.VERB);
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Owned c = ownedContent(owner, w);
+                if(c == null)
+                    throw new LuaError(Binding.VERB + "(opt) joins a control YOUR addon built to an option, and "
+                        + typeName(w) + " is " + ((Owned.of(w) != null) ? "another addon's" : "one of the client's own")
+                        + " — what it holds is the client's, set by the server and read back by it, so nothing"
+                        + " of yours stands behind it to bind. widget:bind() still reads, as nil. To drive one of"
+                        + " the client's controls, widget:value(v) under the widget.value permission is the"
+                        + " act; to show an option, build a control of your own: hafen.ui():check(), :slider(),"
+                        + " :dropdown(), :radio() or :entry().");
+                LuaValue v = a.arg(2);
+                if(v.isnil())
+                    Binding.unbind(c);
+                else
+                    Binding.bind(owner, c, w, v);
+                return self;
+            }
+        });
         // rowHeight(n) / rowHeight() — 040.9: the ROW HEIGHT of a model-backed list, in DESIGN pixels — defaults to
         // the client's own label height. Building-only, like :image() (spec 040 decision G): the client's own
         // SListBox fixes its row height at construction, so choosing a different one rebuilds the widget under

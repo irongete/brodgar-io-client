@@ -210,6 +210,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 | undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)`; a [font](font.md) variant's `h:size(nil)` and `h:aa(nil)` |
 | end the hold | `slot:hold(nil)` |
 | withdraw the page | [`opts:panel(nil)`](client/addon.md#the-page) |
+| unbind the control | [`w:bind(nil)`](client/addon.md#binding-a-control-shows-the-option) |
 | none | a [virtual entity](virtual/README.md)'s `:tint(nil)`, and [`gob:tint(nil)`](look.md#tint-unprotected) |
 | the root screen | `pag:parent(nil)` |
 | the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |

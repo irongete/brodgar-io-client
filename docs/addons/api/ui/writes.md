@@ -37,6 +37,7 @@ you can ask rather than provoke the error.
 | `:source(h)` | give a [picture control](controls/display.md#picture) its content | **error**, same reason |
 | `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [listbox, dropdown, menu, grid or table](lists.md#rows-listbox-dropdown-menu) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls/interactive.md#slider) you built | **error**, same reason |
+| `:bind(opt)` | join a [control](controls/README.md) you built to [an option your addon declared](../client/addon.md#binding-a-control-shows-the-option): it takes the option's value, the user moving it writes the option, and a write to the option moves it; `:bind(nil)` unbinds | **error** — what it holds is the client's, and [driving it](edit.md#driving-one-protected) is `:value(v)`; `:bind()` still reads, as `nil` |
 | `:rowHeight(n)` | set a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cellSize(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |

@@ -202,6 +202,13 @@ interface Owned {
         private volatile boolean enabled = true;
         /** What {@code canfocus} was when the control was disabled, put back when it is enabled again. */
         private boolean canfocus;
+        /**
+         * {@code widget:bind(opt)} (140.3) — the option this control is joined to, {@code null} while none. The
+         * control's end of the record ({@link Binding}); the option's is {@link LuaOption#bound}. Volatile:
+         * written from Lua, read by the push on the input pass and by the pull on whatever thread wrote the
+         * option.
+         */
+        volatile LuaOption bound;
 
         State(Addon owner, Widget self) {
             this.owner = owner;
@@ -235,6 +242,7 @@ interface Owned {
                 return;
             dead = true;
             pending = false;
+            Binding.drop(this);   // 140.3: a binding ends with the control
             root.destroy();
         }
 

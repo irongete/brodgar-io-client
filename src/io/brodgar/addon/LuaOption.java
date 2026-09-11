@@ -10,6 +10,7 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * One <b>option an addon declared</b> (spec {@code 115-the-addon-declares-its-options}; the model half of
@@ -35,6 +36,11 @@ import java.util.List;
  * <p><b>{@code Changed} fires on a change, never on a write.</b> Writing the value already held is a no-op
  * with no event, which is what lets a control re-write what it reads without a feedback loop and what makes a
  * handler counting edges count edges.
+ *
+ * <p><b>The controls bound to it are the option's other end</b> (140.3, {@link Binding}): {@link #bound} is
+ * every control joined by {@code w:bind(opt)}, and {@link #value(LuaValue)} pulls the new value into each of
+ * them after the store — the one place a write lands, whoever made it, so the user's move on one control and
+ * a Lua write reach every other control the same way.
  *
  * <p><b>The handle is interned per option</b>: one userdata minted on the first hand-out and given back by
  * identity ever after, so {@code opts:option():get("x") == opts:option():get("x")} and an option works as a
@@ -80,6 +86,12 @@ public final class LuaOption {
 
     /** {@code opt:on("Changed", fn)} — the only key. */
     final Subs subs;
+    /**
+     * The controls bound to this option ({@code w:bind(opt)}, 140.3) — each pulled by {@link #value(LuaValue)}
+     * and dropped when it dies ({@link Binding#drop}) or unbinds. Copy-on-write: the pull walks it from
+     * whatever thread wrote the option while Lua binds and unbinds on another.
+     */
+    final List<Owned> bound = new CopyOnWriteArrayList<Owned>();
 
     LuaOption(AddonOptions.Builder b) {
         this.owner = b.owner;
@@ -147,9 +159,11 @@ public final class LuaOption {
 
     /**
      * <b>The one write path</b>, and the whole of it: the value is checked against this option's own
-     * declaration, stored, and {@code Changed} is fired — once, and only where the value actually moved. A
-     * control bound to the option writes through here too, which is what makes the user's move and a Lua
-     * write one fact rather than two that have to be kept in step.
+     * declaration, stored, pulled into every bound control, and {@code Changed} is fired — once, and only
+     * where the value actually moved. A control bound to the option writes through here too
+     * ({@link Binding#push}), which is what makes the user's move and a Lua write one fact rather than two
+     * that have to be kept in step; the pull is the silent path on each control, so none of them fires a
+     * {@code Changed} of its own for it.
      */
     public void value(LuaValue v) {
         LuaValue nv = check(v);
@@ -157,6 +171,7 @@ public final class LuaOption {
             return;                     // a write of the value already held is not a change
         value = nv;
         store();
+        Binding.pull(this, nv);         // 140.3: every bound control takes it, before anyone is told
         subs.fire(CHANGED, nv);
     }
 

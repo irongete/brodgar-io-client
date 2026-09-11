@@ -1411,6 +1411,7 @@ public final class AddonManager {
             fireSurfaceUpdates(dtv);
             runTimers();
             drainPendingPages();   // 140.1: the pages opened since the last step get their fill, holding no tree
+            Binding.drainPulls();  // 140.3: ...and a bound control in a tree its option's write could not reach
 
             // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
             // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame.
