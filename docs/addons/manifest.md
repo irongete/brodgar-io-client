@@ -84,7 +84,9 @@ api_version, client 1.0)` when it declares none — its tooltip opens with the s
 `:addons` lists it `[outdated]`. The enable checkbox keeps its value: the addon is waiting for a client
 that implements what it declared, or for you to lower the declaration to what you use. A disabled addon is
 never read, so its row reads `disabled` whatever it declares, and the tooltip still says why it would not
-load.
+load. **Load out of date AddOns**, a box on the [same panel](runtime.md#the-addons-panel), is the
+player's say over the rule: while it is ticked, the next reload runs every out-of-date addon as it runs a
+current one, and the log names each and why.
 
 A field that is not a version — a number, `"1"`, `"0.1"`, `"1.0.0"`, `"v1.0"` — is a manifest error like
 any other: the row reads `manifest error (hover)`, and the tooltip names the form and the version this

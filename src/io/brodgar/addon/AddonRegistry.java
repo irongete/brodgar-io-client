@@ -32,7 +32,8 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The addon **registry + load/enable/reload management** — distinct from the {@code hafen.*} runtime bridge.
  * Owns **discovery + loading** from {@code addons/} on disk ({@link #loadAll}), the persisted **enabled set**
- * ({@link #isEnabled}/{@link #setEnabled} + the D-027 default-disable of a permission-declaring addon), the addon-layer **reload**
+ * ({@link #isEnabled}/{@link #setEnabled} + the D-027 default-disable of a permission-declaring addon), the persisted
+ * **Load out of date AddOns** stance ({@link #loadOutdated}/{@link #setLoadOutdated}), the addon-layer **reload**
  * ({@link #reload} — teardown-all + re-load, no relog), per-addon **teardown** ({@link #teardown}, orchestrating
  * every subsystem's cleanup), and the **AddOns options-panel API** ({@link #describeAddons}/{@link #liveStatus}/
  * {@link AddonInfo} — consumed by {@code io.brodgar.addon.ui.AddonPanel}). {@link AddonManager} keeps the runtime
@@ -43,7 +44,16 @@ public final class AddonRegistry {
     private AddonRegistry() {}
 
     private static final String PREF_DISABLED = "addons/disabled";
-    private static volatile boolean reloadNeeded;        // enabled set changed since the last (re)load
+    /**
+     * <b>Load out of date AddOns</b> (141.2) — the AddOns panel's checkbox, persisted beside the enabled set and
+     * off by default. While it is on, {@link #loadAll} runs an addon {@link ApiVersion#why} calls out of date
+     * exactly as it runs a current one, logging which and why; off, such an addon is left out with its row
+     * reading {@code outdated (…)}. It is the player's stance over the whole folder, never a grant: an
+     * out-of-date write addon still passes its consent dialog, because the version says nothing about what it
+     * may do. Applied on the next reload like everything on that panel — see {@link #setLoadOutdated}.
+     */
+    private static final String PREF_LOAD_OUTDATED = "addons/loadoutdated";
+    private static volatile boolean reloadNeeded;        // enabled set, or the load-outdated box, changed since the last (re)load
     private static volatile int reloadGen;               // bumped by each completed reload() (the AddOns panel watches it)
     // 074.2: how many times the Lua layer has been BUILT — once at boot, once per reload. Read beside reloadGen
     // by AddonManager.engineReloads(), whose whole claim is that the difference between the two is 1.
@@ -104,6 +114,10 @@ public final class AddonRegistry {
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
         // it loads like any other addon (there is no global switch to also satisfy — D-028).
         Set<String> disabled = disabledSet();
+        // 141.2: the box is read ONCE for the whole load, like the enabled set above it -- one load runs under
+        // one stance, and a tick of the box while it runs is the next reload's, which is when the panel says
+        // it applies.
+        boolean loadOutdated = loadOutdated();
         // The consent record, read ONCE for the whole load: it is what BOTH gates ask (the manifest is only
         // the request), so every Addon is handed the keys and the hosts the user approved for it.
         // audit2 B08 (pm-03): the keys travel with the hosts. They used to be read off the manifest at the
@@ -124,11 +138,19 @@ public final class AddonRegistry {
                 // left out here -- before a sandbox is built for it -- with its row, :addons and the log all
                 // saying so. It is a state and not an error: nothing threw, the enabled bit stands, and the
                 // record here is what liveStatus and listAddons read for it until the next load.
+                // 141.2: UNLESS THE PLAYER SAID TO LOAD IT ANYWAY. With the box on, the addon falls through to
+                // the same sandbox a current one gets and nothing below tells them apart -- its row reads
+                // `loaded v…` because findLoaded answers, and the consent gate still asks for what it declared.
+                // The log is the one place the bypass is written down, naming the addon and the why, so a
+                // player who meets a breakage mid-play has the line that says which addon ran on their say-so.
                 String why = ApiVersion.why(m.apiVersion);
                 if(why != null) {
-                    outdated.put(sub.getName(), ApiVersion.label(m.apiVersion));
-                    log("skipping out of date addon '" + sub.getName() + "': " + why);
-                    continue;
+                    if(!loadOutdated) {
+                        outdated.put(sub.getName(), ApiVersion.label(m.apiVersion));
+                        log("skipping out of date addon '" + sub.getName() + "': " + why);
+                        continue;
+                    }
+                    log("loading out of date addon '" + sub.getName() + "': " + why);
                 }
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Consent c = consented.get(sub.getName());
@@ -181,7 +203,9 @@ public final class AddonRegistry {
      * about, and the next load re-reads every manifest, so what it decides replaces this whole. Only an
      * <b>enabled</b> addon reaches the decision — a disabled one is never read — so a disabled out-of-date
      * addon is not in here and its row reads {@code disabled}; the why is still in its tooltip, which
-     * {@link #describeAddons} recomputes from the manifest.
+     * {@link #describeAddons} recomputes from the manifest. Nor is one the player loaded anyway (141.2,
+     * {@link #loadOutdated}): it is in {@link #addons} like any loaded addon, its row reads {@code loaded v…},
+     * and the same tooltip says what it declared.
      */
     private static final Map<String, String> outdated = new java.util.concurrent.ConcurrentHashMap<String, String>();
 
@@ -719,6 +743,28 @@ public final class AddonRegistry {
                                               //   brings the button to it
             reloadNeeded = true;
         }
+    }
+
+    /**
+     * Whether <b>Load out of date AddOns</b> is on — the persisted stance of {@link #PREF_LOAD_OUTDATED},
+     * {@code false} until the player ticks the box. Read once per {@link #loadAll} and once when the AddOns
+     * panel seeds its checkbox; the store is the only holder, so there is no cache to drift from it.
+     */
+    public static boolean loadOutdated() {
+        return Utils.getprefb(PREF_LOAD_OUTDATED, false);
+    }
+
+    /**
+     * Persist the <b>Load out of date AddOns</b> stance. As {@link #setEnabled}, it changes nothing live: the
+     * addons an out-of-date declaration keeps out are let in — or, off again, left out — by the next
+     * {@link #reload}, and {@code reloadNeeded} flags that one is pending. Idempotent: writing the value the
+     * store already holds writes nothing and flags nothing.
+     */
+    public static void setLoadOutdated(boolean v) {
+        if(loadOutdated() == v)
+            return;
+        Utils.setprefb(PREF_LOAD_OUTDATED, v);
+        reloadNeeded = true;
     }
 
     /**

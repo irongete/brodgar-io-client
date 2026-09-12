@@ -27,7 +27,7 @@
       `[manual]`: `"1.0"` back — expect: `loaded v0.1`, and `:addons` lists no `[outdated]` among the
       maintainer's addons.
 
-- [ ] **141.2 — Load out of date AddOns.** `PREF_LOAD_OUTDATED = "addons/loadoutdated"`,
+- [x] **141.2 — Load out of date AddOns.** `PREF_LOAD_OUTDATED = "addons/loadoutdated"`,
       `AddonRegistry.loadOutdated()` / `setLoadOutdated(v)` raising `reloadNeeded` on a change; the bypass
       in `load` — with the box on an out-of-date addon runs, the log naming it and why; `AddonPanel`: a
       `CheckBox("Load out of date AddOns")` between the hint and the buttons, `a` from the pref, `set`

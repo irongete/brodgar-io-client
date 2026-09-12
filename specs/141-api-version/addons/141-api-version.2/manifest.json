@@ -1,0 +1,9 @@
+{
+  "name": "141-api-version.2 — load out of date",
+  "id": "141-api-version.2",
+  "version": "0.1",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 141.2: the Load out of date AddOns box on the AddOns panel, and the out-of-date row it lets load on the next reload.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

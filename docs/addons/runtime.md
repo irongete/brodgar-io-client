@@ -160,6 +160,14 @@ the whole gesture, and a "changes pending" line says so until you do. **Enable a
 that is not marked `[protected: N]`; a write addon is only ever enabled one at a time, through the consent
 dialog that ticking it raises. **Open addons folder** opens `addons/` in your file browser.
 
+**Load out of date AddOns**, the box under the list, loads every addon the panel marks `outdated (…)` as
+if its [API version](manifest.md#the-api-version) were current — one stance over the whole list, kept
+across restarts, off until you tick it. It is applied as a row's checkbox is: ticking it marks changes
+pending, and the next reload runs those addons, each with a line in the log naming it and why it was out
+of date. Their rows then read `loaded v…`, and each tooltip still opens with what the addon declared. Off
+again, the next reload leaves them out. It is not a permission: a write addon that is out of date is still
+disabled until you enable it, and enabling it still raises its consent dialog.
+
 An addon that declares a permission key is disabled the first time the client sees it, so a write addon
 never runs because it was merely installed. After that its state is yours — see
 [permissions](guides/permissions.md).

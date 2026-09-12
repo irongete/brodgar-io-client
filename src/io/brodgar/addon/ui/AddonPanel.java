@@ -24,8 +24,10 @@ import java.util.List;
  * {@link AddonManager} facade exactly as the voice panel drives {@code Voice}. Each row is one
  * discovered addon — an <b>enable/disable</b> checkbox (WoW "apply on reload": {@link
  * AddonManager#setEnabled}), name/version/author with the description as a tooltip, and a live status
- * (loaded / disabled / error / outdated / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
- * <b>Open addons folder</b> controls and a "changes pending" hint.
+ * (loaded / disabled / error / outdated / auto-disabled) — plus a "changes pending" hint, the <b>Load out of date
+ * AddOns</b> checkbox (WoW's, {@link AddonRegistry#setLoadOutdated}: one persisted stance that lets every
+ * {@code outdated (…)} row load on the next reload, no permission and no per-row grant), and the global
+ * <b>Reload UI</b>, <b>Enable all</b> and <b>Open addons folder</b> controls.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
  * addon that declares any of them shows the {@code [protected: N]} row marker with its declared entries in the
@@ -67,8 +69,20 @@ public class AddonPanel extends OptWnd.Panel {
         // at its edge, not wrapped, so a row wider than this reads as a status cut mid-word.
         list = add(new Scrollport(UI.scale(new Coord(480, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
+        // 141.2: LOAD OUT OF DATE ADDONS -- the WoW checkbox of the same name, one stance over the whole list
+        // rather than a per-row grant. It sits between the hint and the buttons because it is applied exactly
+        // as a row's box is: ticking it flags "changes pending" and Reload UI is what lets the out-of-date
+        // addons in. Seeded from the pref and written straight back through the facade, the Row box's own
+        // pattern; `a = v` is owed because overriding set(boolean) replaces the default that wrote it.
+        CheckBox outdated = add(new CheckBox("Load out of date AddOns") {
+                { a = AddonRegistry.loadOutdated(); }
+                public void set(boolean v) {
+                    AddonRegistry.setLoadOutdated(v);
+                    a = v;
+                }
+            }, hint.pos("bl").adds(0, 6));
         Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonRegistry::requestReload),
-                            hint.pos("bl").adds(0, 8));
+                            outdated.pos("bl").adds(0, 8));
         add(new Button(UI.scale(110), "Enable all", false).action(this::enableAll), reload.pos("ur").adds(8, 0));
         add(new Button(UI.scale(170), "Open addons folder", false).action(AddonRegistry::openAddonsFolder),
             reload.pos("ur").adds(8, 0).add(UI.scale(118), 0));
