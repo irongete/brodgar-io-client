@@ -25,12 +25,14 @@ The folder name is the addon's **id**, and `manifest.json` has to repeat it. Wri
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
+  "api_version": "1.0",
   "files": ["main.lua"]
 }
 ```
 
-`id` and `files` are the two required fields; the rest is what the AddOns panel shows about you. Every
-field the manifest accepts is listed in [the runtime](runtime.md#the-manifest).
+`id` and `files` are required. `api_version` names the API you wrote against — the one these pages
+describe — and without it the client leaves your addon out as out of date. The rest is what the AddOns
+panel shows about you. Every field the manifest accepts is listed in [the manifest](manifest.md).
 
 ## Step 2: write a line of Lua
 
@@ -174,6 +176,7 @@ hidden. See [`hafen.store`](api/store.md) for the account-wide scope and for wha
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
+  "api_version": "1.0",
   "files": ["main.lua"],
   "saved_variables": ["settings"]
 }
@@ -220,6 +223,6 @@ data that outlives the session.
 - [the guides](guides/README.md) — one page per task: reading the world, events and timers, custom UI,
   saved data, hotkeys and commands, permissions, theming, debugging
 - [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
-- [the runtime](runtime.md) — the manifest in full, the sandbox, the budgets, the AddOns panel and the
-  console commands
+- [the manifest](manifest.md) — the manifest in full, and the API version it declares
+- [the runtime](runtime.md) — the sandbox, the budgets, the AddOns panel and the console commands
 - [the maintainer's addons](examples.md) — where the addons are, and the tools among them

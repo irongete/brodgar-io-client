@@ -91,6 +91,7 @@ public final class AddonRegistry {
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
         loadErrors.clear();           // ...and so does the record of what threw last time
+        outdated.clear();             // ...and of what was left out as out of date: the manifests are re-read below
         scanAddonDefaults();          // D-027: default-disable any addon asking for permissions the user has not consented to
         File dir = addonDir();
         log("addons dir: " + dir);
@@ -118,6 +119,17 @@ public final class AddonRegistry {
             }
             try {
                 Manifest m = Manifest.load(sub.toPath());
+                // 141.1: AN ADDON OUT OF DATE IS NOT RUN. The manifest says which API it was written against
+                // and ApiVersion.why says whether this client implements it; where it does not, the addon is
+                // left out here -- before a sandbox is built for it -- with its row, :addons and the log all
+                // saying so. It is a state and not an error: nothing threw, the enabled bit stands, and the
+                // record here is what liveStatus and listAddons read for it until the next load.
+                String why = ApiVersion.why(m.apiVersion);
+                if(why != null) {
+                    outdated.put(sub.getName(), ApiVersion.label(m.apiVersion));
+                    log("skipping out of date addon '" + sub.getName() + "': " + why);
+                    continue;
+                }
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Consent c = consented.get(sub.getName());
                 Addon addon = new Addon(m, sub.toPath(), g,
@@ -161,6 +173,17 @@ public final class AddonRegistry {
      * is the answer to "why did it fail".
      */
     private static final Map<String, String> loadErrors = new java.util.concurrent.ConcurrentHashMap<String, String>();
+
+    /**
+     * <b>The addons the last load left out as out of date</b>, by id, each holding the row label
+     * {@link ApiVersion#label} gave it ({@code outdated (API 9.0, client 1.0)}). Kept beside {@link #loadErrors}
+     * for the same reason and cleared where it is cleared: an out-of-date addon has no {@link Addon} to be asked
+     * about, and the next load re-reads every manifest, so what it decides replaces this whole. Only an
+     * <b>enabled</b> addon reaches the decision — a disabled one is never read — so a disabled out-of-date
+     * addon is not in here and its row reads {@code disabled}; the why is still in its tooltip, which
+     * {@link #describeAddons} recomputes from the manifest.
+     */
+    private static final Map<String, String> outdated = new java.util.concurrent.ConcurrentHashMap<String, String>();
 
     /**
      * <b>One thing an addon owned, and the release of it</b> — a step of {@link #teardown}, carrying the name
@@ -1044,7 +1067,7 @@ public final class AddonRegistry {
         return null;
     }
 
-    /** List every discovered addon (a folder with a manifest) and its status: version / disabled / error. */
+    /** List every discovered addon (a folder with a manifest) and its status: version / error / outdated / disabled. */
     static void listAddons() {
         File dir = addonDir();
         File[] subs = dir.listFiles(File::isDirectory);
@@ -1065,6 +1088,8 @@ public final class AddonRegistry {
                 status = "v" + a.manifest.version;
             else if(loadErrors.containsKey(id))
                 status = "error";
+            else if(outdated.containsKey(id))
+                status = "outdated";
             else
                 status = disabled.contains(id) ? "disabled" : "not loaded";
             if(sb.length() > 0)
@@ -1087,7 +1112,14 @@ public final class AddonRegistry {
      */
     public static final class AddonInfo {
         public final String id, name, version, author, description;
-        public final int apiVersion;
+        /**
+         * Why this addon is <b>out of date</b> on this client — the sentence {@link ApiVersion#why} gives,
+         * recomputed from the manifest on disk — or {@code null} when its declaration is current or its manifest
+         * does not parse. Read from the manifest rather than from the loader's record so the tooltip says it on
+         * every row it is true of, a disabled row included: the loader never reads a disabled addon, so its
+         * record cannot.
+         */
+        public final String outdated;
         public final boolean enabled;          // persisted enabled state (the checkbox) — NOT the live-loaded state
         public final boolean loaded;           // currently running
         public final PermissionSet permissions; // the protected keys it declared (D-027: default-disabled, consent at enable)
@@ -1104,10 +1136,10 @@ public final class AddonRegistry {
         public final String warning;           // e.g. auto-disabled by the CPU watchdog, until the next load; or null
 
         AddonInfo(String id, String name, String version, String author, String description,
-                  int apiVersion, boolean enabled, boolean loaded, PermissionSet permissions,
+                  String outdated, boolean enabled, boolean loaded, PermissionSet permissions,
                   List<String> networkHosts, String error, String manifestError, String warning) {
             this.id = id; this.name = name; this.version = version; this.author = author;
-            this.description = description; this.apiVersion = apiVersion; this.enabled = enabled;
+            this.description = description; this.outdated = outdated; this.enabled = enabled;
             this.loaded = loaded; this.permissions = permissions;
             this.networkHosts = networkHosts; this.error = error; this.manifestError = manifestError;
             this.warning = warning;
@@ -1157,7 +1189,7 @@ public final class AddonRegistry {
                 (m != null) ? m.version : null,
                 (m != null) ? m.author : null,
                 (m != null) ? m.description : null,
-                (m != null) ? m.apiVersion : 0,
+                (m != null) ? ApiVersion.why(m.apiVersion) : null,
                 !disabled.contains(id),
                 loaded != null,
                 (m != null) ? m.permissions : PermissionSet.NONE,
@@ -1171,8 +1203,8 @@ public final class AddonRegistry {
 
     /**
      * A short live status string for one addon id, cheap enough to call each frame (no manifest I/O): the
-     * session auto-disable warning if any, else loaded-version / error / disabled / not-loaded. Backs the
-     * per-row status label the AddOns panel refreshes on tick.
+     * session auto-disable warning if any, else loaded-version / error / outdated / disabled / not-loaded. Backs
+     * the per-row status label the AddOns panel refreshes on tick.
      */
     public static String liveStatus(String id) {
         String w = autoDisabledWarn.get(id);
@@ -1184,6 +1216,9 @@ public final class AddonRegistry {
         String err = loadErrors.get(id);
         if(err != null)
             return "error: " + err;
+        String old = outdated.get(id);
+        if(old != null)
+            return old;                   // outdated (API 9.0, client 1.0) — left out by the last load
         if(!isEnabled(id))
             return "disabled";
         return "not loaded";

@@ -25,6 +25,7 @@ take** — the key says *whether*, the hosts say *where*:
 ```json
 {
   "id": "prices",
+  "api_version": "1.0",
   "files": ["main.lua"],
   "permissions": ["http.get"],
   "network": {

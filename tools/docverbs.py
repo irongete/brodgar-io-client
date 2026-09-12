@@ -50,6 +50,12 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
     written above `event_keys` itself.
   * A claim with no call in it. "This is a plain array and not a collection" is prose; a javadoc that
     contradicts the method beneath it needs a reader, not a regex.
+  * Anything about the API version but its number. `api_version` holds the one sentence the docs state the
+    client's version in -- "this client implements API `1.0`", once, on the manifest page -- and every
+    example of the out-of-date label and tooltip that repeats the number, to the literal `ApiVersion.CURRENT`
+    is built from. It holds nothing of the RULE: whether a release that removed a name raised the generation,
+    or one that added a verb raised the edition, is the maintainer's editorial call and no regex reads a diff
+    of two vocabularies.
 """
 import io, os, re, sys, collections
 
@@ -435,6 +441,37 @@ def undocumented_keys():
     return keys, [k for k in keys if k not in written]
 
 
+# The version the client implements, held to the version the docs state. The client's number is ONE literal,
+# `ApiVersion.CURRENT`, and the docs state it in ONE sentence, on the manifest page's `api_version` row --
+# "this client implements API `1.0`" -- which is what a reader writes into their manifest. A bump that moved
+# the literal and not the page would have every reader declaring a version the client calls out of date, and
+# nothing in the docs' own grammar can see a number go stale. The examples of the out-of-date label and the
+# tooltip repeat the number in the open, so those are held too, by the two forms they take.
+def api_version():
+    """(the literal, [(page, line, version)] of the one sentence, [(page, line, version)] of every example).
+
+    The literal is None when ApiVersion.java carries no `CURRENT = new ApiVersion(X, Y)`; main() reads the
+    sentence list for exactly one hit equal to the literal, and the example list for nothing unequal to it."""
+    src = io.open(os.path.join(BRIDGE, "ApiVersion.java"), encoding="utf-8", errors="replace").read()
+    m = re.search(r'CURRENT\s*=\s*new ApiVersion\((\d+),\s*(\d+)\)', src)
+    current = ("%s.%s" % m.groups()) if m else None
+    sentence, examples = [], []
+    for dirpath, _, files in os.walk(DOCS):
+        for f in sorted(files):
+            if not f.endswith(".md"):
+                continue
+            p = os.path.join(dirpath, f)
+            rel = os.path.relpath(p, ROOT).replace("\\", "/")
+            for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
+                for v in re.findall(r'implements API `(\d+\.\d+)`', line):
+                    sentence.append((rel, i, v))
+                # `outdated (API 9.0, client 1.0)` and `..., this client implements 1.0` -- the label and the
+                # tooltip as the panel writes them, each with the client's number in the second position.
+                for v in re.findall(r'client (\d+\.\d+)\)', line) + re.findall(r'client implements (\d+\.\d+)\b', line):
+                    examples.append((rel, i, v))
+    return current, sentence, examples
+
+
 def main():
     verbose = "--verbose" in sys.argv
     vocab = bridge_vocabularies()
@@ -499,11 +536,32 @@ def main():
     else:
         print("every key the bridge fires is written on a page of the catalogue")
 
+    current, sentence, examples = api_version()
+    vbad = []
+    if current is None:
+        vbad.append("ApiVersion.java carries no `CURRENT = new ApiVersion(X, Y)` literal to hold the docs to")
+    if len(sentence) != 1:
+        vbad.append("the docs state \"this client implements API `X.Y`\" %d time(s); it is stated once, on the"
+                    " manifest page's `api_version` row" % len(sentence))
+        for rel, i, v in sentence:
+            vbad.append("  %s:%d  `%s`" % (rel, i, v))
+    for rel, i, v in sentence + examples:
+        if (current is not None) and (v != current):
+            vbad.append("  %s:%d  states %s, the client implements %s" % (rel, i, v, current))
+    print("\nheld the API version the docs state (%d sentence, %d example(s)) to ApiVersion.CURRENT = %s"
+          % (len(sentence), len(examples), current))
+    if vbad:
+        print("== the version the docs state is not the client's ==")
+        for line in vbad:
+            print("  " + line)
+    else:
+        print("every version the docs state is the client's")
+
     if verbose and skipped:
         print("\n== receivers not mapped (add to RECEIVERS to widen coverage) ==")
         for r, n in skipped.most_common(30):
             print("  %-16s %d" % (r, n))
-    return 1 if (bad or arrayish or jbad or kbad or missing) else 0
+    return 1 if (bad or arrayish or jbad or kbad or missing or vbad) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

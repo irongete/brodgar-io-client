@@ -1,61 +1,8 @@
 # The runtime
 
-What the client does with your addon: where it looks for it, what it reads, what your Lua may touch, what
-it costs you if it misbehaves, and the three commands you drive it with. The API pages say what your code
-can *call*; this page says what it *runs inside*.
-
-## Where an addon lives
-
-The client reads addons from the `addons/` folder beside it. One folder per addon, and a folder is an
-addon when it holds a `manifest.json`; anything else there is ignored.
-
-```text
-addons/
-  myaddon/
-    manifest.json      the metadata, and the list of files to run
-    main.lua           your code
-    icon.png           anything else you ship, loaded with hafen.asset
-savedata/
-  account/myaddon.json         your account-wide saved variables
-  <genus>_<char>/myaddon.json  your per-character ones
-```
-
-The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a
-rename. Files your addon ships are read through [`hafen.asset`](api/asset/README.md), which resolves paths inside
-your own folder and rejects everything outside it. The `savedata/` tree is written for you — see
-[`hafen.store`](api/store.md).
-
-## The manifest
-
-`manifest.json` is a JSON object. `id` and `files` are required; everything else is optional.
-
-| Field | Type | Meaning |
-|---|---|---|
-| `id` | string | unique id; must equal the folder name |
-| `files` | array of strings | the `.lua` files to run, in this order; at least one, each inside your own folder |
-| `name` | string | display name in the AddOns panel; defaults to `id` |
-| `version` | string | shown in the panel and in `:addons` |
-| `author` | string | shown in the panel |
-| `description` | string | the panel row's tooltip |
-| `api_version` | number | the API level you target; recorded, and nothing rejects a mismatch |
-| `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
-| `permissions` | array of strings | one key per protected verb you call, or a `<prefix>.*` group — the catalogue is in [permissions](guides/permissions.md) |
-| `network` | object | `{"hosts": [...]}` — **the argument of the `http.get`/`http.post` key**: the key says whether, this says where. Declaring it without the key is a load error. See [`hafen.http`](api/http.md) |
-| `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
-| `optional_dependencies` | array of strings | the same |
-
-Each addon runs in an environment of its own and cannot see another addon's globals, so there is nothing
-for a dependency to import: two addons that cooperate do it through the client — a container, a marker, a
-console command — or not at all.
-
-A manifest the client cannot read is a load error naming what is wrong: bad JSON, a missing `id` or
-`files`, an id that does not match the folder, an entry of `files`, `permissions` or either dependency list
-that is not a string, a `permissions` entry that is neither a key nor a group,
-a `network` block that is not an object with a `hosts` array, one whose hosts no `http.*` permission asks
-to reach, or a `hosts` entry of `"*"`. A `files` entry that is not a file inside your own folder — an
-absolute path, a `..` that climbs out, a link that points out of it — is the same kind of error, raised as
-the client goes to run that entry and naming it. The addon then
-shows an error row in the panel and runs nothing; the others are unaffected.
+What the client does with your addon once it has read [the manifest](manifest.md): when your code runs,
+what your Lua may touch, what it costs you if it misbehaves, and the commands you drive it with. The API
+pages say what your code can *call*; this page says what it *runs inside*.
 
 ## When your code runs
 
@@ -196,6 +143,7 @@ tooltip.
 | `disabled` | switched off, and not loaded |
 | `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
 | `error: …` | its manifest or its Lua failed; the message says how |
+| `outdated (…)` | not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements — `outdated (API 9.0, client 1.0)` — or it declares none — `outdated (no api_version, client 1.0)`. The tooltip says which |
 | `auto-disabled (…)` | the [CPU budget](#budgets-and-the-watchdog) or a [fatal failure](#when-a-failure-is-fatal) stopped it |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it asks to reach |
@@ -315,6 +263,7 @@ thirty seconds is the whole of what covers those.
 
 ## See also
 
+- [the manifest](manifest.md) — where an addon lives, the manifest field by field, and the API version
 - [getting started](getting-started.md) — the first addon, end to end
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares

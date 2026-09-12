@@ -354,7 +354,7 @@ and nothing blocks anywhere: [threading](threading.md) is which handler is which
 
 A verb that **starts an action the player could have performed** is **protected**: it runs only
 if **your** addon declared that verb's own permission key in its
-[manifest](../runtime.md#the-manifest) and the user enabled it. **A key names the action, not the
+[manifest](../manifest.md#the-manifest) and the user enabled it. **A key names the action, not the
 character**: the player could have tabbed to any of their logins and performed it there, so one grant covers
 every character the client holds. Such an addon is disabled the first time the client sees it and enabling it
 raises a consent dialog; one that never declared the key gets an error naming the verb and the key it needs.

@@ -24,7 +24,7 @@ import java.util.List;
  * {@link AddonManager} facade exactly as the voice panel drives {@code Voice}. Each row is one
  * discovered addon — an <b>enable/disable</b> checkbox (WoW "apply on reload": {@link
  * AddonManager#setEnabled}), name/version/author with the description as a tooltip, and a live status
- * (loaded / disabled / error / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
+ * (loaded / disabled / error / outdated / auto-disabled) — plus global <b>Reload UI</b>, <b>Enable all</b>, and
  * <b>Open addons folder</b> controls and a "changes pending" hint.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
@@ -61,7 +61,11 @@ public class AddonPanel extends OptWnd.Panel {
         prev = add(new Label("An addon marked [protected: N] asked for N permissions to act on your behalf"
             + " (hover to read them); enabling one asks you to approve the list."),
             prev.pos("bl").adds(0, 2));
-        list = add(new Scrollport(UI.scale(new Coord(360, 220))), prev.pos("bl").adds(0, 8));
+        // 141.1: the list is as wide as its longest row needs -- Row's metadata label runs to x=290 and its status
+        // label from there, so `outdated (no api_version, client 1.0)`, the longest status a row carries, and a
+        // long name with `[protected: N]  [net]` after it both fit whole beside the scrollbar. The list is clipped
+        // at its edge, not wrapped, so a row wider than this reads as a status cut mid-word.
+        list = add(new Scrollport(UI.scale(new Coord(480, 220))), prev.pos("bl").adds(0, 8));
         hint = add(new Label(""), list.pos("bl").adds(0, 6));
         Button reload = add(new Button(UI.scale(120), "Reload UI", false).action(AddonRegistry::requestReload),
                             hint.pos("bl").adds(0, 8));
@@ -148,7 +152,7 @@ public class AddonPanel extends OptWnd.Panel {
         private final String manifestError;   // why this row has no manifest at all, or null
 
         Row(AddonInfo ai) {
-            super(UI.scale(new Coord(360, 18)));
+            super(UI.scale(new Coord(480, 18)));
             final String rid = ai.id;
             final boolean writes = ai.declaresPermissions();   // D-027: enabling this addon needs consent (4c)
             final PermissionSet declared = ai.permissions;
@@ -190,11 +194,17 @@ public class AddonPanel extends OptWnd.Panel {
             // BEFORE enabling it, where the row itself only has room for how many. For a broken manifest it is
             // the REASON, first and whole (an unknown permission key names the valid ones), because a row that
             // says only "manifest error" sends the author to the terminal for something the panel already knows.
+            // An out-of-date addon opens the same way (141.1): the row has room for the two numbers, the tip
+            // says which side to move — and it says so on a disabled row too, where the status cannot.
             StringBuilder tip = new StringBuilder();
             if(broken)
                 tip.append(ai.manifestError);
-            if(ai.description != null)
+            else if(ai.outdated != null)
+                tip.append("Out of date: ").append(ai.outdated);
+            if(ai.description != null) {
+                if(tip.length() > 0) tip.append("\n\n");
                 tip.append(ai.description);
+            }
             if(ai.declaresPermissions()) {
                 if(tip.length() > 0) tip.append("\n\n");
                 tip.append("Permissions: ").append(ai.permissions.toString());
@@ -209,7 +219,7 @@ public class AddonPanel extends OptWnd.Panel {
                 // and the GL upload fails (GL_INVALID_VALUE 1281 -> crashes the render thread on hover). quote()
                 // escapes RichText's $ { } so the description stays literal (descriptions are full of { } [ ] tokens).
                 nm.settip(RichText.Parser.quote(tip.toString()), true);
-            status = add(new Label(""), UI.scale(new Coord(200, 3)));
+            status = add(new Label(""), UI.scale(new Coord(290, 3)));
             this.id = rid;
             refresh();
         }

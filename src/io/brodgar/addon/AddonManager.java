@@ -367,7 +367,7 @@ public final class AddonManager {
             String raw = cons.rawcmd();
             eval((raw != null) ? stripCmd(raw) : join(args));
         });
-        // :addons               list every discovered addon + its status (loaded version / disabled / error)
+        // :addons               list every discovered addon + its status (loaded version / error / outdated / disabled)
         // :addons enable  <id>  mark an addon enabled  (applied on the next :reload — D-006)
         // :addons disable <id>  mark an addon disabled (applied on the next :reload — D-006)
         Console.setscmd("addons", (cons, args) -> {

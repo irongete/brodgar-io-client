@@ -14,7 +14,13 @@ import java.util.Map;
  */
 public final class Manifest {
     public final String id, name, version, author, description;
-    public final int apiVersion;
+    /**
+     * The API this addon was written against ({@code "api_version": "X.Y"}), or {@code null} when the manifest
+     * declares none. {@link ApiVersion#why} is what the loader asks of it: an addon of another generation, of an
+     * edition this client has not got, or declaring none is <b>out of date</b> and is not run. A field of the
+     * wrong shape is refused in {@link #load} like every other malformed field.
+     */
+    public final ApiVersion apiVersion;
     public final List<String> files, dependencies, optionalDependencies;
     /** Saved-variable declarations (name + scope) the engine persists/restores — see {@link SavedVar}. */
     public final List<SavedVar> savedVariables;
@@ -211,7 +217,7 @@ public final class Manifest {
     }
 
     private Manifest(String id, String name, String version, String author, String description,
-                     int apiVersion, List<String> files, List<String> dependencies,
+                     ApiVersion apiVersion, List<String> files, List<String> dependencies,
                      List<String> optionalDependencies, List<SavedVar> savedVariables,
                      PermissionSet permissions, List<String> network, boolean internal) {
         this.internal = internal;
@@ -243,14 +249,15 @@ public final class Manifest {
         PermissionSet allperms = PermissionSet.all();
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet, true);
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", ApiVersion.CURRENT, none, none, none,
+                            novars, allperms, allnet, true);
     }
 
     /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
     static Manifest test(String id) {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "probe owner", 1, none, none, none, novars,
+        return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, none, none, novars,
                             PermissionSet.NONE, none, false);
     }
 
@@ -287,7 +294,7 @@ public final class Manifest {
                 + " both in one line when they enable it.");
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
-                            str(m, "description", false), intv(m, "api_version", 1),
+                            str(m, "description", false), ApiVersion.parse(m.get("api_version")),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
                             savedvars(m), perms, hosts, false);
     }
@@ -410,13 +417,6 @@ public final class Manifest {
         }
         if(!(v instanceof String)) throw new IllegalArgumentException("'" + key + "' must be a string");
         return (String)v;
-    }
-
-    private static int intv(Map<String, Object> m, String key, int def) {
-        Object v = m.get(key);
-        if(v == null) return def;
-        if(!(v instanceof Number)) throw new IllegalArgumentException("'" + key + "' must be a number");
-        return ((Number)v).intValue();
     }
 
     /**

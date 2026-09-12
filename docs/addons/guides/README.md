@@ -22,6 +22,7 @@ assume you have a folder that loads.
 They are written to be read in that order, and each one ends by pointing at the next. Nothing stops you
 opening the one you need.
 
-Two pages sit beside them rather than in the list: [the runtime](../runtime.md), for the manifest, the
-sandbox and the console commands, and [the maintainer's addons](../examples.md), for where the addons
-are and the tools among them.
+Three pages sit beside them rather than in the list: [the manifest](../manifest.md), for what names an
+addon and the API version it declares, [the runtime](../runtime.md), for the sandbox and the console
+commands, and [the maintainer's addons](../examples.md), for where the addons are and the tools among
+them.

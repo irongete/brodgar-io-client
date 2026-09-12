@@ -104,4 +104,5 @@ on screen when you moved it.
 
 - [getting started](getting-started.md) — an empty folder to a working addon, step by step
 - [the guides](guides/README.md) — one page per task, and the verbs each of these reads
-- [the runtime](runtime.md) — where these folders live, and how the client loads them
+- [the manifest](manifest.md) — where these folders live, and what each one declares
+- [the runtime](runtime.md) — how the client loads them

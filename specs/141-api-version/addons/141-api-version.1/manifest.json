@@ -1,0 +1,9 @@
+{
+  "name": "141.1 — out of date is not loaded",
+  "id": "141-api-version.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 141.1: a current api_version loads; every out-of-date state is one the maintainer causes by editing this manifest between :reloads, and reads on this row.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

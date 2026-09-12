@@ -131,6 +131,7 @@ menu, which `Ctrl+O` opens — says the same thing with the error message attach
 |---|---|
 | nothing — the addon is not listed | the folder is not under `addons/`, or has no `manifest.json` |
 | `error: …` | the message: bad JSON, a missing `id` or `files`, or an id that is not the folder name |
+| `outdated (…)` | the `api_version` line of your manifest: it names a [version](../manifest.md#the-api-version) this client does not implement, or there is no such line — the tooltip says which |
 | `disabled` | the checkbox — and remember a write addon is disabled the first time it is seen |
 | `not loaded` | an enable that no `:reload` has applied yet |
 | `auto-disabled (…)` | the [CPU budget](../runtime.md#budgets-and-the-watchdog) — your addon was burning the frame — or a [fatal failure](../runtime.md#when-a-failure-is-fatal) the client contained |
