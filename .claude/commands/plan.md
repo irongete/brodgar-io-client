@@ -2,9 +2,33 @@
 
 Usage: `/plan <feature description>`
 
-Plan ONE feature as a new `specs/NNN-<feature>/` folder. **/plan implements NOTHING and commits
-NOTHING** — it writes the three files and stops for review. They reach the repo with the feature's
-first `/end`.
+Plan ONE feature as a new `specs/NNN-<feature>/` folder, on a branch of its own. **/plan implements
+NOTHING and commits NOTHING** — it cuts the branch, writes the three files and stops for review.
+They reach the repo with the feature's first `/end`.
+
+## 0. The branch — before anything is read or written
+
+A feature is built on `feature/<NNN>-<feature>`, cut from `master` (`CLAUDE.md`, *Branches and
+releases*). Two checks, then the cut:
+
+```bash
+git rev-parse --abbrev-ref HEAD     # must be master
+git status --porcelain              # must be empty
+```
+
+- **Not on `master`** — a feature still open on its branch, or anything else — **stops the command**:
+  say where you are and stop. A feature branch cut from another feature's branch would carry that
+  feature's half-built work, and `master` is the only place where every feature is closed.
+- **A dirty tree stops it too**: the three files would be written beside work that is not theirs.
+  Stashing or committing it is the maintainer's call.
+- The number is the next free `NNN` in `specs/` (§2); the name is the folder's. Then:
+
+```bash
+git switch -c feature/<NNN>-<feature>
+```
+
+The branch exists from here and holds nothing until the first `/end`; everything below is written on
+it, uncommitted.
 
 ## 1. Read — in this order, and nothing else
 
@@ -94,9 +118,13 @@ it and in the tasks that read it. It freezes with the folder, like everything el
 - **Write no file but the three.** Where this feature's scope covers ground the maintainer's
   `specs/ROADMAP.md` already states, **name those lines in the report** — striking them is theirs.
 - **Write nothing else** — the three files, and nothing that records state. The feature is *active*
-  because its `tasks.md` has unchecked boxes, which is derived.
-- **STOP for review, and do not commit.** Report the files written and the `ROADMAP.md` lines this
-  scope covers. Stay in the review loop as long as it takes.
+  because its `tasks.md` has unchecked boxes, which is derived — and because its branch is the one
+  checked out, which is derived too.
+- **STOP for review, and do not commit.** Report the branch cut, the files written and the
+  `ROADMAP.md` lines this scope covers. Stay in the review loop as long as it takes. A plan the
+  review drops leaves whole: `git switch master && git branch -D feature/<NNN>-<feature>`, and the
+  folder deleted by hand — untracked, it does not follow the branch. Say so rather than doing it,
+  since the maintainer decides.
 - **Every decision the review reaches goes back into the three files before you hand over** — the
   approach into `plan.md`, what the maintainer rejected into *Discarded alternatives* with its
   reason, the scope into `spec.md`. The conversation ends here and `/implement` reads the files and

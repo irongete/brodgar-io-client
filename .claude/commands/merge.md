@@ -142,7 +142,20 @@ git diff --name-only $MAIN...$UP | sed 's#/[^/]*$##' | sort | uniq -c | sort -rn
 git log --diff-filter=DR --name-status $MAIN..$UP
 ```
 
-No commits → upstream has nothing new; say so and stop.
+No commits → upstream has nothing new; say so. Then one more question before stopping: has `$MAIN`
+itself moved past the branch you stand on?
+
+```bash
+git merge-base --is-ancestor $MAIN $BR      # succeeds: nothing to bring; fails: $MAIN has commits $BR lacks
+```
+
+`master` moves while a feature is open in two ways only — a `/merge` run on `master` itself, or a
+`release/<x.y>` fix merged back (`CLAUDE.md`, *Branches and releases*) — and a feature branch that
+misses them cannot fast-forward into `master` at its close. So when `$BR` is not `$MAIN` and the check
+fails, **hop 1 is empty and hop 2 is the whole job**: survey §3 with `$MAIN` in place of `$UP`
+(`git diff --name-only $BR...$MAIN` is what `$MAIN` brings, `merge-tree --write-tree --name-only $BR
+$MAIN` the conflicts), stop for approval as §3 says, and go on at §5. When the check succeeds, stop
+here.
 
 Otherwise write the **upstream summary**, and write it from those four outputs rather than from a
 sense of what upstream tends to do:

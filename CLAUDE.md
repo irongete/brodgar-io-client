@@ -1,8 +1,8 @@
 # brodgar-io-client — Project Instructions
 
 Customized Haven & Hearth ("Hafen") client, forked from `dolda2000/hafen-client`. Active work: a
-World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on branch
-**`feature/addons`**.
+World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`. `master` is the trunk,
+and a feature is built on a branch of its own (see *Branches and releases*).
 
 ## The tree — the places there are, and no others
 
@@ -16,6 +16,7 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
 | `tools/` | The checkers that hold `docs/` to `src/`: every documented verb resolved against its own **receiver's** vocabulary, and every verb a refusal offers as a replacement. Run them when either side moves — they exit non-zero, and they state their own blind spots |
+| `release.ps1` · `etc/release-addons` | The release: the script that builds, tags and publishes from `master` — the maintainer runs it, no command does — and the list of addons a release ships |
 | `DOCUMENTATION.md` | How a page under `docs/` is written |
 
 **If a fact is true of the API today, it lives in `docs/` and `src/` — nowhere else.** `ls specs/`
@@ -33,11 +34,30 @@ tells you what was rejected and why — never what is in force. It also cites pa
 the day it was written, so **take the reason, never the pointer**: never follow a path out of a
 frozen folder. If the reason does not stand on its own words, it is not prior art.
 
+## Branches and releases
+
+- **`master` is the trunk, and it holds closed features only** — every task of every feature on it
+  has been `/end`ed — so a beta can be cut from it on any day. Upstream lands there (`/merge`).
+- **A feature is a branch**, `feature/<NNN>-<feature>`, cut from `master` by `/plan` as it writes
+  the feature's folder. Its tasks' `/end` commits land on it, and the `/end` that closes its last
+  task fast-forwards it into `master` and deletes it. A half-built feature is never on `master`.
+- **A release is a tag on `master`**, cut by `release.ps1`: a version with a suffix
+  (`0.1.0-beta.1`) is a GitHub pre-release, which the launcher's **Beta** channel installs; a plain
+  one (`0.1.0`) is a release, which both channels install. The script refuses any other branch.
+- **`release/<x.y>` exists only to fix a published release** while `master` already carries the
+  next betas: cut from the release's tag, fixed there, released with `-Branch release/<x.y>`, and
+  merged back into `master`. Until that day there is no such branch.
+- **Three repositories**: this one; `brodgar-io-client-addons`, the maintainer's addons, of which
+  `etc/release-addons` names the ones a release ships; `brodgar-io-client-launcher`, what a player
+  installs, with tags of its own.
+
 ## Rules (obey always)
 
 - **NEVER `git push`.** Everything stays local.
 - **`/end` makes the only self-driven commit**, and it lands the whole task at once — code, docs,
-  specs, addons — *after* the maintainer's verification. `/plan` and `/implement` commit nothing.
+  specs, addons — *after* the maintainer's verification; the fast-forward into `master` at a
+  feature's close is its too. `/plan` creates the feature's branch and commits nothing; `/implement`
+  commits nothing.
 - **Everything in English**: the docs, the specs, the code and its comments.
 - **A feature ships whole, and closes with nothing of its own left open.** A gap or a defect in the
   surface the feature itself ships is a **task of that feature**, never a note left somewhere for
@@ -146,7 +166,8 @@ the whole block back. Nothing needs interpreting — that round trip is the form
 
 ## The cycle
 
-**`/plan <feature>`** (design, review, no commit) → **`/implement`** (one task; iterate with the
-maintainer until it passes) → **`/end`** (verify, close, commit everything).
+**`/plan <feature>`** (the branch off `master`, design, review, no commit) → **`/implement`** (one
+task, on the feature's branch; iterate with the maintainer until it passes) → **`/end`** (verify,
+close, commit everything — and when the last task closes, fast-forward the branch into `master`).
 
 Each command states exactly what to read. Read nothing else.

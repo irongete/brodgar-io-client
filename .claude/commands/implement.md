@@ -8,13 +8,17 @@ verification passes.
 
 ## 1. Read — and nothing else
 
-1. **Derive the active feature** — no file records it:
+1. **Derive the active feature** — no file records it, two things do:
    ```bash
-   grep -l '^- \[ \]' specs/[0-9]*/tasks.md
+   git rev-parse --abbrev-ref HEAD          # feature/<NNN>-<feature>: the branch names it
+   grep -l '^- \[ \]' specs/[0-9]*/tasks.md   # its tasks.md has the unchecked boxes
    ```
-   Report every folder it returns. One is the normal case; more than one means an earlier feature
-   was re-opened, so name them all and ask which to take. No unchecked box anywhere means there is
-   nothing to implement — say so and stop.
+   A task is built on its feature's branch, which `/plan` cut from `master` (`CLAUDE.md`, *Branches
+   and releases*), so the two agree: the branch's `NNN` is the one folder with unchecked boxes. **On
+   `master`, or on a branch that is no feature's, stop and say so** — there is nothing to build
+   there, and a task built on `master` would land a half-built feature on the trunk. A folder with
+   unchecked boxes that is not the branch's means an earlier feature was re-opened: name both and
+   ask which to take. No unchecked box anywhere means there is nothing to implement — say so and stop.
 2. That feature's **`tasks.md`** → the first unchecked task (or the one named), then its
    **`spec.md`** and **`plan.md`**.
 3. The spec's **`Context files:`**, plus this task's own **`extra context:`** if it carries one. If

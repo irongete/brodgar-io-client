@@ -75,9 +75,11 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
    The `NNN-` folder then stays exactly where it is and is frozen — nothing is appended, nothing is
    archived, no index is updated. It is done because no box is unchecked, which is derived.
 
-6. **Commit — always the LAST step, and it carries ONLY what this task wrote.** Stage the explicit
-   list of paths this task created or changed, derived from what you did in this context, never from
-   `git status`:
+6. **Commit — on the feature's branch, and it carries ONLY what this task wrote.** The branch is
+   `feature/<NNN>-<feature>`, the one `/implement` derived; `git rev-parse --abbrev-ref HEAD` says so,
+   and anything else — `master` above all — stops the close: say where you are. Then stage the
+   explicit list of paths this task created or changed, derived from what you did in this context,
+   never from `git status`:
 
    ```bash
    git add <path> <path> … && git commit
@@ -96,3 +98,21 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
 
    This lands the code, the docs and the specs together — including the feature's spec/plan/tasks if
    this is its first `/end`. No approval needed, and never push.
+
+7. **If it was the last task of the feature, the branch goes into `master` — the LAST step of all.**
+   The feature closed whole in step 5, and `master` holds closed features only (`CLAUDE.md`,
+   *Branches and releases*), so this is the moment it may carry this one:
+
+   ```bash
+   git switch master
+   git merge --ff-only feature/<NNN>-<feature>
+   git branch -d feature/<NNN>-<feature>
+   ```
+
+   **A fast-forward, or nothing.** The branch was cut from `master` and `master` does not move
+   while a feature is open, so `--ff-only` succeeds; if it refuses, `master` moved underneath —
+   an upstream `/merge`, a hotfix merged back — and the feature has to take that first: stop, say
+   what `master` gained, and leave the branch standing. The maintainer brings it up to date
+   (`/merge` from the branch does exactly that) and runs `/end` again. Never `--no-ff`, never a
+   rebase, never a push: the trunk's history is the features' own commits in order, and `master`
+   reaching `origin` is the maintainer's act. Report the sha `master` now stands on.
