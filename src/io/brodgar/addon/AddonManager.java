@@ -1410,6 +1410,11 @@ public final class AddonManager {
             // after the bus's, which is the order a surface handler sees.
             fireSurfaceUpdates(dtv);
             runTimers();
+            // 142.1: every connection's queued Open/Close/Error, fired here for the reason the timers are —
+            // once for the client, holding no tree, and with no login needed: a connection's subject is a
+            // server, so it lives from Load on and outlives any session. Its close deadlines are checked in
+            // the same walk, which is what spares it a thread of its own.
+            WebSocketApi.drain();
             drainPendingPages();   // 140.1: the pages opened since the last step get their fill, holding no tree
             Binding.drainPulls();  // 140.3: ...and a bound control in a tree its option's write could not reach
 
@@ -5035,6 +5040,12 @@ public final class AddonManager {
 
         // hafen.http — external HTTP requests (N2a / D-037), protected by a manifest "network" host allowlist.
         HttpApi.install(hafen, owner);
+
+        // hafen.websocket() — a live connection to a server (142.1): the collection of this addon's open
+        // ones, :connection(url) a bare one, :connect() the gate and the dispatch, :on(key, fn) the four
+        // edges. The same key shape and the same allowlist as hafen.http(): websocket.connect is the key,
+        // the network block its argument, and a wss address is the https server the block names.
+        WebSocketApi.install(hafen, owner);
 
         // hafen.locale() — what this client DISPLAYS (102-translation). One catalogue per addon, loaded as a
         // document (:load(doc)), installed and released like a stylesheet, and read back through the strings

@@ -32,8 +32,8 @@ sub:off()
 
 **Every `:on` in the API hands back one of these**, and every one of them ends with `sub:off()`: the bus
 and the [message streams](streams.md) here, a [widget](../ui/widget.md) or a mouse grab you hold, a
-[console command](../console.md), a [hotkey](../client/keybindings.md), and
-[waiting for a widget](../ui/replace.md#watching-for-a-widget). A `Sub` answers those two verbs and
+[console command](../console.md), a [hotkey](../client/keybindings.md), a
+[connection](../websocket.md) to a server, and [waiting for a widget](../ui/replace.md#watching-for-a-widget). A `Sub` answers those two verbs and
 nothing else, so a name it does not carry raises at the line that wrote it.
 
 Subscribe once, in the file body or in `Load`. The subscription is owned by your addon and released when

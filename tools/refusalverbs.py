@@ -116,6 +116,7 @@ MEMBER = {
     "hafen.map():segment()": "segment", "hafen.map():grid()": "grid", "hafen.map():icon()": "iconcat",
     "hafen.map():display()": "toggle", "hafen.asset()": "asset", "hafen.font()": "font",
     "hafen.sound()": "sound", "hafen.timer()": "timer", "hafen.http()": "request",
+    "hafen.websocket()": "connection",
     "widget:children()": "widget", "widget:items()": "item", "contents:items()": "item",
     "channel:message()": "message", "hafen.locale():miss()": "miss", "seg:grid()": "grid",
     "segment:markers()": "marker", "grid:mask()": "mask", "quest:conditions()": "condition",

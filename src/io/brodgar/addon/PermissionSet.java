@@ -134,10 +134,11 @@ public final class PermissionSet {
      * line the user reads and expanding {@code item.*} is not their job. In catalogue order (an {@link EnumSet}
      * iterates by ordinal), so two addons declaring the same group read identically.
      *
-     * <p><b>A network key carries its argument</b> (093.4, A-098): the {@code http.*} keys take the manifest's
-     * {@code network.hosts} allowlist, and the consent dialog is the one place the user decides, so the line
-     * they read there says <i>where</i> as well as <i>whether</i>. An entry granting no network key ignores
-     * {@code hosts} entirely, so the ordinary line is unchanged.
+     * <p><b>A network key carries its argument</b> (093.4, A-098): the {@code http.*} keys and
+     * {@code websocket.connect} take the manifest's {@code network.hosts} allowlist, and the consent dialog
+     * is the one place the user decides, so the line they read there says <i>where</i> as well as
+     * <i>whether</i>. An entry granting no network key ignores {@code hosts} entirely, so the ordinary line
+     * is unchanged.
      *
      * <p><b>And it marks the hosts the record does not cover.</b> Every host {@code known} does not already
      * reach is prefixed {@link #NEW}, by the same wildcard rule the gate asks
@@ -168,9 +169,14 @@ public final class PermissionSet {
         return sb.toString();
     }
 
-    /** Whether these catalogue keys include a network key — the one whose ARGUMENT a host allowlist is. */
+    /**
+     * Whether these catalogue keys include a network key — the one whose ARGUMENT a host allowlist is.
+     * Three of them since 142.1: a connection is kept to a host the user approved exactly as a request is
+     * made to one, so {@code websocket.connect} carries the list on its consent line like the two http keys.
+     */
     private static boolean grantsNetwork(Set<Permission> granted) {
-        return granted.contains(Permission.HTTP_GET) || granted.contains(Permission.HTTP_POST);
+        return granted.contains(Permission.HTTP_GET) || granted.contains(Permission.HTTP_POST)
+            || granted.contains(Permission.WEBSOCKET_CONNECT);
     }
 
     /**

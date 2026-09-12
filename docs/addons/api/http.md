@@ -231,6 +231,7 @@ inside it is logged, never propagated.
 
 ## See also
 
+- [`hafen.websocket`](websocket.md) — a connection the server can push on, under the same key shape and allowlist
 - [`hafen.json`](json.md) — parsing a response body, and encoding a request one
 - [`hafen.store`](store.md) — persisting tokens and cached results
 - [permissions](../guides/permissions.md) — the other protected tier

@@ -322,6 +322,9 @@ public final class AddonRegistry {
         // N2a: cancel every in-flight HTTP request — the connection is closed under the worker, so a torn-down
         //   addon's request stops reaching the host rather than merely losing its callback
         new Step("http requests", HttpApi::teardownRequests),
+        // 142.1: tell every live connection 1001 and drop its record — no handler runs, and a peer that
+        //   never answers the Close is cut by the step's own sweep rather than by a thread of its own
+        new Step("websocket connections", WebSocketApi::teardown),
         // 042.1: cancel every pending Resolve registration (a value still loading) — same shape as the HTTP
         //   requests above, for the same reason
         new Step("pending resolves", Addon::teardownWaitings),
@@ -551,6 +554,14 @@ public final class AddonRegistry {
                 StoreApi.flush(a);
             } catch(RuntimeException e) {
                 logDiag("shutdown: could not flush " + ownerName(a) + ": " + e);
+            }
+            // 142.1: ...and its live connections are told 1001, as the teardown Step tells them on a reload.
+            // The quit runs no Step, so this is where the exit says goodbye; engine code, nothing blocks, and
+            // the frame goes out on the pool while the client finishes leaving.
+            try {
+                WebSocketApi.teardown(a);
+            } catch(RuntimeException e) {
+                logDiag("shutdown: could not close " + ownerName(a) + "'s connections: " + e);
             }
         }
     }

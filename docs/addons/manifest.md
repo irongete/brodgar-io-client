@@ -41,7 +41,7 @@ your addon out as [out of date](#the-api-version); everything else is optional.
 | `description` | string | the panel row's tooltip |
 | `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
 | `permissions` | array of strings | one key per protected verb you call, or a `<prefix>.*` group — the catalogue is in [permissions](guides/permissions.md) |
-| `network` | object | `{"hosts": [...]}` — **the argument of the `http.get`/`http.post` key**: the key says whether, this says where. Declaring it without the key is a load error. See [`hafen.http`](api/http.md) |
+| `network` | object | `{"hosts": [...]}` — **the argument of the network keys**, `http.get`, `http.post` and `websocket.connect`: a key says whether, this says where. Declaring it with none of them is a load error. See [`hafen.http`](api/http.md) and [`hafen.websocket`](api/websocket.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
 | `optional_dependencies` | array of strings | the same |
 
@@ -53,7 +53,7 @@ A manifest the client cannot read is a load error naming what is wrong: bad JSON
 `files`, an id that does not match the folder, an `api_version` that is not a string of the form `"X.Y"`,
 an entry of `files`, `permissions` or either dependency list that is not a string, a `permissions` entry
 that is neither a key nor a group, a `network` block that is not an object with a `hosts` array, one whose
-hosts no `http.*` permission asks to reach, or a `hosts` entry of `"*"`. A `files` entry that is not a file
+hosts no network key asks to reach, or a `hosts` entry of `"*"`. A `files` entry that is not a file
 inside your own folder — an absolute path, a `..` that climbs out, a link that points out of it — is the
 same kind of error, raised as the client goes to run that entry and naming it. The addon then shows an
 error row in the panel and runs nothing; the others are unaffected.

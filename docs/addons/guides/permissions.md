@@ -49,6 +49,7 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `console.run` | [`s:console():run`](../api/console.md#run-a-line-protected) | run any of the client's console commands, on any of your characters, including ones that run code outside the addon sandbox |
 | `http.get` | [`request:send`](../api/http.md#the-request-object) on a GET | fetch data from the servers it lists |
 | `http.post` | [`request:send`](../api/http.md#the-request-object) on a POST | send data to the servers it lists |
+| `websocket.connect` | [`connection:connect`](../api/websocket.md#the-connection-object) | keep a live connection to the servers it lists |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
@@ -60,12 +61,12 @@ whole standard library outside the sandbox an addon runs in, so an addon holding
 user's own console can. That is what its line says, in the user's words, because it is the only honest
 thing a consent dialog can say about a key whose reach is another surface's vocabulary.
 
-**Three of them do not reach the server at all**, and are keyed because a key gates what a verb *does*.
+**Some of them do not reach the game server at all**, and are keyed because a key gates what a verb *does*.
 `map.marker` deletes a pin the player placed, which took real play to make and which no server can restore.
 `client.settings` rewrites the configuration and every hotkey they have, and it reaches the **client's own**
-bindings as readily as your addon's — `binding:key("Ctrl+I")` on `inv` takes the inventory key. `http.get`
-and `http.post` reach outside the client entirely. All of them are plainly actions the player could have
-performed: every one is a control they have in front of them.
+bindings as readily as your addon's — `binding:key("Ctrl+I")` on `inv` takes the inventory key. `http.get`,
+`http.post` and `websocket.connect` reach outside the client entirely. All of them are plainly actions the
+player could have performed: every one is a control they have in front of them.
 
 ## A key names the action, not the target
 
@@ -104,8 +105,8 @@ A `<prefix>.*` entry stands for every key under that prefix, so one line asks fo
 | `http.*` | `http.get`, `http.post` |
 
 Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*`, `map.*`, `client.*`,
-`console.*`, `chat.*`, `virtual.*` and `session.*` parse too — each a longer way of writing the single key
-it covers.
+`console.*`, `chat.*`, `virtual.*`, `websocket.*` and `session.*` parse too — each a longer way of writing
+the single key it covers.
 
 The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
 same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it
@@ -190,8 +191,8 @@ several of them look like writes:
 
 Subscribing, drawing and reading are not writes at all. The line is **whether the user would have to undo
 it by hand**: everything above is a display choice they can change back in a click, or something only your
-addon can see. A pin deleted from the map, a rebound hotkey and a request to another host are not, which is
-why those three are keyed.
+addon can see. A pin deleted from the map, a rebound hotkey, a request to another host and a connection kept
+to one are not, which is why those are keyed.
 
 An entry you put in the action menu sits on this side of it whole: naming it, drawing it, putting it on the
 action bar and running your own function when the user clicks it never reach past your client. The bar slot is
@@ -267,20 +268,24 @@ over a slot and the server's own content comes back untouched, so there is nothi
 
 ## Network: one key, and the hosts are its argument
 
-Reaching outside the client is `http.get` and `http.post`, keys like any other — and the
-[`network` block](../api/http.md#declaring-network-access) in your manifest is **what those keys take**:
+Reaching outside the client is `http.get`, `http.post` and `websocket.connect`, keys like any other — and
+the [`network` block](../api/http.md#declaring-network-access) in your manifest is **what those keys
+take**:
 
 ```json
-"permissions": ["http.get"],
+"permissions": ["http.get", "websocket.connect"],
 "network": { "hosts": ["api.example.com"] }
 ```
 
-The key says **whether** your addon may use the network, the hosts say **where**, and the user reads both as
-one line when they enable you: *"fetch data from the servers it lists: api.example.com"*. Declaring hosts
-without a key is a **load error** naming the key; asking for the key with no hosts is refused at the call.
-An **origin** the user did not approve is refused before any request leaves — an entry grants one scheme on
-one port, and a wildcard covers one domain's sub-domains and never a whole top-level domain. [What an entry
-means, exactly](../api/http.md#declaring-network-access).
+The key says **whether** your addon may use the network, the hosts say **where**, and the user reads each
+key as one line over the same hosts when they enable you: *"fetch data from the servers it lists:
+api.example.com"* and *"keep a live connection to the servers it lists: api.example.com"*. Declaring hosts
+without a key is a **load error** naming the keys; asking for a key with no hosts is refused at the call.
+An **origin** the user did not approve is refused before any request leaves or any connection opens — an
+entry grants one scheme on one port, a
+[`wss://` address is the `https` server](../api/websocket.md#declaring-network-access) the block names,
+and a wildcard covers one domain's sub-domains and never a whole top-level domain.
+[What an entry means, exactly](../api/http.md#declaring-network-access).
 
 The AddOns panel still shows a `[net]` badge with the exact hosts in the row's tooltip.
 

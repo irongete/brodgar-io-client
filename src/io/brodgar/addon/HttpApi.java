@@ -209,8 +209,12 @@ final class HttpApi {
      * record ({@link Addon#hostGranted}) — not the manifest on disk, which the addon writes and can rewrite
      * between one enable and the next. The manifest still says whether the addon declared any network at all,
      * because that refusal is about a declaration the author forgot rather than about a grant.
+     *
+     * <p><b>One gate, two callers</b> (142.1): {@code connection:connect()} runs it under
+     * {@link Permission#WEBSOCKET_CONNECT} with the {@code https} origin a {@code wss} address names, so a
+     * connection and a request are refused by the same three sentences.
      */
-    private static void requireNetwork(Addon owner, Permission perm, String origin, String verb) {
+    static void requireNetwork(Addon owner, Permission perm, String origin, String verb) {
         AddonManager.requirePermission(AddonManager.current(), perm, verb);
         if((owner == null) || !owner.manifest.usesNetwork())
             throw new LuaError(verb + ": this addon declared \"" + perm.key + "\" but no hosts to reach — the"
@@ -229,8 +233,13 @@ final class HttpApi {
                      + " \"network\": { \"hosts\": [...] } and enable the addon again."));
     }
 
-    /** The shared HTTP pool, created on first use (engine-lifetime, daemon threads so it never blocks exit). */
-    private static ExecutorService pool() {
+    /**
+     * The shared HTTP pool, created on first use (engine-lifetime, daemon threads so it never blocks exit).
+     * Package-visible since 142.1: it is the executor the JDK WebSocket client runs its callbacks on as well
+     * ({@link WebSocketApi#client}), so a connection's listener rides the same eight threads a request does
+     * rather than a second pool beside them.
+     */
+    static ExecutorService pool() {
         ExecutorService p = pool;
         if(p == null) {
             synchronized(HttpApi.class) {

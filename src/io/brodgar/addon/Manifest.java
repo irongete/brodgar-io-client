@@ -34,8 +34,9 @@ public final class Manifest {
      */
     public final PermissionSet permissions;
     /**
-     * The {@code network} block's host allowlist (N2a / D-037): the hosts this addon may reach via
-     * {@code hafen.http.*}. A capability-with-config gets its own manifest block (like {@code saved_variables}),
+     * The {@code network} block's host allowlist (N2a / D-037): the hosts this addon may reach through
+     * {@code hafen.http()} and {@code hafen.websocket()}. A capability-with-config gets its own manifest
+     * block (like {@code saved_variables}),
      * not a bare {@code permissions[]} string, because the declaration IS the allowlist. Lower-cased; empty ⇒
      * no {@code network} block ⇒ the addon has no network access. Entries may be an exact host or a
      * {@code *.domain} sub-domain wildcard; the special token {@code "*"} (used only by the internal REPL owner)
@@ -61,7 +62,7 @@ public final class Manifest {
         return !permissions.isEmpty();
     }
 
-    /** Whether this addon declared a non-empty {@code network} block (grants the protected {@code hafen.http}) — D-037. */
+    /** Whether this addon declared a non-empty {@code network} block — the argument of every network key (D-037). */
     public boolean usesNetwork() {
         return !network.isEmpty();
     }
@@ -284,14 +285,15 @@ public final class Manifest {
         PermissionSet perms = PermissionSet.parse(strlist(m, "permissions"));
         List<String> hosts = networkhosts(m);
         // 093.4 (A-098): the network is a KEY now, and the hosts block is that key's argument. So a manifest
-        // that lists hosts and asks for neither is refused HERE, at load, naming the two -- rather than
-        // loading and dying at the first hafen.http() call, and rather than reaching the consent dialog with
-        // a network declaration the user is shown nothing about.
-        if(!hosts.isEmpty() && !perms.has(Permission.HTTP_GET) && !perms.has(Permission.HTTP_POST))
+        // that lists hosts and asks for none of them is refused HERE, at load, naming the three -- rather
+        // than loading and dying at the first hafen.http() call, and rather than reaching the consent dialog
+        // with a network declaration the user is shown nothing about. 142.1: websocket.connect is the third.
+        if(!hosts.isEmpty() && !perms.has(Permission.HTTP_GET) && !perms.has(Permission.HTTP_POST)
+           && !perms.has(Permission.WEBSOCKET_CONNECT))
             throw new IllegalArgumentException("'network' declares hosts but no permission asks to reach them"
-                + " -- add \"http.get\" (or \"http.post\", or the group \"http.*\") to 'permissions'. The key"
-                + " says whether this addon may use the network, and the hosts say where; the user approves"
-                + " both in one line when they enable it.");
+                + " -- add \"http.get\", \"http.post\" (or the group \"http.*\") or \"websocket.connect\" to"
+                + " 'permissions'. The key says whether this addon may use the network, and the hosts say"
+                + " where; the user approves both in one line when they enable it.");
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), ApiVersion.parse(m.get("api_version")),

@@ -1,0 +1,11 @@
+{
+  "name": "142-websocket.1 — a connection built bare, opened on purpose, and heard",
+  "id": "142-websocket.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 142.1: hafen.websocket() as the collection of live connections, :connection(url) built bare with its setters and refusals, :connect() as the gate and the dispatch under websocket.connect and the network block, the cap of eight, :close() and its codes, and Open, Close and Error heard on the step against an echo service and a host that does not resolve.",
+  "api_version": "1.0",
+  "permissions": ["websocket.connect"],
+  "network": { "hosts": ["ws.postman-echo.com", "echo.websocket.org", "ws.invalid"] },
+  "files": ["main.lua"]
+}

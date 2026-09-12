@@ -629,6 +629,17 @@ public final class Addon {
      */
     public final List<LuaHttpRequest> requests = new CopyOnWriteArrayList<LuaHttpRequest>();
     /**
+     * Live WebSocket connections owned by this addon ({@code hafen.websocket():connection(url):connect()},
+     * 142.1): each is a {@link LuaWebSocket} that has been dispatched and whose {@code Close} or
+     * {@code Error} has not been delivered yet — the set {@code hafen.websocket()} is the collection of, and
+     * the one its cap counts. The JDK listener behind each only enqueues; {@link WebSocketApi#drain} fires
+     * what it queued from the layer's step, holding no tree, and drops a connection once its ending has been
+     * heard. Teardown ({@link WebSocketApi#teardown}) sends {@code 1001} on every one and drops the record,
+     * so a {@code :reload}/disable/exit runs no handler and leaves no socket. Copy-on-write: the drain
+     * removes an ended connection while a firing handler may open another.
+     */
+    public final List<LuaWebSocket> connections = new CopyOnWriteArrayList<LuaWebSocket>();
+    /**
      * The <b>one stylesheet</b> this addon has applied ({@code hafen.ui():sheet():install()},
      * 033-ui-stylesheet), or {@code null}. An addon owns exactly one: installing again replaces it whole and
      * {@code sheet:release()} removes it ({@link Sheet#apply}). Each of its site keys is an owner-tagged entry in
@@ -739,6 +750,14 @@ public final class Addon {
     LuaValue roleMeta;
     /** {@link LuaHttpResult}'s metatable — the result is a value, so only the metatable is held (095). */
     LuaValue httpResMeta;
+    /**
+     * {@link LuaWebSocketEvent}'s metatables, one per {@link LuaWebSocketEvent.Shape} (142.1) — a payload is
+     * a value like a result, so only the metatables are held, indexed by ordinal for {@link #eventMeta}'s
+     * reason: the shapes are a closed enum known at compile time.
+     */
+    final LuaValue[] wsEventMeta = new LuaValue[LuaWebSocketEvent.Shape.values().length];
+    /** {@link LuaWebSocket}'s handle metatable ({@code Connection}), built on the first {@code :connection(url)}. */
+    LuaValue wsMeta;
     final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();
 
     LuaValue subMeta;

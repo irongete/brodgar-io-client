@@ -26,9 +26,10 @@ import java.util.Map;
  * protected verb is one entry here plus one gate call — nothing else has a list to update.
  *
  * <p><b>It is the WHOLE catalogue</b> (093, A-098): nothing is gated by a second mechanism beside it.
- * {@code http.get} and {@code http.post} are keys like any other, and an allowlist of hosts is the
- * <b>argument</b> of the key — the shape {@code player.hand.use} has for a nested one: the allowlist decides
- * <i>where</i>, the catalogue decides <i>whether</i>, and the consent dialog says both in one line.
+ * {@code http.get}, {@code http.post} and {@code websocket.connect} are keys like any other, and an
+ * allowlist of hosts is the <b>argument</b> of each — the shape {@code player.hand.use} has for a nested
+ * one: the allowlist decides <i>where</i>, the catalogue decides <i>whether</i>, and the consent dialog
+ * says both in one line.
  *
  * <p><b>A key gates what a verb DOES, not only what it tells the server</b> (093, A-096/A-097). Two entries
  * here reach nothing outside the client and are protected all the same: {@code map.marker} deletes a pin the
@@ -118,7 +119,12 @@ public enum Permission {
     // actually reads named the right one. The key is still per method: which of the two is asked for is
     // decided by the request's own method at the send.
     HTTP_GET         ("http.get",           "request:send",                   "fetch data from the servers it lists"),
-    HTTP_POST        ("http.post",          "request:send",                   "send data to the servers it lists");
+    HTTP_POST        ("http.post",          "request:send",                   "send data to the servers it lists"),
+    // 142.1: the third network key, and the same shape as the two above -- the hosts block is its argument
+    // too, so the consent line carries the servers a connection may be kept to. One door: connection:connect
+    // is where a connection leaves the client, exactly as request:send is for a request.
+    WEBSOCKET_CONNECT("websocket.connect",  "connection:connect",             "keep a live connection to the"
+                                                                              + " servers it lists");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;

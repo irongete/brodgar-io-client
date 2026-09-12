@@ -74,7 +74,7 @@ RECEIVERS = {
     "sp": "speed", "skill": "skill", "credo": "credo", "attr": "attr", "exp": "experience",
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
     "w": "widget", "widget": "widget", "win": "widget", "col": "widget", "row": "widget", "ev": None, "sub": "sub",
-    "h": None, "asset": "asset", "req": "request", "res": "res", "sheet": "sheet",
+    "h": None, "asset": "asset", "req": "request", "res": "res", "conn": "connection", "sheet": "sheet",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "pl": "placing",
@@ -380,7 +380,9 @@ def event_keys():
         return set(re.findall(r'"([A-Za-z]+)"', m.group(1))) if m else set()
     am = io.open(os.path.join(BRIDGE, "AddonManager.java"), encoding="utf-8", errors="replace").read()
     lw = io.open(os.path.join(BRIDGE, "LuaWidget.java"), encoding="utf-8", errors="replace").read()
-    live = arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS")
+    ws = io.open(os.path.join(BRIDGE, "LuaWebSocket.java"), encoding="utf-8", errors="replace").read()
+    # conn:on(key, fn) -- the four edges of a connection, declared as an array like the bus's own
+    live = arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS") | arr(ws, "KEYS")
     # widgetKeys() adds these by interface rather than from an array, so they are named here.
     live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
     live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)

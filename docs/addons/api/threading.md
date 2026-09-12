@@ -29,6 +29,7 @@ end)
 | [`s:ui():on(sel, "Added"/"Removed", fn)`](ui/replace.md) | the step, after the widget arrived or left | any |
 | [`item:on("Changed", fn)`](ui/items.md) | the step, after the description resolved | any |
 | an [HTTP](http.md) reply | the step | any |
+| a [connection](websocket.md)'s `Open`, `Message`, `Close` and `Error` | the step | any |
 | [`opts:panel(fn)`](client/addon.md#the-page) — your addon's page | the step, one frame after the page is opened | any |
 | [`hafen.event():message():on(msg, fn)`](event/streams.md) — inbound | as the update arrives, before the widget applies it | any |
 | [`widget:on("Draw", fn)`](ui/custom.md) | the pass that paints that widget | its own only |
@@ -134,7 +135,7 @@ Your addon is one Lua state, and the rows above are entered from more than one o
 client lets exactly **one** of them be inside your code at a time: an entry that arrives while another is
 running waits for it, so the tables, the upvalues and the state your handlers share are never read
 half-written. That holds across every row of the table — the step, an inbound update, an HTTP reply, a
-`Draw` pass — and it is why an ordinary addon never has to think about any of this.
+connection's `Message`, a `Draw` pass — and it is why an ordinary addon never has to think about any of this.
 
 **Serialised is not sequenced.** An inbound update aimed at one widget and the step's own `Update` are two
 moments the client puts in no order, so which of your handlers sees a value first depends on when the server
