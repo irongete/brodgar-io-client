@@ -255,7 +255,7 @@ showing the same art. Any argument raises.
 
 ## The inspector
 
-Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it by hovering: its bottom
+Nobody guesses a widget's role. The **`widgetstack`** addon answers it by hovering: its bottom
 panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its own `[title=]` or
 `[text=]` — whichever key its role takes — its `[res=]`, and its **anchor**, the nearest enclosing
 **captioned** window, written as the first step of a chain. Under those it lists **every selector it can

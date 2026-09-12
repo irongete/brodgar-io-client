@@ -86,7 +86,7 @@ text is not, which is why [`g:text` keeps its raster](drawing.md#text-is-cached-
 words in the same font cost one rasterisation however many frames they are drawn for, and a string whose
 characters change every frame costs one per frame.
 
-The bundled **`widgetstack`** addon carries one: a painter that outlines whichever widget the cursor is
+The **`widgetstack`** addon carries one: a painter that outlines whichever widget the cursor is
 over.
 
 ## Over one widget

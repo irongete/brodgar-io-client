@@ -246,7 +246,8 @@ Three habits, in the order they bite:
   A verb addressed at a character that is not in the world yet says so and sends nothing.
 - **Make the user ask.** Bind actions to a [hotkey, a command or a setting](hotkeys-and-commands.md)
   rather than to a timer. An addon that acts on its own the moment it loads is the one thing a dialog cannot
-  really warn about, and the bundled write example is deliberately built the other way round.
+  really warn about, and the switcher among [the maintainer's addons](../examples.md) is deliberately built
+  the other way round.
 
 **Declare the narrowest set that works.** The dialog is the user's whole view of what you do, so a group
 asked for out of convenience reads as four capabilities you wanted rather than the one you use.

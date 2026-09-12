@@ -1,12 +1,13 @@
-# The bundled addons
+# The maintainer's addons
 
-The addons below ship with the client, in the same `addons/` folder yours goes into. None of them
-illustrates a surface — a reference page states its own. The **tools** are the ones you point at your own
-addon: what a widget on the screen is and how to name it, and what the client is doing as it does it.
-Beside them stands a **surface of the client's own**, written in Lua like any other addon: the switcher
-over the logins the client holds. They are kept, with every other addon of the maintainer's, in a
-repository of their own — [brodgar-io-client-addons](https://github.com/irongete/brodgar-io-client-addons) —
-and a release copies these three beside the client.
+Every addon of the maintainer's is in a repository of its own,
+[brodgar-io-client-addons](https://github.com/irongete/brodgar-io-client-addons): one folder each, to drop
+into the same `addons/` folder yours goes into. **Which of them a client release ships is
+`etc/release-addons` in the client's repository** — one addon per line — and nothing else says so. None of
+them illustrates a surface — a reference page states its own. Three are worth knowing while you write your
+own: the **tools** you point at your addon — what a widget on the screen is and how to name it, and what the
+client is doing as it does it — and, beside them, a **surface of the client's own**, written in Lua like any
+other addon: the switcher over the logins the client holds.
 
 | Addon | Use it to |
 |---|---|
@@ -14,13 +15,12 @@ and a release copies these three beside the client.
 | [`eventstack`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
 | [`session-manager`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/session-manager/main.lua) | go between the characters you have logged in |
 
-The tools are **dormant** — installed and enabled, but drawing nothing and reading nothing until you press
-their hotkey or type their command — so having them on costs you an untouched login. The log is the one
-exception, and deliberately: it records from the moment it loads, because what is worth reading has
-usually already happened by the time you think to look. Untick its `at login` box and it is dormant like
-the rest. Each is the whole of
-one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, and the log is
-[the streams and the bus](api/event/README.md) at once.
+The tools are **dormant** — enabled, they draw nothing and read nothing until you press their hotkey or
+type their command — so having them on costs you an untouched login. The log is the one exception, and
+deliberately: it records from the moment it loads, because what is worth reading has usually already
+happened by the time you think to look. Untick its `at login` box and it is dormant like the rest. Each is
+the whole of one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, and the
+log is [the streams and the bus](api/event/README.md) at once.
 
 ## widgetstack
 
@@ -92,7 +92,7 @@ character is in the world — with the row on screen marked, a button that hands
 character, and an `X` that logs it out. Its `next` hotkey goes to the next login and round, and `:sessions`
 opens and closes the window.
 
-It is the one bundled addon that **asks for a permission**: `session.close`, behind the `X`. So the client
+It is the one of the three that **asks for a permission**: `session.close`, behind the `X`. So the client
 disables it the first time it sees it and asks you to approve that line before it runs, the way it does for
 any addon that can act on your behalf — see [permissions](guides/permissions.md).
 

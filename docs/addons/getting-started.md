@@ -7,7 +7,7 @@ into the same two files, in the order they appear.
 ## Step 1: make the folder
 
 An addon is a folder of Lua files plus a manifest, and it lives in the client's `addons/` directory, next
-to the addons that already ship. Create one called `myaddon`:
+to whatever addons are already there. Create one called `myaddon`:
 
 ```text
 addons/
@@ -222,4 +222,4 @@ data that outlives the session.
 - [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
 - [the runtime](runtime.md) — the manifest in full, the sandbox, the budgets, the AddOns panel and the
   console commands
-- [the bundled addons](examples.md) — the addons that ship with the client, and what each is for
+- [the maintainer's addons](examples.md) — where the addons are, and the tools among them

@@ -165,7 +165,7 @@ The docs describe what exists today. There is no release, no migration tier: his
 
 - **Relative paths only**, never a URL to this repo. Link the **page**, not an anchor, unless the
   anchor is the actual answer. Link text is the thing linked (`s:world()`), never "here".
-- **No link leaves `docs/`**, with one exception: a shipped addon in the addons repository
+- **No link leaves `docs/`**, with one exception: an addon in the addons repository
   (`brodgar-io-client-addons`, by URL, `blob/HEAD/<id>/main.lua`), from the page that also
   describes it — `examples.md`, and nothing else.
 - **When you retitle a heading or move a page, you re-point every link into it in the same task.**

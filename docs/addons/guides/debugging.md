@@ -79,7 +79,7 @@ that subscribes on each fire is the usual one, and it goes on firing once per co
 
 ## Name a widget you are pointing at
 
-Selectors are guessed wrong more often than anything else in the API, so do not guess. Enable the bundled
+Selectors are guessed wrong more often than anything else in the API, so do not guess. Enable the
 **`widgetstack`** addon and hover: it reports the widget's [role](../api/ui/selectors.md#roles), its class,
 its own caption or displayed words, its `[res=]` and the captioned window it sits in, then offers **every
 selector it can build from those**, most specific first, each one resolved before it is shown and ready to
@@ -112,7 +112,7 @@ the client sends and receives, which is what makes it a thing you watch with rat
 `ev:preventDefault()` in one — inbound, that swallows every update the server sends, and the client stops
 hearing from it.
 
-The bundled **`eventstack`** addon is that pair of blocks with a window around them, and the
+The **`eventstack`** addon is that pair of blocks with a window around them, and the
 [event bus](../api/event/bus/README.md) and the widget tree beside them. `:eventstack` puts up a live log —
 one line per message out, update in, event on the bus, or widget coming and going — with filters over the
 source, the session, the widget and the event name that fill themselves as each value arrives for the first
@@ -167,4 +167,4 @@ will [auto-disable](../runtime.md#budgets-and-the-watchdog) an addon that sustai
 warning on its panel row is the last word, not the first.
 
 **Next:** [the API reference](../api/README.md) for the verb you are reaching for, or
-[the bundled addons](../examples.md) for the tools that answer these questions for you.
+[the maintainer's addons](../examples.md) for the tools that answer these questions for you.

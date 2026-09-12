@@ -319,4 +319,4 @@ thirty seconds is the whole of what covers those.
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares
 - [permissions](guides/permissions.md) — the permission the manifest declares
-- [the bundled addons](examples.md) — the addons installed already, and what each is for
+- [the maintainer's addons](examples.md) — where the addons are, and the tools among them

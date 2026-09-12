@@ -143,7 +143,7 @@ Three properties make it a convention rather than a lookup helper:
 
 The grammar, the role table and the two rules worth knowing first — a space is the *descendant
 combinator*, and you hold your result rather than re-selecting every frame — are in
-[selectors](ui/selectors.md), where the bundled **`widgetstack`** addon also
+[selectors](ui/selectors.md), where the **`widgetstack`** addon also
 [names one by hovering](ui/selectors.md#the-inspector).
 
 ## See also

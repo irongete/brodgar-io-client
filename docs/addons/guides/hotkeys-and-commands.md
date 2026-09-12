@@ -144,7 +144,7 @@ puts one, and the call returns.
 
 A good default for anything with a UI is a hotkey to toggle the window and a command with subcommands
 for the rest, so nothing needs a key that is only used once, with anything the user sets and forgets on
-the options page instead. That is the shape the [bundled addons](../examples.md) have.
+the options page instead. That is the shape the [maintainer's addons](../examples.md) have.
 
 **Dormant is polite.** An addon that draws nothing and does nothing until its key or command is used costs
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather
