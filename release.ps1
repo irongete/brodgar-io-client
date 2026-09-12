@@ -15,6 +15,9 @@
   savedata/ -- tags HEAD as v<version>, pushes the branch and the tag, and creates the GitHub release with the
   zip as its asset.
 
+  A release is cut from master -- the script refuses any other branch unless -Branch names it -- so merge
+  feature work first (git merge --ff-only) and release from there.
+
   The channel is the version's: a suffix (0.1.0-beta.1, 0.2.0-rc.2) makes a BETA, published as a GitHub
   pre-release, which only a launcher on its beta channel installs; a plain x.y.z makes a RELEASE, a plain
   GitHub release, which every launcher installs. -Channel says otherwise when it must.
@@ -29,6 +32,8 @@
   The release notes, inline.
 .PARAMETER Channel
   release or beta; by default the version decides (a suffix is a beta).
+.PARAMETER Branch
+  The branch a release is cut from: master, unless you say otherwise. The script refuses any other.
 .PARAMETER Draft
   Create the release as a draft, to be published by hand on GitHub.
 .PARAMETER NoPublish
@@ -39,6 +44,7 @@ param(
     [string]$Notes,
     [string]$Message,
     [ValidateSet('release', 'beta')][string]$Channel,
+    [string]$Branch = 'master',
     [switch]$Draft,
     [switch]$NoPublish
 )
@@ -63,7 +69,8 @@ if ($Notes -and $Message) { throw 'give -Notes or -Message, not both' }
 if ($Notes -and -not (Test-Path $Notes)) { throw "notes file not found: $Notes" }
 if (git status --porcelain) { throw 'the working tree is not clean: commit or stash first' }
 if (git tag -l $tag) { throw "the tag $tag already exists" }
-$branch = (git rev-parse --abbrev-ref HEAD).Trim()
+$current = (git rev-parse --abbrev-ref HEAD).Trim()   # not $branch: PowerShell names are case-insensitive, and $Branch is the parameter
+if ($current -ne $Branch) { throw "you are on '$current', and a release is cut from '$Branch': check it out (or pass -Branch $current to mean it)" }
 if (-not $NoPublish) {
     gh auth status *> $null
     if ($LASTEXITCODE -ne 0) { throw 'gh is not logged in: run `gh auth login` first' }
@@ -89,7 +96,7 @@ if ($Notes) {
 }
 
 # --- build: from scratch, then dist/ and the zip -------------------------------------------------------------
-Write-Host "Building $title ($Channel) from $branch ($((git rev-parse --short HEAD).Trim()))..."
+Write-Host "Building $title ($Channel) from $current ($((git rev-parse --short HEAD).Trim()))..."
 if (Test-Path build\classes) { Remove-Item -Recurse -Force build\classes }
 Run ant @("-Dversion=$Version", 'release-zip')
 if (-not (Test-Path $asset)) { throw "the build produced no $asset" }
@@ -103,7 +110,7 @@ if ($NoPublish) {
 }
 
 # --- push and publish ---------------------------------------------------------------------------------------
-Run git @('push', 'origin', $branch)
+Run git @('push', 'origin', $current)
 Run git @('push', 'origin', $tag)
 $create = @('release', 'create', $tag, $asset, '--repo', $repo, '--title', $title, '--notes-file', $notesFile)
 if ($Channel -eq 'beta') { $create += '--prerelease' }
