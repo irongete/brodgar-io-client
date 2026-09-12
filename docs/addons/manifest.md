@@ -41,7 +41,7 @@ your addon out as [out of date](#the-api-version); everything else is optional.
 | `description` | string | the panel row's tooltip |
 | `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
 | `permissions` | array of strings | one key per protected verb you call, or a `<prefix>.*` group — the catalogue is in [permissions](guides/permissions.md) |
-| `network` | object | `{"hosts": [...]}` — **the argument of the network keys**, `http.get`, `http.post` and `websocket.connect`: a key says whether, this says where. Declaring it with none of them is a load error. See [`hafen.http`](api/http.md) and [`hafen.websocket`](api/websocket.md) |
+| `network` | object | `{"hosts": [...]}` — **the argument of the network keys**, `http.get`, `http.post`, `websocket.connect` and `voice.connect`: a key says whether, this says where. Declaring it with none of them is a load error. See [`hafen.http`](api/http.md), [`hafen.websocket`](api/websocket.md) and [`hafen.voice`](api/voice.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
 | `optional_dependencies` | array of strings | the same |
 

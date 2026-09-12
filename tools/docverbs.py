@@ -75,6 +75,7 @@ RECEIVERS = {
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
     "w": "widget", "widget": "widget", "win": "widget", "col": "widget", "row": "widget", "ev": None, "sub": "sub",
     "h": None, "asset": "asset", "req": "request", "res": "res", "conn": "connection", "sheet": "sheet",
+    "voice": "voice",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "pl": "placing",
@@ -381,8 +382,11 @@ def event_keys():
     am = io.open(os.path.join(BRIDGE, "AddonManager.java"), encoding="utf-8", errors="replace").read()
     lw = io.open(os.path.join(BRIDGE, "LuaWidget.java"), encoding="utf-8", errors="replace").read()
     ws = io.open(os.path.join(BRIDGE, "LuaWebSocket.java"), encoding="utf-8", errors="replace").read()
-    # conn:on(key, fn) -- the four edges of a connection, declared as an array like the bus's own
-    live = arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS") | arr(ws, "KEYS")
+    vo = io.open(os.path.join(BRIDGE, "LuaVoice.java"), encoding="utf-8", errors="replace").read()
+    # conn:on(key, fn) / voice:on(key, fn) -- the edges of a connection and of a voice link, each declared
+    # as an array like the bus's own
+    live = (arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS") | arr(ws, "KEYS")
+            | arr(vo, "KEYS"))
     # widgetKeys() adds these by interface rather than from an array, so they are named here.
     live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
     live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)

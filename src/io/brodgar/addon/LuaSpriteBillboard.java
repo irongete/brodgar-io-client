@@ -16,14 +16,14 @@ import haven.render.Pipe;
  * The <b>camera-facing billboard</b> visual behind a {@link LuaSprite} ({@code hafen.virtual():sprite() with :facing("screen")},
  * spec {@code 17-custom-rendering.md} §5, R2b) — a custom PNG standing in the world that always faces the camera,
  * the odd sibling of the fixed {@link SpriteQuad}. It is a screen-space blit anchored at the entity's projected
- * world point, exactly the {@code haven.SpeakerIcon} / {@link LuaGobOverlay} pattern: a {@link PView.Render2D}
+ * world point, exactly the {@code haven.Speaking} / {@link LuaGobOverlay} pattern: a {@link PView.Render2D}
  * node whose {@code draw(GOut, Pipe)} projects the gob's origin to the screen (via {@link Eye#view}) and
  * blits the {@link haven.TexI} there. Because the gob's {@code Placed} slot supplies the world transform, moving
  * the entity (or a followed gob) moves the anchor — so <b>position and gizmo-move apply</b>; <b>world-rotate and
  * world-scale do not</b> (it is a flat 2D image, always squarely facing the viewer). It draws in the 2D overlay
  * pass, <b>on top</b> of the 3D scene (no depth test), and is <b>screen-sized</b> (constant pixels at any zoom).
  *
- * <p><b>Why a {@link Drawable}, not a bare {@code GAttrib}.</b> Unlike {@code SpeakerIcon}/{@code LuaGobOverlay}
+ * <p><b>Why a {@link Drawable}, not a bare {@code GAttrib}.</b> Unlike {@code Speaking}/{@code LuaGobOverlay}
  * (which sit <i>beside</i> a gob's real visual), a billboard <b>is</b> the entity's only visual, so it is attached
  * as the gob's {@code Drawable} — a resource-free one ({@link #getres()} {@code == null}, like {@link haven.SprDrawable}).
  * A {@code Drawable} is a {@link haven.render.RenderTree.Node}, so {@code Gob.added} adds it under the {@code Placed}

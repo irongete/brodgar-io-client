@@ -325,6 +325,9 @@ public final class AddonRegistry {
         // 142.1: tell every live connection 1001 and drop its record — no handler runs, and a peer that
         //   never answers the Close is cut by the step's own sweep rather than by a thread of its own
         new Step("websocket connections", WebSocketApi::teardown),
+        // 143.1: close every voice link's engine off the step and drop its record — no handler runs, and the
+        //   last engine to close gives the microphone back
+        new Step("voice links", VoiceApi::teardown),
         // 042.1: cancel every pending Resolve registration (a value still loading) — same shape as the HTTP
         //   requests above, for the same reason
         new Step("pending resolves", Addon::teardownWaitings),

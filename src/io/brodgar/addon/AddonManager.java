@@ -123,7 +123,7 @@ import javax.imageio.ImageIO;
  * and <b>timers</b> ({@code hafen.timer}). All of it is <b>zero core edit</b> — it reuses the
  * existing {@code RemoteUI.init} and {@code MapView} hooks plus the public {@link OCache#callback}.
  *
- * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. <b>Lua is entered from several
+ * <p>All-static facade. <b>Lua is entered from several
  * threads</b> and {@code docs/addons/api/threading.md} is the table of them; what makes that safe is
  * {@link #callLua}, the one door, which holds the addon's own lock for the length of an entry. The seams
  * that would otherwise run Lua under a tree monitor <em>enqueue</em> instead — the {@link OCache} callback
@@ -1415,6 +1415,10 @@ public final class AddonManager {
             // server, so it lives from Load on and outlives any session. Its close deadlines are checked in
             // the same walk, which is what spares it a thread of its own.
             WebSocketApi.drain();
+            // 143.1: every voice link's queued Open/Close/Error, for the same reason and in the same place --
+            // and, in the same walk, each open link's spatial vectors for this frame, which is what the
+            // voice feature's per-frame tick in the map view used to be.
+            VoiceApi.drain();
             drainPendingPages();   // 140.1: the pages opened since the last step get their fill, holding no tree
             Binding.drainPulls();  // 140.3: ...and a bound control in a tree its option's write could not reach
 
@@ -2330,8 +2334,19 @@ public final class AddonManager {
     public static void flowerChoosing(FlowerMenu m, FlowerMenu.Petal p) { FlowerMenuApi.choosing(m, p); }
 
     /**
-     * The <b>click token</b> seam (047.3) — the one {@code // addon:} line in {@code MapView.Click.hit}, beside
-     * the voice feature's own {@code VoiceTarget.note}. It records which object a press resolved to, so a radial
+     * The <b>voice move</b> seam (143.1) — one {@code // addon:} line in {@code MapView.clickhit}, for a click
+     * on the ground, and one in {@code Sessions.send}, for an order an addon or the RTS mode composed for a
+     * character: a movement order, the instant it is issued and before the server has applied it, which is
+     * what a voice server needs to keep proximity right between two position reports. Offered to every live
+     * link that reports {@code mv}'s world ({@link VoiceApi#move}); nothing for a client with no link.
+     *
+     * <p><b>Threading.</b> The click hit-test's own thread, or the UI thread. It raises no Lua.
+     */
+    public static void voiceMove(MapView mv, Coord2d mc) { VoiceApi.move(mv, mc); }
+
+    /**
+     * The <b>click token</b> seam (047.3) — the one {@code // addon:} line in {@code MapView.clickhit}, beside
+     * the voice move tap ({@link #voiceMove}). It records which object a press resolved to, so a radial
      * menu that opens straight afterwards can say what it belongs to ({@code s:flowermenu():gob()}); the
      * server sends no such thing, so the client correlates it itself. {@link ClickToken} holds the rules.
      *
@@ -5046,6 +5061,12 @@ public final class AddonManager {
         // edges. The same key shape and the same allowlist as hafen.http(): websocket.connect is the key,
         // the network block its argument, and a wss address is the https server the block names.
         WebSocketApi.install(hafen, owner);
+
+        // hafen.voice() — a link to a voice server (143.1): the collection of this addon's live ones,
+        // :connection(url) a bare one, :connect() the gate and the dispatch, :on(key, fn) its edges. The
+        // websocket's shape with the voice engine under it: voice.connect is the key, the network block its
+        // argument, and the microphone is opened by the first link and shared by every one.
+        VoiceApi.install(hafen, owner);
 
         // hafen.locale() — what this client DISPLAYS (102-translation). One catalogue per addon, loaded as a
         // document (:load(doc)), installed and released like a stylesheet, and read back through the strings

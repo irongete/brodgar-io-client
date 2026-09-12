@@ -11,7 +11,7 @@ import java.util.List;
  * still needs to read, such as a {@link ResDrawable}'s state bytes.
  *
  * <p>Rather than raw reflection, the adapters go through this single {@code haven}-package helper — the
- * same trick {@link SpeakerIcon} uses for the buddy label. It localizes the one non-zero-edit read
+ * one place for every reflective read. It localizes the one non-zero-edit read
  * surface in one place: upstream churn breaks this file, not every adapter, and Lua never gets
  * reflection (decision D-017).
  *

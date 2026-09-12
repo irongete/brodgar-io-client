@@ -1,0 +1,11 @@
+{
+  "name": "143-voice.1 — the engine in-tree, and hafen.voice() opens the link",
+  "id": "143-voice.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 143.1: hafen.voice() as the collection of live voice links, :connection(url) built bare with its connect-time setters, session() in its three arities, the closed key set, :connect() as the gate and the dispatch under voice.connect and the network block with the one-link-per-server refusal, :close(), the retired push-to-talk binding, and Open, Close and Error heard on the step against the real server and a host that does not resolve.",
+  "api_version": "1.0",
+  "permissions": ["voice.connect"],
+  "network": { "hosts": ["voice.brodgar.io", "ws.invalid"] },
+  "files": ["main.lua"]
+}

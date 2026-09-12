@@ -70,7 +70,6 @@ public class FlowerMenu extends Widget {
 	public String name;
 	public double ta, tr;
 	public int num;
-	public long voiceMuteGob = -1;   // brodgar voice: >=0 marks a client-side Mute/Unmute petal
 	private Text text;
 	private int textgen = -1;   // addon: Fonts.gen() at the last caption render (F3d)
 	private double a = 1;
@@ -257,25 +256,9 @@ public class FlowerMenu extends Widget {
 	    c = parent.ui.lcc;
 	mg = ui.grabmouse(this);
 	kg = ui.grabkeys(this);
-	addVoicePetal();
 	organize(opts);
 	new Opening().ntick(0);
-	io.brodgar.addon.AddonManager.flowerOpened(this);   // addon: 047.1 -> FlowerMenuAdded. HERE, at the END: addVoicePetal above REPLACES `opts`, so this is the only point the petal set is complete.
-    }
-
-    // brodgar voice: append a client-side Mute/Unmute petal when a player was just clicked.
-    private void addVoicePetal() {
-	long gob = VoiceTarget.recent();
-	if(gob < 0)
-	    return;
-	String label = io.brodgar.voice.Voice.isPlayerMuted(gob) ? "Unmute voice" : "Mute voice";
-	Petal p = add(new Petal(label));
-	p.num = opts.length;
-	p.voiceMuteGob = gob;
-	Petal[] na = new Petal[opts.length + 1];
-	System.arraycopy(opts, 0, na, 0, opts.length);
-	na[opts.length] = p;
-	opts = na;
+	io.brodgar.addon.AddonManager.flowerOpened(this);   // addon: 047.1 -> FlowerMenuAdded. HERE, at the END, where the petal set is complete.
     }
 
     public boolean mousedown(MouseDownEvent ev) {
@@ -302,7 +285,7 @@ public class FlowerMenu extends Widget {
 	    new Cancel();
 	    mg.remove();
 	    kg.remove();
-	    io.brodgar.addon.AddonManager.flowerClosed(this, null);   // addon: 047.1 -> FlowerMenuRemoved with nothing chosen -- unless choose() recorded a CLIENT-SIDE petal, which cancels the server's menu and handles itself.
+	    io.brodgar.addon.AddonManager.flowerClosed(this, null);   // addon: 047.1 -> FlowerMenuRemoved with nothing chosen -- unless choose() recorded a petal, which flowerChoosing keeps for this fire.
 	} else if(msg == "act") {
 	    int num = Utils.iv(args[0]);   // addon: 047.1 -- was inline; the seam below needs the same index
 	    new Chosen(opts[num]);
@@ -339,12 +322,7 @@ public class FlowerMenu extends Widget {
     }
 
     public void choose(Petal option) {
-	io.brodgar.addon.AddonManager.flowerChoosing(this, option);   // addon: 047.1 -- record the petal, so the client-side voice petal (which cancels the server's menu) closes carrying its own label instead of reading as "nothing chosen"
-	if(option != null && option.voiceMuteGob >= 0) {   // brodgar voice: client-side petal, handled locally
-	    io.brodgar.voice.Voice.togglePlayerMuted(option.voiceMuteGob);
-	    wdgmsg("cl", -1);   // cancel the server's menu; no server petal was chosen
-	    return;
-	}
+	io.brodgar.addon.AddonManager.flowerChoosing(this, option);   // addon: 047.1 -- record the petal, so a menu that closes without the server committing one still carries the label that was picked
 	if(option == null) {
 	    wdgmsg("cl", -1);
 	} else {

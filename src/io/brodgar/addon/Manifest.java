@@ -285,15 +285,15 @@ public final class Manifest {
         PermissionSet perms = PermissionSet.parse(strlist(m, "permissions"));
         List<String> hosts = networkhosts(m);
         // 093.4 (A-098): the network is a KEY now, and the hosts block is that key's argument. So a manifest
-        // that lists hosts and asks for none of them is refused HERE, at load, naming the three -- rather
+        // that lists hosts and asks for none of them is refused HERE, at load, naming the four -- rather
         // than loading and dying at the first hafen.http() call, and rather than reaching the consent dialog
-        // with a network declaration the user is shown nothing about. 142.1: websocket.connect is the third.
-        if(!hosts.isEmpty() && !perms.has(Permission.HTTP_GET) && !perms.has(Permission.HTTP_POST)
-           && !perms.has(Permission.WEBSOCKET_CONNECT))
+        // with a network declaration the user is shown nothing about. 142.1: websocket.connect is the third;
+        // 143.1: voice.connect the fourth, and PermissionSet.grantsNetwork is the one list of them.
+        if(!hosts.isEmpty() && !PermissionSet.grantsNetwork(perms.granted()))
             throw new IllegalArgumentException("'network' declares hosts but no permission asks to reach them"
-                + " -- add \"http.get\", \"http.post\" (or the group \"http.*\") or \"websocket.connect\" to"
-                + " 'permissions'. The key says whether this addon may use the network, and the hosts say"
-                + " where; the user approves both in one line when they enable it.");
+                + " -- add \"http.get\", \"http.post\" (or the group \"http.*\"), \"websocket.connect\" or"
+                + " \"voice.connect\" to 'permissions'. The key says whether this addon may use the network,"
+                + " and the hosts say where; the user approves both in one line when they enable it.");
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), ApiVersion.parse(m.get("api_version")),

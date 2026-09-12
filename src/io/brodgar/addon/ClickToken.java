@@ -26,7 +26,7 @@ import haven.Coord;
  * case {@code lcc} alone cannot rule out: the player clicks, nothing opens, and much later the server puts a
  * menu of its own up with the mouse never having moved.
  *
- * <p>The shipped precedent is {@link haven.VoiceTarget}, which attributes a click to a menu by a time window
+ * <p>The obvious alternative is attributing a click to a menu by a time window
  * alone; this is that shape made exact. Note that {@link Coord} is <b>mutable</b> in this engine (and
  * {@code Coord.z} is one shared object), so the recorded point is copied rather than referenced.
  *

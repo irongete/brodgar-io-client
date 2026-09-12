@@ -16,6 +16,7 @@
 | Is it still playing | `RootChannel.mixer()` → `Audio.Mixer.playing(cs)`, beside `size`, `current` and `clear` |
 | Ambient sound (what people call the music) | `ActAudio.Ambience`, a `RenderTree.Node` carrying an `"amb"` `Audio.clip` layer. The sound is made by its static `Glob` — one per resource, a looping `Audio.Repeater` on the `amb` channel, its volume fading with how many slots are in view. Published by world resources through `AudioSprite`, `StaticSprite` and `RenderLink`. It is a **lifetime-bound scene node, not a clip handle** |
 | Music (MIDI) — **dead on this server** | `Music` is `javax.sound.midi` and sits entirely outside `Audio`/`ActAudio`; the Audio panel does not touch it. `Music.play` has exactly one caller, `RootWidget`'s `"bgm"` uimsg, which this server never sends. Do not build on it |
+| Positional sound: where a clip is, and how it is panned | `ActAudio.PosClip`, a `RenderTree.Node` that is also a `TickList.Ticking`: added under a slot, it puts its `VolAdjust` on the `pos` channel and, every tick, reads the slot's position through `ActAudio.spos(Pipe)` — the slot's `Homo3D.loc` chain then the camera's `Homo3D.cam`, so the point comes out in **eye space**. Volume is `min(1, 50 / hypot(x, y))` in eye-space units; balance is `atan2(pos.x, -pos.z) / (π/8)` clipped to `-1..1` — the horizontal azimuth from the camera's facing, `0` ahead, `+` to the right, full pan at 22.5°. ⚠️ It is the ONLY panning the client has, and it is per slot on the render tree: a sound with no scene node (a `UI.sfx` clip) is never panned. Anything else that pans by the camera copies this formula |
 | Muting one session (**fork**) | `ActAudio.RootChannel.mute(boolean)` writes the channel's `muted` flag and its live `VolAdjust`; `ActAudio.Root.mute` does all three channels at once. It is `synchronized` against `mixer()` for a real race — a first clip built while `muted` was stale sets itself audible, and every later `mute()` returns early on `m == muted`, so a background session that had made no sound yet stays audible for the rest of its life |
 
 ## Instruments: the keyboard, and what the server plays back
@@ -51,9 +52,8 @@ heard through overlays the server puts on the musician's gob.
 
 ## What is not mapped
 
-The mixer's own threading and its backend (`javax.sound.sampled`), how a `Clip` is decoded, the
-positional pipeline behind the `pos` channel, and the Audio panel's controls — those are on
-[prefs-and-options.md](prefs-and-options.md).
+The mixer's own threading and its backend (`javax.sound.sampled`), how a `Clip` is decoded, and the
+Audio panel's controls — those are on [prefs-and-options.md](prefs-and-options.md).
 
 ## See also
 

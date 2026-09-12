@@ -124,7 +124,12 @@ public enum Permission {
     // too, so the consent line carries the servers a connection may be kept to. One door: connection:connect
     // is where a connection leaves the client, exactly as request:send is for a request.
     WEBSOCKET_CONNECT("websocket.connect",  "connection:connect",             "keep a live connection to the"
-                                                                              + " servers it lists");
+                                                                              + " servers it lists"),
+    // 143.1: the fourth network key. The hosts block is its argument as well, and the line says what the
+    // key actually lets the addon do with them -- open the microphone and put the user's voice on a server
+    // they listed -- since a voice server is not a feed and the user reads this line to decide.
+    VOICE_CONNECT    ("voice.connect",      "voice:connect",                  "use your microphone to talk on the"
+                                                                              + " voice servers it lists");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;

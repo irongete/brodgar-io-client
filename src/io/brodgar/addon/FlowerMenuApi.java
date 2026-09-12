@@ -62,13 +62,14 @@ import java.util.WeakHashMap;
  * same {@code choose}; that verb is gone and {@link #select} is the one way onto a petal.
  *
  * <p><b>The events.</b> Three {@code // addon:} seams in {@link FlowerMenu} drive them, and the choice of seam
- * is the design: {@code added()}'s <i>end</i> is the only point where the petal set is complete (the fork's
- * voice petal replaces {@code opts} two lines earlier); both {@code uimsg} branches are the commit point, and
+ * is the design: {@code added()}'s <i>end</i> is the only point where the petal set is complete and laid
+ * out; both {@code uimsg} branches are the commit point, and
  * the one seam a <i>client-side</i> menu also takes ({@code BuddyWnd} overrides {@code choose} and calls
  * {@code uimsg} by hand, never {@code super}); and a {@code destroy()} override is the fallback that keeps
  * <i>every Opened is followed by exactly one Closed</i> true when the widget simply dies. A fourth line at the
- * head of {@code choose(Petal)} records the petal being chosen, so the client-side voice petal — which cancels
- * the server's menu and handles itself — reports its own label instead of reading as "nothing chosen".
+ * head of {@code choose(Petal)} records the petal being chosen, so a pick the server never commits — a menu
+ * cancelled by the client on the player's behalf — still reports the label instead of reading as "nothing
+ * chosen".
  *
  * <p>All of this runs on the UI thread under the monitor the caller already holds ({@code added} from
  * {@code AddWidget.run}, {@code uimsg} from {@code UiMessage.run}'s {@code synchronized(ui)}, {@code destroy}
@@ -504,10 +505,10 @@ final class FlowerMenuApi {
     }
 
     /**
-     * A petal is being chosen — the head of {@code FlowerMenu.choose(Petal)}. Records the label so the
-     * <b>client-side</b> voice petal, which cancels the server's menu rather than picking one of its petals,
-     * closes carrying its own name instead of {@code nil}. The server's own {@code uimsg("act")} overrides it
-     * with {@code opts[num].name}, which is authoritative.
+     * A petal is being chosen — the head of {@code FlowerMenu.choose(Petal)}. Records the label so a pick
+     * that ends in the client cancelling the server's menu, rather than in the server committing one of its
+     * petals, closes carrying the name instead of {@code nil}. The server's own {@code uimsg("act")} overrides
+     * it with {@code opts[num].name}, which is authoritative.
      */
     static void choosing(FlowerMenu fm, FlowerMenu.Petal petal) {
         if((fm == null) || (petal == null) || !live.containsKey(fm))
@@ -522,7 +523,7 @@ final class FlowerMenuApi {
      *
      * @param label the label the server committed ({@code uimsg("act")}), or {@code null} to fall back to
      *              whatever {@link #choosing} recorded — which is {@code nil} for a cancel, an Esc or a click
-     *              away, and the petal's own name for a client-side one.
+     *              away.
      */
     static void closed(FlowerMenu fm, String label) {
         if((fm == null) || !live.containsKey(fm))

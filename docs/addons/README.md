@@ -46,7 +46,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **Acting** | [`menugrid`](api/menugrid.md) · [`flowermenu`](api/flowermenu.md), and the protected verbs on [`player`](api/player.md), [`world`](api/world.md) and [items](api/ui/items.md) |
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset/README.md) · [`virtual`](api/virtual/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
-| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) · [`websocket`](api/websocket.md) *(both protected by your manifest)* |
+| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) · [`websocket`](api/websocket.md) · [`voice`](api/voice.md) *(the three protected by your manifest)* |
 | **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`locale`](api/locale.md) · [`console`](api/console.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what

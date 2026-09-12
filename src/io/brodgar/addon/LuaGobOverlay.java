@@ -25,7 +25,7 @@ import java.util.Map;
  * projected point (spec {@code 038-gob-overlays}, task 038.1; the world kinds left in 043.3, so this is no
  * longer "the screen-space half" of anything — it is the whole of it). It is a {@link GAttrib} that is
  * <i>also</i> a {@link RenderTree.Node} and {@link PView.Render2D}, exactly like the voice
- * {@code haven.SpeakerIcon}: the render tree keeps it pinned above the gob in every camera and disposes it with
+ * {@code haven.Speaking}: the render tree keeps it pinned above the gob in every camera and disposes it with
  * the gob, and its 2D pass runs once per frame from {@code PView.draw} &rarr; {@code list2d.draw} (on the UI
  * thread, in the same {@code UI.draw} traversal as every other widget — so a Lua draw callback here never races
  * the tick).
@@ -57,7 +57,7 @@ import java.util.Map;
 public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PView.Render2D {
     /**
      * The anchor height a fresh record stands at (world units up the gob's own axis) — the same height
-     * {@code SpeakerIcon} uses for the buddy name label, i.e. "just above the head". Each record carries its
+     * the buddy name label uses, i.e. "just above the head". Each record carries its
      * own ({@link Attach#height}, {@code ov:height(z)}), so this is the default and not the rule: {@code 0} is
      * the ground the client stands the object on, and the addon's draw callback is handed the point projected
      * at its own record's height.

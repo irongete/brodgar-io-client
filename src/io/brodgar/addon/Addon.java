@@ -640,6 +640,18 @@ public final class Addon {
      */
     public final List<LuaWebSocket> connections = new CopyOnWriteArrayList<LuaWebSocket>();
     /**
+     * Live voice links owned by this addon ({@code hafen.voice():connection(url):connect()}, 143.1): each is
+     * a {@link LuaVoice} that has been dispatched and whose {@code Close} or {@code Error} has not been
+     * delivered yet — the set {@code hafen.voice()} is the collection of, the one the client-wide cap of
+     * {@link LuaVoice#MAX_LIVE} counts across every addon, and the one a second link to the same server is
+     * refused against. The engine's listener behind each only enqueues; {@link VoiceApi#drain} fires what it
+     * queued from the layer's step and pushes the frame's spatial vectors, and drops a link once its ending
+     * has been heard. Teardown ({@link VoiceApi#teardown}) closes every engine off the step and drops the
+     * record, so a {@code :reload}/disable/exit runs no handler and leaves no microphone open. Copy-on-write:
+     * the drain removes an ended link while a firing handler may open another.
+     */
+    public final List<LuaVoice> voices = new CopyOnWriteArrayList<LuaVoice>();
+    /**
      * The <b>one stylesheet</b> this addon has applied ({@code hafen.ui():sheet():install()},
      * 033-ui-stylesheet), or {@code null}. An addon owns exactly one: installing again replaces it whole and
      * {@code sheet:release()} removes it ({@link Sheet#apply}). Each of its site keys is an owner-tagged entry in
@@ -758,6 +770,10 @@ public final class Addon {
     final LuaValue[] wsEventMeta = new LuaValue[LuaWebSocketEvent.Shape.values().length];
     /** {@link LuaWebSocket}'s handle metatable ({@code Connection}), built on the first {@code :connection(url)}. */
     LuaValue wsMeta;
+    /** {@link LuaVoice}'s handle metatable ({@code Voice}), built on the first {@code hafen.voice():connection(url)} (143.1). */
+    LuaValue voiceMeta;
+    /** {@link LuaVoiceEvent}'s metatables, one per {@link LuaVoiceEvent.Shape}, for {@link #wsEventMeta}'s reason. */
+    final LuaValue[] voiceEventMeta = new LuaValue[LuaVoiceEvent.Shape.values().length];
     final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();
 
     LuaValue subMeta;

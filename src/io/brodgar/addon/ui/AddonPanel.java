@@ -19,9 +19,9 @@ import java.util.List;
 
 /**
  * The in-game <b>AddOns</b> options panel (spec {@code 10-options-panel.md}, D-004 / D-006) — the
- * WoW-style addon manager, a clone of the voice {@code OptWnd.VoiceChatPanel} pattern. It lives in the
+ * WoW-style addon manager, an {@code OptWnd.Panel} like the client's own. It lives in the
  * addon package (it needs no package-private {@code haven} access): it drives the all-static
- * {@link AddonManager} facade exactly as the voice panel drives {@code Voice}. Each row is one
+ * {@link AddonManager} facade. Each row is one
  * discovered addon — an <b>enable/disable</b> checkbox (WoW "apply on reload": {@link
  * AddonManager#setEnabled}), name/version/author with the description as a tooltip, and a live status
  * (loaded / disabled / error / outdated / auto-disabled) — plus a "changes pending" hint, the <b>Load out of date

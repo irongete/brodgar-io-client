@@ -982,6 +982,7 @@ public class Sessions {
      * that chain belongs to the anchor and knows nothing about the session it would be walking for.
      */
     private static void send(UI u, MapView mv, Coord2d mc, int mods, boolean raw) {
+	io.brodgar.addon.AddonManager.voiceMove(mv, mc);   // addon: 143.1 -- an order composed here never passes MapView.clickhit, so the move intent is reported here
 	Object[] args = {mv.sz.div(2), mc.floor(OCache.posres), 1, mods};
 	synchronized(u) {
 	    if(raw)

@@ -148,6 +148,7 @@ is what you write when you want it *now*, and which of the verbs below spells it
 | `:cancel()` | something in flight that had not finished | a [timer](timer.md), a [request](http.md), the open [radial menu](flowermenu.md) |
 | `:stop()` | a [sound](sound.md) still in the air | the sound |
 | `:close(code, reason)` | a [connection](websocket.md) to a server, open or not | the connection |
+| `:close()` | a [voice link](voice.md), open or not | the link |
 | `:finish()` | a [profiling scope](client/profiling/attribution.md) | the scope |
 
 **Where a collection exists, the ending is the collection's**, because the collection owns its members:
@@ -362,10 +363,10 @@ raises a consent dialog; one that never declared the key gets an error naming th
 
 A key is named `<section>.<verb>` after the section its verb lives on — `gob.click`, `item.transfer` — and a
 `<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier as
-a whole. **Reaching outside the client is keyed in the same words**: `http.get`, `http.post` and
-`websocket.connect` are catalogue keys like any other, and the `network` host allowlist is **the argument of
-the key** — it says whether, the hosts say where, the consent dialog reads them as one line, and the list the
-user approved there is what gates the call.
+a whole. **Reaching outside the client is keyed in the same words**: `http.get`, `http.post`,
+`websocket.connect` and `voice.connect` are catalogue keys like any other, and the `network` host allowlist
+is **the argument of the key** — it says whether, the hosts say where, the consent dialog reads them as one
+line, and the list the user approved there is what gates the call.
 
 **A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
 character, clicking is on the gob — so the page you look a verb up on is where you meet the permission,

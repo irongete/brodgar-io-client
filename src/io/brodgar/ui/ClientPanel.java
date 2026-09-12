@@ -14,7 +14,7 @@ import io.brodgar.prof.Prof;
 
 /**
  * The in-game <b>Client</b> options panel (spec 019-profiling, task 019.1) — a clone of the
- * {@code OptWnd.VoiceChatPanel} / {@code AddonPanel} pattern, and the home for client-wide toggles: the
+ * {@code AddonPanel} pattern, and the home for client-wide toggles: the
  * profiling switch behind {@link Prof#arm(boolean)}, and the <b>Remembered ground</b> section over the three
  * statics on {@link MapView}.
  *

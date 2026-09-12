@@ -42,7 +42,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     /* addon: 117.1 -- the attrib map is WRITTEN under this gob's own monitor and READ from threads that hold
      * none. setattr and delattr take the monitor (write atomicity: setattr spans the map and the render slots,
      * and two writers interleaving in it leave a gob whose attribs and whose slots disagree); the map is
-     * concurrent because added(RenderTree.Slot), eqpoint, ModSprite's walk and SpeakerIcon's reflective read all
+     * concurrent because added(RenderTree.Slot), eqpoint and ModSprite's walk all
      * walk attr.values() holding nothing, and a weakly consistent iterator never throws where a HashMap's does.
      * A null VALUE would be refused here -- setattr's delete path reaches attr.remove(ac) alone, and its put
      * stays inside the a != null arm. Iteration order is unspecified: eqpoint answers the first EquipTarget it
@@ -823,7 +823,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 
     /* addon: 114.3 -- is this the attrib an invisible object withholds? The Drawable is the object's own model
      * and nothing else is: its overlays are not attribs, and the attribs that are RenderTree.Nodes beside it
-     * (SpeakerIcon, and a Following's transform) say things ABOUT the object rather than draw it. */
+     * (a Speaking bubble, a Following's transform) say things ABOUT the object rather than draw it. */
     private boolean addonhidden(GAttrib a) {
 	return(addoninvis && (a instanceof Drawable));
     }

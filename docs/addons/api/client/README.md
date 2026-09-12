@@ -40,7 +40,7 @@ fires [`Update`](../event/bus/lifecycle.md), runs your [timers](../timer.md), an
 client has queued for it: a widget that [appeared or went](../ui/selectors.md), an
 [item](../ui/items.md) whose contents changed, a [buff, a meter or a change of
 gear](../event/bus/character.md#character-and-status), an [HTTP](../http.md) reply, what a
-[connection](../websocket.md) said, a [line of chat](../event/bus/chat.md). The client makes one a frame, and each character one of its own, so a
+[connection](../websocket.md) or a [voice link](../voice.md) said, a [line of chat](../event/bus/chat.md). The client makes one a frame, and each character one of its own, so a
 handler woken by one of them is on the step whichever character it was about. Reading is unprotected, and
 it takes no argument.
 

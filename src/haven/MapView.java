@@ -801,10 +801,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * raises a flag and returns (073.1: the scene's own glob says whose world it is, since this widget
 	 * has no ui yet), so a dormant session pays one field write. */
 	io.brodgar.addon.AddonManager.attach(this, glob);
-	if(!dormant) {
+	if(!dormant)
 	    attachscene();
-	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
-	}
     }
 
     // rts: (F0) the scene's own slots, so that not attaching them is expressible -- and (F5) reversible.
@@ -843,13 +841,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * (F0) is what makes this switch cost something. Promotion re-meshes everything in view, which is
      * the hitch this phase exists to measure.
      *
-     * <p>Deliberately does <em>not</em> move the voice channel. {@code Voice} is a static hub — every
-     * control and every piece of state a {@code Voice.*} static, by its own javadoc — attached from the
-     * constructor's {@code if(!dormant)} block and detached in {@code dispose}, so it stays on whichever
-     * view came up drawn and a key press is not where it is re-addressed. The addon engine needs no moving
-     * at all: it is per session already, attached from {@code Sessions.Member.start} the moment that
-     * session's {@code UI} exists, so the screen changing fires {@code SessionSelected} and rebinds
-     * nothing.
+     * <p>The addon engine needs no moving at all: it is per session already, attached from
+     * {@code Sessions.Member.start} the moment that session's {@code UI} exists, so the screen changing
+     * fires {@code SessionSelected} and rebinds nothing. A voice link (addon: 143.1, {@code hafen.voice()})
+     * follows the screen the same way, by asking which view is drawn on every read rather than holding one.
      */
     public void dormant(boolean d) {
 	if(d == dormant)
@@ -882,7 +877,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public void dispose() {
-	io.brodgar.voice.Voice.detach(this);   // brodgar voice: stop instantly on logout
 	if(s_gobs != null) {   // rts: a dormant view never attached its scene (F0)
 	    s_gobs.remove();
 	    s_gobs = null;
@@ -3048,10 +3042,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(Math.atan2(sloc[1] * a, sloc[0]));
     }
 
-    /* brodgar voice: horizontal azimuth of a map point relative to the camera's
-     * facing, in eye space (0 = ahead, + = right) — the same as the game's own
-     * positional audio (ActAudio: atan2(pos.x, -pos.z)), and continuous in every
-     * camera, unlike screenangle which flips for points behind the camera plane. */
+    /* addon: 143.1 -- horizontal azimuth of a map point relative to the camera's facing, in eye space
+     * (0 = ahead, + = right): the same as the game's own positional audio (ActAudio: atan2(pos.x, -pos.z)),
+     * and continuous in every camera, unlike screenangle which flips for points behind the camera plane.
+     * What a voice link's spatial vectors are built from (io.brodgar.addon.VoiceApi), once a frame. */
     public double spatialAzimuth(Coord2d mc) {
 	Coord3f cc;
 	try {
@@ -3202,8 +3196,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	    return;
 	}
-	io.brodgar.voice.Voice.tick();   // brodgar voice: per-frame spatialization, like the game's positional audio
-	SpeakerIcon.sweep(this);   // brodgar voice: colour-coded speaker icon above each player
 	checkload();
 	camload = null;
 	try {
@@ -3651,8 +3643,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Gob cg = clickedgob(inf);
 	if((cg != null) && cg.virtual && io.brodgar.addon.AddonManager.onGhostClick(cg, clickb, mc))
 	    return;
-	if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
-	VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
+	if(inf == null) io.brodgar.addon.AddonManager.voiceMove(MapView.this, mc);   // addon: 143.1 -- a ground click is a move intent, reported to every voice link of this view
 	io.brodgar.addon.AddonManager.noteClick(cg, ui.lcc);   // addon: 047.3 -> hafen.flowermenu():gob(). The server's "sm" carries no gob, so the client correlates it here, keyed on the press point (ui.lcc) the menu will place itself at.
 	Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
 	if(inf != null)
@@ -3837,7 +3828,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public boolean iteminteract(Coord cc, Coord ul) {
 	new Hittest(cc) {
 	    public void hit(Coord pc, Coord2d mc, ClickData inf) {
-		VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice
 		Object[] args = {pc, mc.floor(posres), ui.modflags()};
 		if(inf != null)
 		    args = Utils.extend(args, inf.clickargs());
@@ -3847,9 +3837,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(true);
     }
 
-    /* brodgar voice: resolve the Gob a click landed on, unwrapping the composite
-     * clickable that player/animal gobs use. Returns null for the ground or non-gobs.
-     * addon: PUBLIC so the pointer's pick pass reaches the same answer a click does
+    /* addon: resolve the Gob a click landed on, unwrapping the composite clickable that player/animal
+     * gobs use. Returns null for the ground or non-gobs.
+     * PUBLIC so the pointer's pick pass reaches the same answer a click does
      * (io.brodgar.addon.PointerPick -> hafen.ui():mouse():pick()). One unwrapping, not two:
      * a second copy in the bridge would be the one that forgets CompositeClick. */
     public static Gob clickedgob(ClickData inf) {
@@ -3871,21 +3861,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if((ev.code == KeyEvent.VK_RIGHT) && placing.adjust.rotate(placing, new MouseWheelEvent(Coord.z, 1, 1), ui.modflags()))
 		return(true);
 	}
-	if(io.brodgar.voice.Voice.kb_ptt.key().match(ev)) {
-	    io.brodgar.voice.Voice.setPushToTalk(true);   // brodgar voice: push-to-talk pressed
-	    return(true);
-	}
 	if(camera.keydown(ev))
 	    return(true);
 	return(super.keydown(ev));
-    }
-
-    public boolean keyup(KeyUpEvent ev) {
-	if(io.brodgar.voice.Voice.kb_ptt.key().match(ev)) {
-	    io.brodgar.voice.Voice.setPushToTalk(false);  // brodgar voice: push-to-talk released
-	    return(true);
-	}
-	return(super.keyup(ev));
     }
 
     public static final KeyBinding kb_grid = KeyBinding.get("grid", KeyMatch.forchar('G', KeyMatch.C));

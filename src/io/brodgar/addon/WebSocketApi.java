@@ -174,9 +174,10 @@ final class WebSocketApi {
      * a space, a brace, a bare {@code %} are refused naming the URL — and an empty host is the hostless
      * refusal. {@code ws://} is refused by name: the address policy admits no cleartext, and a reader who
      * wrote it is told the scheme to write. The origin is {@code https} on the address's port, because
-     * that is the server the allowlist names.
+     * that is the server the allowlist names. Package-private since 143.1: a voice link's address is checked
+     * by the same rule ({@link VoiceApi}).
      */
-    private static String wssOrigin(String url, String verb) {
+    static String wssOrigin(String url, String verb) {
         URI u;
         try {
             u = URI.create(url);

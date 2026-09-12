@@ -171,12 +171,13 @@ public final class PermissionSet {
 
     /**
      * Whether these catalogue keys include a network key — the one whose ARGUMENT a host allowlist is.
-     * Three of them since 142.1: a connection is kept to a host the user approved exactly as a request is
-     * made to one, so {@code websocket.connect} carries the list on its consent line like the two http keys.
+     * Four of them since 143.1: a connection is kept to a host the user approved exactly as a request is
+     * made to one, and a voice link is opened to one, so {@code websocket.connect} and {@code voice.connect}
+     * carry the list on their consent lines like the two http keys.
      */
-    private static boolean grantsNetwork(Set<Permission> granted) {
+    static boolean grantsNetwork(Set<Permission> granted) {
         return granted.contains(Permission.HTTP_GET) || granted.contains(Permission.HTTP_POST)
-            || granted.contains(Permission.WEBSOCKET_CONNECT);
+            || granted.contains(Permission.WEBSOCKET_CONNECT) || granted.contains(Permission.VOICE_CONNECT);
     }
 
     /**

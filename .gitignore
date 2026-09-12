@@ -12,7 +12,7 @@
 /.claude/worktrees/
 /CLAUDE.local.md
 
-# Brodgar voice library jar — a build artifact of brodgar-io-voice-client, not source
+# The jars ant fetches into lib/brodgar/ (LuaJ, Concentus, minimal-json) — build inputs, not source
 /lib/brodgar/*.jar
 
 # Python bytecode from the tools/ checkers
