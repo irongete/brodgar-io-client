@@ -8,11 +8,11 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 /**
- * <b>What a connection's ending says</b> (142.1) — the {@code ev} a {@code conn:on("Close", fn)} or
- * {@code conn:on("Error", fn)} handler is handed. {@code Open} hands the connection itself, because it has
- * one thing to say; these have more, so they are an event object ({@link LuaEvent}'s rule: <i>one thing to
- * say → the thing; more → an {@code ev}</i>), one shape per key, each answering {@code :connection()} and
- * then what its key carries.
+ * <b>What a connection says</b> (142.1, 142.2) — the {@code ev} a {@code conn:on("Message", fn)},
+ * {@code conn:on("Close", fn)} or {@code conn:on("Error", fn)} handler is handed. {@code Open} hands the
+ * connection itself, because it has one thing to say; these have more, so they are an event object
+ * ({@link LuaEvent}'s rule: <i>one thing to say → the thing; more → an {@code ev}</i>), one shape per key,
+ * each answering {@code :connection()} and then what its key carries.
  *
  * <p><b>A value, not an entity.</b> A payload is delivered once and named by nothing, so it is not
  * interned: it is the {@link LuaHttpResult} shape, immutable and per fire, with the metatable of each shape
@@ -23,6 +23,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 final class LuaWebSocketEvent {
     /** Which key minted this, and so which methods table answers on it. */
     enum Shape {
+        /** {@code conn:on("Message", fn)} — one whole text message the peer sent. */
+        MESSAGE("message", "a message event"),
         /** {@code conn:on("Close", fn)} — the code and reason the connection ended with. */
         CLOSE("close", "a close event"),
         /** {@code conn:on("Error", fn)} — why the connection ended, or never opened. */
@@ -42,7 +44,7 @@ final class LuaWebSocketEvent {
     private final Shape shape;
     /** The connection's own handle — the very object {@code :connection(url)} handed out. */
     private final LuaValue conn;
-    /** CLOSE: the reason. ERROR: the sentence. */
+    /** MESSAGE: the text. CLOSE: the reason. ERROR: the sentence. */
     private final String text;
     /** CLOSE: the status code. */
     private final int code;
@@ -56,6 +58,11 @@ final class LuaWebSocketEvent {
 
     public String toString() {
         return "Event(" + shape.label + ")";
+    }
+
+    /** The {@code ev} for one {@code Message} fire — {@code text} the whole message, as the peer sent it. */
+    static LuaValue message(Addon owner, LuaValue conn, String text) {
+        return of(owner, new LuaWebSocketEvent(Shape.MESSAGE, conn, text, 0));
     }
 
     /** The {@code ev} for one {@code Close} fire — {@code code} and {@code reason} as the page defines them. */
@@ -100,7 +107,16 @@ final class LuaWebSocketEvent {
                 return self(a.arg1(), shape, "connection").conn;
             }
         });
-        if(shape == Shape.CLOSE) {
+        if(shape == Shape.MESSAGE) {
+            // text() — the message, whole: the parts the wire delivered it in were joined before this was
+            // minted, and a table the peer sent as JSON is a string here, hafen.json():parse being the reader.
+            m.set("text", new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    Args.only(a, 0, "ev:text");
+                    return LuaValue.valueOf(self(a.arg1(), shape, "text").text);
+                }
+            });
+        } else if(shape == Shape.CLOSE) {
             // code() / reason() — what the connection closed with: the pair conn:close(code, reason) asked
             // for where the addon ended it, the peer's own where the peer did, and the client's own 1008 pair
             // where the client refused what the peer sent.

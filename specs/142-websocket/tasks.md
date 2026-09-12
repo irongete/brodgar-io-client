@@ -36,7 +36,7 @@ a wait is bounded and a verdict always prints. Refusal text is stripped with `^@
       connection to the servers it lists: ws.postman-echo.com, echo.websocket.org, ws.invalid*.
       <!-- extra context: the http suite shape is the model for the timer-scored half -->
 
-- [ ] **142.2 — Messages: `send`, `Message`, `pending`, and the caps that close.** Adds `conn:send(v)` — a
+- [x] **142.2 — Messages: `send`, `Message`, `pending`, and the caps that close.** Adds `conn:send(v)` — a
       string as one text message, a table through `Json.write(v, true)` — and `conn:pending()`; the
       outbound queue chaining `sendText` futures, capped at 64 and refusing past it naming `conn:pending()`,
       a failed send ending the connection with `Error`; the `Message` payload (`ev:text()`,

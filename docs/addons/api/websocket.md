@@ -8,7 +8,8 @@ pushes; for a question with one answer, [`hafen.http`](http.md) is the simpler d
 
 ```lua
 local conn = hafen.websocket():connection("wss://relay.example.com/feed")
-conn:on("Open", function(c) hafen.log():write("connected to " .. c:url()) end)
+conn:on("Open", function(c) c:send({ subscribe = "prices" }) end)
+conn:on("Message", function(ev) hafen.log():write("relay: " .. ev:text()) end)
 conn:on("Close", function(ev) hafen.log():write("closed: " .. ev:code() .. " " .. ev:reason()) end)
 conn:on("Error", function(ev) hafen.log():write("failed: " .. ev:error()) end)
 conn:connect()
@@ -85,6 +86,8 @@ widget tree — so a handler may read and write any of them, and a connection ne
 | `conn:timeout()` / `conn:timeout(ms)` | number / the connection | the milliseconds the handshake may take; **10000** by default, and a whole number **1..60000** — anything else is refused, never clamped |
 | `conn:on(key, fn)` | [`Sub`](event/README.md#subscribe) | a handler for one of the [four keys](#what-it-says); legal before `:connect()` and after it |
 | `conn:connect()` | the connection | **open it.** Every setter above is refused from here on, and so is a second `:connect()` — `conn:on` is not a setter, because a connection in flight has not ended yet |
+| `conn:send(v)` | the connection | send a **string** as one text message, or a **table** as JSON; legal while `"open"`, refused in every other state; [below](#messages) |
+| `conn:pending()` | number | how many messages `:send` has taken and the wire has not; `0` once everything sent has gone |
 | `conn:close(code, reason)` | the connection | end it — `1000` and `""` when you pass nothing; [below](#ending-a-connection) |
 
 Transport-owned headers are ignored — `Host`, `Connection`, `Upgrade`, `Content-Length`, `Expect`,
@@ -110,7 +113,7 @@ what the key carries.
 | Key | When | Your handler is given |
 |---|---|---|
 | `Open` | the handshake completed; `conn:state()` reads `"open"` | the connection |
-| `Message` | a text message arrived | `ev` |
+| `Message` | a whole text message arrived, [below](#messages) | `ev` — `ev:text()` the message |
 | `Close` | the connection ended by a Close, yours or the peer's; `conn:state()` reads `"closed"` | `ev` — `ev:code()` the status number, `ev:reason()` the text, `""` for none |
 | `Error` | the connection failed, or never opened; `conn:state()` reads `"closed"` | `ev` — `ev:error()` one line saying why: a host that does not resolve, an address that is refused, a handshake the server declined and the status it answered, `timeout` |
 
@@ -123,6 +126,39 @@ Every handler runs on the [step](threading.md): `hafen.client():stepping()` is `
 no tree, and it may build a window or write any character's UI. Two handlers on one key both fire, in the
 order they registered, and a handler that errors is isolated like every other. A `Sub` ends with
 `sub:off()`, and every subscription on a connection is dropped for you once its `Close` or `Error` has run.
+
+## Messages
+
+**A connection carries text, both ways.** `conn:send(v)` puts one message on the wire: a **string** goes
+as it is, a **table** goes as the JSON [`hafen.json():encode`](json.md) would write — the same rule a
+request body follows, so one that JSON cannot hold (a function, a cycle, a key with no name) raises at
+the call naming it, and anything that is neither raises naming both. What the peer sends arrives as
+`Message`, one handler call per whole message however the wire split it, with `ev:text()` the message
+and [`hafen.json():parse`](json.md) the reader when it is JSON.
+
+```lua
+conn:on("Message", function(ev)
+  local ok, msg = pcall(function() return hafen.json():parse(ev:text()) end)
+  if ok and msg.price then hafen.log():write("iron is " .. msg.price) end
+end)
+conn:send({ subscribe = "iron" })
+```
+
+- **`:send` is legal while the connection is `"open"`**, and refused in every other state naming
+  `conn:state()`: a message into a connection that has not opened yet, or has begun to close, would go
+  nowhere, so the order is explicit — send from `Open` on. `:send` hands the connection back, so a burst
+  chains.
+- **Messages go out in the order you sent them**, one at a time: the wire takes one, the rest wait, and
+  `conn:pending()` is how many have not gone yet. It is `0` once everything you sent is on the wire, and
+  how many may wait is [capped](#security-and-limits) — the next `:send` past the cap raises, and
+  `conn:pending()` is the read that sees it coming.
+- **A `:close()` follows what you sent.** Its Close frame goes out behind every message still pending, so
+  `conn:send("bye"); conn:close()` says both, in that order; the wait for the peer's answer runs from the
+  call either way.
+- **A message that arrives while your own Close is unanswered is still delivered**: the connection has
+  not ended until `Close` has run, and what the peer said before it heard you is part of the conversation.
+- **A send the wire refuses ends the connection** with `Error` naming why — unless you had already closed
+  it, in which case `Close` reports your pair and the send is the casualty.
 
 ## What is live
 
@@ -154,16 +190,18 @@ number in `3000..4999` — the ones the protocol leaves to an application; the r
 and are refused by name. The reason is a string of at most 123 bytes. Both default: `conn:close()` is
 `1000` and `""`.
 
-- **Open**: the connection reads `"closing"`, a Close frame goes out, and `Close` fires with your pair when
-  the peer answers — or after **five seconds** if it never does, when the client cuts the socket itself.
+- **Open**: the connection reads `"closing"`, a Close frame goes out [behind what you sent](#messages), and
+  `Close` fires with your pair when the peer answers — or after **five seconds** if it never does, when the
+  client cuts the socket itself.
 - **Connecting**: it reads `"closing"`, the handshake is abandoned, and `Close` fires with your pair on the
   next step. No `Open` is fired for a connection you closed before it opened.
 - **New**: it reads `"closed"` at once, silently — it went nowhere, so there is nothing to report.
 - **Closing or closed**: nothing; a second `:close()` answers the connection again.
 
-A connection the peer ends fires `Close` with the peer's code and reason; one that fails fires `Error`. A
-reload, a disable and the client exiting close every connection of yours with `1001`, and **no handler
-runs** — the addon they belonged to is going away. There is no automatic reconnect: a `Close` handler and
+A connection the peer ends fires `Close` with the peer's code and reason — `1006` and `""` where the peer
+dropped the connection without sending one; one that fails fires `Error`. A reload, a disable and the
+client exiting close every connection of yours with `1001`, and **no handler runs** — the addon they
+belonged to is going away. There is no automatic reconnect: a `Close` handler and
 a [timer](timer.md) are the whole of one, and what to resend when it reopens is yours to decide.
 
 ## Security and limits
@@ -182,8 +220,14 @@ a [timer](timer.md) are the whole of one, and what to resend when it reopens is 
   with `conn:header`.
 - **Pings are answered by the client.** A peer that pings to see whether you are there hears a pong
   without your addon doing anything.
+- **Text only, and no message over 1 MB, in either direction.** The cap is **1 MB** of UTF-8 a message:
+  `:send` raises for one past it, naming the cap, and a message the peer sends past it — or any binary
+  frame at all — closes the connection with **`1008`**, `Close` reporting that code and a reason saying
+  which. Nothing of a refused message reaches your handler: half a message is a protocol error no
+  handler could detect, so the close is the honest outcome.
 - **Resource caps**: **8** live connections per addon, past which `:connect()` raises —
-  `hafen.websocket():count()` sees it coming; the handshake timeout **10 s** by default and settable
+  `hafen.websocket():count()` sees it coming; **64** messages pending on one connection, past which
+  `:send` raises — `conn:pending()` sees it coming; the handshake timeout **10 s** by default and settable
   anywhere in **1 ms..60 s**, refused outside it; **five seconds** for a peer to answer your Close before
   the socket is cut.
 

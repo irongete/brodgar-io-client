@@ -21,11 +21,12 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 /**
- * The {@code hafen.websocket} section (142.1) — {@link HttpApi}'s shape one step further: the collection of
- * an addon's live connections, {@code :connection(url)} as its one extra verb, a {@code Connection} handle
- * built bare and dispatched by {@code :connect()}, and {@code :on(key, fn)} as the one door its four edges
- * come through. The record and the transport are {@link LuaWebSocket}; the payloads are
- * {@link LuaWebSocketEvent}; this class owns the vocabulary, the gate, the drain and the teardown.
+ * The {@code hafen.websocket} section (142.1, 142.2) — {@link HttpApi}'s shape one step further: the
+ * collection of an addon's live connections, {@code :connection(url)} as its one extra verb, a
+ * {@code Connection} handle built bare and dispatched by {@code :connect()}, {@code :send(v)} as the one way
+ * onto the wire, and {@code :on(key, fn)} as the one door its four edges come through. The record and the
+ * transport are {@link LuaWebSocket}; the payloads are {@link LuaWebSocketEvent}; this class owns the
+ * vocabulary, the gate, the drain and the teardown.
  *
  * <p><b>The gate is {@link HttpApi#requireNetwork}</b>, under {@link Permission#WEBSOCKET_CONNECT} with the
  * {@code https} origin the address names: the allowlist names servers, and a server is the same under
@@ -200,9 +201,9 @@ final class WebSocketApi {
     /**
      * Build a connection — <b>bare</b>. Returns the Lua handle: {@code :url()} {@code :state()}
      * {@code :header(name[, value])} {@code :protocol([name])} {@code :timeout([ms])} {@code :on(key, fn)}
-     * {@code :connect()} and {@code :close([code[, reason]])}. Nothing is registered or scheduled here: the
-     * cap is charged by {@code :connect()}, because a connection that never opens reaches no wire and
-     * should hold no slot against a cap that counts what is live.
+     * {@code :connect()} {@code :send(v)} {@code :pending()} and {@code :close([code[, reason]])}. Nothing is
+     * registered or scheduled here: the cap is charged by {@code :connect()}, because a connection that never
+     * opens reaches no wire and should hold no slot against a cap that counts what is live.
      */
     private static LuaValue newConnection(Addon owner, String url, String verb) {
         String origin = wssOrigin(url, verb);
@@ -231,6 +232,29 @@ final class WebSocketApi {
     private static boolean headerAllowed(String name) {
         String n = name.toLowerCase(Locale.ROOT);
         return LuaHttp.headerAllowed(name) && !n.startsWith("sec-websocket-") && !n.equals("expect");
+    }
+
+    /**
+     * What {@code :send(v)} puts on the wire for {@code v}: a <b>string</b> as it is, a <b>table</b> as the
+     * strict JSON {@code hafen.json():encode} writes ({@link Json#write(LuaValue, boolean)}) — a function, a
+     * cycle, a key JSON has no name for each refuse naming JSON — and anything else refused naming the two.
+     * The same door a request body takes ({@code request:body(v)}), so a table means one thing on both.
+     */
+    private static String messageText(LuaValue v) {
+        if(v.type() == LuaValue.TSTRING)
+            return v.tojstring();
+        if(v.istable()) {
+            try {
+                return Json.write(v, true);
+            } catch(LuaError e) {
+                throw new LuaError("connection:send(v): the table cannot be sent as JSON (" + Refusal.reason(e)
+                    + ")");
+            }
+        }
+        throw new LuaError("connection:send(v): v must be a string (sent as one text message) or a table (sent"
+            + " as JSON), got " + v.typename()
+            + ((v.type() == LuaValue.TNUMBER) ? " -- tostring(n) is the conversion if the number is the message"
+               : ""));
     }
 
     /** The value {@code headers} carries for {@code name}, matched case-insensitively, or {@code null}. */
@@ -371,6 +395,43 @@ final class WebSocketApi {
                 return a.arg1();
             }
         });
+        // send(v) -- the one way onto the wire (142.2): a string goes as one text message, verbatim; a
+        // table goes as the JSON hafen.json():encode would write, the door a request body already takes.
+        // Legal in the open state alone: a message into a connection that may never open is a silent loss,
+        // so the order is explicit -- send from Open on. Refused, never clamped or queued past the caps:
+        // a message over 1 MB, and the 65th while 64 are still not on the wire, which conn:pending() sees
+        // coming. Returns SELF, so a send chains like a setter.
+        m.set("send", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaWebSocket c = self(a.arg1(), "send");
+                Args.only(a, 1, "connection:send");
+                LuaValue v = Args.required(a, 2, "connection:send", "v");
+                if(c.state != LuaWebSocket.State.OPEN)
+                    throw new LuaError("connection:send(v): this connection is " + c.state.word + ", and a"
+                        + " message goes only into an open one -- send from Open on (conn:on(\"Open\", fn)),"
+                        + " and conn:state() says where it is");
+                String text = messageText(v);
+                int bytes = LuaWebSocket.utf8Length(text);
+                if(bytes > LuaWebSocket.MAX_MESSAGE_BYTES)
+                    throw new LuaError("connection:send(v): the message is " + bytes + " bytes of UTF-8, over"
+                        + " the cap of " + LuaWebSocket.MAX_MESSAGE_BYTES + " bytes (1 MB) a message -- split"
+                        + " what you send, or send less of it");
+                if(c.pending >= LuaWebSocket.MAX_PENDING)
+                    throw new LuaError("connection:send(v): " + c.pending + " messages are pending on this"
+                        + " connection, which is the cap; conn:pending() is how many are not yet on the wire"
+                        + " -- wait for it to fall before sending more");
+                c.send(text);
+                return a.arg1();
+            }
+        });
+        // pending() -- how many messages :send(v) has taken and the wire has not: the read the cap's
+        // refusal names, and 0 once everything sent has gone.
+        m.set("pending", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "connection:pending");
+                return LuaValue.valueOf(self(a.arg1(), "pending").pending);
+            }
+        });
         // close(code, reason) -- the ending, and the only verb legal in every state. 1000 by default, or
         // 3000..4999, which are the codes the protocol leaves to an application; the rest are the
         // protocol's own and the JDK refuses most of them, so they are refused here by name. Idempotent:
@@ -426,7 +487,8 @@ final class WebSocketApi {
      *   <li>{@code connecting}: {@code closing}, and a {@code Close} carrying the addon's own pair is queued
      *       for the drain. The socket, if the handshake has already produced one, is cut here; if it has not,
      *       the handshake's completion cuts it ({@link LuaWebSocket#handshake}).</li>
-     *   <li>{@code open}: {@code closing}, the pair recorded, a Close frame sent, and the deadline set —
+     *   <li>{@code open}: {@code closing}, the pair recorded, a Close frame sent <b>behind every message
+     *       still pending</b> ({@link LuaWebSocket#closeAfterPending}), and the deadline set from the call —
      *       the input stays open until the peer's Close, an error, or the drain giving up.</li>
      *   <li>{@code closing} and {@code closed}: nothing; a second ending answers the receiver again.</li>
      * </ul>
@@ -450,9 +512,7 @@ final class WebSocketApi {
             c.closeReason = reason;
             c.state = LuaWebSocket.State.CLOSING;
             c.closeDeadline = System.currentTimeMillis() + LuaWebSocket.CLOSE_DEADLINE_MS;
-            WebSocket open = c.ws;
-            if(open != null)
-                open.sendClose(code, reason);   // a failure here is an error the listener reports, or the deadline ends
+            c.closeAfterPending(code, reason);
             break;
         default:
             break;
@@ -502,12 +562,16 @@ final class WebSocketApi {
 
     /**
      * Fire what one connection queued, in order, and stop at its ending; then, for a connection that is
-     * closing and out of time, cut the socket and report the pair the addon asked for. Answers whether the
-     * connection is done and leaves the collection.
+     * closing and out of time, cut the socket and report the pair the addon asked for; then ask the socket
+     * for more if the listener had stopped asking. Answers whether the connection is done and leaves the
+     * collection.
      *
      * <p>Each edge is read against the state: an {@code Open} queued for a connection the addon has since
-     * closed is not fired, and a {@code Close} or {@code Error} behind the one that ended it is not either —
-     * exactly one of the two ends a connection, whatever the listener saw after.
+     * closed is not fired, nor a {@code Message} for one whose {@code Open} never was, and a {@code Close} or
+     * {@code Error} behind the one that ended it is not either — exactly one of the two ends a connection,
+     * whatever the listener saw after. A {@code Message} that arrives while the addon's own Close is
+     * unanswered is fired: the connection has not ended until {@code Close} has run, and what the peer said
+     * before it heard the Close is part of the conversation.
      */
     private static boolean step(LuaWebSocket c, long now) {
         LuaWebSocket.Pending p;
@@ -517,6 +581,21 @@ final class WebSocketApi {
                     c.state = LuaWebSocket.State.OPEN;
                     c.opened = true;
                     c.subs.fire("Open", c.handle);
+                }
+            } else if("Message".equals(p.key)) {
+                c.inbox.decrementAndGet();
+                if(c.opened)
+                    c.subs.fire("Message", LuaWebSocketEvent.message(c.owner, c.handle, p.text));
+            } else if("Refuse".equals(p.key)) {
+                // The client's own 1008, applied in its turn: the pair Close will report, the deadline for
+                // a peer that never answers, and the outbox dropped. An addon that closed first keeps its
+                // own pair -- the peer heard the 1008, but what the addon asked for is what it reads back.
+                if(c.state == LuaWebSocket.State.OPEN) {
+                    c.closeCode = p.code;
+                    c.closeReason = p.text;
+                    c.state = LuaWebSocket.State.CLOSING;
+                    c.closeDeadline = now + LuaWebSocket.CLOSE_DEADLINE_MS;
+                    c.dropOutbox();
                 }
             } else if("Close".equals(p.key)) {
                 // What the addon asked for is what it reads back (the plan's rule): the peer may echo
@@ -535,6 +614,15 @@ final class WebSocketApi {
             if(w != null)
                 w.abort();
             end(c, "Close", LuaWebSocketEvent.close(c.owner, c.handle, c.closeCode, c.closeReason));
+        }
+        // The re-arm: the listener stopped asking at INBOX_CAP waiting messages, and this step has fired
+        // them. Asked every step rather than only when something was polled, because the listener's flag
+        // may land a moment after the poll that emptied the queue.
+        if(!c.done && c.starved && (c.inbox.get() < LuaWebSocket.INBOX_CAP)) {
+            c.starved = false;
+            WebSocket w = c.ws;
+            if(w != null)
+                w.request(1);
         }
         return c.done;
     }

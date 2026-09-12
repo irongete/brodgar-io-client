@@ -1,0 +1,13 @@
+{
+  "name": "142.2 — messages on a connection",
+  "id": "142-websocket.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 142.2: conn:send(v) as a string and as JSON, conn:pending(), the Message payload, and the refusals around them, against an echo server.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["websocket.connect"],
+  "network": {
+    "hosts": ["ws.postman-echo.com", "echo.websocket.org", "ws.invalid"]
+  }
+}
