@@ -355,6 +355,9 @@
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.java2d=ALL-UNNAMED" />
       <jvmarg if:set="jogl-access" value="--enable-native-access=ALL-UNNAMED" />
       <!-- <sysproperty key="haven.renderer" value="lwjgl" /> -->
+      <!-- addon: the development run reads resources through the brodgar.io cache proxy. It is the ONE
+           place that does: the client's own default is the game's server (haven.resurl in the shipped
+           haven-config.properties), run.bat passes no -U, and the launcher adds this one behind a checkbox. -->
       <arg value="-U" />
       <arg value="http://brodgar.io/res/" />
     </java>
