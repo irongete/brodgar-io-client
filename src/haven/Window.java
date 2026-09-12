@@ -58,9 +58,14 @@ public class Window extends Widget {
     public static final Coord dlmrgn = UI.scale(23, 14);
     public static final Coord dsmrgn = UI.scale(9, 9);
     public static final BufferedImage ctex = Resource.loadsimg("gfx/hud/fonttex");
-    // addon: (audit2 B01) the two @Deprecated aliases of DefaultDeco.cf/ncf are gone with the statics they
-    // aliased. Nothing in the tree read them, and both were always null: the furnaces they pointed at are
-    // built lazily inside checktitlefont(), long after this class initialises.
+    // addon: upstream's two aliases, kept EXACTLY as upstream declares them -- name AND type -- because
+    // PUBLISHED RESOURCE CODE links against them by name and descriptor: ui/slot-info's Probability and
+    // RProbability render their one line with `new ILabel(text, Window.cf)`, and a Text.Forge here would be
+    // the same NoSuchFieldError. Nothing in this tree reads them, and that is not the test for a public
+    // member of haven (docs/client/published-code.md). They must also WORK: DefaultDeco's forges resolve at the
+    // call, so these are never null, whatever a theme has done to the caption.
+    @Deprecated public static final Text.Furnace cf = DefaultDeco.cf;
+    @Deprecated public static final Text.Furnace ncf = DefaultDeco.ncf;
     public static final IBox wbox = new IBox.Scaled("gfx/hud/wnd", "tl", "tr", "bl", "br", "extvl", "extvr", "extht", "exthb") {
 	    final Coord co = UI.scale(3, 3), bo = UI.scale(2, 2);
 
@@ -179,19 +184,20 @@ public class Window extends Widget {
     public static class DefaultDeco extends DragDeco {
 	// addon: "window.title" font scope (F3, D-043). The stock title foundry, and the blur/tex furnaces built
 	// FROM it via the provider: Fonts.foundry("window.title", titlefnd) resolves an addon override (or, when
-	// none, the stock foundry, cascading through "default"). The furnaces are rebuilt lazily whenever
-	// Fonts.gen() moves, and each window's cached `cap` re-renders on the same check (see drawframe).
+	// none, the stock foundry, cascading through "default"). The furnaces below resolve it at every call,
+	// and each window's cached `cap` re-renders when Fonts.gen() moves (see checkcap).
 	public static final Text.Foundry titlefnd = new Text.Foundry(Text.fraktur, 15).aa(true);
-	// addon: (audit2 B01) THIS decoration's own furnaces, not the client's. They were three statics, compared
-	// against Fonts.gen() -- which folds the per-widget style frame's stamp in, so it is NOT a frame-global:
-	// two visible windows resolving to different styles each read fontgen != g inside their own draw and each
-	// rebuilt the relief and both halos, every frame, for ever. Per decoration the comparison is against the
-	// generation THIS window last built at, which is what the cached caption beside it (capgen) already did.
-	private Text.Forge cf, ncf;
-	private int fontgen = -1;
-	private void checktitlefont() {
-	    int g = Fonts.gen();
-	    if((cf == null) || (fontgen != g)) {
+	// addon: the two forges a caption is rendered with -- upstream's public statics, kept as such because
+	// published resource code links against them (see Window.cf). Each resolves the "window.title" chain at
+	// the call, through the ambient per-widget frame, and NOTHING is cached: a theme reaches every caption,
+	// two windows wearing different styles have no shared cache to fight over (Fonts.gen() folds the frame's
+	// stamp in, so a static generation check thrashed between them -- audit2 B01), and the caption itself is
+	// re-rendered only when its own generation moves (checkcap). Served code renders its label once.
+	public static final Text.Forge cf = new TitleForge(new Color(96, 96, 0)), ncf = new TitleForge(Color.BLACK);
+	private static class TitleForge extends Text.Forge {
+	    private final Color halo;
+	    TitleForge(Color halo) {this.halo = halo;}
+	    private Text.Forge resolve() {
 		stockdecl();               // addon: (065.17) what this decoration is made of, said where it is drawn
 		Text.Foundry f = Fonts.foundry("window.title", titlefnd);
 		// addon: (065.14) the RELIEF the caption's letters are cut out of -- `ctex` tiled through the glyph
@@ -201,10 +207,11 @@ public class Window extends Widget {
 		// addon: (065.15) ...and the HALO behind them, the client's own two radii and colour unless a rule
 		// names its own. Both twins ask, so a themed glow is the same halo whether the window has focus or
 		// not -- the focused/unfocused pair is a colour distinction the theme has replaced.
-		cf  = Fonts.glow("window.title", e, UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
-		ncf = Fonts.glow("window.title", e, UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
-		fontgen = g;
+		return(Fonts.glow("window.title", e, UI.rscale(0.75), UI.rscale(1.0), halo));
 	    }
+	    public Text.Slug render(String text) {return(resolve().render(text));}
+	    public int height() {return(resolve().height());}
+	    public Coord strsize(String text) {return(resolve().strsize(text));}
 	}
 	/* addon: (065.17) what a window's own chrome is MADE OF, declared once beside the draw that makes it --
 	 * the catalogue behind sheet:stock(). Four of the five properties this decoration paints are said here:
@@ -315,7 +322,7 @@ public class Window extends Widget {
 	// "window.title" silently stop working the moment a theme is installed.
 	protected void checkcap() {
 	    Window wnd = (Window)parent;
-	    checktitlefont();          // addon: rebuild the title furnaces if the "window.title" font override moved
+	    stockdecl();               // addon: (065.17) what this decoration is made of, said where it is drawn
 	    int fg = Fonts.gen();      // addon:
 	    if((cap == null) || (capsrc != wnd.cap) || (cfocus != wnd.hasfocus) || (capgen != fg)) {  // addon: capgen -> re-render caption on a font change; capsrc -> the caption we were WRITTEN (102.2)
 		// addon: (102.2) the caption is rendered UNDER "window.title", so an addon's catalogue reaches it by
