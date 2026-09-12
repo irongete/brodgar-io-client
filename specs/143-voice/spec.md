@@ -80,15 +80,15 @@ grep -rn -i "voice|SpeakerIcon|VoiceTarget|mute toggle" docs/
 
 - `src/io/brodgar/voice/`: `BrodgarVoice.java`, `BrodgarVoiceHost.java`, `VoiceListener.java`,
   `VoiceConfig.java`, `internal/RxMixer.java`, `internal/TxPipeline.java` — 2 (the engine, in-tree since 143.1)
-- `src/io/brodgar/addon/`: `VoiceApi.java`, `LuaVoice.java`, `LuaVoiceEvent.java`, `SharedMic.java` — 2
-  (143.1's: the section, the record and host, the endings, the microphone); `WebSocketApi.java`,
+- `src/io/brodgar/addon/`: `VoiceApi.java`, `LuaVoice.java`, `LuaVoiceEvent.java`, `SharedMic.java`,
+  `LuaPeer.java` — 2 (the section, the record and host, the endings, the microphone, the peer); `WebSocketApi.java`,
   `LuaWebSocket.java`, `LuaWebSocketEvent.java` — 2; `FlowerMenuApi.java` — 3; `Addon.java`,
   `AddonManager.java`, `AddonRegistry.java` — 2; `LuaGob.java` — 2; `Subs.java`, `Section.java`,
   `LuaCollection.java`, `Refusal.java`, `Args.java`
 - `src/haven/FlowerMenu.java` — 3
-- `docs/addons/api/`: `voice.md` — 2 (143.1 wrote the link and the policy; 2 adds the rest, and splits it
-  into `api/voice/` past 300 lines); `websocket.md` — 2; `flowermenu.md`, `types/ui.md` — 3;
+- `docs/addons/api/`: `voice/README.md`, `voice/link.md`, `voice/audio.md`, `voice/peers.md` — 2 (the
+  hub, the link, the mic and the mix, the peers); `websocket.md` — 2; `flowermenu.md`, `types/ui.md` — 3;
   `types/world.md`, `gob.md` — 2
 - `docs/client/`: `radial-menu.md` — 3; `audio.md` — 2 (the positional pipeline a link's panning mirrors)
-- `DOCUMENTATION.md`, `tools/docverbs.py` (`arr(vo, "KEYS")` and the `voice` receiver are in; 2 adds
-  `peer`), `tools/refusalverbs.py`
+- `DOCUMENTATION.md`, `tools/docverbs.py` (`arr(vo, "KEYS")`, the `voice` and `peer` receivers are in),
+  `tools/refusalverbs.py`

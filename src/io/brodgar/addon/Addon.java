@@ -772,6 +772,8 @@ public final class Addon {
     LuaValue wsMeta;
     /** {@link LuaVoice}'s handle metatable ({@code Voice}), built on the first {@code hafen.voice():connection(url)} (143.1). */
     LuaValue voiceMeta;
+    /** {@link LuaPeer}'s handle metatable ({@code Peer}), built on the first Peer a link mints (143.2). */
+    LuaValue peerMeta;
     /** {@link LuaVoiceEvent}'s metatables, one per {@link LuaVoiceEvent.Shape}, for {@link #wsEventMeta}'s reason. */
     final LuaValue[] voiceEventMeta = new LuaValue[LuaVoiceEvent.Shape.values().length];
     final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();

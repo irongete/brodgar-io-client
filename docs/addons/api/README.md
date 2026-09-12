@@ -169,7 +169,10 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [`hafen.json`](json.md) | parse and encode JSON |
 | [`hafen.http`](http.md) | fetch a URL, against the host allowlist the user approved |
 | [`hafen.websocket`](websocket.md) | keep a connection to a server on that allowlist, speak on it and hear what it says |
-| [`hafen.voice`](voice.md) | open a link to a proximity voice server on that allowlist: the microphone, the mix, and who hears whom |
+| [`hafen.voice`](voice/README.md) | the hub: a link to a proximity voice server on that allowlist, the declaration it needs, what the server is told, and the limits |
+| [the link](voice/link.md) | building a link, opening it, what it says, what is live, and ending it |
+| [the mic and the mix](voice/audio.md) | what you send and what you hear: the settings, whether you are speaking, and the counters |
+| [peers](voice/peers.md) | the players a link relates you to, addressed by Gob, and the keys that follow them |
 | [`hafen.locale`](locale.md) | what the client displays: one catalogue of what to draw for the text it would have drawn |
 | [`hafen.console`](console.md) | register a `:name` console command, and run a line at one character's console |
 | [`hafen.log`](log.md) | print a line to the console and the terminal |

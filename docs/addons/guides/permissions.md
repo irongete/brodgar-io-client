@@ -50,7 +50,7 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `http.get` | [`request:send`](../api/http.md#the-request-object) on a GET | fetch data from the servers it lists |
 | `http.post` | [`request:send`](../api/http.md#the-request-object) on a POST | send data to the servers it lists |
 | `websocket.connect` | [`connection:connect`](../api/websocket.md#the-connection-object) | keep a live connection to the servers it lists |
-| `voice.connect` | [`voice:connect`](../api/voice.md#the-link-object) | use your microphone to talk on the voice servers it lists |
+| `voice.connect` | [`voice:connect`](../api/voice/link.md#the-link-object) | use your microphone to talk on the voice servers it lists |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
@@ -282,7 +282,7 @@ those keys take**:
 The key says **whether** your addon may use the network, the hosts say **where**, and the user reads each
 key as one line over the same hosts when they enable you: *"fetch data from the servers it lists:
 api.example.com"* and *"keep a live connection to the servers it lists: api.example.com"* — and, for a
-[voice link](../api/voice.md#declaring-network-access), *"use your microphone to talk on the voice servers
+[voice link](../api/voice/README.md#declaring-network-access), *"use your microphone to talk on the voice servers
 it lists"*. Declaring hosts without a key is a **load error** naming the keys; asking for a key with no
 hosts is refused at the call. An **origin** the user did not approve is refused before any request leaves,
 any connection opens or any microphone is taken — an entry grants one scheme on one port, a

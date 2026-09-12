@@ -148,7 +148,7 @@ is what you write when you want it *now*, and which of the verbs below spells it
 | `:cancel()` | something in flight that had not finished | a [timer](timer.md), a [request](http.md), the open [radial menu](flowermenu.md) |
 | `:stop()` | a [sound](sound.md) still in the air | the sound |
 | `:close(code, reason)` | a [connection](websocket.md) to a server, open or not | the connection |
-| `:close()` | a [voice link](voice.md), open or not | the link |
+| `:close()` | a [voice link](voice/link.md), open or not | the link |
 | `:finish()` | a [profiling scope](client/profiling/attribution.md) | the scope |
 
 **Where a collection exists, the ending is the collection's**, because the collection owns its members:

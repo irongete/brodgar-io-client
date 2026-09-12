@@ -75,7 +75,7 @@ RECEIVERS = {
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
     "w": "widget", "widget": "widget", "win": "widget", "col": "widget", "row": "widget", "ev": None, "sub": "sub",
     "h": None, "asset": "asset", "req": "request", "res": "res", "conn": "connection", "sheet": "sheet",
-    "voice": "voice",
+    "voice": "voice", "peer": "peer",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "pl": "placing",
@@ -184,6 +184,7 @@ RETURNS = {
     ("pagina", "children"): "@collection",
     ("meter", "segment"): "@collection",
     ("channel", "message"): "@collection",
+    ("voice", "peer"): "@collection",
     ("fep", "entry"): "@collection",
 }
 

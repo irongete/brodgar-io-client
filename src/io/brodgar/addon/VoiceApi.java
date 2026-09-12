@@ -23,7 +23,8 @@ import org.luaj.vm2.lib.VarArgFunction;
  * one extra verb, a {@code Voice} handle built bare and dispatched by {@code :connect()}, and
  * {@code :on(key, fn)} as the one door its edges come through. The record and the host are
  * {@link LuaVoice}; the payloads are {@link LuaVoiceEvent}; the microphone is {@link SharedMic}; this class
- * owns the vocabulary, the gate, the drain and the teardown.
+ * owns the vocabulary, the gate, the drain and the teardown. The mic, the mix and the peers (143.2) are
+ * verbs here over fields on the record, and {@link LuaPeer} is the one entity under a link.
  *
  * <p><b>The gate is {@link HttpApi#requireNetwork}</b>, under {@link Permission#VOICE_CONNECT} with the
  * {@code https} origin the address names ({@link WebSocketApi#wssOrigin}): the allowlist names servers, so a
@@ -240,6 +241,119 @@ final class VoiceApi {
                 return a.arg1();
             }
         });
+        // The mic and the mix (143.2): seven DESIRED settings, each read from the record and written to it in
+        // EVERY state -- a link is configured before it opens and adjusted while it is -- and written
+        // through to the engine whenever there is one (LuaVoice.applied). Arity is the verb: the bare name
+        // reads, one argument writes and hands the link back.
+        m.set("transmitting", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "transmitting");
+                Args.only(a, 1, "voice:transmitting");
+                LuaValue v = Args.written(a, 2, "voice:transmitting", "on");
+                if(v == null)
+                    return LuaValue.valueOf(c.transmitting);
+                c.transmitting = Args.bool(v, "voice:transmitting", "on", "whether the microphone goes out");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("vad", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "vad");
+                Args.only(a, 1, "voice:vad");
+                LuaValue v = Args.written(a, 2, "voice:vad", "on");
+                if(v == null)
+                    return LuaValue.valueOf(c.vad);
+                c.vad = Args.bool(v, "voice:vad", "on", "whether silence is held back while transmitting");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("threshold", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "threshold");
+                Args.only(a, 1, "voice:threshold");
+                LuaValue v = Args.written(a, 2, "voice:threshold", "rms");
+                if(v == null)
+                    return LuaValue.valueOf(c.threshold);
+                c.threshold = ranged(v, "voice:threshold", "rms", "the loudness that counts as speech, on the"
+                                     + " 16-bit sample scale", LuaVoice.MIN_THRESHOLD, LuaVoice.MAX_THRESHOLD);
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("agc", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "agc");
+                Args.only(a, 1, "voice:agc");
+                LuaValue v = Args.written(a, 2, "voice:agc", "on");
+                if(v == null)
+                    return LuaValue.valueOf(c.agc);
+                c.agc = Args.bool(v, "voice:agc", "on", "whether your loudness is evened out before it goes");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("muted", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "muted");
+                Args.only(a, 1, "voice:muted");
+                LuaValue v = Args.written(a, 2, "voice:muted", "on");
+                if(v == null)
+                    return LuaValue.valueOf(c.muted);
+                c.muted = Args.bool(v, "voice:muted", "on", "whether the microphone is held shut whatever"
+                                    + " transmitting says");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("deafened", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "deafened");
+                Args.only(a, 1, "voice:deafened");
+                LuaValue v = Args.written(a, 2, "voice:deafened", "on");
+                if(v == null)
+                    return LuaValue.valueOf(c.deafened);
+                c.deafened = Args.bool(v, "voice:deafened", "on", "whether every voice is silenced");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        m.set("volume", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaVoice c = self(a.arg1(), "volume");
+                Args.only(a, 1, "voice:volume");
+                LuaValue v = Args.written(a, 2, "voice:volume", "g");
+                if(v == null)
+                    return LuaValue.valueOf(c.volume);
+                c.volume = gain(v, "voice:volume", "g");
+                c.applied();
+                return a.arg1();
+            }
+        });
+        // speaking() -- is the character's voice going out right now: past the gate, the mute and the
+        // detector. false with no engine, which is every state but open.
+        m.set("speaking", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "voice:speaking");
+                return LuaValue.valueOf(self(a.arg1(), "speaking").speaking());
+            }
+        });
+        // info() -- the one SNAPSHOT: the seven settings and, from the engine, the id, the relay round trip
+        // and the four counters.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "voice:info");
+                return snapshot(self(a.arg1(), "info"));
+            }
+        });
+        // peer() -- the players this link relates you to, as a collection addressed by Gob (LuaPeer).
+        m.set("peer", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, "voice:peer");
+                return LuaPeer.collection(self(a.arg1(), "peer"));
+            }
+        });
         // on(key, fn) -- THE HANDLER, the API's one notification verb, over a CLOSED set of keys: an unknown
         // one raises naming them rather than being accepted and never firing (D-129). Legal after :connect()
         // too -- a link in flight has not ended yet -- and it hands back a Sub, ended with sub:off().
@@ -257,7 +371,7 @@ final class VoiceApi {
                 if(!isKey(key))
                     throw new LuaError("voice:on(key, fn): a voice link has no event '" + key + "' -- it has: "
                         + keys() + ". Open hands the link; Close and Error hand an ev answering"
-                        + " ev:connection()");
+                        + " ev:connection(); the Peer keys hand the Peer");
                 return c.subs.on(key, fnArg);
             }
         });
@@ -309,7 +423,7 @@ final class VoiceApi {
         mt.set(LuaValue.INDEX, Refusal.closedIndex("voice", m,
             "a voice link",
             "it is dispatched by :connect(): timeout, spatial and bitrate are legal until then and none"
-            + " after; session is legal in every state"));
+            + " after; session, the mic and the mix are legal in every state"));
         mt.set("__name", LuaValue.valueOf("Voice"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -321,7 +435,57 @@ final class VoiceApi {
         return mt;
     }
 
-    /** The keys a link fires, as the refusal lists them: {@code Open, Close, Error}. */
+    /** A gain argument — the link's {@code volume} and a peer's: a number in {@code 0..4}, refused outside it. */
+    static double gain(LuaValue v, String verb, String param) {
+        return ranged(v, verb, param, "a gain, 1 being as sent", LuaVoice.MIN_VOLUME, LuaVoice.MAX_VOLUME);
+    }
+
+    /** A finite number in {@code lo..hi}, <b>refused</b> outside it naming the range — never clamped. */
+    private static double ranged(LuaValue v, String verb, String param, String hint, double lo, double hi) {
+        double d = Args.num(v, verb, param, hint).todouble();
+        if((d < lo) || (d > hi))
+            throw new LuaError(verb + ": " + param + " must be a number from " + show(lo) + " to " + show(hi)
+                + " (" + hint + "), got " + show(d));
+        return d;
+    }
+
+    /** A number as a refusal prints it: whole without a decimal point. */
+    private static String show(double d) {
+        return (d == Math.rint(d)) ? Long.toString((long)d) : Double.toString(d);
+    }
+
+    /**
+     * {@code voice:info()} — the settings as set, then what the engine knows: {@code id} once there is one,
+     * {@code rtt} in milliseconds once the relay has echoed a ping, and the four counters, {@code 0} with no
+     * engine. Optional fields are absent rather than a sentinel, the snapshot rule.
+     */
+    private static LuaValue snapshot(LuaVoice c) {
+        LuaTable t = new LuaTable();
+        t.set("url", LuaValue.valueOf(c.url));
+        t.set("state", LuaValue.valueOf(c.state.word));
+        t.set("transmitting", LuaValue.valueOf(c.transmitting));
+        t.set("vad", LuaValue.valueOf(c.vad));
+        t.set("threshold", LuaValue.valueOf(c.threshold));
+        t.set("agc", LuaValue.valueOf(c.agc));
+        t.set("muted", LuaValue.valueOf(c.muted));
+        t.set("deafened", LuaValue.valueOf(c.deafened));
+        t.set("volume", LuaValue.valueOf(c.volume));
+        t.set("speaking", LuaValue.valueOf(c.speaking()));
+        io.brodgar.voice.BrodgarVoice v = c.engine();
+        long id = (v == null) ? -1 : v.sessionId();
+        if(id >= 0)
+            t.set("id", LuaValue.valueOf((double)id));
+        long rtt = (v == null) ? -1 : v.udpRttNanos();
+        if(rtt >= 0)
+            t.set("rtt", LuaValue.valueOf(rtt / 1e6));
+        t.set("sent", LuaValue.valueOf((double)((v == null) ? 0 : v.framesSent())));
+        t.set("received", LuaValue.valueOf((double)((v == null) ? 0 : v.udpAudioPacketsReceived())));
+        t.set("mixed", LuaValue.valueOf((double)((v == null) ? 0 : v.framesMixed())));
+        t.set("streams", LuaValue.valueOf((v == null) ? 0 : v.activeIncomingStreams()));
+        return t;
+    }
+
+    /** The keys a link fires, as the refusal lists them: {@code Open, Close, Error} and the Peer keys. */
     private static String keys() {
         StringBuilder sb = new StringBuilder();
         for(String k : LuaVoice.KEYS) {
@@ -456,8 +620,9 @@ final class VoiceApi {
      * leaves the collection.
      *
      * <p>Each edge is read against the state: an {@code Open} queued for a link the addon has since closed is
-     * not fired, and a {@code Close} or {@code Error} behind the one that ended it is not either — exactly
-     * one of the two ends a link, whatever the engine reported after.
+     * not fired, a Peer edge fires on an open link only, and a {@code Close} or {@code Error} behind the one
+     * that ended it is not fired either — exactly one of the two ends a link, whatever the engine reported
+     * after.
      */
     private static boolean step(LuaVoice c) {
         LuaVoice.Pending p;
@@ -472,6 +637,12 @@ final class VoiceApi {
                 end(c, "Close", LuaVoiceEvent.close(c.owner, c.handle, p.text));
             } else if("Error".equals(p.key)) {
                 end(c, "Error", LuaVoiceEvent.error(c.owner, c.handle, p.text));
+            } else if(p.gob >= 0) {
+                // A Peer edge (143.2): the Peer is minted here, under the addon's lock, and fired only while
+                // the link is open -- one queued behind the Open of a link the addon has since closed says
+                // nothing a closed link can act on.
+                if(c.state == LuaVoice.State.OPEN)
+                    c.subs.fire(p.key, LuaPeer.of(c, p.gob));
             }
         }
         return c.done;

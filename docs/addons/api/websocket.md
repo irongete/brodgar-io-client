@@ -234,7 +234,7 @@ a [timer](timer.md) are the whole of one, and what to resend when it reopens is 
 ## See also
 
 - [`hafen.http`](http.md) — the other door outside the client, and the network declaration in full
-- [`hafen.voice`](voice.md) — a link to a voice server, in this section's shape
+- [`hafen.voice`](voice/README.md) — a link to a voice server, in this section's shape
 - [`hafen.json`](json.md) — the shape a feed's messages usually take
 - [`hafen.timer`](timer.md) — reconnecting, on a schedule you choose
 - [threading](threading.md) — where a handler runs, and why every one of these reaches every tree

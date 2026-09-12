@@ -1,0 +1,13 @@
+{
+  "name": "143.2 — the mic, the mix, and the peers",
+  "id": "143-voice.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 143.2: every mic and mix setting reads back in every state and refuses outside its range, speaking() is measured on a live link, info() carries the counters, and voice:peer() mints, addresses and remembers a Peer.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["voice.connect"],
+  "network": {
+    "hosts": ["voice.brodgar.io"]
+  }
+}

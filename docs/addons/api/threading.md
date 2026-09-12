@@ -30,7 +30,7 @@ end)
 | [`item:on("Changed", fn)`](ui/items.md) | the step, after the description resolved | any |
 | an [HTTP](http.md) reply | the step | any |
 | a [connection](websocket.md)'s `Open`, `Message`, `Close` and `Error` | the step | any |
-| a [voice link](voice.md)'s `Open`, `Close` and `Error` | the step | any |
+| a [voice link](voice/link.md)'s `Open`, `Close`, `Error` and the Peer keys | the step | any |
 | [`opts:panel(fn)`](client/addon.md#the-page) — your addon's page | the step, one frame after the page is opened | any |
 | [`hafen.event():message():on(msg, fn)`](event/streams.md) — inbound | as the update arrives, before the widget applies it | any |
 | [`widget:on("Draw", fn)`](ui/custom.md) | the pass that paints that widget | its own only |

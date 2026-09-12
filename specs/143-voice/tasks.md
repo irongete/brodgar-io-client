@@ -34,7 +34,7 @@ this feature closes.
       `[manual]`: enable the suite in the AddOns panel and read its consent line — expect: *use your
       microphone to talk on the voice servers it lists: voice.brodgar.io, ws.invalid*.
 
-- [ ] **143.2 — What you say and what you hear: the mic, the mix, and the peers.** Adds the desired
+- [x] **143.2 — What you say and what you hear: the mic, the mix, and the peers.** Adds the desired
       settings on `LuaVoice` — `transmitting`, `vad`, `threshold`, `agc`, `muted`, `deafened`, `volume`
       (`0..4`) — read back in every state, applied at `Open` (`applyAll`) and written through live;
       `speaking()` (`isLocalSpeaking`); `info()` (the settings, `id`, `rtt` in ms, `sent`, `received`,

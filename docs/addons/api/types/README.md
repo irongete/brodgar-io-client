@@ -20,7 +20,7 @@ it is big enough that a table beats a sentence.
 
 | Page | What it holds |
 |---|---|
-| [the session and the world](world.md) | one login, an object in it, the people beside you, the ground, a place, and your own things standing there |
+| [the session and the world](world.md) | one login, an object in it, the people beside you and the ones a voice link relates you to, the ground, a place, and your own things standing there |
 | [the item and what holds it](items.md) | one item, and what a container states about its inside |
 | [the character sheet](character.md) | attributes, food and its FEP and hunger halves, learning, movement speed, quests, wounds and buffs |
 | [the fight](fight.md) | a maneuver, a card in the deck, and the deck's totals |
@@ -58,6 +58,7 @@ it is big enough that a table beats a sentence.
 | `MeterSegment` | [the widget layer](ui.md#metersegment) |
 | `Pagina` | [the widget layer](ui.md#pagina) |
 | `PartyMember` | [the session and the world](world.md#partymember) |
+| `Peer` | [the session and the world](world.md#peer) |
 | `Petal` | [the widget layer](ui.md#petal) |
 | `Position` | [the session and the world](world.md#position) |
 | `Quest` | [the character sheet](character.md#quest-and-condition) |

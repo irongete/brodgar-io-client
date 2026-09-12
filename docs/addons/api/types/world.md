@@ -1,7 +1,8 @@
 # Data types: the session and the world
 
 The snapshot shapes one login hands back: the session itself, an object in the world, the people beside
-you, the ground under them, a place to store, and the things of your own standing out there. Each is what
+you and the ones a voice link relates you to, the ground under them, a place to store, and the things of
+your own standing out there. Each is what
 `:info()` copies out of a live object, so it never updates — the live reads are verbs on that object. The
 model, and what *optional* means on every table below, is on [the catalogue](README.md).
 
@@ -72,6 +73,22 @@ never sent one.
 The live reads are `member:id()`, `:position()` — a [Position](../position.md), not the two
 loose numbers — `:color()`. Whether a member leads is `s:party():leader() == member`, not a flag on them.
 
+## Peer
+
+From [`peer:info()`](../voice/peers.md#the-peer-object), the one snapshot escape hatch. `voice:peer()` and
+the Peer keys hand you live [`Peer` objects](../voice/peers.md), not this table. There is **no
+name** field, and no position: the player is their gob, `peer:gob()`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | number | the gob id |
+| `exists` | bool | whether the server relates you right now, either way round |
+| `audible` | bool | whether you hear them |
+| `hears` | bool | whether they hear you |
+| `speaking` | bool | whether their voice is arriving right now |
+| `muted` | bool | whether you discard their voice on this link — yours, `false` unless you set it |
+| `volume` | number | the gain you play them at, `0..4`; `1` unless you set it |
+
 ## KinEntry
 
 From [`kin:info()`](../kin.md#read), the one snapshot escape hatch. The roster and `KinChanged` hand you
@@ -137,4 +154,5 @@ once you have drawn one.
 - [the catalogue](README.md) — every snapshot shape, and what a snapshot is
 - [Gob](../gob.md) — the live-object counterpart of `GobInfo`, and the usual way to read a gob
 - [Position](../position.md) — the live place, and the verbs that compute one
+- [peers](../voice/peers.md) — the live-object counterpart of `Peer`, and the keys that follow them
 - [shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units

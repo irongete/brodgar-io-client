@@ -6,9 +6,12 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
@@ -68,6 +71,23 @@ import org.luaj.vm2.LuaValue;
  * it. Move intents arrive from the two taps ({@code MapView.clickhit}, {@code Sessions.send}) through
  * {@link #move}; the per-frame spatial vectors are pushed by the drain ({@link #spatialize}).
  *
+ * <p><b>The mic and the mix are desired settings</b> (143.2): {@code transmitting}, {@code vad},
+ * {@code threshold}, {@code agc}, {@code muted}, {@code deafened} and {@code volume} are fields here, written
+ * by their verbs in every state and read back from the field — never from the engine — so a link answers
+ * what you set whether or not it is open. They reach the engine twice: {@link #applyAll} the moment the
+ * connect has produced one, on the pool thread, and {@link #applied} on every later write while the engine
+ * is there. Both are plain volatile writes into the engine's pipelines, so neither blocks. A peer's
+ * {@code muted} and {@code volume} are the same shape one level down ({@link #peerPrefs}): remembered here,
+ * keyed by gob id, so they survive the peer leaving and coming back.
+ *
+ * <p><b>Peers are a diff.</b> The engine reports two sets — who you hear, who hears you — and a speaking
+ * flip per stream, all on its event thread. {@link #diff} keeps the last pair and turns each report into
+ * {@code PeerAdded} (in the union now, was not), {@code PeerRemoved} (the reverse) and {@code PeerChanged}
+ * (a member whose {@code audible} or {@code hears} flipped, or whose voice started or stopped), queued as a
+ * {@link Pending} carrying the gob id; the drain mints the {@link LuaPeer} for it under the addon's lock.
+ * The engine fires nothing to a listener added after the handshake, so the diff is seeded from the engine's
+ * own sets once the listener is on, under the same lock the events take.
+ *
  * <p><b>One ending, said once.</b> {@link #done} is set by the drain when it delivers {@code Close} or
  * {@code Error}, and nothing here fires after it. Whichever side ends the link, the engine under it is
  * closed <b>off the step</b> ({@link #closeEngine}) — {@code BrodgarVoice.close} sends the Bye and joins
@@ -76,7 +96,7 @@ import org.luaj.vm2.LuaValue;
  */
 final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
     /** The keys a link answers, in the order a refusal lists them — a closed set (D-129). */
-    static final String[] KEYS = {"Open", "Close", "Error"};
+    static final String[] KEYS = {"Open", "Close", "Error", "PeerAdded", "PeerRemoved", "PeerChanged"};
 
     /** Live links the whole client may hold at once; the next {@code :connect()} is refused naming the count. */
     static final int MAX_LIVE = 4;
@@ -84,6 +104,10 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
     static final int DEFAULT_BITRATE = 24_000, MIN_BITRATE = 8_000, MAX_BITRATE = 64_000;
     /** What the server is told the client is, in the hello. */
     static final String CLIENT_INFO = "hafen+brodgar";
+    /** The voice threshold a link is built with unless {@code :threshold(n)} says otherwise, and its range: an RMS on the 16-bit scale. */
+    static final double DEFAULT_THRESHOLD = 350, MIN_THRESHOLD = 0, MAX_THRESHOLD = 32767;
+    /** The range of {@code :volume(g)}, the link's and a peer's — a gain, {@code 1} being unity. */
+    static final double MIN_VOLUME = 0, MAX_VOLUME = 4;
 
     /** Where a link is in its life — the word {@code voice:state()} reads. */
     enum State {
@@ -103,11 +127,26 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
     static final class Pending {
         final String key;
         final String text;
+        /** The peer a {@code Peer*} edge is about, by gob id; {@code -1} for the other keys. */
+        final long gob;
 
         Pending(String key, String text) {
             this.key = key;
             this.text = text;
+            this.gob = -1;
         }
+
+        Pending(String key, long gob) {
+            this.key = key;
+            this.text = null;
+            this.gob = gob;
+        }
+    }
+
+    /** What this addon set on one peer of this link — kept across the peer's comings and goings. */
+    static final class PeerPrefs {
+        volatile boolean muted;
+        volatile double volume = 1;
     }
 
     final Addon owner;
@@ -124,7 +163,19 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
     int bitrate = DEFAULT_BITRATE;
     /** The account this link speaks for, or {@code null} to follow the screen. Written any time, read off-thread. */
     volatile String session;
-    /** {@code voice:on(key, fn)} — the one notification verb, over the three {@link #KEYS}. */
+    /** The mic and the mix, as desired (143.2): written in every state, applied whenever there is an engine. */
+    volatile boolean transmitting, vad = true, agc = true, muted, deafened;
+    volatile double threshold = DEFAULT_THRESHOLD;
+    volatile double volume = 1;
+    /** What this addon set on each peer, by gob id — the ones it wrote; a peer it never touched has no entry. */
+    final Map<Long, PeerPrefs> peerPrefs = new ConcurrentHashMap<Long, PeerPrefs>();
+    /** The {@code Peer} handles minted on this link, one per gob id, weakly held (D-045). */
+    final Interned<Long, LuaValue> peers = Interned.keyed();
+    /** The last pair of sets the diff saw, and the members it last knew to be speaking. Guarded by {@link #peerLock}. */
+    private Set<Long> lastAudible = Collections.emptySet(), lastHeardBy = Collections.emptySet();
+    private final Set<Long> lastSpeaking = new HashSet<Long>();
+    private final Object peerLock = new Object();
+    /** {@code voice:on(key, fn)} — the one notification verb, over {@link #KEYS}. */
     final Subs subs;
     /** The Lua handle over this record — what {@code Open} hands over and {@code ev:connection()} answers. */
     LuaValue handle;
@@ -225,8 +276,10 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
                 closeEngine(v);
                 return;
             }
-            v.addListener(this);
+            applyAll(v);
             events.add(new Pending("Open", null));
+            v.addListener(this);
+            diff(v.audibleGobs(), v.heardByGobs());       // what the handshake already reported: seeded, behind Open
         } catch(UnknownHostException e) {
             fail("DNS resolution failed for " + uri.getHost());
         } catch(VoiceException e) {
@@ -248,6 +301,9 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
             .connectTimeoutMs(timeout)
             .spatialAudio(spatial)
             .bitrate(bitrate)
+            .vad(vad)
+            .vadThresholdRms(threshold)
+            .agc(agc)
             .autoReconnect(false)
             .audioSource(SharedMic.feed())
             .build();
@@ -256,6 +312,165 @@ final class LuaVoice implements BrodgarVoiceHost, VoiceListener {
     /** Queue an {@code Error} with {@code why} — from the pool thread, never entering Lua. */
     void fail(String why) {
         events.add(new Pending("Error", why));
+    }
+
+    // ------------------------------------------------------------- the mic and the mix
+
+    /**
+     * Every desired setting into a fresh engine, this addon's peer settings included — from the pool thread
+     * the moment the connect produced it, before {@code Open} is queued. A write that lands while this runs
+     * is applied by its own verb as well ({@link #applied}), and the two agree: each writes the field's
+     * current value, so whichever runs second repeats the same number.
+     */
+    private void applyAll(BrodgarVoice v) {
+        apply(v);
+        for(Map.Entry<Long, PeerPrefs> e : peerPrefs.entrySet())
+            apply(v, e.getKey(), e.getValue());
+    }
+
+    /** The link's own settings into {@code v}: volatile writes into the transmit and mix pipelines. */
+    private void apply(BrodgarVoice v) {
+        v.setTransmitting(transmitting);
+        v.setVadEnabled(vad);
+        v.setVadThresholdRms(threshold);
+        v.setAgcEnabled(agc);
+        v.setMicMuted(muted);
+        v.setDeafened(deafened);
+        v.setMasterGain((float)volume);
+    }
+
+    /** One peer's two settings into {@code v}. */
+    private static void apply(BrodgarVoice v, long gob, PeerPrefs p) {
+        v.setLocalMute(gob, p.muted);
+        v.setVolume(gob, (float)p.volume);
+    }
+
+    /** A setter's write-through: the field is already written; the engine, where there is one, hears it now. */
+    void applied() {
+        BrodgarVoice v = engine();
+        if(v != null)
+            apply(v);
+    }
+
+    /** The settings this addon keeps for {@code gob} on this link, minted on the first write. */
+    PeerPrefs prefs(long gob) {
+        PeerPrefs p = peerPrefs.get(gob);
+        if(p == null) {
+            PeerPrefs fresh = new PeerPrefs();
+            p = peerPrefs.putIfAbsent(gob, fresh);
+            if(p == null)
+                p = fresh;
+        }
+        return p;
+    }
+
+    /** A peer setter's write-through. */
+    void applied(long gob) {
+        BrodgarVoice v = engine();
+        PeerPrefs p = peerPrefs.get(gob);
+        if((v != null) && (p != null))
+            apply(v, gob, p);
+    }
+
+    /** Is the character's voice going out right now — past the gate, the mute and the detector? {@code false} with no engine. */
+    boolean speaking() {
+        BrodgarVoice v = engine();
+        return (v != null) && v.isLocalSpeaking();
+    }
+
+    /** The account whose world this link reports — the pinned one, else the drawn one — or {@code null} on the login screen. */
+    String sessionUser() {
+        String user = session;
+        if(user != null)
+            return user;
+        Sessions.Member m = Sessions.anchormember();
+        return (m == null) ? null : m.user;
+    }
+
+    // ------------------------------------------------------------- peers (the diff, engine thread)
+
+    /** The gobs this link relates you to right now — who you hear and who hears you — or the empty set with no engine. */
+    Set<Long> peerIds() {
+        BrodgarVoice v = engine();
+        if(v == null)
+            return Collections.emptySet();
+        Set<Long> a = v.audibleGobs(), h = v.heardByGobs();
+        if(h.isEmpty())
+            return a;
+        if(a.isEmpty())
+            return h;
+        Set<Long> out = new HashSet<Long>(a);
+        out.addAll(h);
+        return out;
+    }
+
+    /**
+     * One report of the two sets, against the last: an id in the union now and not before is
+     * {@code PeerAdded}, the reverse {@code PeerRemoved}, and a member whose side flipped — heard now, or
+     * heard by — is {@code PeerChanged}. Under {@link #peerLock}, because the seed runs on the pool thread
+     * while the engine may already be reporting; a diff is against the state it finds, so the two orders
+     * queue the same edges.
+     */
+    private void diff(Set<Long> audible, Set<Long> heardBy) {
+        synchronized(peerLock) {
+            Set<Long> now = new HashSet<Long>(audible);
+            now.addAll(heardBy);
+            Set<Long> was = new HashSet<Long>(lastAudible);
+            was.addAll(lastHeardBy);
+            for(Long id : now) {
+                if(!was.contains(id))
+                    events.add(new Pending("PeerAdded", id));
+                else if((audible.contains(id) != lastAudible.contains(id))
+                        || (heardBy.contains(id) != lastHeardBy.contains(id)))
+                    events.add(new Pending("PeerChanged", id));
+            }
+            for(Long id : was) {
+                if(!now.contains(id)) {
+                    lastSpeaking.remove(id);
+                    events.add(new Pending("PeerRemoved", id));
+                }
+            }
+            lastAudible = audible;
+            lastHeardBy = heardBy;
+        }
+    }
+
+    public void onAudibleSetChanged(Set<Long> gobIds) {
+        if(!done)
+            diff(gobIds, last(false));
+    }
+
+    public void onHeardByChanged(Set<Long> gobIds) {
+        if(!done)
+            diff(last(true), gobIds);
+    }
+
+    /** The half of the last pair a one-sided report keeps: the audible set, or the heard-by set. */
+    private Set<Long> last(boolean audible) {
+        synchronized(peerLock) {
+            return audible ? lastAudible : lastHeardBy;
+        }
+    }
+
+    /**
+     * A remote voice started or stopped: {@code PeerChanged} for a member. The mixer reports a stream it
+     * evicts as silent too, so {@link #lastSpeaking} says whether there is a flip left to report — a peer
+     * that left mid-word was ended by its removal, and is not reported a second time.
+     */
+    public void onSpeaking(long gobId, boolean speaking) {
+        if(done)
+            return;
+        synchronized(peerLock) {
+            boolean member = lastAudible.contains(gobId) || lastHeardBy.contains(gobId);
+            boolean was = lastSpeaking.contains(gobId);
+            if(!member || (was == speaking))
+                return;
+            if(speaking)
+                lastSpeaking.add(gobId);
+            else
+                lastSpeaking.remove(gobId);
+            events.add(new Pending("PeerChanged", gobId));
+        }
     }
 
     // ------------------------------------------------------------- ending
