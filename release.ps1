@@ -5,16 +5,19 @@
 .DESCRIPTION
   One command does the whole release:
 
-    .\release.ps1 0.1.0-beta.1 -Notes notes.md      release notes from a markdown file
-    .\release.ps1 0.1.0 -Message "The beta is over"  release notes inline
+    .\release.ps1 0.1.0-beta.1 -Notes notes.md      a beta: a GitHub pre-release, notes from a markdown file
+    .\release.ps1 0.1.0 -Message "The beta is over"  a release: a plain GitHub release, notes inline
     .\release.ps1 0.1.1                              release notes = the commit subjects since the last v* tag
 
   It refuses to run on a dirty tree or an existing tag, compiles from scratch (build/classes is wiped, so a
   symbol that moved between files cannot hide), runs `ant -Dversion=<version> release-zip` -- dist/ rebuilt,
   the addons etc/release-addons names copied from the sibling addons repository, and the zip made without
   savedata/ -- tags HEAD as v<version>, pushes the branch and the tag, and creates the GitHub release with the
-  zip as its asset. The launcher installs whatever `releases/latest` answers, and GitHub's `latest` skips a
-  pre-release, so -PreRelease is for a build the launcher must NOT pick up.
+  zip as its asset.
+
+  The channel is the version's: a suffix (0.1.0-beta.1, 0.2.0-rc.2) makes a BETA, published as a GitHub
+  pre-release, which only a launcher on its beta channel installs; a plain x.y.z makes a RELEASE, a plain
+  GitHub release, which every launcher installs. -Channel says otherwise when it must.
 
   Needs git, ant and gh (logged in: `gh auth login`) on the PATH.
 
@@ -24,8 +27,8 @@
   A markdown file with the release notes.
 .PARAMETER Message
   The release notes, inline.
-.PARAMETER PreRelease
-  Mark the release as a pre-release. The launcher will not see it.
+.PARAMETER Channel
+  release or beta; by default the version decides (a suffix is a beta).
 .PARAMETER Draft
   Create the release as a draft, to be published by hand on GitHub.
 .PARAMETER NoPublish
@@ -35,7 +38,7 @@ param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Version,
     [string]$Notes,
     [string]$Message,
-    [switch]$PreRelease,
+    [ValidateSet('release', 'beta')][string]$Channel,
     [switch]$Draft,
     [switch]$NoPublish
 )
@@ -46,6 +49,7 @@ $title = "Brodgar.io client $Version"
 $tag = "v$Version"
 $asset = "build\brodgar-io-client-$Version.zip"
 Set-Location $PSScriptRoot
+if (-not $Channel) { $Channel = if ($Version -match '-') { 'beta' } else { 'release' } }
 
 function Run {
     param([string]$Exe, [string[]]$Arguments)
@@ -85,7 +89,7 @@ if ($Notes) {
 }
 
 # --- build: from scratch, then dist/ and the zip -------------------------------------------------------------
-Write-Host "Building $title from $branch ($((git rev-parse --short HEAD).Trim()))..."
+Write-Host "Building $title ($Channel) from $branch ($((git rev-parse --short HEAD).Trim()))..."
 if (Test-Path build\classes) { Remove-Item -Recurse -Force build\classes }
 Run ant @("-Dversion=$Version", 'release-zip')
 if (-not (Test-Path $asset)) { throw "the build produced no $asset" }
@@ -102,10 +106,7 @@ if ($NoPublish) {
 Run git @('push', 'origin', $branch)
 Run git @('push', 'origin', $tag)
 $create = @('release', 'create', $tag, $asset, '--repo', $repo, '--title', $title, '--notes-file', $notesFile)
-if ($PreRelease) {
-    $create += '--prerelease'
-    Write-Warning 'A pre-release is invisible to the launcher: releases/latest skips it.'
-}
+if ($Channel -eq 'beta') { $create += '--prerelease' }
 if ($Draft) { $create += '--draft' }
 Run gh $create
-Write-Host "Released $title as $tag."
+Write-Host "Released $title as $tag on the $Channel channel."
