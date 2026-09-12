@@ -7,6 +7,7 @@
        beside this one. bin/ (the sandbox) takes every addon it holds; a release takes only the ones
        etc/release-addons names. Override with an `addons.repo=` line in build.properties. -->
   <property name="addons.repo" value="../brodgar-io-client-addons" />
+  <property name="version" value="dev" />
 
   <target name="build-env">
     <mkdir dir="build" />
@@ -25,14 +26,20 @@
       <arg line="rev-parse HEAD" />
     </exec>
     <condition property="buildinfo-unchanged">
-      <equals arg1="${buildinfo.git-rev}" arg2="${git-rev}" />
+      <and>
+	<equals arg1="${buildinfo.git-rev}" arg2="${git-rev}" />
+	<equals arg1="${buildinfo.version}" arg2="${version}" />   <!-- addon: the version is recorded too -->
+      </and>
     </condition>
   </target>
 
+  <!-- addon: `version` is what release.ps1 passes (-Dversion=1.2.3) and `dev` for every other build; it
+       lands in the jar's buildinfo beside the git revision, where the error reporter already reads it. -->
   <target name="buildinfo" depends="make-buildinfo" unless="buildinfo-unchanged">
     <echo message="Updating buildinfo" />
     <echo file="build/classes/buildinfo" xml:space="default">
       git-rev = ${git-rev}
+      version = ${version}
     </echo>
   </target>
 
@@ -285,6 +292,14 @@
     <fixcrlf srcdir="etc" includes="run.bat" destdir="dist" eol="crlf" />
     <chmod file="dist/hafen.jar" perm="a+x" />
     <echo message="Release ready in dist/ -- double-click dist\run.bat to play." />
+  </target>
+
+  <!-- addon: the release asset release.ps1 uploads: dist/ without savedata/, the client at the zip's root,
+       named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
+       Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). -->
+  <target name="release-zip" depends="release">
+    <zip destfile="build/brodgar-io-client-${version}.zip" basedir="dist" excludes="savedata/**" />
+    <echo message="Release asset: build/brodgar-io-client-${version}.zip" />
   </target>
 
 
