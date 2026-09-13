@@ -1,0 +1,10 @@
+{
+  "name": "146.1 — the file, and the documents in it",
+  "id": "146-sqlite.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.1: hafen.store() is one SQLite file per addon, its documents on both doors survive a :reload, :info() names the file, and a remembered window comes back from it.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "saved_variables": ["settings", { "name": "seen", "scope": "client" }]
+}

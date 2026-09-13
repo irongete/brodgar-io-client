@@ -21,15 +21,15 @@ settings.count = (settings.count or 0) + 1
 Every saved variable is named in `manifest.json`, and nothing else here is persisted:
 
 ```json
-"saved_variables": ["settings", { "name": "account", "scope": "account" }]
+"saved_variables": ["settings", { "name": "seen", "scope": "client" }]
 ```
 
 | Declaration | Scope | Where it lands | Reached through |
 |---|---|---|---|
-| a bare name | per character | `savedata/<genus>_<char>/<addon>.json` | the session whose character it is |
-| `{ "name": …, "scope": "account" }` | account-wide, shared by all your characters | `savedata/account/<addon>.json` | no address |
+| a bare name | per character | `savedata/<addon>.sqlite`, keyed by the character | the session whose character it is |
+| `{ "name": …, "scope": "client" }` | your addon's own, one for the whole client | `savedata/<addon>.sqlite` | no address |
 
-Any scope other than `"account"` is per-character. A name declared **twice is an error**: one name is
+Any other word is a manifest error naming the two. A name declared **twice is an error**: one name is
 one table, so the second entry could only have been ignored, and a manifest that will not load says so
 at the moment you can fix it.
 

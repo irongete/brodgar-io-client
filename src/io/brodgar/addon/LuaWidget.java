@@ -2722,7 +2722,7 @@ public final class LuaWidget {
             // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
             // called it too early, and the answer is a moment rather than a different verb.
             // 092.8: "no character is in world yet" is now about THIS widget's own session. A window the addon
-            // built itself is in the layer and is filed under the account, so it never reaches this branch.
+            // built itself is in the layer and is filed under the client scope, so it never reaches this branch.
             AddonManager.logAbout(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and the"
                 + " session this widget stands in has no character in world yet, so there is nothing to put"
                 + " back. Call it from that session's SessionEnteredWorld onwards; what happens to the widget"

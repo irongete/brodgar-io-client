@@ -202,18 +202,18 @@ public final class Manifest {
     }
 
     /**
-     * One {@code saved_variables} declaration: a global Lua table the engine persists to JSON and
-     * restores on load (D-002/D-023). {@code account} = shared across all characters
-     * ({@code savedata/account/<addon>.json}); otherwise per-character
-     * ({@code savedata/<genus>_<char>/<addon>.json}).
+     * One {@code saved_variables} declaration: a <b>document</b> — a Lua table the engine keeps in the addon's
+     * store file and restores on load (146). {@code client} = the addon's own, one for the whole client
+     * whichever account or character is up ({@code "scope": "client"}); otherwise a character's own, one row
+     * per character (a bare name, or {@code "scope": "character"}).
      */
     public static final class SavedVar {
         public final String name;
-        public final boolean account;
+        public final boolean client;
 
-        SavedVar(String name, boolean account) {
+        SavedVar(String name, boolean client) {
             this.name = name;
-            this.account = account;
+            this.client = client;
         }
     }
 
@@ -372,9 +372,11 @@ public final class Manifest {
     }
 
     /**
-     * Parse {@code saved_variables}: an array whose entries are either a bare table name (per-character)
-     * or {@code {"name": ..., "scope": "account"}} for account-wide storage (D-023). Any scope other
-     * than {@code "account"} (incl. absent) is per-character.
+     * Parse {@code saved_variables}: an array whose entries are either a bare table name (a character's
+     * document) or {@code {"name": ..., "scope": "client" | "character"}}. An absent scope is a character's,
+     * as the bare name is; <b>any other word is refused naming the two</b> (146): the scope decides which
+     * rows a document is read from, so a word the client does not know is a document that would silently
+     * land in the wrong one.
      */
     private static List<SavedVar> savedvars(Map<String, Object> m) {
         List<SavedVar> out = new ArrayList<SavedVar>();
@@ -388,15 +390,26 @@ public final class Manifest {
         // The manifest is where the shape is decided, and every other malformed entry throws here too.
         for(Object o : (List<?>)v) {
             String nm;
-            boolean account;
+            boolean client;
             if(o instanceof String) {
                 nm = (String)o;
-                account = false;
+                client = false;
             } else if(o instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> e = (Map<String, Object>)o;
                 nm = str(e, "name", true);
-                account = "account".equals(e.get("scope"));
+                Object scope = e.get("scope");
+                if((scope == null) || "character".equals(scope)) {
+                    client = false;
+                } else if("client".equals(scope)) {
+                    client = true;
+                } else {
+                    throw new IllegalArgumentException("'saved_variables' entry \"" + nm + "\" declares \"scope\": "
+                        + ((scope instanceof String) ? "\"" + scope + "\"" : String.valueOf(scope))
+                        + ", and a scope is \"client\" -- the addon's own, one document for the whole client"
+                        + " whichever account or character is up -- or \"character\" -- that character's own,"
+                        + " which a bare name also declares.");
+                }
             } else {
                 throw new IllegalArgumentException("'saved_variables' entries must be a string or an object");
             }
@@ -406,7 +419,7 @@ public final class Manifest {
                         + " one name is one table, and only the first entry would have taken effect. Declare"
                         + " it once, in the scope you mean.");
             }
-            out.add(new SavedVar(nm, account));
+            out.add(new SavedVar(nm, client));
         }
         return out;
     }

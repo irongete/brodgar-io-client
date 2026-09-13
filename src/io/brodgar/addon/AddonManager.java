@@ -191,10 +191,11 @@ public final class AddonManager {
     // interested adapter(s) dirty; the step re-reads + fires holding none. Both collections are
     // session-scoped.
 
-    // -- saved variables (spec 1e / D-002 / D-023): hafen.store persisted as JSON under savedata/ ------
-    // Per-character vars key on <genus>_<char>, known only once the HUD is up (SessionEnteredWorld) —
-    // captured here and reused on flush so a relog (which rebinds ui before the new GameUI exists) writes to
-    // the OLD character's folder. Account-scope vars need no char and load at addon-load time.
+    // -- saved variables (spec 1e / D-002 / D-023; 146): hafen.store, the documents in the addon's own
+    // savedata/<id>.sqlite. Per-character vars key on <genus>_<char>, known only once the HUD is up
+    // (SessionEnteredWorld) — captured here and reused on flush so a relog (which rebinds ui before the new
+    // GameUI exists) writes under the OLD character's key. Client-scope vars need no char and load at
+    // addon-load time.
 
     // -- enabled set + reload (spec 1f-2 / D-005 / D-006): which addons run, persisted client-side --------
     // WoW "apply on reload" model: toggling enable/disable updates a persisted DISABLED set (an addon runs
@@ -5221,16 +5222,17 @@ public final class AddonManager {
             }
         }, timerVerbs), null);
 
-        // hafen.store() — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared saved
-        // variable, persisted to JSON under savedata/. :get(name) hands back that table — the LIVE persisted
-        // one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name throws listing
-        // the declared ones, because the set is closed by the manifest at load. :flush() forces a write now.
-        // Per-character vars are restored at SessionEnteredWorld (the <genus>_<char> folder is only known
-        // then); account-scope vars are loaded here, before the addon's files run, ready in the file body /
-        // Load. The table object for each name is STABLE for the addon's whole life (restore fills it in
-        // place), so a cached reference stays valid. This is the one section whose ACCESS PATTERN changed
-        // rather than its spelling, so the old field form throws from a per-owner __index built off the
-        // manifest (StoreApi.index) — a static refusal table cannot know an addon's own variable names.
+        // hafen.store() — saved variables (1e / D-002 / D-023; 146). One Lua table per manifest-declared saved
+        // variable, a JSON row in the addon's own savedata/<id>.sqlite. :get(name) hands back that table — the
+        // LIVE persisted one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name
+        // throws listing the declared ones, because the set is closed by the manifest at load. :flush() forces
+        // a write now; :info() says where the file is and how big. Per-character vars are restored at
+        // SessionEnteredWorld (the <genus>_<char> key is only known then); client-scope vars are loaded here,
+        // before the addon's files run, ready in the file body / Load. The table object for each name is
+        // STABLE for the addon's whole life (restore fills it in place), so a cached reference stays valid.
+        // This is the one section whose ACCESS PATTERN changed rather than its spelling, so the old field form
+        // throws from a per-owner __index built off the manifest (StoreApi.index) — a static refusal table
+        // cannot know an addon's own variable names.
         StoreApi.installStore(hafen, owner);
 
         // The door every section name goes through. It answers for NONE today — Refusal.MOVED carries no

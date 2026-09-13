@@ -32,7 +32,7 @@ read back what missed:
 
 ```lua
 -- addons/myaddon/main.lua, beside
--- "saved_variables": [{ "name": "catalogue", "scope": "account" }] in the manifest
+-- "saved_variables": [{ "name": "catalogue", "scope": "client" }] in the manifest
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
 
 hafen.console():on("dump", function()

@@ -7,7 +7,7 @@ and no format to choose.
 ## Declare it, then use it
 
 ```json
-"saved_variables": ["settings", { "name": "seen", "scope": "account" }]
+"saved_variables": ["settings", { "name": "seen", "scope": "client" }]
 ```
 
 ```lua
@@ -15,11 +15,11 @@ hafen.session():current():store():get("settings").window = { x = 40, y = 200 }
 hafen.store():get("seen").lastLogin = os.time()
 ```
 
-A bare name is **per character**; the object form with `"scope": "account"` is shared by all your characters
-on the account. That is also the whole of the difference in how you reach one: a character's saved variables
-are that character's own folder, so you name [the session](../api/session.md) they belong to, and an
-account's are your addon's one file, so you name nobody. Ask for either through the other's door and you get
-an error naming the right one.
+A bare name is **per character**; the object form with `"scope": "client"` is your addon's own, one for the
+whole client whichever character is up. That is also the whole of the difference in how you reach one: a
+character's saved variables are that character's own, so you name [the session](../api/session.md) they
+belong to, and your addon's own are reached without naming anyone. Ask for either through the other's door
+and you get an error naming the right one.
 
 A declared name is always a usable table, empty when there is nothing saved yet, so there is nothing to
 create and no `nil` check to write. The table object itself never changes — a restore refills it in place —

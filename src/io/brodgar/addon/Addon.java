@@ -479,9 +479,9 @@ public final class Addon {
     public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
     /**
      * What is saved under each of those names, <b>by scope</b> (062, re-keyed by 092.8) — a place, a box, or
-     * both, in design pixels. The key is the folder the set belongs to: a character's
-     * {@code <genus>_<char>} for a widget standing in that session's own tree, and {@code "account"} for one
-     * standing in the addon's layer.
+     * both, in design pixels. The key is the scope the set belongs to — the row key in the addon's store file:
+     * a character's {@code <genus>_<char>} for a widget standing in that session's own tree, and {@code ""}
+     * for one standing in the addon's layer.
      *
      * <p><b>Which is the whole of A-087's fix.</b> A single set keyed by the character on SCREEN is the wrong
      * address: a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
@@ -1379,24 +1379,38 @@ public final class Addon {
     LuaValue mouseObj;
 
     /**
-     * The {@code hafen.store()} tables — <b>the ACCOUNT scope</b>, one Lua table per declared account-scope
-     * saved variable. Populated in {@link AddonManager#installHafen}; the engine reads it on flush.
+     * <b>This addon's store file</b> (146, {@link SqliteApi.Db}) — {@code savedata/<id>.sqlite}, opened by
+     * {@link SqliteApi#open} at {@link StoreApi#installStore} and closed by its own teardown step. {@code null}
+     * before the open, after the close, and for the whole session when the open failed: the <b>unavailable</b>
+     * state, whose cause {@link #dbWhy} holds. Volatile, because the engine's writes and an addon's own verbs
+     * reach it from more than one thread.
+     */
+    volatile SqliteApi.Db db;
+    /** Why {@link #db} is {@code null} after an open that failed — the file and the driver's reason; else {@code null}. */
+    volatile String dbWhy;
+
+    /**
+     * The {@code hafen.store()} documents — <b>the CLIENT scope</b>, one Lua table per saved variable declared
+     * {@code "scope": "client"}. Populated in {@link AddonManager#installHafen}; the engine reads it on flush.
      * {@code null} until installed.
      *
-     * <p>The other scope is nowhere near here (079.1): a character's saved variables are one session's, so
-     * they live in that session's own {@link AddonManager.SessionState#charStores} and there are as many
-     * sets as the client has logins.
+     * <p>The other scope is nowhere near here (079.1): a character's documents are one session's, so they
+     * live in that session's own {@link AddonManager.SessionState#charStores} and there are as many sets as
+     * the client has logins.
      */
     public LuaTable store;
-    /** Write-skip cache: the last JSON serialized for the account scope, so an unchanged flush skips disk I/O. */
-    public String lastAccountJson;
     /**
-     * <b>The account scope is read-only until a load succeeds</b> — set when the file was there and could
-     * not be read or parsed. What {@link #store} then holds is empty because the client could not read the
-     * file, and writing that back is an atomic replacement of the only copy. Cleared by the next successful
-     * load, which is a {@code :reload} or the next launch once the file is readable again.
+     * Write-skip cache: the JSON last written (or read in) for each client-scope document, by name, so an
+     * unchanged flush touches no row. Primed by the load, so the first flush after it writes nothing.
      */
-    public boolean accountReadOnly;
+    public final Map<String, String> lastClientDocs = new LinkedHashMap<String, String>();
+    /**
+     * <b>The client scope is read-only until a load succeeds</b> — set when the store is unavailable, or a
+     * row was there and could not be read or parsed. What {@link #store} then holds is empty because the
+     * client could not read it, and writing that back replaces the only copy. Cleared by the next successful
+     * load, which is a {@code :reload} or the next launch once the cause is fixed.
+     */
+    public boolean clientReadOnly;
 
     /**
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this

@@ -255,6 +255,10 @@ public final class AddonRegistry {
         }),
         // ...then persist them (spec 05: flushed at Disable)
         new Step("saved variables", StoreApi::flush),
+        // 146: ...and close the file they went into. After the flush, because the flush is what fills it; before
+        //   everything below, because nothing below writes it. The close checkpoints the write-ahead log and
+        //   drops the sidecars, so a reload leaves one file per addon behind, as a quit does.
+        new Step("sqlite", SqliteApi::close),
         // 044.1: take every widget this addon stood in the world back OUT of its surface first, so the two
         //   teardowns below see an ordinary widget on the flat UI. Standing is a re-home, so it has to be
         //   undone before anything decides where a widget ends up — the hidden-native restore reads where the
@@ -551,8 +555,9 @@ public final class AddonRegistry {
 
     /**
      * The flush the quit always pays: every session that ended and was never drained, then every addon's own
-     * write — its remembered placements, its account file and each live session's per-character variables,
-     * which is what {@link StoreApi#flush} already walks. Engine code throughout: nothing here calls an addon.
+     * write — its remembered placements, its client-scope documents and each live session's per-character
+     * documents, which is what {@link StoreApi#flush} already walks — and the close of its file. Engine code
+     * throughout: nothing here calls an addon.
      */
     private static void flushAll(List<Addon> cur) {
         try {
@@ -566,6 +571,13 @@ public final class AddonRegistry {
             } catch(RuntimeException e) {
                 logDiag("shutdown: could not flush " + ownerName(a) + ": " + e);
             }
+            // 146: the file the flush wrote into is closed here too, for the same reason the teardown Step
+            // closes it after "saved variables": the log is checkpointed and the sidecars go with the process.
+            try {
+                SqliteApi.close(a);
+            } catch(RuntimeException e) {
+                logDiag("shutdown: could not close " + ownerName(a) + "'s store: " + e);
+            }
             // 142.1: ...and its live connections are told 1001, as the teardown Step tells them on a reload.
             // The quit runs no Step, so this is where the exit says goodbye; engine code, nothing blocks, and
             // the frame goes out on the pool while the client finishes leaving.
@@ -574,6 +586,13 @@ public final class AddonRegistry {
             } catch(RuntimeException e) {
                 logDiag("shutdown: could not close " + ownerName(a) + "'s connections: " + e);
             }
+        }
+        // ...and the :lua REPL owner's file, which no list above holds: it is an Addon with a store like any
+        // other, and a quit that left it open would leave its sidecars beside the file.
+        try {
+            SqliteApi.close(AddonManager.consoleOwner);
+        } catch(RuntimeException e) {
+            logDiag("shutdown: could not close the console's store: " + e);
         }
     }
 

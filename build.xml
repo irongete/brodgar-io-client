@@ -113,7 +113,16 @@
 	 dest="lib/brodgar/minimal-json-0.9.5.jar" usetimestamp="true" />
   </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, get-luaj, get-concentus, get-minimal-json">
+  <!-- addon: the store's engine (src/io/brodgar/addon/SqliteApi.java), fetched like LuaJ and not committed.
+       One jar, no runtime dependency (slf4j is optional and absent: the driver logs through java.util.logging
+       then), the natives for every platform inside it, extracted to java.io.tmpdir on first open. -->
+  <target name="get-sqlite" depends="build-env">
+    <mkdir dir="lib/brodgar" />
+    <get src="https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.53.4.0/sqlite-jdbc-3.53.4.0.jar"
+	 dest="lib/brodgar/sqlite-jdbc-3.53.4.0.jar" usetimestamp="true" />
+  </target>
+
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, get-luaj, get-concentus, get-minimal-json, get-sqlite">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -177,7 +186,7 @@
       <fileset dir="build/classes-lib" />
       <manifest>
 	<attribute name="Main-Class" value="haven.Client" />
-	<attribute name="Class-Path" value="hafen-panama.jar builtin-res.jar hafen-res.jar lib/jogl-all.jar lib/gluegen-rt.jar lib/lwjgl-fat.jar lib/lwjgl-awt.jar lib/lwjgl-opengl-fat.jar lib/steamworks4j.jar lib/luaj-jse-3.0.1.jar lib/Concentus-17318837bf.jar lib/minimal-json-0.9.5.jar" />
+	<attribute name="Class-Path" value="hafen-panama.jar builtin-res.jar hafen-res.jar lib/jogl-all.jar lib/gluegen-rt.jar lib/lwjgl-fat.jar lib/lwjgl-awt.jar lib/lwjgl-opengl-fat.jar lib/steamworks4j.jar lib/luaj-jse-3.0.1.jar lib/Concentus-17318837bf.jar lib/minimal-json-0.9.5.jar lib/sqlite-jdbc-3.53.4.0.jar" />
 	<attribute name="Add-Exports" value="java.base/java.lang java.desktop/sun.awt java.desktop/sun.java2d" />
 	<attribute name="Enable-Native-Access" value="ALL-UNNAMED" />
       </manifest>
