@@ -170,6 +170,17 @@ final class Refusal {
                       + " whole client whichever character is up, so hafen.store():table(name) is where it is"
                       + " declared. A character is a column of it — put the character's key in the rows that"
                       + " are one character's. session:store() is that character's documents alone.");
+        // 146.3: and a statement runs on the file, for the same reason.
+        MISPLACED.put("session:store():exec",
+                      "session:store() has no verb 'exec': a statement runs on the file, which is one for the"
+                      + " whole client whichever character is up, so hafen.store():exec(sql, ...) is where it"
+                      + " runs. Where the rows are one character's, bind that character's key to a ?."
+                      + " session:store() is that character's documents alone.");
+        MISPLACED.put("session:store():query",
+                      "session:store() has no verb 'query': a statement runs on the file, which is one for the"
+                      + " whole client whichever character is up, so hafen.store():query(sql, ...) is where it"
+                      + " runs. Where the rows are one character's, bind that character's key to a ?."
+                      + " session:store() is that character's documents alone.");
     }
 
     /**

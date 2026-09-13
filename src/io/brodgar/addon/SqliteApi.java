@@ -57,6 +57,18 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * file itself says nothing about which column is which. So a declaration is re-read every load, and the
  * {@code :create()} that re-declares an existing table replaces the Table's declaration in place and adds
  * what the file lacks, which is how a record evolves.
+ *
+ * <p><b>The statements</b> (146.3) are SQL for what only SQL says — an aggregate, a join, a bulk write:
+ * {@code hafen.store():exec(sql, ...)} runs one that changes the file and answers how many rows it changed,
+ * {@code hafen.store():query(sql, ...)} runs one that answers rows and answers them keyed by column, each
+ * cell as the wire reads it ({@link #raw}) because no declaration types a statement's columns. A
+ * {@code ?} binds what {@link #bindable} takes, the count held to the statement's. <b>What a statement
+ * answers decides the verb</b>, known from the compiled statement before it runs, so a statement handed to
+ * the wrong verb is refused naming the right one and runs nothing. <b>The {@link Scan}</b> reads the text
+ * first: a second statement after a {@code ;} (the driver runs the first and drops the rest with nothing
+ * said), a {@code CREATE TABLE}/{@code CREATE INDEX} that has a builder, a name of the client's own, and the
+ * keywords whose refusal has a verb to name. It is not the sandbox — the engine is, with no second database
+ * attachable and no extension loadable — it is what picks the message.
  */
 final class SqliteApi {
     private SqliteApi() {}
@@ -869,11 +881,293 @@ final class SqliteApi {
     private static Db.Rows run(Db db, String sql, Object[] binds, int max, String verb) {
         try {
             return db.select(sql, binds, max);
-        } catch(Db.Arity e) {
-            throw new LuaError(verb + ": the statement has " + e.want + ((e.want == 1) ? " ?" : " ?s") + " and "
-                + e.got + ((e.got == 1) ? " value was" : " values were") + " passed — one value per ?");
         } catch(Failure e) {
-            throw new LuaError(verb + ": " + Refusal.reason(e));
+            throw refused(e, verb);
+        }
+    }
+
+    /** A failure out of the file as {@code verb}'s own refusal: the arity in the API's words, the rest as the driver said it. */
+    private static LuaError refused(Failure e, String verb) {
+        if(e instanceof Db.Arity) {
+            Db.Arity a = (Db.Arity)e;
+            return new LuaError(verb + ": the statement has " + a.want + ((a.want == 1) ? " ?" : " ?s") + " and "
+                + a.got + ((a.got == 1) ? " value was" : " values were") + " passed — one value per ?");
+        }
+        return new LuaError(verb + ": " + Refusal.reason(e));
+    }
+
+    // ==== statements (146.3) =========================================================================
+
+    /** The spelling of the two statement verbs in their messages. */
+    private static final String EXEC = ACC + ":exec(sql, ...)", QUERY = ACC + ":query(sql, ...)";
+
+    /**
+     * {@code hafen.store():exec(sql, ...)} — one statement that changes the file, and how many rows it
+     * changed: what it inserted, updated or deleted, its triggers and cascades included, and {@code 0} for
+     * one that changes no row (a {@code DROP}, a {@code PRAGMA}). A statement that answers rows is refused
+     * naming {@code :query}, before it runs.
+     */
+    static LuaValue exec(Addon a, Varargs args) {
+        String sql = Args.str(args, 2, ACC + ":exec", "sql", "one SQL statement, with one value per ? after it")
+            .tojstring();
+        Object[] binds = binds(args, EXEC);
+        Db db = require(a, EXEC);
+        Scan.check(sql, EXEC);
+        return LuaInteger.valueOf(statement(db, sql, binds, false, EXEC).changed);
+    }
+
+    /**
+     * {@code hafen.store():query(sql, ...)} — one statement that answers rows, as a plain array of plain
+     * tables keyed by column label, each cell as the wire reads it and a {@code NULL} an absent key. A
+     * statement that answers none is refused naming {@code :exec}, before it runs.
+     */
+    static LuaValue query(Addon a, Varargs args) {
+        String sql = Args.str(args, 2, ACC + ":query", "sql", "one SQL statement, with one value per ? after it")
+            .tojstring();
+        Object[] binds = binds(args, QUERY);
+        Db db = require(a, QUERY);
+        Scan.check(sql, QUERY);
+        Db.Rows rs = statement(db, sql, binds, true, QUERY).rows;
+        LuaTable out = new LuaTable();
+        for(int i = 0; i < rs.rows.size(); i++)
+            out.set(i + 1, rawRow(rs, i));
+        return out;
+    }
+
+    /** Run one statement of the addon's own for a verb, phrasing what the file refuses as the verb's. */
+    private static Db.Answer statement(Db db, String sql, Object[] binds, boolean rows, String verb) {
+        try {
+            return db.statement(sql, binds, rows, -1);
+        } catch(Db.Kind e) {
+            throw new LuaError(verb + ": " + (rows
+                ? "this statement answers no rows, and :query answers rows — " + EXEC + " runs a statement"
+                  + " that changes the file, and answers how many rows it changed"
+                : "this statement answers rows, and :exec answers how many rows a statement changed — " + QUERY
+                  + " runs it and answers them") + (e.ran ? "; it ran" : "; it did not run"));
+        } catch(Failure e) {
+            throw refused(e, verb);
+        }
+    }
+
+    /**
+     * One row of a statement's answer as a plain table keyed by column label — the alias where the statement
+     * gave one, the column's name where it did not — each cell as the wire reads it, a {@code NULL} an absent
+     * key. Two columns under one label keep the last, which is SQL's own answer; an alias is the fix.
+     */
+    private static LuaTable rawRow(Db.Rows rs, int i) {
+        LuaTable t = new LuaTable();
+        Object[] r = rs.rows.get(i);
+        for(int c = 0; c < rs.columns.length; c++) {
+            LuaValue v = raw(r[c]);
+            if(!v.isnil())
+                t.set(rs.columns[c], v);
+        }
+        return t;
+    }
+
+    /**
+     * <b>The scan</b> of a statement's text, before it runs. It reads the tokens in order — the bare words
+     * lower-cased, every quoted identifier ({@code "…"}, {@code `…`}, {@code […]}), each {@code ;}, and the
+     * rest as the punctuation it is — skipping whitespace, both kinds of comment, and the inside of a
+     * {@code '…'} literal, which is data. What it refuses is what the engine would run and the API does not
+     * mean: a second statement, the two {@code CREATE}s that have a builder, the client's own {@code hafen_}
+     * names, a transaction word and a {@code VACUUM} that have a verb. What the engine refuses on its own —
+     * {@code ATTACH} beyond the limit, {@code load_extension} switched off — it refuses first, so the
+     * message names the sandbox rather than quoting the driver.
+     */
+    static final class Scan {
+        /** What a token is: a bare word, a quoted identifier, a {@code ;}, or a piece of punctuation. */
+        private enum T { WORD, QUOTED, SEMI, OTHER }
+
+        /** The tokens in order — a word lower-cased, a quoted identifier as spelled, punctuation as {@code ""}. */
+        private final List<T> kinds = new ArrayList<T>();
+        private final List<String> texts = new ArrayList<String>();
+        /** The bare words in order, lower-cased: keywords, function names and unquoted identifiers alike. */
+        final List<String> words = new ArrayList<String>();
+        /** Every quoted identifier, as spelled between its quotes. */
+        final List<String> quoted = new ArrayList<String>();
+        /** A token followed the {@code ;} that ended the statement. */
+        boolean second;
+
+        /** The first words of a transaction statement — the six the engine has, each a refusal here. */
+        private static final List<String> TRANSACTION =
+            java.util.Arrays.asList("begin", "commit", "end", "rollback", "savepoint", "release");
+
+        Scan(String sql) {
+            int n = sql.length(), i = 0;
+            while(i < n) {
+                char c = sql.charAt(i);
+                if(Character.isWhitespace(c)) {
+                    i++;
+                } else if((c == '-') && (i + 1 < n) && (sql.charAt(i + 1) == '-')) {
+                    int e = sql.indexOf('\n', i);
+                    i = (e < 0) ? n : e + 1;
+                } else if((c == '/') && (i + 1 < n) && (sql.charAt(i + 1) == '*')) {
+                    int e = sql.indexOf("*/", i + 2);
+                    i = (e < 0) ? n : e + 2;
+                } else if(c == ';') {
+                    token(T.SEMI, "");
+                    i++;
+                } else if(c == '\'') {
+                    token(T.OTHER, "");
+                    i = closing(sql, i, '\'');      // a literal: its text is data, not read
+                } else if((c == '"') || (c == '`')) {
+                    int e = closing(sql, i, c);
+                    token(T.QUOTED, sql.substring(i + 1, Math.max(i + 1, Math.min(e - 1, n))));
+                    i = e;
+                } else if(c == '[') {
+                    int e = sql.indexOf(']', i + 1);
+                    token(T.QUOTED, sql.substring(i + 1, (e < 0) ? n : e));
+                    i = (e < 0) ? n : e + 1;
+                } else if(identStart(c)) {
+                    int s = i;
+                    while((i < n) && identChar(sql.charAt(i)))
+                        i++;
+                    token(T.WORD, sql.substring(s, i).toLowerCase(Locale.ROOT));
+                } else if(Character.isDigit(c)) {
+                    while((i < n) && (identChar(sql.charAt(i)) || (sql.charAt(i) == '.')))
+                        i++;                        // a number, and the letters of its own (1e5, 0x1f)
+                    token(T.OTHER, "");
+                } else {
+                    token(T.OTHER, "");             // an operator, a bracket, a comma, a ?
+                    i++;
+                }
+            }
+            second = tail(bodyEnd());
+        }
+
+        private void token(T kind, String text) {
+            kinds.add(kind);
+            texts.add(text);
+            if(kind == T.WORD)
+                words.add(text);
+            else if(kind == T.QUOTED)
+                quoted.add(text);
+        }
+
+        /** Is token {@code i} the bare word {@code w}? */
+        private boolean word(int i, String w) {
+            return (i < kinds.size()) && (kinds.get(i) == T.WORD) && texts.get(i).equals(w);
+        }
+
+        /**
+         * The token just past the one statement's own body — {@code 0} for every statement but a trigger,
+         * whose body is {@code BEGIN stmt; stmt; … END} with its {@code ;}s inside it: the {@code END} that
+         * closes it is the one not paired with a {@code CASE}.
+         */
+        private int bodyEnd() {
+            int k = 1;
+            while(word(k, "temp") || word(k, "temporary"))
+                k++;
+            if(!word(0, "create") || !word(k, "trigger"))
+                return 0;
+            while((k < kinds.size()) && !word(k, "begin"))
+                k++;
+            int depth = 0;
+            for(k++; k < kinds.size(); k++) {
+                if(word(k, "case")) {
+                    depth++;
+                } else if(word(k, "end")) {
+                    if(depth == 0)
+                        return k + 1;
+                    depth--;
+                }
+            }
+            return kinds.size();                    // no END closes it: the driver says so
+        }
+
+        /** From token {@code i} on: a {@code ;} ends the statement, and any token after that is a second one. */
+        private boolean tail(int i) {
+            for(; i < kinds.size(); i++) {
+                if(kinds.get(i) == T.SEMI)
+                    return i + 1 < kinds.size();
+            }
+            return false;
+        }
+
+        /** The index just past the {@code q}-quoted run opening at {@code i}; a doubled {@code q} inside is one, an unterminated run ends the text. */
+        private static int closing(String sql, int i, char q) {
+            int n = sql.length();
+            i++;
+            while(i < n) {
+                if(sql.charAt(i) == q) {
+                    if((i + 1 < n) && (sql.charAt(i + 1) == q)) {
+                        i += 2;
+                        continue;
+                    }
+                    return i + 1;
+                }
+                i++;
+            }
+            return n;
+        }
+
+        private static boolean identStart(char c) {
+            return Character.isLetter(c) || (c == '_') || (c >= 0x80);
+        }
+
+        private static boolean identChar(char c) {
+            return identStart(c) || Character.isDigit(c) || (c == '$');
+        }
+
+        /** Refuse {@code sql} for {@code verb}, or let it through to the file. */
+        static void check(String sql, String verb) {
+            Scan s = new Scan(sql);
+            if(s.words.isEmpty() && s.quoted.isEmpty())
+                throw new LuaError(verb + ": the statement is empty — one SQL statement, such as"
+                    + " \"SELECT count(*) FROM nodes WHERE kind = ?\", with one value per ? after it");
+            if(s.second)
+                throw new LuaError(verb + ": there is a second statement after the \";\" — one statement per"
+                    + " call: the driver would run the first and drop the rest with nothing said. Run each"
+                    + " in a call of its own");
+            String first = s.words.isEmpty() ? "" : s.words.get(0);
+            if(first.equals("create")) {
+                // CREATE [TEMP | TEMPORARY] [UNIQUE] <what>: a table and an index have a builder; a view, a
+                // trigger and a virtual table have none, and run here.
+                int k = 1;
+                while((k < s.words.size()) && (s.words.get(k).equals("temp") || s.words.get(k).equals("temporary")
+                                               || s.words.get(k).equals("unique")))
+                    k++;
+                String what = (k < s.words.size()) ? s.words.get(k) : "";
+                if(what.equals("table"))
+                    throw new LuaError(verb + ": CREATE TABLE is refused here — a table of your own is declared"
+                        + " through " + ACC + ":table(name), whose :column(name, type), :key(col, ...) and"
+                        + " :index(col, ...) give its rows the types they come back with, and whose :create()"
+                        + " makes it. A virtual table (CREATE VIRTUAL TABLE) has no columns to type, and runs"
+                        + " here");
+                if(what.equals("index"))
+                    throw new LuaError(verb + ": CREATE INDEX is refused here — an index is declared on the"
+                        + " table's declaration, " + ACC + ":table(name) … :index(col, ...), and its :create()"
+                        + " makes it, on a table already in the file too");
+            } else if(first.equals("attach") || first.equals("detach")) {
+                throw new LuaError(verb + ": " + first.toUpperCase(Locale.ROOT) + " is refused: this connection"
+                    + " is a sandbox with one file, your addon's own, and no other database is attached to it —"
+                    + " every addon's data is its own file");
+            } else if(first.equals("vacuum")) {
+                throw new LuaError(verb + ": VACUUM is refused here — :vacuum() compacts the file in place,"
+                    + " inside the store's own lock; VACUUM INTO would write a second file, and this connection"
+                    + " is a sandbox with one");
+            } else if(TRANSACTION.contains(first)) {
+                throw new LuaError(verb + ": " + first.toUpperCase(Locale.ROOT) + " is refused: a transaction"
+                    + " is :transaction(fn, ...), which brackets what fn runs — committed when fn returns,"
+                    + " rolled back when it raises. A bracket a statement opened would outlive the frame");
+            }
+            for(String w : s.words)
+                name(w, verb);
+            for(String q : s.quoted)
+                name(q.toLowerCase(Locale.ROOT), verb);
+        }
+
+        /** Refuse an identifier of the client's own, or the one function the sandbox has switched off. */
+        private static void name(String w, String verb) {
+            if(w.startsWith("hafen_"))
+                throw new LuaError(verb + ": \"" + w + "\" is under the hafen_ prefix, which is the client's own"
+                    + " tables — hafen_documents holds your documents and hafen_placements your remembered"
+                    + " placements, reached through " + ACC + ":get(name) and w:remember(name) and never"
+                    + " through a statement. A table of yours is declared under another prefix");
+            if(w.equals("load_extension"))
+                throw new LuaError(verb + ": load_extension is refused: this connection is a sandbox, and no"
+                    + " extension is loaded on it — the functions a statement has are SQLite's own");
         }
     }
 
@@ -1197,21 +1491,99 @@ final class SqliteApi {
             try(java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
                 bind(ps, binds);
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
-                    java.sql.ResultSetMetaData md = rs.getMetaData();
-                    String[] cols = new String[md.getColumnCount()];
-                    for(int i = 0; i < cols.length; i++)
-                        cols[i] = md.getColumnLabel(i + 1);
-                    Rows out = new Rows(cols);
-                    while(((max < 0) || (out.rows.size() < max)) && rs.next()) {
-                        Object[] row = new Object[cols.length];
-                        for(int i = 0; i < cols.length; i++)
-                            row[i] = rs.getObject(i + 1);
-                        out.rows.add(row);
-                    }
-                    return out;
+                    return read(rs, max);
                 }
             } catch(java.sql.SQLException e) {
                 throw new Failure(e.getMessage(), e);
+            }
+        }
+
+        /** At most {@code max} rows of {@code rs} ({@code -1} for all), the cells as the driver hands them. */
+        private static Rows read(java.sql.ResultSet rs, int max) throws java.sql.SQLException {
+            java.sql.ResultSetMetaData md = rs.getMetaData();
+            String[] cols = new String[md.getColumnCount()];
+            for(int i = 0; i < cols.length; i++)
+                cols[i] = md.getColumnLabel(i + 1);
+            Rows out = new Rows(cols);
+            while(((max < 0) || (out.rows.size() < max)) && rs.next()) {
+                Object[] row = new Object[cols.length];
+                for(int i = 0; i < cols.length; i++)
+                    row[i] = rs.getObject(i + 1);
+                out.rows.add(row);
+            }
+            return out;
+        }
+
+        // ---- statements of the addon's own (146.3): what a statement answers decides the verb -----
+
+        /** What one statement answered: its rows, or — {@code rows == null} — how many rows it changed. */
+        static final class Answer {
+            final Rows rows;
+            final long changed;
+
+            Answer(Rows rows, long changed) {
+                this.rows = rows;
+                this.changed = changed;
+            }
+        }
+
+        /**
+         * The statement answers the other kind — rows where the verb answers a count, none where it answers
+         * rows — phrased by the verb that ran it. {@code ran} says whether it ran before that was seen: it is
+         * seen before the step wherever the driver's metadata says what the compiled statement answers, which
+         * is every statement so far, and after it where {@code execute()} is the first to say.
+         */
+        static final class Kind extends Failure {
+            final boolean ran;
+
+            Kind(boolean ran) {
+                super("the statement answers the other kind", null);
+                this.ran = ran;
+            }
+        }
+
+        /**
+         * Run one statement of the addon's own, wanting {@code rows} or a change count. The binds are
+         * {@link SqliteApi#bindable}'s kinds, the count held; a statement of the other kind is a
+         * {@link Kind}, refused before it runs wherever the compiled statement says what it answers.
+         *
+         * <p><b>The change count is the engine's, counted for this statement alone</b>: the difference in
+         * {@code total_changes()} across the step, which is what this statement inserted, updated or deleted
+         * — its triggers and cascades included, and a virtual table module's own rows ({@code CREATE VIRTUAL
+         * TABLE … USING fts5} writes three) — and {@code 0} for a statement that changes no row. The
+         * driver's own {@code getUpdateCount()} is {@code changes()} read after the step, which is the count
+         * of the last INSERT, UPDATE or DELETE whichever statement that was: a {@code DROP TABLE} would
+         * answer the row count of the write before it.
+         */
+        synchronized Answer statement(String sql, Object[] binds, boolean rows, int max) {
+            try(java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+                bind(ps, binds);
+                if(answersRows(ps) != rows)
+                    throw new Kind(false);
+                long before = conn.getDatabase().total_changes();
+                if(ps.execute() != rows)
+                    throw new Kind(true);
+                if(!rows)
+                    return new Answer(null, conn.getDatabase().total_changes() - before);
+                try(java.sql.ResultSet rs = ps.getResultSet()) {
+                    return new Answer(read(rs, max), 0);
+                }
+            } catch(java.sql.SQLException e) {
+                throw new Failure(e.getMessage(), e);
+            }
+        }
+
+        /**
+         * Does the compiled statement answer a result set? Known before it runs: the driver's metadata for a
+         * prepared statement is its column list, read at prepare — and {@code execute()} answers exactly
+         * "that list is not empty". A statement with no columns has nothing for the driver to count, and it
+         * refuses to, which is the same answer.
+         */
+        private static boolean answersRows(java.sql.PreparedStatement ps) {
+            try {
+                return ps.getMetaData().getColumnCount() > 0;
+            } catch(java.sql.SQLException e) {
+                return false;
             }
         }
 

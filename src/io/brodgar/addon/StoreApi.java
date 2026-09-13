@@ -251,6 +251,22 @@ final class StoreApi {
                 return SqliteApi.table(owner, a);
             }
         });
+        // exec(sql, ...) / query(sql, ...) — one statement of this addon's own, with one value per ? after
+        // it (146.3): :exec runs one that changes the file and answers how many rows it changed, :query one
+        // that answers rows and answers them keyed by column. The file's verbs, so the CLIENT half's: where
+        // the rows are one character's, the character is a value bound to a ?.
+        store.set("exec", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "exec");
+                return SqliteApi.exec(owner, a);
+            }
+        });
+        store.set("query", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "query");
+                return SqliteApi.query(owner, a);
+            }
+        });
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():get(\"<name>\") for a client-scope name and"

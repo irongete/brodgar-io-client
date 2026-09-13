@@ -34,7 +34,7 @@ first, so a rerun is clean, and touches no other addon's file.
       through `put`; one with another key fails naming both; `:table("hafen_x")` and `:column("a",
       "blob")` fail naming what is allowed.
 
-- [ ] **146.3 — Statements.** `:exec`, `:query`, the binding and the arity, `execute()` deciding
+- [x] **146.3 — Statements.** `:exec`, `:query`, the binding and the arity, `execute()` deciding
       the verb, the scan — a second statement, `CREATE TABLE`/`CREATE INDEX` naming the builder,
       `hafen_`, and the keyword messages — with the library's refusals re-raised naming the sandbox.
       *Its suite* declares a table through the builder, then: `exec("INSERT …", …)` answers `1`;

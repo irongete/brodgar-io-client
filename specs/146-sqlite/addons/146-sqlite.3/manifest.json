@@ -1,0 +1,9 @@
+{
+  "name": "146.3 — Statements",
+  "id": "146-sqlite.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.3: hafen.store():exec and :query, the binding and the arity, the verb decided by what the statement answers, and the scan's refusals.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

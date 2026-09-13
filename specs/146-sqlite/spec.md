@@ -87,7 +87,11 @@ No `docs/client/` page: everything read is `io.brodgar`.
   `placements`, `bytes`, `close`, and the statement primitives `select` (rows, at most `max`), `change`,
   `ddl`, `Rows`, `Arity`; `open`, `close`, `db`, `require`, `info`, `Failure`; the builder `Declaration`,
   `Decl`, `Table`, `create`; `bindable` and `raw` — how a `?` binds and a cell reads with no declaration;
-  `run` — how a driver refusal is phrased as the verb's)
+  `run` and `refused` — how a driver refusal is phrased as the verb's; the statements: `exec`, `query`,
+  `rawRow`, `statement` (the verb's wrapper, where the row ceiling of `:query` is the `-1`), `Scan`
+  (`check` and the messages; `bodyEnd` is a trigger's body, `tail` the second statement), `Db.statement`
+  (`total_changes()` across the step is the count; `answersRows` decides the verb before the step),
+  `Db.Answer`, `Db.Kind`, `Db.read`)
 - `src/io/brodgar/addon/StoreApi.java` — 1, 2, 3, 4 (`installStore` mounts the verbs; the persistence
   half: `loadInto`, `writeClient`, `writeChar`, `writePlacements`, `scopeRows`, `saveDir`, `scopeKey`,
   `CharStore`, `autosave`, `flush`, `detach`; `CLIENT` is the row key of the addon's own scope)
