@@ -150,8 +150,11 @@ asked again, as any manifest that grows is.
 `brodgar.io/addons` is where addons for this client are published. A published addon is a zip of one
 addon folder — the same folder the client reads from `addons/` — under an id that belongs to whoever
 published it first, at a version the hub orders (`MAJOR.MINOR.PATCH`, an optional pre-release), with a
-sha256 of the package. What a row shows is read from the manifest inside the zip, never from a form, so
-the permissions and hosts you read on Browse are the ones the addon itself declares.
+sha256 of the package. The name and the summary a row shows are the hub's listing, written by whoever
+publishes it; the version, the permissions and the hosts are read from the manifest inside the zip,
+never from a form, so what you read on Browse is what the addon itself declares. The package's URL
+carries its sha256, so the bytes the client fetches are the ones the row advertised or nothing: a
+version published again with another package is another URL.
 
 The client reads the hub at `https://brodgar.io/addons/api`. To read another — a hub you run while
 developing — start the client with `-Dhaven.addon.registry=<base>`, the base URL up to and including
