@@ -4,16 +4,18 @@ Every addon of the maintainer's is in a repository of its own,
 [brodgar-io-client-addons](https://github.com/irongete/brodgar-io-client-addons): one folder each, to drop
 into the same `addons/` folder yours goes into. **Which of them a client release ships is
 `etc/release-addons` in the client's repository** — one addon per line — and nothing else says so. None of
-them illustrates a surface — a reference page states its own. Three are worth knowing while you write your
-own: the **tools** you point at your addon — what a widget on the screen is and how to name it, and what the
-client is doing as it does it — and, beside them, a **surface of the client's own**, written in Lua like any
-other addon: the switcher over the logins the client holds.
+them illustrates a surface — a reference page states its own. The ones worth knowing while you write your
+own are below: the **tools** you point at your addon — what a widget on the screen is and how to name it,
+and what the client is doing as it does it — and, beside them, two **surfaces of the client's own**, written
+in Lua like any other addon: the switcher over the logins the client holds, and the voice the client draws
+no UI for.
 
 | Addon | Use it to |
 |---|---|
 | [`widgetstack`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/widgetstack/main.lua) | find out what a widget is, and how to name it |
 | [`eventstack`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
 | [`session-manager`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/session-manager/main.lua) | go between the characters you have logged in |
+| [`voice`](https://github.com/irongete/brodgar-io-client-addons/blob/HEAD/voice/main.lua) | talk to the players near you, and hear them |
 
 The tools are **dormant** — enabled, they draw nothing and read nothing until you press their hotkey or
 type their command — so having them on costs you an untouched login. The log is the one exception, and
@@ -92,13 +94,36 @@ character is in the world — with the row on screen marked, a button that hands
 character, and an `X` that logs it out. Its `next` hotkey goes to the next login and round, and `:sessions`
 opens and closes the window.
 
-It is the one of the three that **asks for a permission**: `session.close`, behind the `X`. So the client
-disables it the first time it sees it and asks you to approve that line before it runs, the way it does for
-any addon that can act on your behalf — see [permissions](guides/permissions.md).
+It **asks for a permission**: `session.close`, behind the `X`. So the client disables it the first time it
+sees it and asks you to approve that line before it runs, the way it does for any addon that can act on
+your behalf — see [permissions](guides/permissions.md).
 
 Its window stands in the addon layer rather than on a character's HUD, which is why the screen moving does
 not rebuild it, and where you drag it is saved for the **account** rather than for whichever character was
 on screen when you moved it.
+
+## voice
+
+Proximity voice, on the whole of [`hafen.voice`](api/voice/README.md): the client opens the microphone and
+mixes what arrives, and everything a player sees of it is this addon. It holds **one link** to
+`voice.brodgar.io` from the moment a character enters the world, for as long as the client runs — following
+whichever character is on screen, and back after a pause that doubles up to a minute when the server ends
+it. Its page in **Options ▸ AddOns ▸ Voice** is the settings a player has: the link on or off, the mode
+— push to talk, voice detection, an open microphone — the detection threshold, automatic gain, spatial
+panning, the volume and the bitrate, each a [client option](api/client/addon.md) bound to a control. Its
+`talk`, `mute` and `deafen` hotkeys start unbound, as every addon's do.
+
+**Who is talking is drawn over heads** with [`gob:overlay()`](api/overlay.md): a speaker over your own
+character while your voice goes out, one over a player while theirs arrives, and a struck one over a
+player you muted — vector-drawn, so the addon ships no image. `:voice` opens and closes its window: the
+link's state and round trip, a mute and a deafen, and a row per player the server relates you to, with a
+mute box and a volume slider each. A ring opened on another player takes a
+[petal of its own](api/flowermenu.md#write-unprotected), `Mute voice` or `Unmute voice`.
+
+It asks for **one permission**, `voice.connect` over `voice.brodgar.io` — the microphone opens for that
+server and no other, and [what the server is told](api/voice/README.md#what-the-server-is-told) is relative
+positions only. Its window stands in the addon layer and is remembered for the **account**, like the
+switcher's.
 
 ## See also
 

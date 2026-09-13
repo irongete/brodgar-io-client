@@ -39,7 +39,7 @@ stripped with `^@?.-%.lua:%d+:?%s*`. The addon logs one line per link edge — `
       in 144.3, where a mute can first be set.
       <!-- extra context: docs/addons/api/event/bus/lifecycle.md -->
 
-- [ ] **144.3 — The window, the petal, and the release.** Adds the `Voice` window in the layer,
+- [x] **144.3 — The window, the petal, and the release.** Adds the `Voice` window in the layer,
       `:remember("window")`, toggled by `:voice`: a status line from `link:info()` (`state`, `rtt`,
       `streams`), a `muted` and a `deafened` check writing the link, and a row per `link:peer():list()` —
       the kin name or `#<id>`, `hears`/`audible` as two glyphs, a check on `peer:muted`, a slider `0..400`

@@ -1,0 +1,13 @@
+{
+  "name": "144.3 — the window, the petal, and the release",
+  "id": "144-voice-addon.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 144.3: the voice addon holds the link and declares its keys, and a ring opened on a tree carries no petal of its own.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["voice.connect", "gob.click", "flowermenu.select", "flowermenu.cancel"],
+  "network": {
+    "hosts": ["voice.brodgar.io"]
+  }
+}

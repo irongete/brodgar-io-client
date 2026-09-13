@@ -2,3 +2,4 @@
 # (build.xml: addons.repo, ../brodgar-io-client-addons by default). A line starting with #
 # is a comment; an empty list ships none.
 session-manager
+voice

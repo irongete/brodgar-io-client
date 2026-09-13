@@ -1160,6 +1160,7 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "destroy"));
                 if(w != null) {
                     Owned content = owned(owner, w, "destroy()");
+                    rememberCapture(owner);       // 144.3: where a remembered window stood, read while it still stands
                     // Anything of the CLIENT's that we took into this surface goes home FIRST: kill() disposes
                     // recursively, so a minimap left inside would be destroyed with the panel around it.
                     UiApi.homeInside(w);
@@ -2802,11 +2803,43 @@ public final class LuaWidget {
         for(Map.Entry<String, Widget> e : a.remembered.entrySet()) {
             Widget w = e.getValue();
             Moved rec = findMoved(a, w);
-            if(rec == null)
+            // 144.3: A WINDOW THIS ADDON BUILT STANDS WHERE IT STANDS, level or no level. widget:position(x, y)
+            // on an owned widget moves it outright and names no level ("your own widget: no layer"), and the
+            // chrome's own title-bar drag names none either -- so gating the place on a hand-named level, which
+            // is the right question for a BORROWED widget an addon is layering over, made an owned window's place
+            // unrecordable: nothing ever created the level, the record was never written, and the window came
+            // back at the stock place however often the user dragged it. Where an owned widget stands is this
+            // addon's own by construction, so its place is read from `c` whenever it is remembered. The size
+            // half keeps its gate: a packed window's box is what its rows measure, not a size the user chose.
+            boolean own = ownedContent(a, w) != null;
+            if((rec == null) && !own)
                 continue;                             // nothing of ours is standing on it: nothing to record
-            Coord pos = ((rec.wantPos == null) || (w.c == null)) ? null : Px.out(w.c);
-            Coord size = ((rec.wantSize == null) || (w.sz == null)) ? null : Px.out(sizeArg(w));
+            boolean placed = own || (rec.wantPos != null);
+            Coord pos = (!placed || (w.c == null)) ? null : Px.out(w.c);
+            Coord size = ((rec == null) || (rec.wantSize == null) || (w.sz == null)) ? null : Px.out(sizeArg(w));
             StoreApi.land(a, w, e.getKey(), pos, size);
+        }
+    }
+
+    /**
+     * <b>The chrome of a window this addon built was dragged</b> (144.3, from {@link UiApi}'s window). The
+     * drag moved {@code c} through {@code Window.mousemove} and told the layer nothing, so a hand-named position
+     * level standing on the window -- the one {@link #rememberApply} writes to put a remembered place back --
+     * still named where the window WAS, and the next {@link Layout#apply} over it (a rule, a re-remember)
+     * snapped the window back there. The level follows the hand, the way {@link Gesture} writes one for
+     * {@code widget:draggable}: parent-local, in design pixels, with a fresh {@code seq}. No level is minted
+     * where none stands -- an owned window is moved outright and layered over by nothing, and
+     * {@link #rememberCapture} reads its place from {@code c} regardless.
+     */
+    static void chromeDragged(Addon owner, Widget w) {
+        if((owner == null) || (w == null) || (w.c == null))
+            return;
+        synchronized(monitor(w)) {
+            Moved rec = findMoved(owner, w);
+            if((rec == null) || (rec.wantPos == null))
+                return;
+            rec.wantPos = Layout.Anchor.at(Px.out(w.c));
+            rec.posSeq = Layout.nextSeq();
         }
     }
 

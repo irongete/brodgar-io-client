@@ -1222,11 +1222,24 @@ final class UiApi {
                     if(w != content)
                         content.repack();
                 }
+
+                // 144.3: THE TITLE-BAR DRAG IS THE USER'S HAND, AND THE LAYER HEARS IT. Window.mousemove moves
+                // `c` while its own grab stands and tells nobody; a `c` that changed across one mousemove is
+                // that drag and nothing else (the verbs and the fold move a window from the step, never from
+                // inside a pointer event), so a position level standing on this window follows it
+                // (LuaWidget.chromeDragged) instead of snapping it back on the next fold.
+                public void mousemove(Widget.MouseMoveEvent ev) {
+                    Coord before = this.c;
+                    super.mousemove(ev);
+                    if((this.c != null) && !this.c.equals(before))
+                        LuaWidget.chromeDragged(owner, this);
+                }
             };
             win.add(content, Coord.z);
             content.root(win);
             win.reqclose(() -> {                      // the chrome close button: fire :onClose(), then destroy
                 content.closed();                     //   read from the slot, so a handler set later is the one that runs
+                LuaWidget.rememberCapture(owner);     // 144.3: where a remembered window stood, read while it still stands
                 content.kill();
                 dropPending(content);
                 owner.widgets.remove(content);

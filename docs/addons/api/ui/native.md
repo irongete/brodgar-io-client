@@ -233,6 +233,9 @@ end)
 place back is the moment you say it is remembered. What it writes is your [`:position` and `:size`
 levels](#moving-and-resizing-unprotected), exactly as those two verbs write them, so a `w:position(x, y)`
 written *after* it wins, being the later write, and `w:position(nil)` still gives the stock place back.
+A window [you built](custom.md) is saved where it stands, whether your `:position` put it there or the user
+dragged it by its title bar; its box is saved only where you sized it, so a window packed around its
+contents is never pinned to a box the user did not choose.
 
 **What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer, and
 when the screen moves. **The slot belongs to the tree the widget stands in**: a session's own window — the
