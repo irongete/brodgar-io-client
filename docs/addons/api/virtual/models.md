@@ -105,7 +105,7 @@ the server. Both the per-object `:onClick(fn)` and the owner-scoped
 
 An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path
 handles all three: click-select, drag on the ground, and persistence through
-[`hafen.store`](../store.md), which reloads it at the same spot after a relog.
+[`hafen.store`](../store/README.md), which reloads it at the same spot after a relog.
 
 ## See also
 

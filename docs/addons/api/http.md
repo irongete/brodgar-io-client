@@ -216,7 +216,7 @@ inside it is logged, never propagated.
   token for it. The client's own headers go on every hop.
 - **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
   account. There are no cookies and no shared session: every request stands alone, and any token is one
-  you keep yourself, in [`hafen.store`](store.md).
+  you keep yourself, in [`hafen.store`](store/README.md).
 - **The timeout is one deadline over the whole exchange** — connect, redirects and body together — so five
   hops cannot spend it five times and a server sending one byte at a time cannot outlast it. It fails with
   a `timeout` error whenever it runs out.
@@ -233,5 +233,5 @@ inside it is logged, never propagated.
 
 - [`hafen.websocket`](websocket.md) — a connection the server can push on, under the same key shape and allowlist
 - [`hafen.json`](json.md) — parsing a response body, and encoding a request one
-- [`hafen.store`](store.md) — persisting tokens and cached results
+- [`hafen.store`](store/README.md) — persisting tokens and cached results
 - [permissions](../guides/permissions.md) — the other protected tier

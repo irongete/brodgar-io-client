@@ -110,5 +110,7 @@ No `docs/client/` page: everything read is `io.brodgar`.
 - `build.xml` — 1 (`get-luaj`, `Class-Path`)
 - `../brodgar-io-client-launcher/build.xml` — 1 (`modules`)
 - `../brodgar-io-client-addons/*/manifest.json` — 1
-- `tools/docverbs.py` — 5 (`RECEIVERS`)
+- `tools/docverbs.py` — 5 (`PER_FILE`: the store pages' receivers)
+- `docs/addons/api/store/tables.md`, `docs/addons/api/store/statements.md` — 6, 7 (*The Table*, *The clause*,
+  *What is refused*: the lines each task adds)
 - `DOCUMENTATION.md` — 5

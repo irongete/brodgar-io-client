@@ -101,7 +101,7 @@ Read the value whenever you need it and subscribe to `Changed` for the moment it
 
 A value here is the **client's**, not your addon's: it survives `:reload`, a disable and a restart, it is
 one per client rather than one per character, and you write no file for it. Reach for
-[`hafen.store`](../api/store.md) instead for what the user did not choose — a cached list, a window
+[`hafen.store`](../api/store/README.md) instead for what the user did not choose — a cached list, a window
 position, anything your addon decided for itself.
 
 ## A button of your own that runs a command

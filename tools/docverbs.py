@@ -132,6 +132,14 @@ PER_FILE = {
                         "sort": "option", "title": "option", "state": "option", "o": "option"},
     # ...and the guide that puts a setting beside the hotkey and the command names its one row the same way.
     "guides/hotkeys-and-commands.md": {"opts": None, "rows": "option"},
+    # The store's tables: `nodes`, `trees` and `prices` are Tables on the pages that declare them, and `decl`
+    # is the Declaration `hafen.store():table(name)` answers. Both closedIndex literals live in one file, so
+    # the two vocabularies are that file's union -- a `:put` written on a declaration would resolve here, and
+    # the pages are the only reader that catches it.
+    "store/README.md": {"trees": "table"},
+    "store/tables.md": {"nodes": "table", "decl": "declaration"},
+    "store/statements.md": {"prices": "table", "decl": "declaration"},
+    "guides/saved-data.md": {"nodes": "table"},
 }
 
 def per_file(rel):

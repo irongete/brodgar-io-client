@@ -96,6 +96,11 @@ and neither outlives what it came off. Identity lives on the **members that carr
 > refused, naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
 > have: `coll:list()` is the array, and you index that.
 
+A [store table](store/tables.md) is a collection whose members are **rows** and whose filter is a SQL
+**clause**: `:list(clause, ...)`, `:count(clause, ...)` and `:find(clause, ...)` take what follows
+`FROM <table>` with a value per `?`, `:get(k, ...)` addresses a row by its key, and `:put(row)` stands where
+`:add` would — a row put twice is one row, and `put` says so.
+
 ### get: what a key that names nothing answers
 
 `:get(key)` **addresses** a member, so what it does with a key nothing answers to belongs to the
@@ -218,6 +223,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 | the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |
 | the pointer the client would have drawn | [`m:cursor(nil)`](ui/mouse.md) |
 | everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |
+| `NULL` | a value bound to a `?` of a [statement](store/statements.md) or of a store table's [clause](store/tables.md#the-clause); a column a [`:put` row](store/tables.md#nodesputrow) leaves out |
 
 The bridge separates the two cases by counting arguments, and it is exact for a value you pass
 directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing key raises. One gap
@@ -308,7 +314,7 @@ beside every session the client holds, and nothing of yours is torn down or rebu
   it does, nothing can be written onto it — so nothing can delete a handle's own `:cancel()` — and
   `tostring(h)` names the thing, `Timer(every 5s)`, `Options(video)`, `Sub(GobAdded)`.
 - **A table the bridge owns and you write into** is the third kind, and
-  [`hafen.store():get(name)`](store.md#read-and-write) is where you meet it. It is neither a copy nor a
+  [`hafen.store():get(name)`](store/documents.md#read-and-write) is where you meet it. It is neither a copy nor a
   proxy: it is the table that goes to disk, so assigning into it is the whole of saving, and it is the one
   place in this API where a typo on a key is silent — and then persisted.
 
@@ -325,7 +331,9 @@ Every enumerating verb — `s:world():gob():list`, `s:kin():list`, `hafen.map():
 
 Use the function form to match on any field other than `name` — and on a set whose members have none at
 all, such as a party member, a segment or a timer, where a string is refused naming the forms that do
-work. The entry your predicate receives is always the **object**, never a snapshot: read it with its own
+work. The one collection whose filter is not this is a [store table](store/tables.md#the-clause), where
+the members are rows in a file and the filter is the SQL clause that keeps them; a function there is
+refused naming SQL. The entry your predicate receives is always the **object**, never a snapshot: read it with its own
 verbs. A member whose name has simply **not arrived yet** does not match and does not spoil the call; a
 **mistake** inside your predicate is not that, and raises out of the verb that called it.
 

@@ -216,9 +216,10 @@ your login.
 
 ## What quitting writes
 
-Quitting — by closing the window, or with `:q` — writes your saved variables before the process ends. Every
-logged-in character's own tables go to their own folder and your account file goes to yours, whether or not
-thirty seconds have passed since the last automatic save and whether or not anything called `flush()`.
+Quitting — by closing the window, or with `:q` — writes your documents before the process ends. Every
+logged-in character's own and your addon's own go to your addon's file, whether or not thirty seconds have
+passed since the last automatic save and whether or not anything called `flush()`; a row a table or a
+statement wrote is in the file already, and the quit closes it.
 
 `Disable` fires on the way out as well, and it fires first, so an addon that computes its state at teardown
 rather than keeping it in the store has that write picked up by the flush that follows it.
@@ -237,6 +238,6 @@ thirty seconds is the whole of what covers those.
 - [the AddOns manager](panel.md) — the Installed rows a reload applies, and the Browse tab that reads the hub
 - [getting started](getting-started.md) — the first addon, end to end
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
-- [`hafen.store`](api/store.md) — the saved variables the manifest declares
+- [`hafen.store`](api/store/README.md) — your addon's file, which a quit writes and closes
 - [permissions](guides/permissions.md) — the permission the manifest declares
 - [the maintainer's addons](examples.md) — where the addons are, and the tools among them

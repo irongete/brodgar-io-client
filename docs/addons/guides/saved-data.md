@@ -1,8 +1,10 @@
 # Saved data
 
-Anything your addon should still know next week goes in a **saved variable**: a Lua table you declare in the
-manifest, which the engine restores when you load and writes back to disk for you. There is no file to open
-and no format to choose.
+Anything your addon should still know next week goes in [your addon's file](../api/store/README.md), one per
+addon for the whole client, and it takes three shapes. A **document** is a Lua table you declare in the
+manifest, which the client restores when you load and writes back for you: settings. A **table** you declare
+holds rows, typed, looked up by key or by clause: a record. A **statement** is SQL, for what only SQL says.
+Start with a document; move to a table the day the document would grow.
 
 ## Declare it, then use it
 
@@ -16,14 +18,14 @@ hafen.store():get("seen").lastLogin = os.time()
 ```
 
 A bare name is **per character**; the object form with `"scope": "client"` is your addon's own, one for the
-whole client whichever character is up. That is also the whole of the difference in how you reach one: a
-character's saved variables are that character's own, so you name [the session](../api/session.md) they
+whole client whichever account or character is up. That is also the whole of the difference in how you reach
+one: a character's saved variables are that character's own, so you name [the session](../api/session.md) they
 belong to, and your addon's own are reached without naming anyone. Ask for either through the other's door
 and you get an error naming the right one.
 
 A declared name is always a usable table, empty when there is nothing saved yet, so there is nothing to
 create and no `nil` check to write. The table object itself never changes — a restore refills it in place —
-so a local reference you cache stays valid. See [`hafen.store`](../api/store.md) for the whole surface.
+so a local reference you cache stays valid. See [documents](../api/store/documents.md) for the whole surface.
 
 ## Read it at the right moment
 
@@ -32,7 +34,7 @@ are until you are in the world.
 
 | Scope | Readable from |
 |---|---|
-| account | your file bodies and `Load` |
+| your addon's own | your file bodies and `Load` |
 | per character | that session's `SessionEnteredWorld` onwards |
 
 ```lua
@@ -48,7 +50,7 @@ Reading a character's table in `Load` is not an error; it is simply empty, which
 **Every character has its own.** Your addon is loaded once for the client, which can have several
 characters logged in at once, and each of those sessions keeps its own set of per-character tables. So
 `s:store()` answers about the character that session is playing whether or not you are looking at it, two
-characters write two folders, and a table you cached from one session stays that character's. What raises
+characters write two sets of rows, and a table you cached from one session stays that character's. What raises
 is a session with no character to have variables for — one that has ended, and one that has not reached the
 world yet; the [session events](../api/event/bus/lifecycle.md#sessions) are how you hear about both.
 
@@ -74,22 +76,45 @@ end)
 That example is the general shape of saving anything positional: a raw `x, y` is meaningless next session,
 so store a [Position](../api/position.md) instead.
 
+## A record is a table
+
+A document is held whole and written whole, so a thousand map nodes in one are a thousand entries serialised
+at every save. Declare a [table](../api/store/tables.md) for them instead: columns, a key and an index, and
+rows that go in and come out typed.
+
+```lua
+local nodes = hafen.store():table("nodes")
+  :column("grid", "text"):column("x", "integer"):column("y", "integer"):column("kind", "text")
+  :key("grid", "x", "y"):index("kind"):create()
+
+nodes:put{ grid = "g1", x = 4, y = 9, kind = "fir" }              -- one row in the file, now
+for _, n in ipairs(nodes:list("WHERE kind = ?", "fir")) do
+  -- your code here
+end
+```
+
+A row is in the file when `:put` returns, so there is nothing to flush; and where a character's rows are
+theirs alone, the character is a column you declare — the file is one for every character, so what all of
+them saw is one `SELECT` away through a [statement](../api/store/statements.md).
+
 ## When it is written
 
-Changes are flushed on a timer, and again when the client quits, so an ordinary quit loses nothing and a
-crash loses at most the last half-minute. Your account tables are written again when your addon is disabled
-or reloaded; a character's own tables are written when the session holding them **ends** or picks another
-character, because that is the last moment their data is the data in those tables. Tabbing between
+A document's changes are flushed on a timer, and again when the client quits, so an ordinary quit loses
+nothing and a crash loses at most the last half-minute. Your addon's own documents are written again when
+your addon is disabled or reloaded; a character's are written when the session holding them **ends** or
+picks another character, because that is the last moment their data is the data in those tables. A row a
+table or a statement writes waits for none of this: it is in the file when the call returns. Tabbing between
 characters writes nothing and loses nothing — each session keeps its own the whole time.
 
 `s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
-doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses
-a value a saved variable cannot hold,
-naming where in your table it sits, which is the fastest way to find out that you stored the widget instead
+doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses a
+value a document cannot hold, naming where in your table it sits, which is the fastest way to find out that
+you stored the widget instead
 of its place.
 
-A file the engine cannot parse leaves your tables empty and logs the failure rather than raising it: your
-addon starts with default settings instead of not starting.
+A row the client cannot parse leaves that document empty and logs the failure rather than raising it: your
+addon starts with default settings instead of not starting, and that scope is not written back until a
+load succeeds.
 
 ## Where a window sits is saved for you
 
@@ -119,8 +144,8 @@ character is the one **on screen**, because a window stands over whichever sessi
   [`hafen.websocket`](../api/websocket.md) connection, each needing a host allowlist in the manifest and the
   user's approval of it, and lands in a saved variable if you want it to survive the session.
 
-Neither one gives you a general file system: an addon reads what it ships and writes what it declared, and
-that is the whole of it.
+Neither one gives you a general file system: an addon reads what it ships and writes its own file, and that
+is the whole of it.
 
 **Next:** [hotkeys, commands and settings](hotkeys-and-commands.md) — letting the user drive what you
 have built.

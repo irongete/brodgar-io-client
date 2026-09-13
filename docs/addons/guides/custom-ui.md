@@ -185,7 +185,7 @@ an input `ev` carries none of its own, since the pointer already answers them at
 
 A window built with [`:window()`/`:widget()`](../api/ui/custom.md) answers four more of its own: `Update`
 every frame, `Drop` when the client's drag gesture drops something on it (`ev:thing()` is the neutral
-descriptor, drawable with `g:resource` and persistable with [`hafen.store`](../api/store.md)), and `Close`
+descriptor, drawable with `g:resource` and persistable with [`hafen.store`](../api/store/README.md)), and `Close`
 on the window's close button. Keyboard input is not a widget option — a
 [hotkey](hotkeys-and-commands.md) is.
 

@@ -122,9 +122,9 @@ made it.
 ## Layouts and persistence
 
 To save a layout across sessions, keep each ghost's [Position](../position.md) — it is
-durable by construction, so [`hafen.store`](../store.md) keeps it and hands the same place back next session
+durable by construction, so [`hafen.store`](../store/README.md) keeps it and hands the same place back next session
 — and re-place the ghost there once it resolves. That is the same rule [markers](../map/markers.md) follow.
-A base planner is exactly this: clickable blueprint ghosts saved through [`hafen.store`](../store.md) and
+A base planner is exactly this: clickable blueprint ghosts saved through [`hafen.store`](../store/README.md) and
 reloaded at the same physical spot after a relog, retrying as the map streams in.
 
 ## Moving ghosts on the ground

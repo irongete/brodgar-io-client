@@ -1,7 +1,7 @@
 # hafen.json: parsing and encoding JSON
 
 Convert between JSON strings and Lua values. `hafen.json()` is **unprotected** — pure computation, with
-no I/O — and independent of the network: parse a string you loaded from [`hafen.store`](store.md) or
+no I/O — and independent of the network: parse a string you loaded from [`hafen.store`](store/README.md) or
 got from anywhere, and encode a table to send or save.
 
 ```lua
@@ -90,12 +90,12 @@ Encoding and then parsing round-trips a table of scalars, arrays and objects fai
 `null` rule and the integer normalization above. JSON object key order is not significant and is not
 preserved.
 
-> **What [`hafen.store`](store.md) writes is not strict.** A saved-variables file must not be lost to one
-> bad table, so the flush that writes it puts the literal string `"<cycle>"` or `"<too deep>"` where
-> `encode` would have raised, and says nothing. It reads back as that string, so a table you saved can
-> come back as text: `encode` it yourself first if you want to be told.
+> **What [`hafen.store`](store/documents.md) writes is not strict.** A document must not be lost to one bad
+> table, so the timer's write puts the literal string `"<cycle>"` or `"<too deep>"` where `encode` would
+> have raised, and logs the path it degraded. It reads back as that string, so a table you saved can come
+> back as text: `hafen.store():flush()` refuses it instead, naming the path.
 
 ## See also
 
-- [`hafen.store`](store.md) — persisting addon data, which uses this serializer for you
+- [`hafen.store`](store/README.md) — persisting addon data, which uses this serializer for you
 - [`hafen.http`](http.md) — fetching a JSON document to parse, and posting a table as JSON

@@ -257,7 +257,7 @@ refusal names what a Widget is and where to get the one you meant.
 `:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
 `fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local [design pixels](pixels.md) and `ev:thing()` a neutral
 descriptor, `{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon
-with [`g:resource`](drawing.md), persist it with [`hafen.store`](../store.md), put it on the bar with
+with [`g:resource`](drawing.md), persist it with [`hafen.store`](../store/README.md), put it on the bar with
 [`slot:res(name)`](../actionbar.md#write-protected), which takes it for every kind of action the menu holds.
 It is absent only while the action's resource is still loading, so a descriptor with `kind` alone is an
 action dropped a beat too early, never a kind of action. Firing the dropped action is not part of it.

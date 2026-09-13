@@ -48,7 +48,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset/README.md) · [`virtual`](api/virtual/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) · [`websocket`](api/websocket.md) · [`voice`](api/voice/README.md) *(the three protected by your manifest)* |
-| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`locale`](api/locale.md) · [`console`](api/console.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
+| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store/README.md) · [`locale`](api/locale.md) · [`console`](api/console.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what
 a read gives back, [threading](api/threading.md), where your handler runs and what it may reach,

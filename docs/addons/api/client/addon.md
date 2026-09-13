@@ -282,4 +282,4 @@ hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .
 - [columns and rows](../ui/column.md) — what `root` is, and how it places what you build on your page
 - [controls](../ui/controls/README.md) — what you bind an option to, and what each control holds
 - [conventions](../conventions.md) — builders, collections, and arity as the verb
-- [`hafen.store`](../store.md) — your addon's own saved variables, for what is not a setting
+- [`hafen.store`](../store/README.md) — your addon's own saved variables, for what is not a setting

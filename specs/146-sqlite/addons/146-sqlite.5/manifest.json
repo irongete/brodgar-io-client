@@ -1,0 +1,10 @@
+{
+  "name": "146.5 — The pages",
+  "id": "146-sqlite.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.5: the example blocks of docs/addons/api/store/ (README, documents, tables, statements), pasted as written, each run and read back.",
+  "api_version": "1.0",
+  "saved_variables": ["settings", { "name": "seen", "scope": "client" }],
+  "files": ["main.lua"]
+}

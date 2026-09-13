@@ -140,7 +140,7 @@ unpacked yourself — see [permissions](guides/permissions.md).
 A staged folder replaces the one of the same id **whole**: nothing of the old folder survives inside the
 new one, so a file you edited in it is gone with it — an addon you mean to change is one you keep by
 hand. A removal deletes the folder, and only the folder. Everything the client holds about the addon is
-untouched by either, because none of it lives in the folder: [your saved variables](api/store.md) under
+untouched by either, because none of it lives in the folder: [your addon's file](api/store/README.md) under
 `savedata/`, whether the addon is enabled, and the permissions you consented to — so an addon you remove
 and install again comes back as you had it. A version that asks for more than you approved is disabled and
 asked again, as any manifest that grows is.

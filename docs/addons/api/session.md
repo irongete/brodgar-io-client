@@ -48,7 +48,7 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:fight()`](fight.md) | its combat schools, its maneuver deck, and who it is fighting |
 | [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, the petal to pick, a petal of your own, and whether it is painted |
 | [`s:ui()`](ui/README.md) | the widgets the client put up for it: find one, watch for one, read its backpack |
-| [`s:store()`](store.md) | its own saved variables, in its own folder on disk |
+| [`s:store()`](store/documents.md) | its own documents: that character's rows in your addon's file |
 | [`s:console()`](console.md#run-a-line-protected) | its own console command line, and the verb that says one at it |
 
 ```lua
@@ -69,8 +69,9 @@ are readable and usable on a session you tabbed away from.
 **Three of them are half of a namespace rather than all of it.** [`s:ui()`](ui/README.md) is the client's own
 widgets, which stand in one character's tree; the windows your addon *builds* stand in a layer above every
 session and stay [`hafen.ui():window()`](ui/custom.md), because your window and the client's window are not
-the same thing. [`s:store()`](store.md) is the saved variables of one character, in that character's own
-folder; an account's are your addon's single file and are reached without an address.
+the same thing. [`s:store()`](store/documents.md) is the documents of one character, that character's own rows
+in your addon's file; your addon's own are one set of rows for the whole client and are reached without an
+address.
 [`s:console()`](console.md#run-a-line-protected) is the command line one character has, so a line said at it
 runs in that character's own console — while the commands your addon *registers* are routed once for the
 whole client and stay [`hafen.console():on()`](console.md#subscribe).
@@ -133,7 +134,7 @@ and everything under them then reads `nil`-shaped.
 | `s:info()` | [`Session`](types/world.md#session) | a plain-table **snapshot**, the escape hatch for logging |
 
 **`:get` addresses, it does not search.** The account name is the whole of a Session, so there is
-nothing to miss: a name read out of [saved variables](store.md) hands back an object before that account
+nothing to miss: a name read out of [saved variables](store/documents.md) hands back an object before that account
 logs in and after it goes, and `:exists()` says which. The key is the account and only the account, so a
 character name hands back a session that does not exist, and anything that is not a string — a number, a
 Session — raises. To search, use the ordinary [filter](conventions.md#the-filter-argument):
@@ -279,6 +280,6 @@ about rather than the one on screen.
 - [events](event/bus/lifecycle.md#sessions) — the four moments a session announces
 - [`session:world`](world.md) — one character's objects, terrain and coordinates
 - [`session:player`](player.md) — one character, its Gob, its cursor and the walk
-- [`hafen.store`](store.md) — saved variables, per character and per account
+- [`hafen.store`](store/README.md) — your addon's file: a character's documents, and the addon's own
 - [conventions](conventions.md#the-grammar) — collections, interned objects and the filter argument
 - [the Session snapshot](types/world.md#session) — the snapshot shape `:info()` returns

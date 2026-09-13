@@ -57,7 +57,7 @@ first, so a rerun is clean, and touches no other addon's file.
       twice it; the same CTE with `LIMIT 50001` through `query` fails naming `LIMIT`, and `list()` over
       50001 rows too, while `list("LIMIT 10")` answers 10.
 
-- [ ] **146.5 — The pages.** `docs/addons/api/store/README.md` (the file, the three shapes and which
+- [x] **146.5 — The pages.** `docs/addons/api/store/README.md` (the file, the three shapes and which
       is which, when it is written and closed, the sandbox as three facts, the two caps, the
       sidecars), `documents.md` (the declaration and its scopes, both doors, what survives, the
       placements), `tables.md` (the builder, the Table, the types both ways, evolution),
@@ -69,3 +69,28 @@ first, so a rerun is clean, and touches no other addon's file.
       counts reported.
       *Its suite* is the four pages' example blocks, pasted as written, one `[pass]` per line each
       prints — a page whose example does not run is the defect this suite exists to catch.
+
+- [ ] **146.6 — The Table's snapshot.** `nodes:info()` — `{name, columns, key, indexes}`, the live
+      declaration as a plain table: `columns` an array of `{name, type}` in declaration order, `key` and each
+      index an array of column names, `type` the word the declaration wrote. The one snapshot a Table hands
+      out, by the grammar's rule that a live interned object carries one; `tables.md` gains its row and a line
+      under *The Table*.
+      *Its suite* declares `nodes` as `tables.md` does and asserts: `info().name == "nodes"`; `#info().columns
+      == 6` and `columns[5]` is `{name = "seen", type = "boolean"}`; `key` is `{"grid", "x", "y"}`; `indexes[1]`
+      is `{"kind"}`; a second `:create()` with one more column is read back in the same object's `info()`;
+      `info()` is a copy — assigning into it changes nothing the next `info()` answers.
+
+- [ ] **146.7 — The scan over the clause, and over the client's own cells.** `:list`, `:count` and `:find`
+      run their clause through `Scan` with the Table verb as the receiver in the message: a `;` with anything
+      after it refused naming one statement per call, a `hafen_` name refused naming the client's tables, and
+      `load_extension` refused naming the sandbox (the first-keyword refusals do not apply: a clause starts
+      after `FROM`). The scan also refuses a `PRAGMA` that writes one of the cells the open reads and sets —
+      `user_version`, and the connection's `journal_mode`, `synchronous`, `foreign_keys` — naming them the
+      client's own, while a `PRAGMA` that reads still answers through `:query`. `tables.md`'s *The clause* and
+      `statements.md`'s *What is refused* each gain their line.
+      *Its suite* declares a table and asserts: `list("LIMIT 1; DROP TABLE x")` fails naming one statement per
+      call and the table is still there; `count("WHERE 1 IN (SELECT 1 FROM hafen_documents)")` fails naming
+      the client's tables; `find("WHERE load_extension('x')")` fails naming the sandbox; `exec("PRAGMA
+      user_version = 9")` fails naming the client's cell, and so does `exec("PRAGMA journal_mode = DELETE")`;
+      `query("PRAGMA user_version")` answers `1`; `query("PRAGMA page_count")` answers a number; a `:reload`
+      then still opens the file — `hafen.store():info()` answers.

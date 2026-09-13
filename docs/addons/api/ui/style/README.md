@@ -89,9 +89,9 @@ that says both `position` and `anchor` — two spellings of [one property](geome
 there is no *later* to pick the winner.
 
 **Saving a layout is your addon's business, not the engine's**, and it is small: a layout you can read back
-with [`widget:position()`](../widget.md#read) is a table of numbers, and [`hafen.store`](../../store.md)
+with [`widget:position()`](../widget.md#read) is a table of numbers, and [`hafen.store`](../../store/README.md)
 already
-persists tables. One command reads where your windows currently are and keeps them account-wide, another
+persists tables. One command reads where your windows currently are and keeps them for the whole client, another
 re-applies them over the file's own placement, a third drops them. There is no profile system here because
 a sheet is data and an addon already has a store.
 
@@ -132,7 +132,7 @@ sites inside it.
 
 The table holds nothing but strings, numbers, booleans and tables — no handle anywhere in it — so
 [`hafen.json`](../../json.md) encodes it as it stands, and a
-[saved variable](../../store.md) keeps it across sessions.
+[saved variable](../../store/documents.md) keeps it across sessions.
 
 ## Properties
 
@@ -293,7 +293,7 @@ reversible to the pixel; and since a rule is only values, a whole look can
   [`widget:overlay()`](../overlay.md#over-one-widget), not a rule. It is keyed, clipped to that widget's
   box and reversible the same way, and it is a callback where a rule is a value.
 - **A configuration UI.** No drag-to-arrange editor, no docking, no profile manager. The engine ships the
-  mechanism — a layout is data, `widget:position()` reads it back and [`hafen.store`](../../store.md)
+  mechanism — a layout is data, `widget:position()` reads it back and [`hafen.store`](../../store/README.md)
   persists
   tables — and an addon ships the experience.
 - **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game

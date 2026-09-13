@@ -144,7 +144,7 @@ is the answer to "why is that still the wrong colour".
 Layout resolves through the same cascade with a different top: the hand-named level for `position` and
 `size` is the [verb](../api/ui/native.md), `w:position(x, y)`, not a rule of your own. Saving a *layout* is
 the same trick a theme file is: window positions read back with `widget:position()` are a table of numbers,
-and [`hafen.store`](../api/store.md) persists tables.
+and [`hafen.store`](../api/store/README.md) persists tables.
 
 ## Reaching another addon's surfaces
 

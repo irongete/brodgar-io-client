@@ -94,7 +94,7 @@ nearness.
 
 ## Saving a position
 
-A Position goes into [`hafen.store`](store.md) as-is and comes back as a Position — no conversion in
+A Position goes into [`hafen.store`](store/README.md) as-is and comes back as a Position — no conversion in
 either direction. [`hafen.json`](json.md) writes it as its durable form and reads that form back as a
 Position, so a place survives a file, a message, or another player.
 
@@ -144,6 +144,6 @@ a Position in the same one.
   addressed twins of the verbs here
 - [Gob](gob.md) — `gob:position()`, the commonest way to get one
 - [`session:player`](player.md#write-protected) — walking a character to one
-- [`hafen.store`](store.md) — saving one, as-is
+- [`hafen.store`](store/README.md) — saving one, as-is
 - [`hafen.map`](map/README.md) — the recorded map a durable form also reaches
 - [coordinates](shapes.md#coordinates) — the spaces, side by side

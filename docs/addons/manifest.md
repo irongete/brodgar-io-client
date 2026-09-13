@@ -16,14 +16,13 @@ addons/
     main.lua           your code
     icon.png           anything else you ship, loaded with hafen.asset
 savedata/
-  account/myaddon.json         your account-wide saved variables
-  <genus>_<char>/myaddon.json  your per-character ones
+  myaddon.sqlite     everything your addon saves: its documents, its tables, where its windows sit
 ```
 
 The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a
 rename. Files your addon ships are read through [`hafen.asset`](api/asset/README.md), which resolves paths
-inside your own folder and rejects everything outside it. The `savedata/` tree is written for you — see
-[`hafen.store`](api/store.md).
+inside your own folder and rejects everything outside it. The file under `savedata/` is written for you — see
+[`hafen.store`](api/store/README.md).
 
 ## The manifest
 
@@ -39,7 +38,7 @@ your addon out as [out of date](#the-api-version); everything else is optional.
 | `version` | string | shown in the panel and in `:addons` |
 | `author` | string | shown in the panel |
 | `description` | string | the panel row's tooltip |
-| `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
+| `saved_variables` | array | the [documents](api/store/documents.md) the client persists: a bare name is a character's, `{ "name": …, "scope": "client" }` your addon's own |
 | `permissions` | array of strings | one key per protected verb you call, or a `<prefix>.*` group — the catalogue is in [permissions](guides/permissions.md) |
 | `network` | object | `{"hosts": [...]}` — **the argument of the network keys**, `http.get`, `http.post`, `websocket.connect` and `voice.connect`: a key says whether, this says where. Declaring it with none of them is a load error. See [`hafen.http`](api/http.md), [`hafen.websocket`](api/websocket.md) and [`hafen.voice`](api/voice/README.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
@@ -100,6 +99,6 @@ and an addon that needs the section outright declares the edition that added it.
 
 - [the runtime](runtime.md) — when your code runs, the sandbox, the budgets, the panel and the console
 - [getting started](getting-started.md) — the first addon, end to end
-- [`hafen.store`](api/store.md) — the saved variables the manifest declares
+- [`hafen.store`](api/store/README.md) — your addon's file: the documents the manifest declares, and its tables and statements
 - [permissions](guides/permissions.md) — the permission keys the manifest declares
 - [`hafen.asset`](api/asset/README.md) — the files your addon ships beside the manifest

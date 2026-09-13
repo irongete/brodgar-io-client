@@ -164,7 +164,7 @@ the hotkey's body becomes:
 
 The engine fills that table before `SessionEnteredWorld` fires and writes it back to disk for you, and the
 reference stays live, so there is nothing to put back. Reload, hide the window, log out and back in: it stays
-hidden. See [`hafen.store`](api/store.md) for the account-wide scope and for what a saved table may hold.
+hidden. See [documents](api/store/documents.md) for the client scope and for what a saved table may hold.
 
 ## The whole addon
 

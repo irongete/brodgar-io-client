@@ -42,7 +42,7 @@ A **[Position](position.md)** is not on this list and is not a pair of numbers a
 A place in the world is a **[Position](position.md)**, not a pair of numbers: one type,
 carried by every spatial verb, and the only thing `position()` ever answers. It is computable —
 `p:offset(dx, dy)` moves it in world units and the engine crosses grid boundaries for you — and durable,
-so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything else that counts is a
+so it goes into [`hafen.store`](store/README.md) and comes back unchanged. Everything else that counts is a
 **lattice** and keeps its own name: tile, grid and segment coords are indices, not places, and screen
 pixels are plain `{x, y}` numbers.
 

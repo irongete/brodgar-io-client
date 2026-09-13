@@ -216,7 +216,7 @@ a [timer](timer.md) are the whole of one, and what to resend when it reopens is 
 - **The handshake does not follow redirects.** A `3xx` from the server is a failed handshake, reported by
   `Error` with its status, never a hop to a server the user did not approve.
 - **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
-  account. There are no cookies: any token is one you keep yourself, in [`hafen.store`](store.md), and set
+  account. There are no cookies: any token is one you keep yourself, in [`hafen.store`](store/README.md), and set
   with `conn:header`.
 - **Pings are answered by the client.** A peer that pings to see whether you are there hears a pong
   without your addon doing anything.

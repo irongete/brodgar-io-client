@@ -165,7 +165,10 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | Page | What it holds |
 |---|---|
 | [`hafen.timer`](timer.md) | run a function later, once or repeatedly |
-| [`hafen.store`](store.md) | saved variables, per character and per account |
+| [`hafen.store`](store/README.md) | the hub: your addon's one file, the three shapes it holds and which is which, when it is written and closed, the sandbox, the two caps |
+| [documents](store/documents.md) | a saved variable: the declaration and its two scopes, both doors, what survives, and the placements saved for you |
+| [tables](store/tables.md) | a record: the builder, the Table and its rows, the types both ways, and how a declaration evolves |
+| [statements](store/statements.md) | SQL: `:exec` and `:query`, binding, one statement per call, what is refused, and `:transaction` |
 | [`hafen.json`](json.md) | parse and encode JSON |
 | [`hafen.http`](http.md) | fetch a URL, against the host allowlist the user approved |
 | [`hafen.websocket`](websocket.md) | keep a connection to a server on that allowlist, speak on it and hear what it says |

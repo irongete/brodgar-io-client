@@ -210,7 +210,7 @@ not an accident of how the place is stored.
 
 **A place the character on screen cannot locate is a legal place to stand something.** Hand `:add` a
 [Position](../position.md) rebuilt from somewhere you have not been since you logged in — one
-out of [`hafen.store`](../store.md), one recorded in another part of the world — and nothing raises. The
+out of [`hafen.store`](../store/README.md), one recorded in another part of the world — and nothing raises. The
 entity exists, `:position():info()` answers the grid it was given, `:x()` answers `nil`, and `:drawn()` is
 `false`; it stands itself up the moment that ground resolves, with nothing further done to it. Nothing
 bounds the wait — there is no timeout and no attempt count — so a place you never walk to simply waits,
