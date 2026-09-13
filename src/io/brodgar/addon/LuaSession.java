@@ -432,12 +432,11 @@ public final class LuaSession {
                 return h.uiObj;
             }
         });
-        // store() — the saved variables of THIS character. The second half-namespace, and it splits for the
-        // same reason ui does: an account's saved variables are the ADDON's, one file whichever character is
-        // up, and keep hafen.store(); a character's are that character's own folder and are reached here. Which
-        // half a name is in is the manifest's declaration rather than a verb, so each half refuses the other's
-        // names. The tables are the named session's own (079.1), so this answers for a character nobody is
-        // looking at exactly as it does for the drawn one — two logins are two folders.
+        // store() — the documents of THIS character. The second half-namespace, and it splits for the same
+        // reason ui does: the addon's own documents are one set of rows whichever character is up, and keep
+        // hafen.store(); a character's are that character's own rows and are reached here. The door is the
+        // scope (147): one name through both is two documents. The tables are the named session's own (079.1),
+        // so this answers for a character nobody is looking at exactly as it does for the drawn one.
         m.set("store", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaSession h = handle(self, "store");

@@ -29,7 +29,7 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * <b>The store's file</b> (146): one SQLite database per addon, {@code savedata/<id>/<id>.sqlite} — a folder
  * of the addon's own, so the file and its sidecars stand together and nothing else's stands beside them —
  * for the whole client: every account this client logs in with and every character read and write the same one. What
- * {@link StoreApi} keeps in it is the addon's <b>documents</b> (a declared saved variable, one JSON row each)
+ * {@link StoreApi} keeps in it is the addon's <b>documents</b> (one JSON row each, named at {@code :get})
  * and its <b>remembered placements</b>; the tables an addon declares for itself and the statements it runs
  * come through here too, on the same connection.
  *
@@ -1781,7 +1781,23 @@ final class SqliteApi {
             return new Failure(e.getMessage(), e);
         }
 
-        // ---- the documents: one JSON row per declared saved variable, keyed by scope and name --------
+        // ---- the documents: one JSON row per document, keyed by scope and name (147: read when asked) ------
+
+        /** The names saved under one scope, in the file's own order — what {@code :list()} unions with the live tables (147). */
+        synchronized List<String> names(String scope) {
+            List<String> out = new ArrayList<String>();
+            try(java.sql.PreparedStatement ps = conn.prepareStatement(
+                    "SELECT name FROM hafen_documents WHERE scope = ?")) {
+                ps.setString(1, scope);
+                try(java.sql.ResultSet rs = ps.executeQuery()) {
+                    while(rs.next())
+                        out.add(rs.getString(1));
+                }
+            } catch(java.sql.SQLException e) {
+                throw new Failure(e.getMessage(), e);
+            }
+            return out;
+        }
 
         /** The JSON of one document, or {@code null} when nothing has been saved under that name. */
         synchronized String document(String scope, String name) {

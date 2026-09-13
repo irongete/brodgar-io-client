@@ -12,7 +12,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.io.File;
@@ -35,20 +34,21 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The saved-variables subsystem (1e / D-002 / D-023; 146). One Lua table — a <b>document</b> — per
- * manifest-declared saved variable, kept as a JSON row in the addon's own store file, {@code savedata/<id>/<id>.sqlite}
+ * The documents subsystem (1e / D-002 / D-023; 146; 147). One Lua table — a <b>document</b> — per name an
+ * addon asks {@code :get} for, kept as a JSON row in the addon's own store file, {@code savedata/<id>/<id>.sqlite}
  * ({@link SqliteApi}): the client scope's rows are keyed by nobody, a character's by that character's key.
- * {@link AddonManager} drives it via {@link #enterWorld} (a session learns its character and reads that
- * character's documents in), {@link #sessionEnded}/{@link #drainEnded} (a session died, and its documents go
+ * <b>A document exists when {@code get(name)} first names it, and the door is its scope</b> (147): nothing is
+ * declared, the row is read the moment it is asked for ({@link #document}), and the tables handed out are the
+ * whole list a save walks. {@link AddonManager} drives it via {@link #enterWorld} (a session learns its
+ * character and refills what it holds from that character's rows), {@link #sessionEnded}/{@link #drainEnded} (a session died, and its documents go
  * back to the file), {@link #rescope} (the layer's tick, and the whole of when the remembered placements move),
  * {@link #flush} (teardown) and {@link #autosave} (the throttled tick save). Not instantiable.
  *
  * <p><b>The section SPLITS by scope</b> (078.3), because the addon's own documents and a character's are not
  * the same thing. The client scope is the addon's — one set of rows for the whole client, whichever account
  * or character is up — and is {@code hafen.store()}, built by {@link #installStore}; a per-character scope is
- * one character's own rows and is {@code session:store()}, built by {@link #store}. Scope is declared in the
- * manifest rather than chosen at the call, so the two halves carry the same verbs and each refuses a name
- * belonging to the other, naming the door it does have.
+ * one character's own rows and is {@code session:store()}, built by {@link #store}. The door IS the scope, so
+ * the two halves carry the same verbs and one name asked through both is two documents.
  *
  * <p><b>The per-character tables ARE the session's</b> (079.1), held in that session's own
  * {@link AddonManager.SessionState} as one {@link CharStore} per addon, and there are as many sets as there
@@ -90,10 +90,10 @@ final class StoreApi {
      * {@code s:store():get(name)} hands back, and the character key they came from.
      *
      * <p>Minted on demand and kept in {@link AddonManager.SessionState#charStores}, so it dies with the
-     * session that owns it and with the addon that declared it, and neither can reach the other's.
+     * session that owns it and with the addon that asked for it, and neither can reach the other's.
      */
     static final class CharStore {
-        /** Declared per-character name &rarr; the live table. Refilled in place; never replaced. */
+        /** Per-character name &rarr; the live table, one per name {@code :get} has been asked for. Refilled in place; never replaced. */
         final LuaTable vars = new LuaTable();
         /**
          * The {@code <genus>_<char>} key these tables were read from, or {@code null} while they hold
@@ -104,8 +104,8 @@ final class StoreApi {
         /** The JSON last written (or read in) for each document of this scope, by name, so an unchanged row is not rewritten. */
         final Map<String, String> last = new LinkedHashMap<String, String>();
         /**
-         * <b>Read-only until a load succeeds</b> — set when the store is unavailable, or this character's row
-         * was there and could not be read. See {@link StoreApi#loadInto}: what is held is then empty because
+         * <b>Read-only once a read fails</b> — set when the store is unavailable, or one of this character's rows
+         * was there and could not be read. See {@link StoreApi#read}: what is held is then empty because
          * the client could not read it, not because the character has saved nothing, and writing that back
          * destroys the only copy.
          */
@@ -148,46 +148,26 @@ final class StoreApi {
      * it in place — so a reference cached at load time is still the one being written an hour later.
      *
      * <p><b>Only the CLIENT half is built here</b> (079.1). A per-character table belongs to one session and
-     * is minted in that session's own {@link CharStore}, so this table holds exactly the names the manifest
-     * declares {@code "scope": "client"} and there is nothing here for a second character to overwrite.
+     * is minted in that session's own {@link CharStore}, so this table holds exactly the client-scope names
+     * this addon has asked for and there is nothing here for a second character to overwrite.
      *
-     * <p><b>The file is opened first</b> (146, {@link SqliteApi#open}), whatever the manifest declares: the
-     * remembered placements and the addon's own tables need it whether or not a document does. An open that
-     * fails is the unavailable state — the documents stay empty and are never written, and the verbs that
-     * need the file refuse naming the cause.
-     *
-     * <p>The names are the <i>addon's own</i>, so the refusal that catches the old spelling cannot live in the
-     * static {@link Refusal} table: {@link #index} builds it per owner from the manifest.
+     * <p><b>The file is opened first</b> (146, {@link SqliteApi#open}), and nothing is read from it yet (147):
+     * a document is read the moment {@code :get} first names it, so a launch reads exactly what the addon
+     * asks for. An open that fails is the unavailable state — every document is empty and never written, and
+     * the verbs that need the file refuse naming the cause.
      */
     static void installStore(LuaTable hafen, final Addon owner) {
-        LuaTable vars = new LuaTable();
-        for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
-            if(!sv.client || vars.get(sv.name).istable())
-                continue;                                // per character (a session's), or a duplicate name
-            vars.set(sv.name, new LuaTable());           // always a usable (possibly empty) table
-        }
-        owner.store = vars;
+        owner.store = new LuaTable();                    // filled one name at a time, by :get (147)
 
         LuaTable store = new LuaTable();
-        // get(name) — the LIVE table for one declared CLIENT-scope saved variable. A per-character name is
-        // refused naming the session it is reached through (078.3): scope is declared in the manifest rather
-        // than chosen at the call, so which half a name is in is the MANIFEST's answer and this is the only
-        // place that knows it. A name the manifest does not declare at all is a typo with no future meaning
-        // (the set is closed at load), so it throws listing what IS declared rather than answering nil and
-        // failing one index later with nothing to name.
+        // get(name) — the LIVE table of one CLIENT-scope document, the addon's own. The door is the scope
+        // (147): the same name through s:store():get is another character's row, and a name nobody has saved
+        // under yet is an empty table, read now and held for the addon's life.
         store.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "store", "get");
-                Manifest.SavedVar sv = nameArg(owner, a, ACC);
-                if(!sv.client)
-                    throw new LuaError(ACC + ":get(\"" + sv.name + "\") — \"" + sv.name + "\" is declared PER"
-                        + " CHARACTER, and a character's documents are reached through the session whose"
-                        + " character they are: hafen.session():current():store():get(\"" + sv.name + "\") is"
-                        + " the character on screen, and hafen.session():get(user):store() is any other. "
-                        + ACC + " is the CLIENT scope — the addon's own, one document for the whole client"
-                        + " whichever account or character is up — and a variable joins it by being declared"
-                        + " {\"name\": \"" + sv.name + "\", \"scope\": \"client\"} in manifest.json");
-                return owner.store.get(sv.name);
+                String name = nameArg(a, ACC);
+                return document(owner, owner.store, CLIENT, owner.lastClientDocs, name, true, null);
             }
         });
         // flush() — the one write an addon ASKS for, and therefore the one that can answer. It writes the
@@ -201,13 +181,13 @@ final class StoreApi {
         //   146: and it refuses first of all when there is no file to write -- the unavailable state is the
         // one case an asked-for write cannot land, and silence there is the silent failure this verb exists
         // to refuse.
-        // list() — the CLIENT-scope names this addon declared, in manifest order. The per-character half is
-        // s:store():list(), for the reason :get is split the same way: scope is the manifest's answer, and
-        // each verb is about the rows it names.
+        // list() — the CLIENT-scope names that EXIST: a row in the file, or a table handed out this session
+        // (147), sorted. The per-character half is s:store():list(), for the reason :get is split the same
+        // way: each verb is about the rows of the scope it is reached through.
         store.set("list", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "list");
-                return names(owner, true);
+                return names(owner, owner.store, CLIENT);
             }
         });
         //   092.8: ...and the CLIENT scope's remembered placements, which are the windows the addon built
@@ -218,7 +198,7 @@ final class StoreApi {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
                 SqliteApi.require(owner, ACC + ":flush()");
-                carriable(owner, owner.store, true, ACC);
+                carriable(owner, owner.store, ACC);
                 try {
                     LuaWidget.rememberCapture(owner);
                     writePlacements(owner, CLIENT);
@@ -285,10 +265,8 @@ final class StoreApi {
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():get(\"<name>\") for a client-scope name and"
-                      + " hafen.session():current():store():get(\"<name>\") for a per-character one",
-                      new LuaTable(), index(owner));
-        SqliteApi.open(owner);                           // the file: before any document, whatever is declared
-        loadClient(owner);                               // client-scope documents: ready before Load
+                      + " hafen.session():current():store():get(\"<name>\") for a per-character one");
+        SqliteApi.open(owner);                           // the file: before any document is asked for
     }
 
     /** How the client half is reached, and the spelling its messages quote. */
@@ -304,9 +282,8 @@ final class StoreApi {
      * <p><b>The addon's own documents and a character's are not the same thing</b>, which is why this
      * namespace SPLITS rather than moves. The client scope is the <i>addon's</i> — one set of rows for the
      * whole client, whichever account or character is up — and keeps its global spelling; a per-character
-     * scope is one character's own rows, so it grows an address and is reached here. Which half a name is in
-     * is not a verb but the manifest's own declaration, so both halves carry the same verbs and each refuses
-     * a name belonging to the other, naming where it is reached instead.
+     * scope is one character's own rows, so it grows an address and is reached here. The door is the scope
+     * (147): both halves carry the same verbs, and one name through both is two documents.
      *
      * <p><b>The address is the whole of the answer</b> (079.1): the tables are the named session's own, so
      * this reads and writes that character's rows whether or not anyone is looking at it, and a second
@@ -318,18 +295,14 @@ final class StoreApi {
      */
     static LuaValue store(final Addon owner, final String user) {
         LuaTable m = new LuaTable();
-        // :get(name) — the LIVE table for one declared PER-CHARACTER saved variable, that character's own. A
-        // client-scope name is refused naming hafen.store(), which is the same mistake from the other side.
+        // :get(name) — the LIVE table of one PER-CHARACTER document, that character's own, read from under
+        // its key the first time it is named (147). The session is the guard: no character, no document.
         m.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "store", "get", SS);
-                Manifest.SavedVar sv = nameArg(owner, a, SS);
-                if(sv.client)
-                    throw new LuaError(SS + ":get(\"" + sv.name + "\") — \"" + sv.name + "\" is declared"
-                        + " client scope, and the client scope's documents are the ADDON's rather than a"
-                        + " character's: one for the whole client whichever account or character is up, so"
-                        + " it is reached without an address — " + ACC + ":get(\"" + sv.name + "\")");
-                return charStore(session(user, "get(\"" + sv.name + "\")"), owner).vars.get(sv.name);
+                String name = nameArg(a, SS);
+                CharStore cs = charStore(session(user, "get(\"" + name + "\")"), owner);
+                return document(owner, cs.vars, cs.scope, cs.last, name, false, cs);
             }
         });
         // :flush() — write THIS character's documents now. The client half is hafen.store():flush().
@@ -339,13 +312,13 @@ final class StoreApi {
         // as well (092.8) -- the widgets of this session's own tree. Before, only the session on screen wrote
         // them anywhere, because there was one set of them and it was the screen's. The windows the addon
         // built itself stand in the layer and are hafen.store():flush()'s: one call, one scope.
-        // list() — the PER-CHARACTER names this addon declared, in manifest order (094, A-111). The client
-        // half is hafen.store():list(); the two together are the whole declaration, and neither was readable
-        // from Lua before although the refusal on a misspelt :get already printed it.
+        // list() — the PER-CHARACTER names that exist for THIS character (094, A-111; 147): a row under its
+        // key, or a table handed out this session, sorted. The client half is hafen.store():list().
         m.set("list", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "list", SS);
-                return names(owner, false);
+                CharStore cs = charStore(session(user, "list()"), owner);
+                return names(owner, cs.vars, cs.scope);
             }
         });
         m.set("flush", new OneArgFunction() {
@@ -354,7 +327,7 @@ final class StoreApi {
                 SqliteApi.require(owner, SS + ":flush()");
                 AddonManager.SessionState st = session(user, "flush()");
                 CharStore cs = charStore(st, owner);
-                carriable(owner, cs.vars, false, SS);
+                carriable(owner, cs.vars, SS);
                 try {
                     LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
                     writePlacements(owner, st.charScope);
@@ -373,29 +346,42 @@ final class StoreApi {
     }
 
     /**
-     * The declared-variable name a {@code :get} was handed — a string, and one this addon's manifest names.
-     * Shared by both halves, so a misspelt name is answered the same way whichever door it came through.
+     * The document name a {@code :get} was handed — a non-empty string, and nothing else is asked of it (147):
+     * there is no declaration to hold it against, so a name is what the addon calls its document, and it is
+     * a row key in the addon's own file. Shared by both halves, so both refuse the same way.
      */
-    private static Manifest.SavedVar nameArg(Addon owner, Varargs a, String how) {
-        LuaValue nm = Args.required(a, 2, how + ":get", "name");
-        if(nm.type() != LuaValue.TSTRING)
-            throw new LuaError(how + ":get(name): name must be a string (a saved variable declared in"
-                + " manifest.json)");
-        Manifest.SavedVar sv = declaredVar(owner, nm.tojstring());
-        if(sv == null)
-            throw new LuaError(how + ":get(\"" + nm.tojstring() + "\"): this addon declares no saved variable"
-                + " of that name. Declared: " + declared(owner)
-                + " — add it to \"saved_variables\" in manifest.json");
-        return sv;
+    private static String nameArg(Varargs a, String how) {
+        String name = Args.str(a, 2, how + ":get", "name",
+                               "what you call the document — a row key in your file, yours to choose").tojstring();
+        if(name.isEmpty())
+            throw new LuaError(how + ":get(name): name must not be empty — a document's name is what you call"
+                + " it, and it exists when :get first names it");
+        return name;
     }
 
-    /** This addon's declaration of {@code name}, or {@code null}. The first wins, as {@link #installStore} does. */
-    private static Manifest.SavedVar declaredVar(Addon a, String name) {
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.name.equals(name))
-                return sv;
+    /**
+     * <b>The live table of one document, read the first time it is named</b> (147) — the whole of what
+     * {@code :get} does, through either door. The table under {@code name} if {@code vars} already holds one;
+     * else a new table filled from the row {@link #read} finds (empty when there is none), set into
+     * {@code vars}, its JSON primed into {@code last} so an unchanged document is never rewritten, and
+     * answered. A scope that has no key yet ({@code null}: a session between two characters) hands out the
+     * empty table unread — {@link #loadChar} fills it the moment the key is known, in place.
+     *
+     * <p>The read runs on whichever thread asked — an inbound handler's, the REPL's — and is safe there:
+     * {@link SqliteApi.Db#document} is synchronized on the connection like every primitive.
+     */
+    private static LuaTable document(Addon a, LuaTable vars, String scope, Map<String, String> last, String name,
+                                     boolean client, CharStore cs) {
+        LuaValue have = vars.get(name);
+        if(have.istable())
+            return (LuaTable)have;
+        LuaTable tgt = new LuaTable();
+        vars.set(name, tgt);
+        if(scope != null) {
+            read(a, tgt, scope, name, client, cs);
+            last.put(name, Json.write(tgt));        // what is held now, so the next write skips it unchanged
         }
-        return null;
+        return tgt;
     }
 
     /**
@@ -419,90 +405,64 @@ final class StoreApi {
     }
 
     /**
-     * <b>This session's per-character tables for one addon</b>, minted on the first ask. The tables exist
-     * before the key does, so an addon loaded while a session is already in world gets that character's
-     * data read in here rather than an empty set it would write over the rows.
+     * <b>This session's per-character tables for one addon</b>, minted on the first ask — holding no table yet
+     * (147): each document is read when {@code :get} names it, from under the key this store holds.
      */
     private static CharStore charStore(AddonManager.SessionState st, Addon a) {
         CharStore have = st.charStores.get(a);
         if(have != null)
             return have;
-        // audit2 B06: THE LOSER WAITS FOR THE LOAD. The putIfAbsent below picks one thread to fill the store
-        // from the file, and the loser used to be handed the winner's object straight back -- so a write it
-        // made in that window was wiped by the load's clearTable a moment later. The lock is per session-state
-        // and taken only on the first ask for one addon's tables.
+        // audit2 B06: ONE STORE PER (SESSION, ADDON), whichever thread asks first. The lock is per
+        // session-state and taken only on the first ask for one addon's tables; the key is set before the
+        // store is published, so a :get that follows reads from under it.
         synchronized(st.charStores) {
             have = st.charStores.get(a);
             if(have != null)
                 return have;
             CharStore mk = new CharStore();
-            for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-                if(!sv.client && !mk.vars.get(sv.name).istable())
-                    mk.vars.set(sv.name, new LuaTable());    // always a usable (possibly empty) table
-            }
-            if(st.charScope != null) {
-                mk.scope = st.charScope;
-                loadChar(a, mk);              // filled BEFORE it is published: nobody can write into a
-            }                                 //   store that is about to be cleared and refilled
+            mk.scope = st.charScope;          // null until the session has a character: enterWorld sets it
             st.charStores.put(a, mk);
             return mk;
         }
     }
 
     /**
-     * <b>The names this addon declared in one scope</b> (094, A-111), as a plain string array — what
-     * {@code hafen.store():list()} and {@code s:store():list()} answer, each about its own half.
-     *
-     * <p>The set is closed at load and {@code nameArg}'s refusal already enumerates it: the bridge could
-     * produce the list and only an error message could see it, so an addon could not ask what it declared and
-     * a debug dump of its own saved state was written by hand and went stale with the manifest. A list of
-     * NAMES, so it stays an array rather than becoming a collection — the rule {@code pag:categories()} and
+     * <b>The names that exist in one scope</b> (094, A-111; 147), sorted, as a plain string array — what
+     * {@code hafen.store():list()} and {@code s:store():list()} answer, each about its own half. A name
+     * exists when it has a row in the file ({@link SqliteApi.Db#names}) or a table handed out this session
+     * ({@code vars}' keys — a document written and not yet flushed is one of them); the two are unioned. A
+     * scope with no key yet, or a file that is unavailable, contributes its live keys alone. A list of NAMES,
+     * so it stays an array rather than becoming a collection — the rule {@code pag:categories()} and
      * {@code item:slots()} already follow.
      */
-    private static LuaValue names(Addon a, boolean client) {
+    private static LuaValue names(Addon a, LuaTable vars, String scope) {
+        java.util.TreeSet<String> all = new java.util.TreeSet<String>();
+        for(String nm : liveNames(vars))
+            all.add(nm);
+        SqliteApi.Db db = SqliteApi.db(a);
+        if((db != null) && (scope != null)) {
+            try {
+                all.addAll(db.names(scope));
+            } catch(RuntimeException e) {
+                logAbout(a, "store: could not read the document names from " + db.file.getFileName() + ": "
+                    + Refusal.reason(e) + " — :list() answers the ones held this session");
+            }
+        }
         LuaTable t = new LuaTable();
         int n = 0;
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.client == client)
-                t.set(++n, LuaValue.valueOf(sv.name));
-        }
+        for(String nm : all)
+            t.set(++n, LuaValue.valueOf(nm));
         return t;
     }
 
-    /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
-    private static String declared(Addon a) {
-        StringBuilder b = new StringBuilder();
-        for(Manifest.SavedVar sv : a.manifest.savedVariables)
-            b.append((b.length() > 0) ? ", " : "").append('"').append(sv.name).append('"');
-        return (b.length() > 0) ? b.toString() : "(none)";
-    }
-
-    /**
-     * The {@code __index} of {@code hafen.store}'s callable table. A <b>declared</b> name throws naming
-     * {@code :get} — {@code hafen.store.cfg.foo = 1} is the spelling the whole corpus used, and left to read
-     * {@code nil} it would fail as <i>"attempt to index a nil value"</i> one character later. Everything else
-     * falls through to {@link Refusal#sectionIndex}, which carries no rows and reads plain {@code nil}, so
-     * a feature probe still works.
-     */
-    private static LuaValue index(final Addon owner) {
-        final LuaValue rest = Refusal.sectionIndex("store");
-        return new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue key) {
-                if(key.type() == LuaValue.TSTRING) {
-                    String nm = key.tojstring();
-                    Manifest.SavedVar sv = declaredVar(owner, nm);
-                    if(sv != null)
-                        throw new LuaError("hafen.store." + nm + " is now "
-                            + (sv.client ? ACC + ":get(\"" + nm + "\")"
-                                         : "hafen.session():current():store():get(\"" + nm + "\")")
-                            + " — what it hands back is the same live table, so writing into it still persists"
-                            + (sv.client ? "" : ". A bare name in \"saved_variables\" is PER CHARACTER, and a"
-                                + " character's documents are reached through the session whose character"
-                                + " they are"));
-                }
-                return rest.call(self, key);
-            }
-        };
+    /** The names {@code vars} holds a table under — the documents {@code :get} has handed out in one scope. */
+    private static List<String> liveNames(LuaTable vars) {
+        List<String> out = new ArrayList<String>();
+        for(LuaValue k : vars.keys()) {
+            if((k.type() == LuaValue.TSTRING) && vars.get(k).istable())
+                out.add(k.tojstring());
+        }
+        return out;
     }
 
     /**
@@ -538,11 +498,12 @@ final class StoreApi {
      * (the tick that saw the world come up, the reload that found the HUD in its own tree), and reading the
      * screen instead would file one login's rows under whichever character is being looked at.
      *
-     * <p>079.1: and it <b>loads</b>, for that session and no other, which is what makes the documents of a
+     * <p>079.1: and it <b>refills</b>, for that session and no other, which is what makes the documents of a
      * character nobody is looking at be that character's. Whatever the tables held first goes back where it
      * came from: a session picking a second character keeps its {@code UI} and comes through here again, so
      * the outgoing character's data is written before the incoming character's is read into the very same
-     * tables. The remembered placements follow the screen, so {@link #rescope} is called on the way out — a
+     * tables (147: the ones this session has asked for — a name not yet asked is read when it is). The
+     * remembered placements follow the screen, so {@link #rescope} is called on the way out — a
      * session entering the world <i>as</i> the screen has both in place before {@code SessionEnteredWorld}
      * fires, which is where the docs send an addon to read them.
      */
@@ -640,13 +601,9 @@ final class StoreApi {
             }
             cs.scope = null;
             cs.last.clear();
-            for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-                if(sv.client)
-                    continue;
-                LuaValue t = cs.vars.get(sv.name);
-                if(t.istable())
-                    clearTable((LuaTable)t);
-            }
+            cs.readOnly = false;
+            for(String nm : liveNames(cs.vars))
+                clearTable((LuaTable)cs.vars.get(nm));
         }
     }
 
@@ -666,7 +623,7 @@ final class StoreApi {
     }
 
     /**
-     * <b>What a saved variable may hold</b>, checked over one addon's declared tables before an asked-for
+     * <b>What a document may hold</b>, checked over one scope's live tables before an asked-for
      * {@code flush()} writes. A function, a widget handle or any other live thing is written by the forgiving
      * serializer as a quoted {@code tostring} and read back as that string — data-shaped garbage, discovered
      * a week later by the addon that trusted it. Here it is discovered at the call.
@@ -675,8 +632,8 @@ final class StoreApi {
      * addon put a widget in the table it saves its layout from, and the name of the variable alone would send
      * it looking through the whole thing.
      */
-    private static void carriable(Addon a, LuaTable src, boolean client, String how) {
-        String bad = uncarriable(a, src, client);
+    private static void carriable(Addon a, LuaTable src, String how) {
+        String bad = uncarriable(src);
         if(bad != null)
             throw new LuaError(how + ":flush(): " + bad + ", and a saved variable may hold only tables,"
                 + " strings, numbers, booleans and Positions — save what describes the thing (a resource"
@@ -690,19 +647,14 @@ final class StoreApi {
      * asked-for {@link #carriable} flush refuses it, and the timer and the teardown {@link #degraded} log it
      * and go on writing.
      */
-    private static String uncarriable(Addon a, LuaTable src, boolean client) {
+    private static String uncarriable(LuaTable src) {
         if(src == null)
             return null;
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.client != client)
-                continue;                       // 078.3: a flush answers for the scope it was asked on
-            LuaValue v = src.get(sv.name);
-            if(v.istable()) {
-                String bad = uncarriable((LuaTable)v, "\"" + sv.name + "\"", Collections.newSetFromMap(
-                                             new IdentityHashMap<LuaValue, Boolean>()));
-                if(bad != null)
-                    return bad;
-            }
+        for(String nm : liveNames(src)) {   // 078.3: a flush answers for the scope it was asked on, and
+            String bad = uncarriable((LuaTable)src.get(nm), "\"" + nm + "\"", Collections.newSetFromMap(
+                                         new IdentityHashMap<LuaValue, Boolean>()));   //   src IS that scope
+            if(bad != null)
+                return bad;
         }
         return null;
     }
@@ -767,8 +719,8 @@ final class StoreApi {
      * is what an author acts on; a line per key would bury it, and the callers reach this after the
      * unchanged-content check, so a store left alone says nothing on every one of the timer's laps.
      */
-    private static void degraded(Addon a, LuaTable src, boolean client, String how) {
-        String bad = uncarriable(a, src, client);
+    private static void degraded(Addon a, LuaTable src, String how) {
+        String bad = uncarriable(src);
         if(bad != null)
             logAbout(a, "store: " + bad + ", which is saved as text and reads back as text — a saved variable may"
                 + " hold only tables, strings, numbers, booleans and Positions. This write was the timer's or"
@@ -845,88 +797,84 @@ final class StoreApi {
         return Inside.inside(saveDir().toPath(), st.charScope + "/client", "store").toFile();
     }
 
-    /** One addon's client-scope documents, read in at install and primed for the write-skip. */
-    private static void loadClient(Addon a) {
-        if((a.store == null) || !hasScope(a, true))
-            return;
-        a.clientReadOnly = !loadInto(a, a.store, true, CLIENT);
-        a.lastClientDocs.clear();
-        a.lastClientDocs.putAll(scopeRows(a, a.store, true));
-    }
-
-    /** One session's per-character documents for one addon, read in from under the key it holds. */
+    /**
+     * <b>A session's tables learn a character</b> (147): every table {@code cs.vars} already holds — the
+     * documents this session has asked for — is emptied and refilled <b>in place</b> from under the key
+     * {@code cs} now holds, so a reference an addon cached stays the same object and is now that character's.
+     * The write-skip cache is reset to what is held, and the read-only mark to clean: it is this load's own
+     * reads that decide it again. A name not yet asked for is read when it is.
+     */
     private static void loadChar(Addon a, CharStore cs) {
-        if((cs.scope == null) || !hasScope(a, false))
+        if(cs.scope == null)
             return;
-        cs.readOnly = !loadInto(a, cs.vars, false, cs.scope);
+        cs.readOnly = false;
         cs.last.clear();
-        cs.last.putAll(scopeRows(a, cs.vars, false));
+        for(String nm : liveNames(cs.vars)) {
+            LuaTable tgt = (LuaTable)cs.vars.get(nm);
+            clearTable(tgt);                    // refill in place → the addon's ref stays valid
+            read(a, tgt, cs.scope, nm, false, cs);
+            cs.last.put(nm, Json.write(tgt));
+        }
     }
 
     /**
-     * Load one scope's documents from the file into the tables that hold them, filling them in place so
-     * that table identity is preserved. The caller primes the write-skip cache with the canonical
-     * serialization of what is now held, so an unchanged first flush writes nothing.
+     * Read one document's row into {@code tgt}, which arrives empty. A row that is not there is a clean read —
+     * nothing has been saved under that name yet and an empty table is the whole truth.
      *
-     * <p><b>It answers whether the scope in the file is now held</b>, which is the fact the write half needs.
-     * A row that is not there is a clean load — nothing has been saved under that name yet and an empty table
-     * is the whole truth. A store that is unavailable, or a row that IS there and cannot be read or parsed,
-     * is not: the tables are left empty, an empty document is what the addon then goes on to write, and the
-     * write replaces the row, so the recovery both pages call harmless would replace the only copy of the
-     * data with nothing. {@code false} makes that scope read-only for the rest of the session — see
-     * {@link #writeClient} and {@link #writeChar} — and it is a successful load that lifts it, which is the
-     * next login or a {@code :reload} after the cause is fixed.
+     * <p><b>A row that is there and cannot be read is not</b>, and neither is a store that is unavailable: the
+     * table is left empty, an empty document is what the addon then goes on to write, and the write replaces
+     * the row, so the recovery both pages call harmless would replace the only copy of the data with nothing.
+     * Either marks the whole <b>scope</b> read-only for the rest of the session ({@code a.clientReadOnly} or
+     * {@code cs.readOnly} — see {@link #writeClient} and {@link #writeChar}), and it is a load that succeeds
+     * that lifts it: the next launch or a {@code :reload} for the client scope, {@link #loadChar} for a
+     * character's.
      */
-    private static boolean loadInto(Addon a, LuaTable dst, boolean client, String scope) {
+    private static void read(Addon a, LuaTable tgt, String scope, String name, boolean client, CharStore cs) {
         SqliteApi.Db db = SqliteApi.db(a);
-        if(db == null)
-            return false;                       // unavailable: empty, and never written (SqliteApi.open said why)
-        boolean ok = true;
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.client != client)
-                continue;
-            LuaValue have = dst.get(sv.name);
-            LuaTable tgt;
-            if(have.istable()) {
-                tgt = (LuaTable)have;
-                clearTable(tgt);                // refill in place → the addon's ref stays valid
-            } else {
-                tgt = new LuaTable();
-                dst.set(sv.name, tgt);
-            }
-            String text;
-            try {
-                text = db.document(scope, sv.name);
-            } catch(RuntimeException e) {
-                logAbout(a, "store: could not read \"" + sv.name + "\" from " + db.file.getFileName() + ": "
-                    + Refusal.reason(e) + " — this addon's " + (client ? ACC : SS) + " is READ-ONLY for this"
-                    + " session, and the rows are left as they are");
-                return false;
-            }
-            if(text == null)
-                continue;                       // nothing saved under this name yet: empty is the whole truth
-            try {
-                Object root = Json.parse(text);
-                // audit2 B14 (st-08): A WELL-FORMED ROW THAT IS NOT A DOCUMENT IS A FAILED LOAD. An object or
-                // an array is a table; a scalar or a null matches nothing here, would load nothing and say
-                // nothing, and the addon would then write an empty document over its own data on the next
-                // flush. The same read-only answer an unreadable row gets, for the same reason.
-                if(!(root instanceof Map) && !(root instanceof List)) {
-                    logAbout(a, "store: \"" + sv.name + "\" in " + db.file.getFileName() + " is not a document"
-                        + " (it holds " + ((root == null) ? "null" : "a single value") + ") — this addon's "
-                        + (client ? ACC : SS) + " is READ-ONLY for this session, and the row is left as it is");
-                    ok = false;
-                    continue;
-                }
-                fillTable(tgt, root, a);        // object or array
-            } catch(RuntimeException e) {
-                logAbout(a, "store: could not read \"" + sv.name + "\" from " + db.file.getFileName() + ": "
-                    + Refusal.reason(e) + " — this addon's " + (client ? ACC : SS) + " is READ-ONLY for this"
-                    + " session, and the row is left as it is");
-                ok = false;
-            }
+        if(db == null) {
+            readOnly(a, client, cs);            // unavailable: empty, and never written (SqliteApi.open said why)
+            return;
         }
-        return ok;
+        String text;
+        try {
+            text = db.document(scope, name);
+        } catch(RuntimeException e) {
+            logAbout(a, "store: could not read \"" + name + "\" from " + db.file.getFileName() + ": "
+                + Refusal.reason(e) + " — this addon's " + (client ? ACC : SS) + " is READ-ONLY for this"
+                + " session, and the rows are left as they are");
+            readOnly(a, client, cs);
+            return;
+        }
+        if(text == null)
+            return;                             // nothing saved under this name yet: empty is the whole truth
+        try {
+            Object root = Json.parse(text);
+            // audit2 B14 (st-08): A WELL-FORMED ROW THAT IS NOT A DOCUMENT IS A FAILED LOAD. An object or
+            // an array is a table; a scalar or a null matches nothing here, would load nothing and say
+            // nothing, and the addon would then write an empty document over its own data on the next
+            // flush. The same read-only answer an unreadable row gets, for the same reason.
+            if(!(root instanceof Map) && !(root instanceof List)) {
+                logAbout(a, "store: \"" + name + "\" in " + db.file.getFileName() + " is not a document"
+                    + " (it holds " + ((root == null) ? "null" : "a single value") + ") — this addon's "
+                    + (client ? ACC : SS) + " is READ-ONLY for this session, and the row is left as it is");
+                readOnly(a, client, cs);
+                return;
+            }
+            fillTable(tgt, root, a);            // object or array
+        } catch(RuntimeException e) {
+            logAbout(a, "store: could not read \"" + name + "\" from " + db.file.getFileName() + ": "
+                + Refusal.reason(e) + " — this addon's " + (client ? ACC : SS) + " is READ-ONLY for this"
+                + " session, and the row is left as it is");
+            readOnly(a, client, cs);
+        }
+    }
+
+    /** Mark the scope a failed {@link #read} belongs to read-only: the client's on the addon, a character's on its store. */
+    private static void readOnly(Addon a, boolean client, CharStore cs) {
+        if(client)
+            a.clientReadOnly = true;
+        else if(cs != null)
+            cs.readOnly = true;
     }
 
     /**
@@ -936,21 +884,20 @@ final class StoreApi {
      * after this one and the drain would find it closed. Skips unchanged rows. This is the teardown's write —
      * the addon is going, so every character it holds tables for is written.
      *
-     * <p><b>The remembered placements go first, and they go whatever the manifest declares.</b> An addon that
-     * only hands a window to the user declares no saved variables at all — the whole point of the verb being
-     * that it needs no declaration and no handler — so the early return that used to stand at the top of this
-     * method would have made its placements the one thing here that is silently never written.
+     * <p><b>The remembered placements go first.</b> An addon that only hands a window to the user has asked for
+     * no document at all — the whole point of the verb being that it needs no handler — so nothing about the
+     * documents may stand between the top of this method and their write.
      */
     static void flush(Addon a) {
         if(a == null)
             return;
         try {
             LuaWidget.rememberCapture(a);               // 062: where every remembered widget stands right now...
-            writePlacements(a);                         //   ...saved in the store file, needing no declaration
+            writePlacements(a);                         //   ...saved in the store file, beside the documents
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
-        if((a.store == null) || a.manifest.savedVariables.isEmpty())
+        if(a.store == null)
             return;
         try {
             writeClient(a);                             // the client scope (always resolvable)
@@ -977,7 +924,7 @@ final class StoreApi {
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
-        if((a.store == null) || a.manifest.savedVariables.isEmpty())
+        if(a.store == null)
             return;
         try {
             writeClient(a);
@@ -1200,7 +1147,7 @@ final class StoreApi {
     private static void writeClient(Addon a) {
         if(a.store == null)
             return;
-        Map<String, String> changed = changed(scopeRows(a, a.store, true), a.lastClientDocs);
+        Map<String, String> changed = changed(scopeRows(a.store), a.lastClientDocs);
         if(changed.isEmpty())
             return;                                     // no client documents, or unchanged → no row touched
         if(a.clientReadOnly)
@@ -1210,7 +1157,7 @@ final class StoreApi {
             logAbout(a, "store: the file is closed, so the client scope's changes were not written");
             return;
         }
-        degraded(a, a.store, true, ACC);                // 084.5: say what is about to be written as text
+        degraded(a, a.store, ACC);                      // 084.5: say what is about to be written as text
         db.documents(CLIENT, changed);
         a.lastClientDocs.putAll(changed);
     }
@@ -1219,7 +1166,7 @@ final class StoreApi {
     private static void writeChar(Addon a, CharStore cs) {
         if((cs == null) || (cs.scope == null))
             return;                                     // no tables for this session, or they hold nobody
-        Map<String, String> changed = changed(scopeRows(a, cs.vars, false), cs.last);
+        Map<String, String> changed = changed(scopeRows(cs.vars), cs.last);
         if(changed.isEmpty())
             return;
         if(cs.readOnly)
@@ -1229,24 +1176,20 @@ final class StoreApi {
             logAbout(a, "store: the file is closed, so this character's changes were not written");
             return;
         }
-        degraded(a, cs.vars, false, SS);                // 084.5: say what is about to be written as text
+        degraded(a, cs.vars, SS);                       // 084.5: say what is about to be written as text
         db.documents(cs.scope, changed);
         cs.last.putAll(changed);
     }
 
     /**
-     * Serialize one scope's documents as {@code name → JSON} rows, in manifest order (reusing the compact
-     * REPL writer). Empty when the addon declares no documents of this scope. A non-table value at a
-     * declared name is written as {@code {}} (the contract is "a table per name").
+     * Serialize one scope's live documents as {@code name → JSON} rows (reusing the compact REPL writer) —
+     * the tables {@code :get} has handed out in that scope (147). Empty when nothing has been asked for: a
+     * document nobody named this session has no table here and no row touched.
      */
-    private static Map<String, String> scopeRows(Addon a, LuaTable src, boolean client) {
+    private static Map<String, String> scopeRows(LuaTable src) {
         Map<String, String> rows = new LinkedHashMap<String, String>();
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.client != client)
-                continue;
-            LuaValue v = src.get(sv.name);
-            rows.put(sv.name, Json.write(v.istable() ? v : new LuaTable()));
-        }
+        for(String nm : liveNames(src))
+            rows.put(nm, Json.write(src.get(nm)));
         return rows;
     }
 
@@ -1258,14 +1201,6 @@ final class StoreApi {
                 out.put(e.getKey(), e.getValue());
         }
         return out;
-    }
-
-    /** Does the addon declare at least one saved variable of the given scope? */
-    private static boolean hasScope(Addon a, boolean client) {
-        for(Manifest.SavedVar sv : a.manifest.savedVariables)
-            if(sv.client == client)
-                return true;
-        return false;
     }
 
     /**

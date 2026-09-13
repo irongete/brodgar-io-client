@@ -22,8 +22,6 @@ public final class Manifest {
      */
     public final ApiVersion apiVersion;
     public final List<String> files, dependencies, optionalDependencies;
-    /** Saved-variable declarations (name + scope) the engine persists/restores — see {@link SavedVar}. */
-    public final List<SavedVar> savedVariables;
     /**
      * Declared permissions (spec 12 / D-027) — the protected verbs this addon asks for, one key per verb from
      * the {@link Permission} catalogue ({@code "permissions": ["item.*", "player.move"]}), or a
@@ -36,7 +34,7 @@ public final class Manifest {
     /**
      * The {@code network} block's host allowlist (N2a / D-037): the hosts this addon may reach through
      * {@code hafen.http()} and {@code hafen.websocket()}. A capability-with-config gets its own manifest
-     * block (like {@code saved_variables}),
+     * block,
      * not a bare {@code permissions[]} string, because the declaration IS the allowlist. Lower-cased; empty ⇒
      * no {@code network} block ⇒ the addon has no network access. Entries may be an exact host or a
      * {@code *.domain} sub-domain wildcard; the special token {@code "*"} (used only by the internal REPL owner)
@@ -201,25 +199,9 @@ public final class Manifest {
         return out;
     }
 
-    /**
-     * One {@code saved_variables} declaration: a <b>document</b> — a Lua table the engine keeps in the addon's
-     * store file and restores on load (146). {@code client} = the addon's own, one for the whole client
-     * whichever account or character is up ({@code "scope": "client"}); otherwise a character's own, one row
-     * per character (a bare name, or {@code "scope": "character"}).
-     */
-    public static final class SavedVar {
-        public final String name;
-        public final boolean client;
-
-        SavedVar(String name, boolean client) {
-            this.name = name;
-            this.client = client;
-        }
-    }
-
     private Manifest(String id, String name, String version, String author, String description,
                      ApiVersion apiVersion, List<String> files, List<String> dependencies,
-                     List<String> optionalDependencies, List<SavedVar> savedVariables,
+                     List<String> optionalDependencies,
                      PermissionSet permissions, List<String> network, boolean internal) {
         this.internal = internal;
         this.id = id;
@@ -231,7 +213,6 @@ public final class Manifest {
         this.files = files;
         this.dependencies = dependencies;
         this.optionalDependencies = optionalDependencies;
-        this.savedVariables = savedVariables;
         this.permissions = permissions;
         this.network = network;
     }
@@ -242,7 +223,6 @@ public final class Manifest {
      */
     static Manifest internal(String id) {
         List<String> none = Collections.emptyList();
-        List<SavedVar> novars = Collections.emptyList();
         // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
         // permission, so every protected verb is granted to it (D-027; D-028 — per-addon, no global switch).
         // Built from the catalogue rather than from a bare "*", which parses nowhere: the allow-all shape has
@@ -251,14 +231,13 @@ public final class Manifest {
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
         return new Manifest(id, id, "0", "brodgar", "engine-internal owner", ApiVersion.CURRENT, none, none, none,
-                            novars, allperms, allnet, true);
+                            allperms, allnet, true);
     }
 
     /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
     static Manifest test(String id) {
         List<String> none = Collections.emptyList();
-        List<SavedVar> novars = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, none, none, novars,
+        return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, none, none,
                             PermissionSet.NONE, none, false);
     }
 
@@ -282,6 +261,12 @@ public final class Manifest {
             throw new IllegalArgumentException("'files' must list at least one .lua file");
 
         String name = str(m, "name", false);
+        // 147: a document is not declared. It exists when hafen.store():get(name) first names it, and the door
+        // it is asked through is its scope -- so the field that used to announce one is refused here, at load,
+        // as the hard cut's refusal in the manifest's own vocabulary, and the panel row reads it.
+        if(m.containsKey("saved_variables"))
+            throw new IllegalArgumentException("'saved_variables' is not a manifest field: a document exists when"
+                + " hafen.store():get(name) first names it, and the door is its scope — remove it");
         PermissionSet perms = PermissionSet.parse(strlist(m, "permissions"));
         List<String> hosts = networkhosts(m);
         // 093.4 (A-098): the network is a KEY now, and the hosts block is that key's argument. So a manifest
@@ -298,7 +283,7 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), ApiVersion.parse(m.get("api_version")),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m), perms, hosts, false);
+                            perms, hosts, false);
     }
 
     /**
@@ -369,59 +354,6 @@ public final class Manifest {
         if((host.indexOf('*', 1) >= 0) || (!host.startsWith("*.") && (host.indexOf('*') >= 0)))
             throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\": a wildcard is the"
                 + " whole first label and nothing else — \"*.example.com\", never \"a*.example.com\"");
-    }
-
-    /**
-     * Parse {@code saved_variables}: an array whose entries are either a bare table name (a character's
-     * document) or {@code {"name": ..., "scope": "client" | "character"}}. An absent scope is a character's,
-     * as the bare name is; <b>any other word is refused naming the two</b> (146): the scope decides which
-     * rows a document is read from, so a word the client does not know is a document that would silently
-     * land in the wrong one.
-     */
-    private static List<SavedVar> savedvars(Map<String, Object> m) {
-        List<SavedVar> out = new ArrayList<SavedVar>();
-        Object v = m.get("saved_variables");
-        if(v == null) return out;
-        if(!(v instanceof List)) throw new IllegalArgumentException("'saved_variables' must be an array");
-        // audit2 B14 (st-10): ONE ENTRY PER NAME, refused here rather than collapsed downstream. A name
-        // declared twice is one table -- installStore mints it once and declaredVar finds the first -- so the
-        // second entry named nothing, while every walk of this list answered it: hafen.store():list() said
-        // "layout" twice about one table, and a second entry with the OTHER scope silently did not apply.
-        // The manifest is where the shape is decided, and every other malformed entry throws here too.
-        for(Object o : (List<?>)v) {
-            String nm;
-            boolean client;
-            if(o instanceof String) {
-                nm = (String)o;
-                client = false;
-            } else if(o instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> e = (Map<String, Object>)o;
-                nm = str(e, "name", true);
-                Object scope = e.get("scope");
-                if((scope == null) || "character".equals(scope)) {
-                    client = false;
-                } else if("client".equals(scope)) {
-                    client = true;
-                } else {
-                    throw new IllegalArgumentException("'saved_variables' entry \"" + nm + "\" declares \"scope\": "
-                        + ((scope instanceof String) ? "\"" + scope + "\"" : String.valueOf(scope))
-                        + ", and a scope is \"client\" -- the addon's own, one document for the whole client"
-                        + " whichever account or character is up -- or \"character\" -- that character's own,"
-                        + " which a bare name also declares.");
-                }
-            } else {
-                throw new IllegalArgumentException("'saved_variables' entries must be a string or an object");
-            }
-            for(SavedVar had : out) {
-                if(had.name.equals(nm))
-                    throw new IllegalArgumentException("'saved_variables' declares \"" + nm + "\" twice --"
-                        + " one name is one table, and only the first entry would have taken effect. Declare"
-                        + " it once, in the scope you mean.");
-            }
-            out.add(new SavedVar(nm, client));
-        }
-        return out;
     }
 
     private static String str(Map<String, Object> m, String key, boolean required) {

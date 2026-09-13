@@ -1,0 +1,9 @@
+{
+  "name": "147.1 — A document exists when get(name) first names it",
+  "id": "147-undeclared-documents.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 147.1: an undeclared document answers a live table through either door, survives a reload, and one name through both doors is two documents.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

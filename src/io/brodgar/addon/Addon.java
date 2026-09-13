@@ -490,8 +490,7 @@ public final class Addon {
      * addressed by the session it belongs to, and so is this one.
      *
      * <p>A scope's set is loaded from disk the first time something in it is touched, and every loaded set is
-     * written by each flush — so a remembered placement still needs no {@code saved_variables} declaration and
-     * no handler of the addon's own.
+     * written by each flush — so a remembered placement needs no handler of the addon's own.
      */
     public final Map<String, StoreApi.PlaceSet> placeSets =
         new ConcurrentHashMap<String, StoreApi.PlaceSet>();
@@ -1397,9 +1396,9 @@ public final class Addon {
     final Interned<String, LuaValue> storeTables = Interned.keyed();
 
     /**
-     * The {@code hafen.store()} documents — <b>the CLIENT scope</b>, one Lua table per saved variable declared
-     * {@code "scope": "client"}. Populated in {@link AddonManager#installHafen}; the engine reads it on flush.
-     * {@code null} until installed.
+     * The {@code hafen.store()} documents — <b>the CLIENT scope</b>, one Lua table per name the addon has asked
+     * {@code :get} for (147: a document exists when {@code get(name)} first names it, and its row is read then).
+     * Minted empty in {@link AddonManager#installHafen}; the engine walks it on flush. {@code null} until installed.
      *
      * <p>The other scope is nowhere near here (079.1): a character's documents are one session's, so they
      * live in that session's own {@link AddonManager.SessionState#charStores} and there are as many sets as
@@ -1408,14 +1407,14 @@ public final class Addon {
     public LuaTable store;
     /**
      * Write-skip cache: the JSON last written (or read in) for each client-scope document, by name, so an
-     * unchanged flush touches no row. Primed by the load, so the first flush after it writes nothing.
+     * unchanged flush touches no row. Primed as each document is first read, so a flush after it writes nothing.
      */
     public final Map<String, String> lastClientDocs = new LinkedHashMap<String, String>();
     /**
-     * <b>The client scope is read-only until a load succeeds</b> — set when the store is unavailable, or a
+     * <b>The client scope is read-only once a read fails</b> — set when the store is unavailable, or a
      * row was there and could not be read or parsed. What {@link #store} then holds is empty because the
-     * client could not read it, and writing that back replaces the only copy. Cleared by the next successful
-     * load, which is a {@code :reload} or the next launch once the cause is fixed.
+     * client could not read it, and writing that back replaces the only copy. A {@code :reload} or the next
+     * launch, once the cause is fixed, starts clean.
      */
     public boolean clientReadOnly;
 
