@@ -70,6 +70,9 @@ public class FlowerMenu extends Widget {
 	public String name;
 	public double ta, tr;
 	public int num;
+	/* addon: (143.3) a petal of an ADDON's own, or null for one the server sent. choose() runs it and
+	 * cancels the server's menu instead of naming a number the server never offered; see addClientPetal. */
+	public Runnable client;
 	private Text text;
 	private int textgen = -1;   // addon: Fonts.gen() at the last caption render (F3d)
 	private double a = 1;
@@ -261,6 +264,28 @@ public class FlowerMenu extends Widget {
 	io.brodgar.addon.AddonManager.flowerOpened(this);   // addon: 047.1 -> FlowerMenuAdded. HERE, at the END, where the petal set is complete.
     }
 
+    /* addon: (143.3) append a petal of an ADDON's own to the ring, while it is being announced -- the
+     * flowerOpened() call above, still inside added() and so still under this tree's monitor, before the
+     * first drawn frame. `opts` is REPLACED rather than grown in place: Opening.ntick reads the array on every
+     * tick, so the petal lands with the ring, and Chosen and Cancel index it by `num`, which it carries.
+     * organize() is re-run over the whole ring -- it is a deterministic walk from the same first position, so
+     * every petal the server sent keeps its place and the new one takes the next -- and the petal starts where
+     * Opening.ntick(0) put the others (folded in at the centre, transparent), so nothing flashes before the
+     * next tick moves it out. `run` is what choose() runs when it is picked. */
+    public Petal addClientPetal(String label, Runnable run) {
+	Petal p = new Petal(label);
+	p.client = run;
+	p.num = opts.length;
+	add(p);
+	Petal[] n = java.util.Arrays.copyOf(opts, opts.length + 1);
+	n[opts.length] = p;
+	opts = n;
+	organize(opts);
+	p.move(p.ta + PI, 0);
+	p.a = 0;
+	return(p);
+    }
+
     public boolean mousedown(MouseDownEvent ev) {
 	if(!anims.isEmpty())
 	    return(true);
@@ -325,6 +350,15 @@ public class FlowerMenu extends Widget {
 	io.brodgar.addon.AddonManager.flowerChoosing(this, option);   // addon: 047.1 -- record the petal, so a menu that closes without the server committing one still carries the label that was picked
 	if(option == null) {
 	    wdgmsg("cl", -1);
+	} else if(option.client != null) {
+	    /* addon: (143.3) a petal of an addon's own handles itself and only the cancel goes out -- the
+	     * server never offered its number. The run comes first, so what it reads is the ring still up,
+	     * and the cancel goes out whatever the run did. */
+	    try {
+		option.client.run();
+	    } finally {
+		wdgmsg("cl", -1);
+	    }
 	} else {
 	    wdgmsg("cl", option.num, ui.modflags());
 	}

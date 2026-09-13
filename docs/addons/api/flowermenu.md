@@ -3,9 +3,9 @@
 The **radial menu** is the ring of petals a right-click puts up: the game's main context gesture, and the
 way almost every interaction with an object starts. `s:flowermenu()` **is** the menu one character has
 open — what it offers, how many petals that is, which one to pick, and whether the client paints it at
-all. You reach it through the [session](session.md) whose character you mean. Picking and dismissing are
-protected and their keys are in [permissions](../guides/permissions.md);
-[painting the ring](#drawn-or-not-unprotected) is not.
+all — and a petal of your own on it. You reach it through the [session](session.md) whose character you
+mean. Picking and dismissing are protected and their keys are in [permissions](../guides/permissions.md);
+[adding a petal](#write-unprotected) and [painting the ring](#drawn-or-not-unprotected) are not.
 
 ```lua
 hafen.event():on("FlowerMenuAdded", function(petals, s)
@@ -97,6 +97,7 @@ place. A right-click puts a new menu up about a second later, so that difference
 | `petal:wire()` | number | the **0-based** number the menu itself sends for it — always answers |
 | `petal:select()` | the petal | pick it — **protected**, `flowermenu.select`; raises once its ring has closed |
 | `petal:exists()` | boolean | whether the ring this petal is on is still the open one |
+| `petal:native()` | boolean | whether the server sent it; `false` for [one you added](#write-unprotected) — always answers |
 | `petal:info()` | [`Petal`](types/ui.md#petal) | a plain-table **snapshot** |
 
 A petal's **position** is real identity here, not an artefact of one call's ordering: it is the `1`–`9` key
@@ -105,9 +106,9 @@ the menu itself accepts from the keyboard, and the number
 `petal:wire()` is the number the client puts in the message and `petal:index()` is the one everything in
 this API is written in. This is the opposite of
 [`session:menugrid`](menugrid.md), where a position means nothing and is refused — there the catalogue grows
-as you play, and here the ring is frozen the instant it opens.
+as you play, and here the ring is frozen once it is announced.
 
-The ring is fixed from the moment it appears and lives about as long as it takes to decide, so a petal is
+The ring is fixed from the moment it is announced and lives about as long as it takes to decide, so a petal is
 worth reading rather than keeping — but it is a handle, so keeping one is safe and says so.
 
 > **The menu answers while it is open, closing animation included.** A pick or an Esc starts a
@@ -144,8 +145,8 @@ and the spelling `:select(label)` matches all go on naming what you wrote, on a 
 translated and on one it has not.
 
 Both verbs go through the client's own selection, which is what makes them exact rather than
-approximate: a petal the **client** handles by itself — the Kin window's entries, the mute toggle on
-another player — is handled locally, and nothing is sent to the server for it.
+approximate: a petal the **client** handles by itself — the Kin window's entries,
+[one you added](#write-unprotected) — is handled locally, and the server hears only the ring's dismissal.
 
 Where the reads answer, these **raise**. A menu is up for about a second, so *there was nothing to pick*
 is a race you have to hear about rather than a value you might forget to test. `:select` raises when that
@@ -163,6 +164,39 @@ input until the animation finishes.
 > each pick as it is made. So an addon that picks unconditionally decides the ring for every other one.
 > Pick on a ring you recognise — `:gob()` says what it was opened on and the payload says what is in it —
 > and read `FlowerMenuRemoved` for the label that was actually committed.
+
+## Write (unprotected)
+
+`s:flowermenu():add(label, fn)` puts a petal of your own on the ring — laid out after the server's, painted
+and picked like them. It changes what the client paints and sends the server nothing, so it needs no key.
+
+| Method | Returns | Description |
+|---|---|---|
+| `s:flowermenu():add(label, fn)` | the [Petal](#a-petal) | append a petal captioned `label`; picking it runs `fn(petal, s)` and ends the ring |
+
+A ring is laid out once, at the moment it is announced, so `:add` is legal **inside a `FlowerMenuAdded`
+handler and nowhere else**: called from anywhere later, a ring up or not, it raises naming that event. The
+petal it answers with is on `s:flowermenu():list()` from that call on and `petal:native()` is `false`; the
+array the event carried is the ring as the server sent it and does not grow.
+
+```lua
+hafen.event():on("FlowerMenuAdded", function(petals, s)
+  local gob = s:flowermenu():gob()
+  if gob and gob:name():find("tree") then
+    s:flowermenu():add("Remember", function(petal, session)
+      hafen.log():write("remembered " .. gob:name() .. " for " .. session:user())
+    end)
+  end
+end)
+```
+
+Picking it — the player's click or digit, or `petal:select()`, which stays under `flowermenu.select`
+because picking is picking — runs `fn` with the petal and the session, then ends the ring with nothing
+chosen on the server's side: only the dismissal is sent, and `FlowerMenuRemoved` carries your `label`. `fn`
+runs [under the ring's tree](threading.md#where-each-handler-runs), as a control's `Pressed` does, so it
+reads that character freely and reaches no other tree; an error in it is a line in the log and the ring
+still ends. `label` must be a non-empty string and `fn` a function, and either raises naming the argument;
+the caption is what `petal:label()` answers, what `:select(label)` matches, and what the ring paints.
 
 ## Drawn or not (unprotected)
 
@@ -227,8 +261,9 @@ exactly that round trip.
 ended: you picked a petal, you pressed Esc, you clicked away, or it simply died under you when the
 connection dropped. The payload is the label on a pick and `nil` on everything else.
 
-`FlowerMenuAdded` fires at the one moment the petal set is complete, so the array it carries is the whole
-ring — the same Petals `s:flowermenu():list()` answers with inside the handler, where `s` is the
+`FlowerMenuAdded` fires at the one moment the server's petal set is complete, so the array it carries is
+the whole ring as sent — the same Petals `s:flowermenu():list()` answers with inside the handler, until a
+handler [adds one](#write-unprotected); `s` is the
 [session the event carries](event/bus/README.md#whose-character-it-was).
 
 Both events cover the menus the **client** puts up as well as the server's. The Kin window's right-click

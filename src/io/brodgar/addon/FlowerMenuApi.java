@@ -55,6 +55,13 @@ import java.util.WeakHashMap;
  * dies with the ring. A hidden ring is still <i>open</i> — it grabs, it reads, it picks and it closes exactly
  * as a painted one does.
  *
+ * <p><b>{@code :add(label, fn)} is the other one</b> (143.3): a petal of the addon's own, appended to the ring
+ * while it is being announced — inside a {@code FlowerMenuAdded} handler, and nowhere else ({@link #announced}).
+ * The ring lays it out with the server's ({@link FlowerMenu#addClientPetal}), it is picked as any petal is,
+ * and {@link FlowerMenu#choose} then runs {@code fn(petal, s)} and cancels the server's menu: only the cancel
+ * goes out, so the verb is unprotected, and the pick stays under {@code flowermenu.select} because picking is
+ * picking. {@code petal:native()} says whose a petal is.
+ *
  * <p><b>The finder lives here</b>, and since 048.7 it is the only thing that does (D-103, one mechanism one
  * door): that session's open menu is the first {@link FlowerMenu} in a recursive walk of <b>its</b> UI root,
  * which is exact rather than approximate because an open menu grabs mouse <i>and</i> keyboard, so one tree
@@ -120,6 +127,16 @@ final class FlowerMenuApi {
      */
     // retained: weak keys over an Addon value -- nothing in the entry reaches the menu, so it collects.
     private static final Map<FlowerMenu, Addon> hidden = new WeakHashMap<FlowerMenu, Addon>();
+
+    /**
+     * <b>The rings being announced right now</b> (143.3) — a menu is in it for exactly as long as its
+     * {@code FlowerMenuAdded} handlers run, which is the one window {@code :add(label, fn)} is legal in: the
+     * end of {@code added()}, under that tree's monitor, the ring laid out and nothing drawn yet. A petal
+     * appended there lands with the ring; one appended later would land on a ring already on screen, or on
+     * none. A set and not a field because two sessions' Loader threads may each be announcing one.
+     */
+    private static final java.util.Set<FlowerMenu> announcing =
+        java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<FlowerMenu, Boolean>());
 
     /** {@code s:flowermenu()} — how this section is reached, and so how every one of its messages spells itself. */
     static final String FM = "session:flowermenu()";
@@ -298,6 +315,33 @@ final class FlowerMenuApi {
             public String keyName() {
                 return "n";
             }
+
+            // add(label, fn) — a petal of YOUR OWN on the ring being announced (143.3): appended after the
+            // server's, laid out with them, picked as any of them is — a press, its digit, :select — and
+            // then fn(petal, s) runs and the ring ends, only the cancel sent. UNPROTECTED: it changes what
+            // the client paints and sends the server nothing, as :visible(b) beside it does. Legal only
+            // from inside a FlowerMenuAdded handler (see announced), and the refusal says so.
+            public boolean creatable() {
+                return true;
+            }
+
+            public String addName() {
+                return "label";
+            }
+
+            public LuaValue addMember(Varargs a) {
+                final String verb = FM + ":add";
+                Args.only(a, 2, verb);
+                String label = Args.str(a, 2, verb, "label", "the caption the ring paints on it").tojstring();
+                if(label.trim().isEmpty())
+                    throw new LuaError(verb + "(label, fn): label must not be empty — it is the caption the"
+                        + " ring paints on the petal, and the spelling " + FM + ":select(label) matches");
+                LuaValue fn = Args.required(a, 3, verb, "fn");
+                if(!fn.isfunction())
+                    throw new LuaError(verb + "(label, fn): fn must be a function — it runs with the petal"
+                        + " and the session when the petal is picked, got " + fn.typename());
+                return addPetal(owner, user, announced(user, verb), label, fn);
+            }
         }, menu);
     }
 
@@ -347,8 +391,8 @@ final class FlowerMenuApi {
     }
 
     static String[] names(FlowerMenu fm) {
-        // audit2 B06: `opts` is a plain field the client REPLACES from the message path (added(), and the
-        // voice petal appended after it), under that tree's monitor -- so the read takes the same one.
+        // audit2 B06: `opts` is a plain field the client REPLACES from the message path (added(), and an
+        // addon's petal appended while it announces), under that tree's monitor -- so the read takes the same one.
         FlowerMenu.Petal[] opts;
         synchronized(LuaWidget.monitor(fm)) {
             opts = (fm == null) ? null : fm.opts;
@@ -383,8 +427,8 @@ final class FlowerMenuApi {
 
     // ---- the write half (protected) --------------------------------------------------------------
     // select/cancel go through FlowerMenu.choose(Petal) and NEVER re-encode wdgmsg("cl", num) — the client's
-    // own method is the door (D-009, wrap-not-reimplement), which is what makes a CLIENT-SIDE petal (the fork's
-    // voice Mute/Unmute, BuddyWnd's whole kin menu) handle itself instead of being wrongly sent to the server.
+    // own method is the door (D-009, wrap-not-reimplement), which is what makes a CLIENT-SIDE petal (one an addon
+    // added, BuddyWnd's whole kin menu) handle itself instead of being wrongly sent to the server.
     // Unlike the read half these THROW rather than answering: a menu lives for about a second, so "there was
     // nothing to pick" is a race the addon has to hear about, and the refusal names what IS open so the caller
     // can see the spelling it missed. (048.7 deleted hafen.act():flower(label), the older door onto the same
@@ -501,7 +545,55 @@ final class FlowerMenuApi {
             clicked.put(fm, Long.valueOf(g));
         // 079.4: whose ring it is, as the two events' last argument — the tree the menu went up in and
         // not the one on screen, because a ring stays up, and readable, when the player tabs away from it.
-        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuAdded", fm, names(fm), null);
+        //   143.3: and for exactly as long as the handlers run, the ring takes a petal of an addon's own
+        // (:add). The payload is minted BEFORE the mark, so it is the ring as the server sent it; a petal
+        // added inside a handler is on :list() from that call on and never in the array.
+        String[] petals = names(fm);
+        announcing.add(fm);
+        try {
+            AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuAdded", fm, petals, null);
+        } finally {
+            announcing.remove(fm);
+        }
+    }
+
+    /**
+     * <b>That character's ring, while it is being announced</b> — the one moment {@code :add(label, fn)} is
+     * legal — or a refusal naming {@code FlowerMenuAdded}. A ring already on screen refuses too: the petal
+     * would be laid out under the player's pointer a frame after the ring they saw, and a pick they were
+     * already making would land on it.
+     */
+    private static FlowerMenu announced(String user, String verb) {
+        FlowerMenu fm = open(user);
+        if((fm == null) || !announcing.contains(fm))
+            throw new LuaError(verb + ": a petal is added while the ring is being announced — from inside a"
+                + " FlowerMenuAdded handler, where the ring is laid out with it and nothing is drawn yet."
+                + ((fm == null) ? " No radial menu is open on " + user + " (" + FM + ":count() is 0)."
+                                : " The ring open on " + user + " is already on screen (" + FM + ":count() is "
+                                  + names(fm).length + ")."));
+        return fm;
+    }
+
+    /**
+     * {@code s:flowermenu():add(label, fn)} backing (143.3) — append a petal of {@code owner}'s own to the
+     * ring being announced and hand back its {@link LuaPetal}. The handle is minted <b>before</b> the petal
+     * is appended, at the position it will take, and the {@code Runnable} holds it: what {@code fn} is handed
+     * on the pick is then the very object {@code :add} answered with, not a second one interned over the
+     * same key. The session is minted at the pick, as every character event's last argument is.
+     *
+     * <p>{@code fn} runs from {@link FlowerMenu#choose} — a press on the petal, its digit, or
+     * {@code petal:select()} — under the ring's tree, exactly where a control's {@code Pressed} runs, and
+     * through {@link AddonManager#callLua}, so an error in it is that addon's line in the log and the cancel
+     * still goes out.
+     */
+    private static LuaValue addPetal(final Addon owner, final String user, final FlowerMenu fm, String label,
+                                     final LuaValue fn) {
+        synchronized(LuaWidget.monitor(fm)) {   // the ring's own tree — held already by the announcing thread
+            final LuaValue petal = LuaPetal.of(owner, user, fm, fm.opts.length);
+            fm.addClientPetal(label, () -> AddonManager.callLua(owner, Addon.C_WIDGET, fn, petal,
+                                                                  LuaSession.of(owner, user)));
+            return petal;
+        }
     }
 
     /**

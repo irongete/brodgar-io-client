@@ -90,6 +90,19 @@ final class LuaPetal {
             ? null : FlowerMenuApi.petalLabel(h.user, h.i);
     }
 
+    /**
+     * <b>Is this petal the server's?</b> (143.3) — {@code false} for one an addon added with
+     * {@code s:flowermenu():add}. A property of the object like {@code :index()}, so it answers after the
+     * ring has closed: the petal is read off the ring this handle was minted from, not off whatever is open.
+     */
+    private static boolean isNative(LuaPetal h) {
+        FlowerMenu.Petal[] opts;
+        synchronized(LuaWidget.monitor(h.menu)) {   // `opts` is replaced from the message path (audit2 B06)
+            opts = h.menu.opts;
+        }
+        return (opts == null) || (h.i >= opts.length) || (opts[h.i] == null) || (opts[h.i].client == null);
+    }
+
     private static LuaPetal handle(LuaValue self, String method) {
         LuaPetal h = resolve(self);
         if(h == null)
@@ -147,7 +160,15 @@ final class LuaPetal {
                 return LuaValue.valueOf(label(handle(self, "exists")) != null);
             }
         });
-        // select() — the PROTECTED pick, needing no re-spelling of the caption. Same key as the section's.
+        // native() — the server's petal (true), or one an addon added with s:flowermenu():add (false). A
+        // property of the object: it answers whether or not the ring is still up.
+        m.set("native", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(isNative(handle(self, "native")));
+            }
+        });
+        // select() — the PROTECTED pick, needing no re-spelling of the caption. Same key as the section's,
+        // on a petal the addon added too (143.3): picking is picking, whoever put the petal there.
         m.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
@@ -174,6 +195,7 @@ final class LuaPetal {
                 LuaTable t = new LuaTable();
                 t.set("index", LuaValue.valueOf(h.i + 1));
                 t.set("wire", LuaValue.valueOf(h.i));
+                t.set("native", LuaValue.valueOf(isNative(h)));
                 if(s != null)
                     t.set("label", LuaValue.valueOf(s));
                 return t;

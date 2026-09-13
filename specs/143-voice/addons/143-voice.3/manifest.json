@@ -1,0 +1,10 @@
+{
+  "name": "143.3 — a petal of your own on the radial menu",
+  "id": "143-voice.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 143.3: s:flowermenu():add(label, fn) appends a petal the ring lays out, petal:native() tells whose a petal is, picking the addon's own runs fn(petal, s) and ends the ring carrying its label, and :add outside FlowerMenuAdded is refused.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["gob.click", "flowermenu.select"]
+}

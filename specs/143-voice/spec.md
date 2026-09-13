@@ -82,8 +82,8 @@ grep -rn -i "voice|SpeakerIcon|VoiceTarget|mute toggle" docs/
   `VoiceConfig.java`, `internal/RxMixer.java`, `internal/TxPipeline.java` — 2 (the engine, in-tree since 143.1)
 - `src/io/brodgar/addon/`: `VoiceApi.java`, `LuaVoice.java`, `LuaVoiceEvent.java`, `SharedMic.java`,
   `LuaPeer.java` — 2 (the section, the record and host, the endings, the microphone, the peer); `WebSocketApi.java`,
-  `LuaWebSocket.java`, `LuaWebSocketEvent.java` — 2; `FlowerMenuApi.java` — 3; `Addon.java`,
-  `AddonManager.java`, `AddonRegistry.java` — 2; `LuaGob.java` — 2; `Subs.java`, `Section.java`,
+  `LuaWebSocket.java`, `LuaWebSocketEvent.java` — 2; `FlowerMenuApi.java`, `LuaPetal.java` — 3, 4;
+  `Addon.java`, `AddonManager.java` — 2; `AddonRegistry.java` — 2, 4; `LuaGob.java` — 2; `Subs.java`, `Section.java`,
   `LuaCollection.java`, `Refusal.java`, `Args.java`
 - `src/haven/FlowerMenu.java` — 3
 - `docs/addons/api/`: `voice/README.md`, `voice/link.md`, `voice/audio.md`, `voice/peers.md` — 2 (the

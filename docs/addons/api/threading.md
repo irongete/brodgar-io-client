@@ -37,6 +37,7 @@ end)
 | `widget:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)` | the input that dispatched it | its own only |
 | [`widget:on("Drop", fn)`](ui/custom.md), `"Close"` | the drop, the close button | its own only |
 | a [control's](ui/controls/README.md) `"Pressed"`, `"Changed"`, `"Submitted"`, `"Selected"` | the press | its own only |
+| the `fn` of [a petal you added](flowermenu.md#write-unprotected) to the radial menu | the pick | the ring's own only |
 | a [drag or resize](ui/style/geometry.md) gesture, a [mouse grab's](ui/mouse.md) `"Move"`/`"Up"` | the gesture | its own only |
 | [`keybindings():on(name, fn)`](client/keybindings.md) — a hotkey | the key press that fired it | the **drawn character's** only |
 | [`hafen.event():action():on(msg, fn)`](event/streams.md) — outbound | the code that sent the message, before the server hears it | the **sender's** only |

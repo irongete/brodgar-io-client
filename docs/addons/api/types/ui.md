@@ -75,10 +75,12 @@ neither.
 
 From [`petal:info()`](../flowermenu.md#a-petal), the snapshot escape hatch for one petal of a radial menu.
 
-`{ index = number, wire = number, label = string? }` — `index` is the 1-based place on the ring and
-`wire` the 0-based number the menu itself sends, both always present because both are properties of the
-object. `label` is absent once that petal's ring has closed, which is the absence `petal:label()` states
-with `nil`. The live reads are `petal:index()`, `:wire()` and `:label()`.
+`{ index = number, wire = number, native = bool, label = string? }` — `index` is the 1-based place on the
+ring, `wire` the 0-based number the menu itself sends and `native` whether the server sent the petal
+(`false` for one [you added](../flowermenu.md#write-unprotected)), all three always present because all
+three are properties of the object. `label` is absent once that petal's ring has closed, which is the
+absence `petal:label()` states with `nil`. The live reads are `petal:index()`, `:wire()`, `:native()` and
+`:label()`.
 
 ## ActionbarSlot
 

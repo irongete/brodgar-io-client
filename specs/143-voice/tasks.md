@@ -53,7 +53,7 @@ this feature closes.
       by reading the diff: no suite has a second player.
       `[manual]`: none.
 
-- [ ] **143.3 — A petal of your own on the radial menu.** Adds `FlowerMenu.Petal.client` (a `Runnable`)
+- [x] **143.3 — A petal of your own on the radial menu.** Adds `FlowerMenu.Petal.client` (a `Runnable`)
       and `FlowerMenu.addClientPetal(label, run)`, the `choose()` branch running it and cancelling;
       `s:flowermenu():add(label, fn)` in `FlowerMenuApi`, legal while that ring is being announced,
       handing back a Petal whose `native()` is `false` and whose `select()` picks it through `choose`;
@@ -67,4 +67,21 @@ this feature closes.
       naming a function; then `petal:select()`. On the timer: `fn` ran with the petal and the session (`==`
       both), `FlowerMenuRemoved` carried `"Suite petal"`, and `add("late", fn)` after the ring closed was
       refused naming `FlowerMenuAdded`. The subscription is `off()`ed at the end.
+      `[manual]`: none.
+
+- [ ] **143.4 — A petal goes with its addon.** A ring an addon added to outlives that addon's teardown by
+      the second the ring stays up, and the petal's `fn` still runs through `callLua` when it is picked —
+      the one callback an addon holds that no `Step` pulls. Adds `FlowerMenuApi`'s record of the petals
+      each addon added (a weak map ring → petals, written by `addPetal`) and a `Step` (`"client petals"`)
+      in `AddonRegistry` that swaps each one's `client` for a run that does nothing: `Petal.client` stays
+      non-null, so `choose` still cancels the server's menu rather than naming a number it never offered
+      (the `uimsg "act"` gotcha), `petal:native()` still reads `false`, and `FlowerMenuRemoved` still
+      carries the label. Docs: one sentence on `flowermenu.md`'s `## Write (unprotected)` (a petal of a
+      disabled addon is painted and ends the ring, and runs nothing), the `Step` on `radial-menu.md`'s seam
+      rows.
+      *Its suite* (`gob.click`, `flowermenu.select`) repeats 143.3's ring round trip — `add`, `native() ==
+      false`, `label()`, `select()`, `fn` ran with the petal, `FlowerMenuRemoved` carried the label — since
+      the step changes nothing a live addon can see. The step is verified by reading, as 143.1's teardown
+      was: a ring holds the mouse and the keyboard, so no player can disable an addon while one is up, and
+      no verb tears one down.
       `[manual]`: none.
