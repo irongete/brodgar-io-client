@@ -29,7 +29,7 @@ maintainer's and is watched for sixty seconds.
       `w:value("")` → no rows. `[manual]`: press **Browse** — expect: two tabs, the field, the rows
       the log names.
 
-- [ ] **145.2 — Install: the package, the staging and the reload that applies it.**
+- [x] **145.2 — Install: the package, the staging and the reload that applies it.**
       `Registry.download` (streamed sha256, progress against `Entry.size`, 16 MB cap);
       `InstallRecord` (`.registry.json`) and `Staging` (`stage`: sha256, paths, count and size,
       `Manifest.load`, the record last; `apply` in `AddonRegistry.reload()` after `StoreApi.detach()`

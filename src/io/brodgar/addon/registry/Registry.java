@@ -5,8 +5,11 @@ import io.brodgar.addon.AddonManager;
 import io.brodgar.addon.Json;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
@@ -15,6 +18,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -26,10 +31,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * <b>The hub client</b> — the client's side of the addon hub's JSON API ({@code brodgar-io-addons}, its
- * {@code README.md} being the contract): {@link #search} and {@link #lookup} read the list, each on the one
- * worker thread this class owns, and each hands back a {@link Request} the caller <b>polls</b> from its own
- * tick. No callback, no listener: nothing here ever touches a widget, so no widget is ever touched off the
- * UI thread, and an answer nobody polls for is simply never read.
+ * {@code README.md} being the contract): {@link #search} and {@link #lookup} read the list and
+ * {@link #download} fetches a package, each on the one worker thread this class owns, and each hands back a
+ * {@link Request} the caller <b>polls</b> from its own tick. No callback, no listener: nothing here ever
+ * touches a widget, so no widget is ever touched off the UI thread, and an answer nobody polls for is
+ * simply never read.
  *
  * <p><b>The base URL</b> is {@link #DEFAULT_BASE} unless {@code -Dhaven.addon.registry=<base>} names another
  * ({@link #base}). An {@code https://} base is taken as it is; a plain {@code http://} one is taken for a
@@ -40,8 +46,9 @@ import java.util.concurrent.TimeUnit;
  *
  * <p><b>HTTP</b> is {@link HttpURLConnection} as {@code LuaHttp} does it — connect and read timeouts,
  * {@code Accept: application/json}, a {@code User-Agent} naming the client and its jar version, an
- * {@link #MAX_JSON} cap on a body, and the JDK's own trust store, certificates validated. A failure is a
- * {@link Request#error} sentence saying why the hub did not answer, in the words the panel's line shows.
+ * {@link #MAX_JSON} cap on a body ({@link #MAX_PACKAGE} on a package), and the JDK's own trust store,
+ * certificates validated. A failure is a {@link Request#error} sentence saying why the hub did not answer,
+ * in the words the panel's line shows.
  */
 public final class Registry {
     private Registry() {}
@@ -54,6 +61,8 @@ public final class Registry {
     static final int TIMEOUT_MS = 10_000;
     /** The most a JSON answer may be, in bytes. */
     static final int MAX_JSON = 8 * 1024 * 1024;
+    /** The most a package may be, in bytes — above the hub's own ceiling on what it stores (10 MB by default). */
+    public static final int MAX_PACKAGE = 16 * 1024 * 1024;
     /** Who is asking: the client and its jar version, {@code dev} off a working tree. */
     public static final String USER_AGENT = "brodgar-client/" + version();
 
@@ -192,9 +201,16 @@ public final class Registry {
             return error;
         }
 
-        /** How far along, {@code 0..100}; a read that is not a transfer stays at {@code 0} until it is done. */
+        /**
+         * How far along, {@code 0..100}: a {@link #download} moves it as the bytes land, against the size the
+         * hub advertised; a read that is not a transfer stays at {@code 0} until it is done.
+         */
         public int progress() {
             return progress;
+        }
+
+        void progress(int p) {
+            progress = p;
         }
 
         void finish(T r) {
@@ -260,6 +276,93 @@ public final class Registry {
         });
     }
 
+    /**
+     * Fetch a package — {@code GET <entry.packageUrl>} — into {@code into}, which is truncated first and
+     * <b>deleted again on any failure</b>, so a file that is there when the request is done is a whole
+     * package whose sha256 is the one the hub advertised. The body streams through a {@link MessageDigest}
+     * as it lands, {@link Request#progress} moving against {@link Entry#size} (the {@code Content-Length}
+     * where the hub gave none); past {@link #MAX_PACKAGE} it is cut off, and a digest that is not
+     * {@link Entry#sha256} is refused naming both. An entry without a package URL or without a digest is
+     * refused before anything goes out: there is nothing to fetch, or nothing to check it against.
+     */
+    public static Request<File> download(final Entry e, final File into) {
+        return submit(new Fetch<File>() {
+            public File run(Request<File> r) throws IOException {
+                if((e.packageUrl == null) || e.packageUrl.isEmpty())
+                    throw new IOException("the hub's item for " + e.id + " names no package_url");
+                if((e.sha256 == null) || e.sha256.isEmpty())
+                    throw new IOException("the hub's item for " + e.id + " names no sha256");
+                File parent = into.getParentFile();
+                if((parent != null) && !parent.isDirectory() && !parent.mkdirs())
+                    throw new IOException("could not create " + parent);
+                HttpURLConnection c = null;
+                try {
+                    c = open(e.packageUrl, r, "application/zip");
+                    int status = c.getResponseCode();
+                    if(status != 200) {
+                        String body = new String(readCapped(c.getErrorStream(), MAX_JSON), StandardCharsets.UTF_8);
+                        throw new IOException(hubError(status, body));
+                    }
+                    long expect = (e.size > 0) ? e.size : c.getContentLengthLong();
+                    MessageDigest md = sha256();
+                    long total = 0;
+                    InputStream in = c.getInputStream();
+                    OutputStream out = new FileOutputStream(into);
+                    try {
+                        byte[] chunk = new byte[16384];
+                        int n;
+                        while((n = in.read(chunk)) >= 0) {
+                            total += n;
+                            if(total > MAX_PACKAGE)
+                                throw new IOException("the package is larger than " + (MAX_PACKAGE / (1024 * 1024)) + " MB");
+                            md.update(chunk, 0, n);
+                            out.write(chunk, 0, n);
+                            if(expect > 0)
+                                r.progress((int)Math.min(99, (total * 100) / expect));
+                        }
+                    } finally {
+                        out.close();
+                        in.close();
+                    }
+                    String got = hex(md.digest());
+                    if(!got.equalsIgnoreCase(e.sha256))
+                        throw new IOException("the package's sha256 is " + got + ", the hub advertised " + e.sha256);
+                    return into;
+                } catch(SocketTimeoutException x) {
+                    into.delete();
+                    throw new IOException("the hub did not answer within " + (TIMEOUT_MS / 1000) + " s");
+                } catch(IOException x) {
+                    into.delete();
+                    throw x;
+                } catch(RuntimeException x) {
+                    into.delete();
+                    throw x;
+                } finally {
+                    r.conn = null;
+                    if(c != null)
+                        c.disconnect();
+                }
+            }
+        });
+    }
+
+    /** A fresh SHA-256, which every JDK carries — the digest a package is checked with, here and on disk. */
+    public static MessageDigest sha256() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch(NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Lower-case hex, the spelling the hub writes a digest in. */
+    public static String hex(byte[] b) {
+        StringBuilder sb = new StringBuilder(b.length * 2);
+        for(byte x : b)
+            sb.append(Character.forDigit((x >> 4) & 0xf, 16)).append(Character.forDigit(x & 0xf, 16));
+        return sb.toString();
+    }
+
     /** The {@code items} of a list answer, each read by {@link Entry#of}; a refusal there is the answer's. */
     static List<Entry> items(String body) throws IOException {
         Object doc;
@@ -288,16 +391,7 @@ public final class Registry {
     static String getJson(String url, Request<?> r) throws IOException {
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection)URI.create(url).toURL().openConnection();   // RFC 3986, as LuaHttp opens one
-            if(r != null)
-                r.conn = c;
-            c.setConnectTimeout(TIMEOUT_MS);
-            c.setReadTimeout(TIMEOUT_MS);
-            c.setUseCaches(false);
-            c.setRequestMethod("GET");
-            c.setRequestProperty("Accept", "application/json");
-            c.setRequestProperty("Accept-Encoding", "identity");   // the cap counts the bytes read
-            c.setRequestProperty("User-Agent", USER_AGENT);
+            c = open(url, r, "application/json");
             int status = c.getResponseCode();
             InputStream in = (status >= 400) ? c.getErrorStream() : c.getInputStream();
             String body = new String(readCapped(in, MAX_JSON), StandardCharsets.UTF_8);
@@ -312,6 +406,26 @@ public final class Registry {
             if(c != null)
                 c.disconnect();
         }
+    }
+
+    /**
+     * One {@code GET}, opened and configured but not yet sent: the timeouts, no cache, {@code Accept} as the
+     * caller says, {@code Accept-Encoding: identity} so the caps count the bytes read and a package's digest
+     * is the stored file's, and the {@link #USER_AGENT}. Registered on {@code r} while it is open, so a
+     * {@link Request#cancel} can close it; the caller disconnects it and clears the registration when done.
+     */
+    static HttpURLConnection open(String url, Request<?> r, String accept) throws IOException {
+        HttpURLConnection c = (HttpURLConnection)URI.create(url).toURL().openConnection();   // RFC 3986, as LuaHttp opens one
+        if(r != null)
+            r.conn = c;
+        c.setConnectTimeout(TIMEOUT_MS);
+        c.setReadTimeout(TIMEOUT_MS);
+        c.setUseCaches(false);
+        c.setRequestMethod("GET");
+        c.setRequestProperty("Accept", accept);
+        c.setRequestProperty("Accept-Encoding", "identity");
+        c.setRequestProperty("User-Agent", USER_AGENT);
+        return c;
     }
 
     /** The sentence for a non-200 answer: the hub's own {@code {"error": …}} where there is one. */

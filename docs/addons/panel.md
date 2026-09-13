@@ -3,8 +3,8 @@
 **AddOns**, on the game menu that `Ctrl+O` opens, is where your addons are switched on and off, and where
 you look for new ones. Its **Installed** tab lists every addon the client found in `addons/`, one row each,
 with its live status and the box that enables it; its **Browse** tab searches the addons published at
-`brodgar.io/addons`, the hub, and shows one row per match. The client reads the hub anonymously: it never
-signs in, and nothing about you or your character travels with the request.
+`brodgar.io/addons`, the hub, shows one row per match, and installs one with a press. The client reads
+the hub anonymously: it never signs in, and nothing about you or your character travels with the request.
 
 ## Installed
 
@@ -20,6 +20,8 @@ a live status. The description is the row's tooltip.
 | `manifest error (hover)` | the manifest itself does not parse; the tooltip opens with the reason |
 | `outdated (…)` | not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements — `outdated (API 9.0, client 1.0)` — or it declares none — `outdated (no api_version, client 1.0)`. The tooltip says which |
 | `auto-disabled (…)` | the [CPU budget](runtime.md#budgets-and-the-watchdog) or a [fatal failure](runtime.md#when-a-failure-is-fatal) stopped it |
+| `staged <version> - Reload UI to apply` | a version [installed from the hub](#how-an-install-lands) is waiting to replace this folder at the next reload |
+| `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it asks to reach |
 
@@ -58,19 +60,64 @@ to what the field says now.
 Each row is one published addon: its name, its latest version, who publishes it, and the same
 `[protected: N]` and `[net]` markers an Installed row carries. Its tooltip is the hub's summary, then the
 permissions it declares and the hosts it asks to reach — read them here, before it is on your disk. The
-status at the right is a fact about **this** client:
+status at the right is a fact about **this** client, and **Install** stands beside it exactly when there
+is no folder of that id in your `addons/`:
 
 | Row shows | Meaning |
 |---|---|
-| nothing | published at the hub, and not in your `addons/` |
-| `in addons/ by hand` | a folder of that id is in your `addons/`. It is yours: the client never replaces a folder you put there |
-| `outdated (…)` | the published version declares an [API version](manifest.md#the-api-version) this client does not implement; the tooltip opens with the sentence |
+| nothing, and **Install** | published at the hub, and not in your `addons/` |
+| `installed v<version>` | installed from the hub, at that version |
+| `in addons/ by hand` | a folder of that id is in your `addons/` that the hub did not put there. It is yours: the client never replaces a folder you put there, so the row offers nothing |
+| `downloading <n>%` | the package is on its way, against the size the hub advertised |
+| `staged <version> - Reload UI to apply` | the package is checked and unpacked, waiting for the reload that [moves it into place](#how-an-install-lands) |
+| `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
+| `failed: <why>` | the download or a check refused it, and nothing landed; the tooltip carries the whole sentence, and **Install** is back for another try |
+| `outdated (…)` | the published version declares an [API version](manifest.md#the-api-version) this client does not implement; the tooltip opens with the sentence. **Install** still stands: the row then reads `outdated (…)` on Installed, where **Load out of date AddOns** applies to it |
 | `manifest error (hover)` | its `api_version` is not a version at all; the tooltip names the form |
 
 The line under the list is the tab's own word on the search: `searching` while the hub is asked,
 `no addon matches` when it answered with nothing, and — when it did not answer — why: the hub's own
 sentence with the status it sent, or the failure that kept the client from reaching it. An empty field is
 no search: the rows go and the line clears.
+
+## How an install lands
+
+**Install** fetches the package and stages it; **nothing changes under a running addon**, and the next
+reload — **Reload UI**, [`:reload`](runtime.md#the-console-commands), or the next start — is what puts it
+in `addons/`. That is the same moment a ticked checkbox is applied at, and the same "changes pending" line
+says so until you reload. Every step is a line in the log, in the **System** channel and on the terminal.
+
+The package is checked before anything of it is kept, and a check that fails leaves nothing behind:
+
+| Check | Refused when |
+|---|---|
+| the digest | the sha256 of the bytes that arrived is not the one the hub advertised — the row names both |
+| the paths | an entry is not under `<id>/`, climbs out with `..`, or is absolute; more than 2000 entries; more than 64 MB unpacked; more than 16 MB as a package |
+| the manifest | the unpacked `manifest.json` does not pass [the same parser](manifest.md) every folder in `addons/` passes at load — the row carries the parser's own sentence |
+
+What passes is unpacked under `addons/.staging/<id>/`, and a file named `.registry.json` is written
+into it last: the version and the sha256 the hub named, and when. That file is what makes a folder the
+hub's — the Browse row reads `installed v<version>` from it, and a folder without one is yours, put there
+by hand. Deleting it makes the folder yours in the same sense: the client never replaces it again.
+
+At the reload, after every addon is torn down and before any is loaded, each staged folder takes its
+place: the folder it replaces is moved to `addons/.trash/` first, the staged one takes its name, and
+the trash is emptied. Both folders are the client's own bookkeeping — the addon scan lists neither — and
+a folder the file system will not let go of, because a file in it is still open, waits: the row reads
+`restart to apply`, and the next start moves it before anything can hold a file.
+
+**Installing is not enabling.** A new addon that declares no permission is enabled like any other; one
+that declares a permission key arrives disabled and asks through the same consent dialog as a folder you
+unpacked yourself — see [permissions](guides/permissions.md).
+
+## What an install keeps
+
+A staged folder replaces the one of the same id **whole**: nothing of the old folder survives inside the
+new one, so a file you edited in it is gone with it — an addon you mean to change is one you keep by
+hand. Everything the client holds about the addon is untouched, because none of it lives in the
+folder: [your saved variables](api/store.md) under `savedata/`, whether the addon is enabled, and the
+permissions you consented to. A version that asks for more than you approved is disabled and asked again,
+as any manifest that grows is.
 
 ## The hub
 

@@ -7,11 +7,15 @@ import haven.UI;
 import haven.Utils;
 import haven.Widget;
 
+import io.brodgar.addon.registry.Entry;
+import io.brodgar.addon.registry.Registry;
+
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -643,6 +647,10 @@ public final class AddonRegistry {
         StoreApi.detach();                           // 074.4/079.1: every session's tables were just flushed
                                                      //   and belong to addons that are going; the ones about to
                                                      //   be built hold nobody until they are asked for
+        applyStaged(false);                          // 145.2: what the hub staged goes into addons/ HERE, with
+                                                     //   nothing loaded -- the one moment a folder can change
+                                                     //   under no addon at all, and the same moment a checkbox
+                                                     //   is applied at
         loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
         // 124.1: the screen's state first and every other in the world after it. The order is fixed here
         //   rather than left to the map so that one login is announced the way it always was, and the list
@@ -1198,15 +1206,24 @@ public final class AddonRegistry {
          */
         public final String manifestError;
         public final String warning;           // e.g. auto-disabled by the CPU watchdog, until the next load; or null
+        /**
+         * The version the hub installed here — the {@link InstallRecord}'s — or {@code null} for a folder the
+         * player put there by hand, which the client never replaces (145.2). A record that does not read is
+         * logged and counts as none: the folder is then the player's, and theirs to delete.
+         */
+        public final String hub;
+        /** The version staged under {@code addons/.staging/} for this id, waiting for the next reload, or {@code null}. */
+        public final String staged;
 
         AddonInfo(String id, String name, String version, String author, String description,
                   String outdated, boolean enabled, boolean loaded, PermissionSet permissions,
-                  List<String> networkHosts, String error, String manifestError, String warning) {
+                  List<String> networkHosts, String error, String manifestError, String warning,
+                  String hub, String staged) {
             this.id = id; this.name = name; this.version = version; this.author = author;
             this.description = description; this.outdated = outdated; this.enabled = enabled;
             this.loaded = loaded; this.permissions = permissions;
             this.networkHosts = networkHosts; this.error = error; this.manifestError = manifestError;
-            this.warning = warning;
+            this.warning = warning; this.hub = hub; this.staged = staged;
         }
 
         /** Whether this addon declared any protected permission (it is then opt-in, behind the consent dialog). */
@@ -1260,7 +1277,9 @@ public final class AddonRegistry {
                 (m != null) ? m.network : java.util.Collections.<String>emptyList(),
                 error,
                 mferr,
-                autoDisabledWarn.get(id)));
+                autoDisabledWarn.get(id),
+                hubVersion(id),
+                stagedVersion(id)));
         }
         return out;
     }
@@ -1319,6 +1338,174 @@ public final class AddonRegistry {
         if((id == null) || id.isEmpty() || id.contains("/") || id.contains("\\") || id.equals(".") || id.equals(".."))
             return false;
         return new File(addonDir(), id).isDirectory();
+    }
+
+    // ------------------------------------------------------------- installs from the hub (145.2)
+
+    /**
+     * <b>What is staged for one id</b> — the version unpacked under {@code addons/.staging/<id>/} and waiting
+     * for the next reload to move it into {@code addons/<id>/}, and whether the last apply <b>refused</b> to:
+     * a file the file system would not let go of, on which the row says {@code restart to apply}, because
+     * the apply at boot runs before any addon has opened anything. Immutable; {@link #pending} hands one out.
+     */
+    public static final class Pending {
+        public final String version;
+        public final boolean restart;
+
+        Pending(String version, boolean restart) {
+            this.version = version;
+            this.restart = restart;
+        }
+    }
+
+    /**
+     * The stages in memory, id → what is waiting — written by {@link #stage} and rebuilt from disk by every
+     * {@link #applyStaged}, so it is what {@code .staging/} holds without a file read per frame: the panel's
+     * rows ask {@link #pending} on every tick.
+     */
+    private static final Map<String, Pending> staged = new java.util.concurrent.ConcurrentHashMap<String, Pending>();
+
+    /** The stage waiting for {@code id}, or {@code null} when nothing is. Cheap: a map read, no disk. */
+    public static Pending pending(String id) {
+        return (id == null) ? null : staged.get(id);
+    }
+
+    /** {@link #pending}'s version alone, for a snapshot. */
+    private static String stagedVersion(String id) {
+        Pending p = pending(id);
+        return (p == null) ? null : p.version;
+    }
+
+    /**
+     * The version the hub installed under {@code addons/<id>/} — its {@link InstallRecord}'s — or {@code null}
+     * for a folder without one, the player's own. A record that does not read is logged and answers
+     * {@code null} too: such a folder is nobody's install, so it is the player's. A file read; ask it when a
+     * row is built or rebuilt, not per frame.
+     */
+    public static String hubVersion(String id) {
+        if(!hasFolder(id))
+            return null;
+        try {
+            InstallRecord rec = InstallRecord.read(new File(addonDir(), id));
+            return (rec == null) ? null : rec.version;
+        } catch(IOException e) {
+            log("registry: " + Refusal.reason(e) + " -- the folder is taken as the player's own");
+            return null;
+        }
+    }
+
+    /** One install in flight: the item that was pressed, and the download the hub client is running for it. */
+    private static final class Install {
+        final Entry entry;
+        final Registry.Request<File> req;
+
+        Install(Entry entry, Registry.Request<File> req) {
+            this.entry = entry;
+            this.req = req;
+        }
+    }
+
+    /**
+     * The installs in flight, by id, and the last failure by id — the client's, not a panel's: an install
+     * pressed in one session's manager finishes when that session logs out, and a second manager open on
+     * another session reads the same download rather than starting one of its own. Both are written on the
+     * UI thread (the press, and {@link #pollInstalls} on the layer's step) and read by the rows every tick.
+     */
+    private static final Map<String, Install> installs = new java.util.concurrent.ConcurrentHashMap<String, Install>();
+    private static final Map<String, String> failed = new java.util.concurrent.ConcurrentHashMap<String, String>();
+
+    /**
+     * <b>Start an install</b>: fetch {@code e}'s package into {@code addons/.staging/<id>.zip}, on the hub
+     * client's worker. One per id at a time — a press while one is in flight is nothing — and a retry forgets
+     * the last failure. The download is then {@link #pollInstalls}'s to finish: the layer's step stages what
+     * landed, and the rows say which step it is at through {@link #downloading}, {@link #failed} and
+     * {@link #pending}.
+     */
+    public static void install(Entry e) {
+        if(installs.containsKey(e.id))
+            return;
+        failed.remove(e.id);
+        log("downloading " + e.id + " v" + e.version + " from " + e.packageUrl
+            + ((e.size > 0) ? " (" + e.size + " bytes)" : ""));
+        installs.put(e.id, new Install(e, Registry.download(e, Staging.zipFor(addonDir(), e.id))));
+    }
+
+    /** How far the download of {@code id} is, {@code 0..100}, or {@code -1} when none is in flight. */
+    public static int downloading(String id) {
+        Install i = (id == null) ? null : installs.get(id);
+        return (i == null) ? -1 : i.req.progress();
+    }
+
+    /** Why the last install of {@code id} failed — the download's or the stage's sentence — or {@code null}; kept until the next press. */
+    public static String failed(String id) {
+        return (id == null) ? null : failed.get(id);
+    }
+
+    /**
+     * <b>The layer's step over the installs</b>: every download that has ended is taken out and, if it
+     * landed, staged — on this thread, because what a stage does is disk and it is done in a moment — and a
+     * failure of either step is kept for the row and logged, since the log is where every step of an install
+     * is written. Runs from {@code AddonManager.layerStep}, the one pump that is always running and holds no
+     * tree monitor.
+     */
+    static void pollInstalls() {
+        if(installs.isEmpty())
+            return;
+        for(java.util.Iterator<Install> it = installs.values().iterator(); it.hasNext();) {
+            Install i = it.next();
+            if(!i.req.done())
+                continue;
+            it.remove();
+            String why = i.req.error();
+            if(why == null) {
+                try {
+                    stage(i.entry, i.req.result());
+                } catch(IOException e) {
+                    why = Refusal.reason(e);
+                } catch(RuntimeException e) {
+                    why = e.toString();
+                }
+            }
+            if(why != null) {
+                failed.put(i.entry.id, why);
+                log("install of " + i.entry.id + " v" + i.entry.version + " failed: " + why);
+            }
+        }
+    }
+
+    /**
+     * <b>Stage a downloaded package</b>: every check {@link Staging#stage} makes — the digest, the paths, the
+     * count and the size, the manifest through the client's own parser — then the record, last. Raises
+     * {@link IOException} naming the first thing wrong, with nothing left staged; on success the stage is
+     * recorded here, {@code reloadNeeded} is raised so the panel's hint says changes are pending, and the
+     * log says so. The zip is deleted either way: landed, it is the folder now; refused, it never lands.
+     */
+    static void stage(Entry e, File zip) throws IOException {
+        try {
+            Staging.stage(addonDir(), e, zip);
+        } finally {
+            zip.delete();
+        }
+        staged.put(e.id, new Pending(e.version, false));
+        reloadNeeded = true;
+        log("staged " + e.id + " v" + e.version + " - Reload UI to apply");
+    }
+
+    /**
+     * <b>Move every stage into place</b> — {@link Staging#apply}, then the in-memory record rebuilt from what
+     * is still on disk, each of those marked {@code restart}: a stage the apply left behind is one it could
+     * not move. Runs in {@link #reload} between the teardown and the load, and in {@code AddonManager.boot}
+     * before the first load; {@code fresh} is the boot, where a leftover download is swept as well because
+     * nothing can be in flight yet.
+     */
+    static void applyStaged(boolean fresh) {
+        File dir = addonDir();
+        if(fresh)
+            Staging.sweepDownloads(dir);
+        Staging.apply(dir);
+        staged.clear();
+        for(Map.Entry<String, String> p : Staging.pending(dir).entrySet())
+            staged.put(p.getKey(), new Pending(p.getValue(), true));
     }
 
     /** Open the addons folder in the OS file browser (AddOns panel convenience). Best-effort, non-fatal. */

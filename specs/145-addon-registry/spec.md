@@ -78,7 +78,12 @@ AddOns *tab* of an addon's own page, another surface — discharged).
 - `../brodgar-io-addons/README.md` — 1, 2 (the API)
 - `src/io/brodgar/addon/registry/Registry.java`, `Entry.java`, `Semver.java` — 2, 3 (the hub client 145.1
   shipped: `Request`, `search`/`lookup`, `Entry.size`/`sha256`/`packageUrl`, `Semver.compare`)
-- `src/io/brodgar/addon/AddonRegistry.java` — 1, 2, 3
+- `src/io/brodgar/addon/AddonRegistry.java` — 1, 2, 3 (145.2 shipped: `install`/`downloading`/`failed`/`pending`,
+  `hubVersion`, `applyStaged`, the `Pending` class, `AddonInfo.hub`/`staged`; `pollInstalls` runs from
+  `AddonManager.layerStep`)
+- `src/io/brodgar/addon/Staging.java`, `InstallRecord.java` — 3 (145.2 shipped: `stage`, `apply`, `pending`,
+  `zipFor`, `deleteTree`; the record's `version`/`sha256`/`installedAt` and `read`/`write` — `markRemove` and
+  the `.remove` mark's apply are 145.3's)
 - `src/io/brodgar/addon/AddonManager.java` — 2 (`boot`, `log`)
 - `src/io/brodgar/addon/ui/AddonPanel.java` — 1, 2, 3 (`BrowseRow`, `LIST_W`/`STATUS_X`/`BUTTON_X`, the shared
   `meta`/`tip`)
@@ -90,8 +95,8 @@ AddOns *tab* of an addon's own page, another surface — discharged).
 - `src/haven/OptWnd.java`, `src/haven/Tabs.java`, `src/haven/TextEntry.java` — 1
 - `build.xml` — 1 (the `run` target)
 - `docs/addons/runtime.md` — 1, 2, 3
-- `docs/addons/panel.md` — 2, 3 (the manager's page 145.1 wrote; *how an install lands*, *what it keeps* and the
-  Installed section are its later sections)
+- `docs/addons/panel.md` — 2, 3 (the manager's page; *how an install lands* and *what an install keeps* are
+  145.2's; the Installed section's Update/Remove rows are 145.3's)
 - `specs/145-addon-registry/addons/145-addon-registry.1/fixtures/` — 2, 3 (the fixture zips as published:
   `145-plain.zip` 1.0.0 is on the local hub already, and the folder is the source of a `1.1.0`)
 - `docs/addons/manifest.md`, `docs/addons/guides/debugging.md`, `docs/addons/README.md`,

@@ -30,7 +30,7 @@ import java.util.List;
  *
  * <p><b>Installed</b> is the manager as it was: each row is one discovered addon — an <b>enable/disable</b>
  * checkbox (WoW "apply on reload": {@link AddonRegistry#setEnabled}), name/version/author with the description
- * as a tooltip, and a live status (loaded / disabled / error / outdated / auto-disabled) — plus a "changes
+ * as a tooltip, and a live status (loaded / disabled / error / outdated / auto-disabled / staged) — plus a "changes
  * pending" hint, the <b>Load out of date AddOns</b> checkbox (WoW's, {@link AddonRegistry#setLoadOutdated}: one
  * persisted stance that lets every {@code outdated (…)} row load on the next reload, no permission and no
  * per-row grant), and the global <b>Reload UI</b>, <b>Enable all</b> and <b>Open addons folder</b> controls.
@@ -41,10 +41,15 @@ import java.util.List;
  * same door — over a list of {@link BrowseRow}s and the tab's own line ({@code searching}, {@code no addon
  * matches}, or why the hub did not answer). Every answer is read from {@code tick} and only the latest
  * request is ever read, so a late answer to an earlier search is dropped. A row is the hub's item — name,
- * version, owner, the same markers and tooltip an Installed row composes — and a status: {@code in addons/ by
- * hand} where the folder exists (the client never replaces a player's own folder), the out-of-date label where
- * its {@code api_version} is not this client's, else empty. The button column at {@link #BUTTON_X} is empty
- * on this tab for now.
+ * version, owner, the same markers and tooltip an Installed row composes — and a status that is a fact about
+ * this client: {@code installed v…} where the folder carries the hub's {@code InstallRecord}, {@code in
+ * addons/ by hand} where it carries none (the client never replaces a player's own folder), the out-of-date
+ * label where its {@code api_version} is not this client's, else empty — and then <b>Install</b> in the
+ * button column at {@link #BUTTON_X} (145.2). A press is {@link AddonRegistry#install}, and the rest is the
+ * registry's — the download runs on the hub client's worker and the layer's step stages what lands — with the
+ * row reading which step it is at every tick ({@code downloading n%}, {@code staged v - Reload UI to apply},
+ * {@code failed: why}); the folder itself changes at the next reload, which is when every other change on this
+ * panel is applied too, and an Installed row names a stage waiting on it the same way.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
  * addon that declares any of them shows the {@code [protected: N]} row marker with its declared entries in the
@@ -181,7 +186,7 @@ public class AddonPanel extends OptWnd.Panel {
             list.cont.add(new Label("No addons found."), new Coord(0, 0));
         builtGen = AddonRegistry.reloadGen();
         for(BrowseRow r : found)
-            r.refresh();
+            r.rescan();
     }
 
     /**
@@ -418,8 +423,11 @@ public class AddonPanel extends OptWnd.Panel {
             // liveStatus is the cheap per-frame read and does no manifest I/O, so it can only report
             // "not loaded" for an addon whose manifest is the thing that failed. The row read it once at
             // build time and keeps it: the reason is in the tooltip, the label just says which kind of row
-            // this is.
-            status.settext((manifestError != null) ? "manifest error (hover)" : AddonRegistry.liveStatus(id));
+            // this is. 145.2: a stage waiting on this folder outranks the live state -- what is loaded is
+            // about to be replaced, and the row says by what and by which gesture.
+            AddonRegistry.Pending p = AddonRegistry.pending(id);
+            status.settext((manifestError != null) ? "manifest error (hover)"
+                           : (p != null) ? stagedStatus(p) : AddonRegistry.liveStatus(id));
         }
 
         public void tick(double dt) {
@@ -428,23 +436,40 @@ public class AddonPanel extends OptWnd.Panel {
         }
     }
 
+    /** The status a row carries for a stage waiting on it: the version, and the gesture that applies it. */
+    private static String stagedStatus(AddonRegistry.Pending p) {
+        return "staged " + p.version + (p.restart ? " - restart to apply" : " - Reload UI to apply");
+    }
+
     /**
      * One row of the Browse tab: the hub's item — name, version, owner, the markers — with the summary, the
-     * permissions and the hosts as its tooltip, and a status that is a fact about THIS client: {@code in
-     * addons/ by hand} where the folder exists, the out-of-date label where the item's {@code api_version}
-     * is not one this client implements (its sentence opening the tooltip, as on an Installed row), else
-     * empty. The status is read at build and at every rebuild, not per frame: it is a folder on disk.
+     * permissions and the hosts as its tooltip, a status, and <b>Install</b> where the folder is absent
+     * (145.2). The status is the first of these that is true: {@code downloading n%} while the registry's
+     * download of it runs; {@code staged v - …} while a stage waits for the reload ({@link #stagedStatus});
+     * {@code failed: why} after a download or a stage the registry refused, the whole why in the label's
+     * own tooltip; {@code installed v…} where the folder carries the hub's record; {@code in addons/ by
+     * hand} where it carries none — the client never replaces a player's own folder, so neither of those
+     * two offers the button; the out-of-date label where the item's {@code api_version} is not one this
+     * client implements (its sentence opening the tooltip, as on an Installed row); else empty. The two
+     * facts that are a folder on disk are read at build and at every rebuild ({@link #rescan}); the rest
+     * are the registry's maps, read every tick.
      */
     private final class BrowseRow extends Widget {
         final Entry entry;
         private final Label status;
+        private Button install;               // in the tree exactly while it is offered: a hidden button is still a button to a reader
         private final String outdated;        // the label an Installed row would carry for this api_version, or null
+        private boolean folder;               // addons/<id>/ exists -- a fact on disk, read by rescan()
+        private String hub;                   // ...and the hub's record in it, or null for a by-hand folder
+        private String tipped;                // the failure the status label's tooltip holds, or null
 
         BrowseRow(Entry e) {
-            super(UI.scale(new Coord(LIST_W, 18)));
+            // As tall as the button, which is taller than a line of text: Button.hs is its images' own height.
+            super(new Coord(UI.scale(LIST_W), Math.max(UI.scale(18), Button.hs)));
             this.entry = e;
             Label nm = add(new Label(meta(e.name, e.version, e.owner, e.permissions.size(), !e.hosts.isEmpty())),
-                           UI.scale(new Coord(0, 3)));
+                           new Coord(0, 0));
+            nm.c.y = (sz.y - nm.sz.y) / 2;
             String lead, label;
             try {
                 // The one decision the client makes about every manifest's api_version, made about the hub's
@@ -460,13 +485,71 @@ public class AddonPanel extends OptWnd.Panel {
             }
             this.outdated = label;
             rowTip(nm, tip(lead, e.summary, e.permissions.isEmpty() ? null : String.join(", ", e.permissions), e.hosts));
-            status = add(new Label(""), UI.scale(new Coord(STATUS_X, 3)));
+            status = add(new Label(""), new Coord(UI.scale(STATUS_X), 0));
+            status.c.y = nm.c.y;
+            rescan();
+        }
+
+        /**
+         * The button is added when the row starts offering it and destroyed when it stops, never hidden: a
+         * selector walks hidden widgets too, so a row that "carries no button" has to carry none. Narrower
+         * than the column, because the port's content is the list less its scrollbar and a widget past that
+         * edge is clipped. Safe from a tick and from the press itself — a button's own {@code click} is the
+         * last thing its {@code mouseup} does.
+         */
+        private void offer(boolean button) {
+            if(button == (install != null))
+                return;
+            if(button) {
+                install = add(new Button(UI.scale(60), "Install", false).action(() -> AddonRegistry.install(entry)),
+                              new Coord(UI.scale(BUTTON_X), 0));
+            } else {
+                install.destroy();
+                install = null;
+            }
+        }
+
+        /** Re-read the two facts on disk: the folder, and the hub's record in it. At build and at every rebuild. */
+        void rescan() {
+            folder = AddonRegistry.hasFolder(entry.id);
+            hub = folder ? AddonRegistry.hubVersion(entry.id) : null;
             refresh();
         }
 
         void refresh() {
-            status.settext(AddonRegistry.hasFolder(entry.id) ? "in addons/ by hand"
-                           : ((outdated != null) ? outdated : ""));
+            int progress = AddonRegistry.downloading(entry.id);
+            AddonRegistry.Pending p = AddonRegistry.pending(entry.id);
+            String why = AddonRegistry.failed(entry.id);
+            String s;
+            boolean button = false;
+            if(progress >= 0) {
+                s = "downloading " + progress + "%";
+            } else if(p != null) {
+                s = stagedStatus(p);
+            } else if(why != null) {
+                s = "failed: " + why;
+                button = !folder;               // ...and a retry is one press away
+            } else if(hub != null) {
+                s = "installed v" + hub;
+            } else if(folder) {
+                s = "in addons/ by hand";
+            } else {
+                s = (outdated != null) ? outdated : "";
+                button = true;
+            }
+            status.settext(s);
+            if(why == null) {
+                status.tooltip = null;
+            } else if(!why.equals(tipped)) {
+                rowTip(status, why);            // the whole why, where the label clips it
+            }
+            tipped = why;
+            offer(button);
+        }
+
+        public void tick(double dt) {
+            super.tick(dt);
+            refresh();
         }
     }
 }

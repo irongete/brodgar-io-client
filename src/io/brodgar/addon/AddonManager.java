@@ -1127,6 +1127,8 @@ public final class AddonManager {
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
         Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
         Prof.addonReset(AddonManager::resetProfiling);     // 019.4: p:reset()/arming clears the per-addon rows too
+        AddonRegistry.applyStaged(true);                   // 145.2: what the hub staged and no reload could move
+                                                           //   (a held file) goes in now, before anything holds one
         AddonRegistry.loadAll();                           // discover + run addons, fire Load for each
     }
 
@@ -1313,6 +1315,12 @@ public final class AddonManager {
                 AddonRegistry.reload();
                 return;
             }
+
+            // 0a. The installs the AddOns manager started (145.2): a package that has landed is staged here,
+            //     on the one pump that is always running, so an install outlives the session whose manager
+            //     pressed it. Before the arming tick for the same reason the reload is: nothing of it touches
+            //     a widget, and the rows read the outcome on their own tick.
+            AddonRegistry.pollInstalls();
 
             // 0b. The arming tick (039.6): every surface a builder made into THIS tree since the last tick goes
             //     in now. Done FIRST, so a window built in an input handler — which the engine dispatches before

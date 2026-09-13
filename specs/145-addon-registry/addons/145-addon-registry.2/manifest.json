@@ -1,0 +1,10 @@
+{
+  "name": "145.2 — Install: the package, the staging and the reload that applies it",
+  "id": "145-addon-registry.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 145.2: the Browse row's Install where the folder is absent and not on a by-hand row, the maintainer's press watched to `staged 1.0.0 - Reload UI to apply`, the log line and the pending hint, and after Reload UI the install read back on both tabs.",
+  "api_version": "1.0",
+  "permissions": ["widget.value"],
+  "files": ["main.lua"]
+}
