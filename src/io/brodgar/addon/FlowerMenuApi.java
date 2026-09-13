@@ -138,6 +138,41 @@ final class FlowerMenuApi {
     private static final java.util.Set<FlowerMenu> announcing =
         java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<FlowerMenu, Boolean>());
 
+    /**
+     * <b>The petals each addon added, per ring</b> (143.4) — written by {@link #addPetal}, read by
+     * {@link #teardownPetals}. A petal's {@code client} is the one callback an addon holds that no other
+     * step pulls: it sits on the ring's own widget, not on anything the addon owns, and a ring an addon added
+     * to outlives that addon's teardown by whatever is left of its second. Without this record the pick
+     * would still reach {@code fn} through {@code callLua} after the addon was torn down.
+     *
+     * <p>The value is the petal's <b>position</b> and its owner, never the {@link FlowerMenu.Petal} itself:
+     * a petal is an inner class holding its ring, so an entry that reached one would pin the key. Weak-keyed
+     * like the maps above; a ring lives about a second and dies with its session either way. Written under
+     * the announcing thread and read under the tearing-down one, so every access takes the map's own lock.
+     */
+    // retained: weak keys over (int, Addon) pairs -- nothing in the entry reaches the menu, so it collects.
+    private static final Map<FlowerMenu, List<ClientPetal>> added =
+        new WeakHashMap<FlowerMenu, List<ClientPetal>>();
+
+    /** One entry of {@link #added}: where on its ring an addon's petal sits, and whose it is. */
+    private static final class ClientPetal {
+        final int num;
+        final Addon owner;
+
+        ClientPetal(int num, Addon owner) {
+            this.num = num;
+            this.owner = owner;
+        }
+    }
+
+    /**
+     * What a torn-down addon's petal runs when it is picked: nothing. It stays a {@code Runnable} rather than
+     * becoming {@code null}, because {@link FlowerMenu#choose} branches on {@code client != null} to cancel
+     * the server's menu instead of naming a number the server never offered, {@link LuaPetal}'s
+     * {@code native()} reads the same field, and the label still closes the ring.
+     */
+    private static final Runnable NOTHING = () -> {};
+
     /** {@code s:flowermenu()} — how this section is reached, and so how every one of its messages spells itself. */
     static final String FM = "session:flowermenu()";
 
@@ -160,6 +195,53 @@ final class FlowerMenuApi {
             it.remove();
             synchronized(LuaWidget.monitor(fm)) {   // that ring's OWN tree (112.2), never the drawn one
                 fm.show();
+            }
+        }
+    }
+
+    /**
+     * <b>Disarm every petal this addon added</b> (143.4, a step of {@link AddonRegistry#teardown}) — each
+     * one's {@code client} becomes {@link #NOTHING}, so a pick on a ring still up runs no Lua of an addon
+     * that has stopped running, and the ring ends exactly as it would have: painted, cancelled, its label on
+     * {@code FlowerMenuRemoved}. The {@code Runnable} it replaces held {@code fn}, the handle and the owner,
+     * and this is what lets them go.
+     *
+     * <p>A ring already gone is skipped by its own {@code opts}: the position is bounds-checked against the
+     * array the ring holds now, and a petal already disarmed is left as it is. The entry goes either way, and
+     * a ring left with no entry leaves the map.
+     *
+     * <p>Two locks, taken one after the other and never nested: {@link #addPetal} writes the map from under
+     * the ring's monitor, so this walk takes the map's lock alone to collect what is this addon's, lets it go,
+     * and only then takes each ring's monitor to swap the field.
+     */
+    static void teardownPetals(Addon a) {
+        Map<FlowerMenu, List<ClientPetal>> mine = new java.util.IdentityHashMap<FlowerMenu, List<ClientPetal>>();
+        synchronized(added) {
+            for(Iterator<Map.Entry<FlowerMenu, List<ClientPetal>>> it = added.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<FlowerMenu, List<ClientPetal>> e = it.next();
+                List<ClientPetal> taken = new ArrayList<ClientPetal>();
+                for(Iterator<ClientPetal> pi = e.getValue().iterator(); pi.hasNext();) {
+                    ClientPetal cp = pi.next();
+                    if(cp.owner == a) {
+                        pi.remove();
+                        taken.add(cp);
+                    }
+                }
+                if(!taken.isEmpty())
+                    mine.put(e.getKey(), taken);
+                if(e.getValue().isEmpty())
+                    it.remove();
+            }
+        }
+        for(Map.Entry<FlowerMenu, List<ClientPetal>> e : mine.entrySet()) {
+            FlowerMenu fm = e.getKey();
+            synchronized(LuaWidget.monitor(fm)) {   // that ring's OWN tree, where `opts` is replaced
+                FlowerMenu.Petal[] opts = fm.opts;
+                for(ClientPetal cp : e.getValue()) {
+                    if((opts != null) && (cp.num < opts.length) && (opts[cp.num] != null)
+                       && (opts[cp.num].client != null))
+                        opts[cp.num].client = NOTHING;
+                }
             }
         }
     }
@@ -584,14 +666,22 @@ final class FlowerMenuApi {
      * <p>{@code fn} runs from {@link FlowerMenu#choose} — a press on the petal, its digit, or
      * {@code petal:select()} — under the ring's tree, exactly where a control's {@code Pressed} runs, and
      * through {@link AddonManager#callLua}, so an error in it is that addon's line in the log and the cancel
-     * still goes out.
+     * still goes out. The petal's place goes on {@link #added} under the owner, so a teardown that comes
+     * while the ring is still up can disarm it ({@link #teardownPetals}).
      */
     private static LuaValue addPetal(final Addon owner, final String user, final FlowerMenu fm, String label,
                                      final LuaValue fn) {
         synchronized(LuaWidget.monitor(fm)) {   // the ring's own tree — held already by the announcing thread
-            final LuaValue petal = LuaPetal.of(owner, user, fm, fm.opts.length);
+            final int num = fm.opts.length;
+            final LuaValue petal = LuaPetal.of(owner, user, fm, num);
             fm.addClientPetal(label, () -> AddonManager.callLua(owner, Addon.C_WIDGET, fn, petal,
                                                                   LuaSession.of(owner, user)));
+            synchronized(added) {
+                List<ClientPetal> mine = added.get(fm);
+                if(mine == null)
+                    added.put(fm, mine = new ArrayList<ClientPetal>());
+                mine.add(new ClientPetal(num, owner));
+            }
             return petal;
         }
     }

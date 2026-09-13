@@ -190,13 +190,14 @@ hafen.event():on("FlowerMenuAdded", function(petals, s)
 end)
 ```
 
-Picking it — the player's click or digit, or `petal:select()`, which stays under `flowermenu.select`
-because picking is picking — runs `fn` with the petal and the session, then ends the ring with nothing
-chosen on the server's side: only the dismissal is sent, and `FlowerMenuRemoved` carries your `label`. `fn`
-runs [under the ring's tree](threading.md#where-each-handler-runs), as a control's `Pressed` does, so it
-reads that character freely and reaches no other tree; an error in it is a line in the log and the ring
-still ends. `label` must be a non-empty string and `fn` a function, and either raises naming the argument;
-the caption is what `petal:label()` answers, what `:select(label)` matches, and what the ring paints.
+Picking it — the player's click or digit, or `petal:select()`, which stays under `flowermenu.select` because
+picking is picking — runs `fn` with the petal and the session, then ends the ring with nothing chosen on the
+server's side: only the dismissal is sent, and `FlowerMenuRemoved` carries your `label`. `fn` runs [under the
+ring's tree](threading.md#where-each-handler-runs), as a control's `Pressed` does, so it reads that character
+freely and reaches no other tree; an error in it is a line in the log and the ring still ends. `label` must be
+a non-empty string and `fn` a function, and either raises naming the argument; the caption is what
+`petal:label()` answers, what `:select(label)` matches, and what the ring paints. A petal of an addon disabled
+while its ring is still up stays painted and still ends the ring when it is picked, and runs nothing.
 
 ## Drawn or not (unprotected)
 

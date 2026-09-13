@@ -69,7 +69,7 @@ this feature closes.
       refused naming `FlowerMenuAdded`. The subscription is `off()`ed at the end.
       `[manual]`: none.
 
-- [ ] **143.4 — A petal goes with its addon.** A ring an addon added to outlives that addon's teardown by
+- [x] **143.4 — A petal goes with its addon.** A ring an addon added to outlives that addon's teardown by
       the second the ring stays up, and the petal's `fn` still runs through `callLua` when it is picked —
       the one callback an addon holds that no `Step` pulls. Adds `FlowerMenuApi`'s record of the petals
       each addon added (a weak map ring → petals, written by `addPetal`) and a `Step` (`"client petals"`)

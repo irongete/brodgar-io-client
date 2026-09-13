@@ -270,6 +270,10 @@ public final class AddonRegistry {
         // 116.1: ...and the radial menu it hid, on the same rule — a ring an addon took out of the paint is
         //   painted again the moment that addon stops running, however much of its second is left.
         new Step("hidden radial menu", FlowerMenuApi::teardown),
+        // 143.4: ...and every petal it added to a ring still up is disarmed — its run becomes nothing, and
+        //   stays a run, so the pick still cancels the server's menu and the ring ends as it would have. The
+        //   one callback an addon holds that sits on a widget of the client's, so no other step reaches it.
+        new Step("client petals", FlowerMenuApi::teardownPetals),
         // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         new Step("widgets", AddonRegistry::destroyWidgets),
         // 041.3/041.4: deafen every widget:on() listener + drop every poll registration (engine widgets

@@ -42,6 +42,7 @@ readable and still holds the input.
 | `uimsg "cancel"` and `uimsg "act"` | the two commit points, carrying `null` and `opts[num].name` |
 | `destroy()` | the fallback close, so a menu that merely died is reported too. `BuddyWnd`'s own subclass overrides `destroy()` and calls `super`, so a client-side ring is covered as well |
 | `choose(Petal)` | records the petal before it is sent, so a client-side petal that cancels the server's menu closes carrying its own label instead of reading as nothing chosen; a petal with a `client` runs it first, then sends the cancel whatever the run did |
+| `Petal.client` after its owner is gone | the fork keeps, per ring, where each client-side petal sits and whose it is, and a teardown of that owner swaps the `Runnable` for one that does nothing — never for `null`, since `choose` branches on the field to send the cancel rather than a number the server never offered |
 | `mousedown` and `keydown` | a ring that is not `visible()` spends no click and picks nothing on a digit, but still eats both — see the gotcha below |
 | The `"menu"` font scope | every caption is rendered through it rather than through the stock `ptf`, and `Petal.textgen` re-renders when the scope moves; the chrome is `Fonts.box("panel", …)` over the stock `pbox` |
 

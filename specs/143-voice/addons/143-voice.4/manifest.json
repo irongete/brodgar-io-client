@@ -1,0 +1,10 @@
+{
+  "name": "143.4 — a petal goes with its addon",
+  "id": "143-voice.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 143.4: the ring round trip a petal of your own makes — added inside FlowerMenuAdded, native() false, picked, fn run with the petal and the session, FlowerMenuRemoved carrying the label — is intact beside the teardown step that disarms a petal of a disabled addon.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["gob.click", "flowermenu.select"]
+}
