@@ -1,0 +1,13 @@
+{
+  "name": "144.2 — who is talking, over their heads",
+  "id": "144-voice-addon.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 144.2: the voice addon holds the link and declares its keys; the speaker over heads is read by eye.",
+  "api_version": "1.0",
+  "files": ["main.lua"],
+  "permissions": ["voice.connect"],
+  "network": {
+    "hosts": ["voice.brodgar.io"]
+  }
+}

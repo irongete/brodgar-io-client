@@ -25,7 +25,7 @@ stripped with `^@?.-%.lua:%d+:?%s*`. The addon logs one line per link edge — `
       `[manual]`: open Options ▸ AddOns ▸ Voice — expect: seven controls, `voice on` ticked. Untick
       `voice on`, wait, tick it — expect: `[voice] closed: ` then `[voice] open, session N` in the log.
 
-- [ ] **144.2 — Who is talking, over their heads.** Adds the painters: at `Open`, `"voice"` on
+- [x] **144.2 — Who is talking, over their heads.** Adds the painters: at `Open`, `"voice"` on
       `link:session():player():gob():overlay()` drawing a speaker while `link:speaking()`, re-attached on
       `SessionSelected` and removed at the ending; at `PeerAdded`, the same on `peer:gob()` reading
       `peer:speaking()` and `peer:muted()` — silent: nothing, speaking: the speaker, muted: the speaker
