@@ -95,10 +95,12 @@ they reach it, so the message names what to write instead.
 | `load_extension(...)` | the sandbox: no extension loads on this connection |
 | `VACUUM` | [`hafen.store():vacuum()`](README.md#hafenstorevacuum), which rebuilds the file in place; `VACUUM INTO` would write a second file |
 | `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, `RELEASE` | `:transaction(fn, ...)` below — a bracket a statement opened would outlive the frame |
+| a `PRAGMA` that writes `user_version`, `journal_mode`, `synchronous` or `foreign_keys` | the client's own cells, set as the file is opened — a write would undo the open, or leave a file no client opens again. A `PRAGMA` that reads answers through `:query` |
 | an empty string | one statement, with an example |
 
 Everything else SQLite runs, runs: `CREATE VIEW`, `CREATE TRIGGER`, `WITH RECURSIVE`, `PRAGMA`, `EXPLAIN`, the
-`json_*` functions, `RETURNING`.
+`json_*` functions, `RETURNING`. A [Table's clause](tables.md#the-clause) is read the same way, naming the
+Table verb: a second statement, a `hafen_` name and `load_extension` are refused there too.
 
 ## The transaction
 

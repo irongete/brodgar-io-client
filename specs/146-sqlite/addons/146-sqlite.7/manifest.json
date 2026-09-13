@@ -1,0 +1,9 @@
+{
+  "name": "146.7 — The scan over the clause, and over the client's own cells",
+  "id": "146-sqlite.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.7: a Table's clause is scanned as a statement is -- a second statement, a hafen_ name and load_extension refused naming the Table verb -- and a PRAGMA that writes one of the client's own cells is refused while one that reads answers.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

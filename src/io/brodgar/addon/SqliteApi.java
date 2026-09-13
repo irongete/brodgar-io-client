@@ -68,7 +68,12 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * first: a second statement after a {@code ;} (the driver runs the first and drops the rest with nothing
  * said), a {@code CREATE TABLE}/{@code CREATE INDEX} that has a builder, a name of the client's own, and the
  * keywords whose refusal has a verb to name. It is not the sandbox — the engine is, with no second database
- * attachable and no extension loadable — it is what picks the message.
+ * attachable and no extension loadable — it is what picks the message. The one thing it holds on its own
+ * (146.7) is the client's cells: a {@code PRAGMA} that writes {@code user_version} or the connection's
+ * {@code journal_mode}, {@code synchronous} or {@code foreign_keys} would undo what {@link Db}'s open set,
+ * and the engine would let it. A Table's clause ({@code :list}, {@code :count}, {@code :find}) goes through
+ * the same scan as a statement's tail: a second statement, a {@code hafen_} name and {@code load_extension}
+ * are refused there too, naming the Table verb.
  *
  * <p><b>The transaction, the two bounds and the vacuum</b> (146.4). {@code hafen.store():transaction(fn, ...)}
  * brackets what {@code fn} runs — committed when it returns, rolled back when it raises, the error out of
@@ -940,7 +945,11 @@ final class SqliteApi {
         }
     }
 
-    /** The clause a {@code :list}, {@code :count} or {@code :find} was handed, or nothing; a function is refused naming SQL. */
+    /**
+     * The clause a {@code :list}, {@code :count} or {@code :find} was handed, or nothing; a function is refused
+     * naming SQL, and the text is scanned as a statement's tail is ({@link Scan#clause}), the Table verb as
+     * the receiver of the refusal.
+     */
     private static String clause(Decl d, Varargs a, String verb) {
         if(!Args.passed(a, 2) || a.arg(2).isnil())
             return "";
@@ -948,7 +957,9 @@ final class SqliteApi {
         if(c.type() != LuaValue.TSTRING)
             throw new LuaError(verb + ": the clause is SQL — what follows FROM " + d.table + ", such as"
                 + " \"WHERE kind = ? ORDER BY x\", with one value per ? after it — got " + c.typename());
-        return " " + c.tojstring();
+        String text = c.tojstring();
+        Scan.clause(text, verb);
+        return " " + text;
     }
 
     /** The values after the clause, as binds. */
@@ -1129,7 +1140,10 @@ final class SqliteApi {
         /** What a token is: a bare word, a quoted identifier, a {@code ;}, or a piece of punctuation. */
         private enum T { WORD, QUOTED, SEMI, OTHER }
 
-        /** The tokens in order — a word lower-cased, a quoted identifier as spelled, punctuation as {@code ""}. */
+        /**
+         * The tokens in order — a word lower-cased, a quoted identifier as spelled, a piece of punctuation as
+         * its one character and a literal or a number as {@code ""}.
+         */
         private final List<T> kinds = new ArrayList<T>();
         private final List<String> texts = new ArrayList<String>();
         /** The bare words in order, lower-cased: keywords, function names and unquoted identifiers alike. */
@@ -1142,6 +1156,16 @@ final class SqliteApi {
         /** The first words of a transaction statement — the six the engine has, each a refusal here. */
         private static final List<String> TRANSACTION =
             java.util.Arrays.asList("begin", "commit", "end", "rollback", "savepoint", "release");
+
+        /**
+         * The cells the open reads and sets ({@link Db#Db}) — the file's {@code user_version}, which records
+         * the shape of the client's own tables and decides whether a client opens the file at all, and the
+         * connection's {@code journal_mode}, {@code synchronous} and {@code foreign_keys}. A {@code PRAGMA}
+         * that writes one is refused, since the engine would let it through: a {@code user_version} of 9 is
+         * a file no client opens again, and {@code journal_mode = DELETE} is a reader waiting on every write.
+         */
+        private static final List<String> CELLS =
+            java.util.Arrays.asList("user_version", "journal_mode", "synchronous", "foreign_keys");
 
         Scan(String sql) {
             int n = sql.length(), i = 0;
@@ -1179,7 +1203,7 @@ final class SqliteApi {
                         i++;                        // a number, and the letters of its own (1e5, 0x1f)
                     token(T.OTHER, "");
                 } else {
-                    token(T.OTHER, "");             // an operator, a bracket, a comma, a ?
+                    token(T.OTHER, String.valueOf(c));  // an operator, a bracket, a comma, a ?
                     i++;
                 }
             }
@@ -1198,6 +1222,34 @@ final class SqliteApi {
         /** Is token {@code i} the bare word {@code w}? */
         private boolean word(int i, String w) {
             return (i < kinds.size()) && (kinds.get(i) == T.WORD) && texts.get(i).equals(w);
+        }
+
+        /** Is token {@code i} a name — a bare word or a quoted identifier? */
+        private boolean isName(int i) {
+            return (i < kinds.size()) && ((kinds.get(i) == T.WORD) || (kinds.get(i) == T.QUOTED));
+        }
+
+        /** Is token {@code i} the piece of punctuation {@code p}? */
+        private boolean punct(int i, String p) {
+            return (i < kinds.size()) && (kinds.get(i) == T.OTHER) && texts.get(i).equals(p);
+        }
+
+        /**
+         * The cell a {@code PRAGMA} statement writes, lower-cased, or {@code null} for every other statement
+         * and for a {@code PRAGMA} that only reads. The name may be schema-qualified ({@code main.user_version})
+         * and quoted; a write is the name followed by anything but the {@code ;} that ends the statement —
+         * {@code = value} or {@code (value)}, both of which the engine takes.
+         */
+        private String pragmaWrite() {
+            if(!word(0, "pragma"))
+                return null;
+            int k = 1;
+            if(isName(k) && punct(k + 1, "."))
+                k += 2;
+            if(!isName(k))
+                return null;
+            boolean writes = (k + 1 < kinds.size()) && (kinds.get(k + 1) != T.SEMI);
+            return writes ? texts.get(k).toLowerCase(Locale.ROOT) : null;
         }
 
         /**
@@ -1301,10 +1353,37 @@ final class SqliteApi {
                 throw new LuaError(verb + ": " + first.toUpperCase(Locale.ROOT) + " is refused: a transaction"
                     + " is :transaction(fn, ...), which brackets what fn runs — committed when fn returns,"
                     + " rolled back when it raises. A bracket a statement opened would outlive the frame");
+            } else if(first.equals("pragma")) {
+                String cell = s.pragmaWrite();
+                if((cell != null) && CELLS.contains(cell))
+                    throw new LuaError(verb + ": PRAGMA " + cell + " is the client's own cell — the client sets"
+                        + " user_version, journal_mode, synchronous and foreign_keys as it opens the file, and"
+                        + " a write to one of them is refused: it would undo the open, or leave a file no client"
+                        + " opens again. A PRAGMA that reads answers through " + QUERY);
             }
-            for(String w : s.words)
+            s.names(verb);
+        }
+
+        /**
+         * Refuse a Table's clause for {@code verb}, or let it through to the file. A clause is what follows
+         * {@code FROM <table>}, so the first-keyword refusals of {@link #check} have nothing to read and an empty
+         * clause is the whole table; what still holds is the rest — a second statement after the {@code ;},
+         * and every name.
+         */
+        static void clause(String sql, String verb) {
+            Scan s = new Scan(sql);
+            if(s.second)
+                throw new LuaError(verb + ": there is a second statement after the \";\" — one statement per"
+                    + " call: the clause is the tail of one SELECT, and the driver would run that and drop the"
+                    + " rest with nothing said. Run the second in a call of :exec or :query of its own");
+            s.names(verb);
+        }
+
+        /** Every bare word and every quoted identifier through {@link #name}. */
+        private void names(String verb) {
+            for(String w : words)
                 name(w, verb);
-            for(String q : s.quoted)
+            for(String q : quoted)
                 name(q.toLowerCase(Locale.ROOT), verb);
         }
 

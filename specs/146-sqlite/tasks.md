@@ -80,7 +80,7 @@ first, so a rerun is clean, and touches no other addon's file.
       is `{"kind"}`; a second `:create()` with one more column is read back in the same object's `info()`;
       `info()` is a copy — assigning into it changes nothing the next `info()` answers.
 
-- [ ] **146.7 — The scan over the clause, and over the client's own cells.** `:list`, `:count` and `:find`
+- [x] **146.7 — The scan over the clause, and over the client's own cells.** `:list`, `:count` and `:find`
       run their clause through `Scan` with the Table verb as the receiver in the message: a `;` with anything
       after it refused naming one statement per call, a `hafen_` name refused naming the client's tables, and
       `load_extension` refused naming the sandbox (the first-keyword refusals do not apply: a clause starts
