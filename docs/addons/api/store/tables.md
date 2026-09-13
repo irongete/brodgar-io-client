@@ -82,6 +82,12 @@ A **row** is a plain table keyed by column name, exactly as you would write it: 
 `boolean` column is `true` or `false`, a `json` column is its table. A column a clause joins in, or one the
 declaration does not name, comes as the file holds it.
 
+The Table's one [snapshot](../conventions.md#snapshots-vs-handles) is `nodes:info()`: the live declaration as
+a plain table, `{name, columns, key, indexes}` — `columns` an array of `{name, type}` in declaration order,
+`type` the word the declaration wrote (`boolean`, not the file's `INTEGER`), `key` and each entry of
+`indexes` an array of column names. It is a copy, built on every call: assigning into it changes nothing,
+and after a second `:create()` of the name it reads the later declaration.
+
 ## Read
 
 | Verb | Answers |
@@ -90,6 +96,7 @@ declaration does not name, comes as the file holds it.
 | `nodes:list(clause, ...)` | every row the clause keeps, as a plain array — empty rather than `nil` |
 | `nodes:count(clause, ...)` | how many rows the clause keeps, counted by the file |
 | `nodes:find(clause, ...)` | the first row the clause keeps, or `nil` |
+| `nodes:info()` | the declaration as a plain table, `{name, columns, key, indexes}` — a copy, every call |
 
 `:get` takes the key's values in `:key` order, as many as the key has columns, none `nil`; a wrong count is
 refused naming the key. `:list` and `:find` read at most the [row cap](README.md#the-two-caps), and raise

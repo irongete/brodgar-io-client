@@ -70,7 +70,7 @@ first, so a rerun is clean, and touches no other addon's file.
       *Its suite* is the four pages' example blocks, pasted as written, one `[pass]` per line each
       prints — a page whose example does not run is the defect this suite exists to catch.
 
-- [ ] **146.6 — The Table's snapshot.** `nodes:info()` — `{name, columns, key, indexes}`, the live
+- [x] **146.6 — The Table's snapshot.** `nodes:info()` — `{name, columns, key, indexes}`, the live
       declaration as a plain table: `columns` an array of `{name, type}` in declaration order, `key` and each
       index an array of column names, `type` the word the declaration wrote. The one snapshot a Table hands
       out, by the grammar's rule that a live interned object carries one; `tables.md` gains its row and a line

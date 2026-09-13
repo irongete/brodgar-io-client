@@ -762,6 +762,15 @@ final class SqliteApi {
                 return rs.rows.isEmpty() ? LuaValue.NIL : decodeRow(owner, decl, rs, 0);
             }
         });
+        // info() -- {name, columns, key, indexes}: the live declaration as a plain table (146.6). The one
+        // snapshot a Table hands out, a fresh copy every call: it reads the declaration the Table holds, not
+        // the file, so it answers what the latest :create() dispatched and needs no connection.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 0, TBL + ":info");
+                return info(tbl.decl);
+            }
+        });
         LuaTable mt = new LuaTable();
         final LuaValue closed = Refusal.closedIndex("table", m,   // the literal is what tools/ reads
             "one of your addon's own tables, declared through " + ACC + ":table(name)",
@@ -788,6 +797,39 @@ final class SqliteApi {
         });
         h.setmetatable(mt);
         return h;
+    }
+
+    /**
+     * {@code nodes:info()} — {@code d} as a plain table: {@code name}, {@code columns} an array of
+     * {@code {name, type}} in declaration order with {@code type} the word the declaration wrote, {@code key}
+     * an array of column names in {@code :key} order, {@code indexes} an array of such arrays. Built fresh on
+     * every call, so what the reader assigns into it reaches nothing.
+     */
+    static LuaTable info(Decl d) {
+        LuaTable t = new LuaTable();
+        t.set("name", LuaValue.valueOf(d.table));
+        LuaTable columns = new LuaTable();
+        for(Column c : d.columns) {
+            LuaTable col = new LuaTable();
+            col.set("name", LuaValue.valueOf(c.name));
+            col.set("type", LuaValue.valueOf(c.type.word));
+            columns.set(columns.length() + 1, col);
+        }
+        t.set("columns", columns);
+        t.set("key", names(d.key));
+        LuaTable indexes = new LuaTable();
+        for(List<String> idx : d.indexes)
+            indexes.set(indexes.length() + 1, names(idx));
+        t.set("indexes", indexes);
+        return t;
+    }
+
+    /** A list of column names as a Lua array. */
+    private static LuaTable names(List<String> names) {
+        LuaTable t = new LuaTable();
+        for(String n : names)
+            t.set(t.length() + 1, LuaValue.valueOf(n));
+        return t;
     }
 
     // ---- typing: the row in, the row out ----------------------------------------------------

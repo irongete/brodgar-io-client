@@ -1,0 +1,9 @@
+{
+  "name": "146.6 — The Table's snapshot",
+  "id": "146-sqlite.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.6: nodes:info() answers the live declaration as a plain table -- name, columns in order with the declared word, the key, the indexes -- follows a re-declaration on the same object, and is a copy.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}
