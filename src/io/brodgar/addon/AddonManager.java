@@ -192,7 +192,7 @@ public final class AddonManager {
     // session-scoped.
 
     // -- saved variables (spec 1e / D-002 / D-023; 146): hafen.store, the documents in the addon's own
-    // savedata/<id>.sqlite. Per-character vars key on <genus>_<char>, known only once the HUD is up
+    // savedata/<id>/<id>.sqlite. Per-character vars key on <genus>_<char>, known only once the HUD is up
     // (SessionEnteredWorld) — captured here and reused on flush so a relog (which rebinds ui before the new
     // GameUI exists) writes under the OLD character's key. Client-scope vars need no char and load at
     // addon-load time.
@@ -5223,7 +5223,7 @@ public final class AddonManager {
         }, timerVerbs), null);
 
         // hafen.store() — saved variables (1e / D-002 / D-023; 146). One Lua table per manifest-declared saved
-        // variable, a JSON row in the addon's own savedata/<id>.sqlite. :get(name) hands back that table — the
+        // variable, a JSON row in the addon's own savedata/<id>/<id>.sqlite. :get(name) hands back that table — the
         // LIVE persisted one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name
         // throws listing the declared ones, because the set is closed by the manifest at load. :flush() forces
         // a write now; :info() says where the file is and how big. Per-character vars are restored at

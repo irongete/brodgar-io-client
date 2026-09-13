@@ -1,8 +1,8 @@
 # hafen.store: your addon's file
 
-Everything your addon keeps between sessions lives in **one file**, `savedata/<id>.sqlite`: an SQLite
-database named by your addon's id, read and written by every account this client logs in with and every
-character they play. `hafen.store()` is that file. Every verb on this page and on the three under it is
+Everything your addon keeps between sessions lives in **one file**, `savedata/<id>/<id>.sqlite`: an SQLite
+database named by your addon's id, in a folder of its own under `savedata/`, read and written by every
+account this client logs in with and every character they play. `hafen.store()` is that file. Every verb on this page and on the three under it is
 **unprotected**: nothing here reaches the server, and the file it writes is your addon's own.
 
 ```lua
@@ -61,7 +61,7 @@ or character is up. A character's documents are the one thing reached elsewhere,
 
 ### `hafen.store():info()`
 
-`{file, bytes}`: `file` is the path of `savedata/<id>.sqlite`, `bytes` the size of the database — its
+`{file, bytes}`: `file` is the path of `savedata/<id>/<id>.sqlite`, `bytes` the size of the database — its
 pages, which count what is committed to the log as well as what is in the file, and the free pages a
 `:vacuum()` would give back. The one snapshot the store hands out; everything else here is live.
 Unprotected. Raises when the file is [unavailable](#when-the-file-cannot-be-opened).
@@ -73,18 +73,18 @@ inside a [`:transaction`](statements.md#the-transaction), naming it, and when th
 unavailable. Under no time limit: the file is what sizes it, and stopping it half-way is the one outcome
 nobody meant.
 
-**One file per addon, named by the id.** There is no path of your choosing, and no file per account or per
-character: a file per login is one schema in as many files as you have logins, which no query reads
-together — a record that forgets every node when you log in as your other account. The file is created
-the first time your addon loads, whatever the manifest declares, because a remembered window and a table
-need it as much as a document does. Two addons never share one: each reads and writes its own, and
-nothing of another's is reachable from it.
+**One file per addon, named by the id, in a folder named by the id.** There is no path of your choosing,
+and no file per account or per character: a file per login is one schema in as many files as you have
+logins, which no query reads together — a record that forgets every node when you log in as your other
+account. The folder and the file are created the first time your addon loads, whatever the manifest
+declares, because a remembered window and a table need it as much as a document does. Two addons never
+share one: each reads and writes its own, and nothing of another's is reachable from it.
 
-**Beside it, while it is open, stand two sidecars**: `<id>.sqlite-wal`, the log every write lands in
-first, and `<id>.sqlite-shm`, its index. They are part of the database — a copy of the `.sqlite` alone,
-taken while the client runs, lacks whatever the log holds. Closing the file folds the log into it and
-removes both, so the file stands whole and alone once the client has quit or your addon has been
-disabled. Copy or move it then.
+**Beside it, in the same folder, stand two sidecars while it is open**: `<id>.sqlite-wal`, the log every
+write lands in first, and `<id>.sqlite-shm`, its index. They are part of the database — a copy of the
+`.sqlite` alone, taken while the client runs, lacks whatever the log holds. Closing the file folds the log
+into it and removes both, so the folder holds the file whole and alone once the client has quit or your
+addon has been disabled. Copy or move the folder then.
 
 ## When it is written, and when it is closed
 

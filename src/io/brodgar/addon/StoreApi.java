@@ -36,7 +36,7 @@ import static io.brodgar.addon.AddonManager.*;
 
 /**
  * The saved-variables subsystem (1e / D-002 / D-023; 146). One Lua table — a <b>document</b> — per
- * manifest-declared saved variable, kept as a JSON row in the addon's own store file, {@code savedata/<id>.sqlite}
+ * manifest-declared saved variable, kept as a JSON row in the addon's own store file, {@code savedata/<id>/<id>.sqlite}
  * ({@link SqliteApi}): the client scope's rows are keyed by nobody, a character's by that character's key.
  * {@link AddonManager} drives it via {@link #enterWorld} (a session learns its character and reads that
  * character's documents in), {@link #sessionEnded}/{@link #drainEnded} (a session died, and its documents go
@@ -818,8 +818,9 @@ final class StoreApi {
      * <b>The layer's own per-character files</b> — state the client keeps for a character that belongs to no
      * addon, such as the action-bar slots an addon's entry is {@link BeltHold held} in. They sit in a
      * {@code client/} folder <i>inside</i> the character's scope directory, so no addon's file can collide
-     * with one whatever the addon is called: an addon's file is {@code <id>.sqlite} at the top of
-     * {@code savedata/}, and a folder never collides with a file one level down.
+     * with one whatever the addon is called: an addon's file is {@code <id>.sqlite} inside its own
+     * {@code savedata/<id>/} folder, and even a folder name an addon and a character happened to share
+     * would hold the two under different names, one level apart.
      *
      * <p>{@code null} until a character is known ({@link #enterWorld}), because "per character" has no
      * meaning before that — the caller keeps its own state and writes it once the scope exists.

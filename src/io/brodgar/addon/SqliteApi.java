@@ -26,8 +26,9 @@ import java.util.regex.Pattern;
 import static io.brodgar.addon.AddonManager.logAbout;
 
 /**
- * <b>The store's file</b> (146): one SQLite database per addon, {@code savedata/<id>.sqlite}, for the whole
- * client — every account this client logs in with and every character read and write the same one. What
+ * <b>The store's file</b> (146): one SQLite database per addon, {@code savedata/<id>/<id>.sqlite} — a folder
+ * of the addon's own, so the file and its sidecars stand together and nothing else's stands beside them —
+ * for the whole client: every account this client logs in with and every character read and write the same one. What
  * {@link StoreApi} keeps in it is the addon's <b>documents</b> (a declared saved variable, one JSON row each)
  * and its <b>remembered placements</b>; the tables an addon declares for itself and the statements it runs
  * come through here too, on the same connection.
@@ -134,16 +135,17 @@ final class SqliteApi {
 
     /**
      * Open {@code a}'s file, or leave its store unavailable. From {@link StoreApi#installStore}, before the
-     * documents are read. The file is {@code <id>.sqlite} inside {@link StoreApi#saveDir}, built through
-     * {@link Inside} like every other file under {@code savedata/}: the id is a name out of a manifest.
+     * documents are read. The file is {@code <id>/<id>.sqlite} inside {@link StoreApi#saveDir} — the addon's
+     * own folder, made here if it is not there — built through {@link Inside} like every other file under
+     * {@code savedata/}: the id is a name out of a manifest.
      */
     static void open(Addon a) {
         a.db = null;
         Path file;
         try {
-            file = Inside.inside(StoreApi.saveDir().toPath(), a.manifest.id + ".sqlite", "store");
+            file = Inside.inside(StoreApi.saveDir().toPath(), relative(a), "store");
         } catch(RuntimeException e) {
-            unavailable(a, a.manifest.id + ".sqlite", Refusal.reason(e));
+            unavailable(a, relative(a), Refusal.reason(e));
             return;
         }
         try {
@@ -154,8 +156,13 @@ final class SqliteApi {
             // Exception: the driver's own refusals (SQLITE_CANTOPEN, SQLITE_NOTADB, SQLITE_BUSY) and the
             // folder that could not be made. LinkageError: a runtime without java.sql, or a native library
             // that could not be loaded -- Db is the class that links both, and this is where it is first used.
-            unavailable(a, file.getFileName().toString(), why(e));
+            unavailable(a, relative(a), why(e));
         }
+    }
+
+    /** The file's path under {@code savedata/}: the addon's own folder, and the file named by its id inside it. */
+    private static String relative(Addon a) {
+        return a.manifest.id + "/" + a.manifest.id + ".sqlite";
     }
 
     /** The one log line of the unavailable state, and the cause every refusing verb then quotes. */

@@ -1379,7 +1379,7 @@ public final class Addon {
     LuaValue mouseObj;
 
     /**
-     * <b>This addon's store file</b> (146, {@link SqliteApi.Db}) — {@code savedata/<id>.sqlite}, opened by
+     * <b>This addon's store file</b> (146, {@link SqliteApi.Db}) — {@code savedata/<id>/<id>.sqlite}, opened by
      * {@link SqliteApi#open} at {@link StoreApi#installStore} and closed by its own teardown step. {@code null}
      * before the open, after the close, and for the whole session when the open failed: the <b>unavailable</b>
      * state, whose cause {@link #dbWhy} holds. Volatile, because the engine's writes and an addon's own verbs

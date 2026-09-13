@@ -16,13 +16,14 @@ addons/
     main.lua           your code
     icon.png           anything else you ship, loaded with hafen.asset
 savedata/
-  myaddon.sqlite     everything your addon saves: its documents, its tables, where its windows sit
+  myaddon/
+    myaddon.sqlite   everything your addon saves: its documents, its tables, where its windows sit
 ```
 
 The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a
 rename. Files your addon ships are read through [`hafen.asset`](api/asset/README.md), which resolves paths
-inside your own folder and rejects everything outside it. The file under `savedata/` is written for you — see
-[`hafen.store`](api/store/README.md).
+inside your own folder and rejects everything outside it. The folder under `savedata/` is written for you —
+see [`hafen.store`](api/store/README.md).
 
 ## The manifest
 
