@@ -1,0 +1,9 @@
+{
+  "id": "145-plain",
+  "name": "145 Plain",
+  "version": "1.1.0",
+  "author": "brodgar",
+  "description": "A fixture of the 145 suites: a current addon that declares no permission, published to the local hub. This is its second version.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

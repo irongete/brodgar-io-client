@@ -99,6 +99,8 @@ AddOns *tab* of an addon's own page, another surface — discharged).
   145.2's; the Installed section's Update/Remove rows are 145.3's)
 - `specs/145-addon-registry/addons/145-addon-registry.1/fixtures/` — 2, 3 (the fixture zips as published:
   `145-plain.zip` 1.0.0 is on the local hub already, and the folder is the source of a `1.1.0`)
+- `specs/145-addon-registry/addons/145-addon-registry.3/fixtures/` — 4 (`1.0.0/145-plain.zip` and
+  `1.1.0/145-plain.zip`, both on the local hub once 145.3's run 2 published the second)
 - `docs/addons/manifest.md`, `docs/addons/guides/debugging.md`, `docs/addons/README.md`,
   `docs/README.md`, `docs/addons/getting-started.md` — 1
 - `docs/addons/api/chat.md` — 2, 3

@@ -1,0 +1,10 @@
+{
+  "name": "145.3 — Installed: Update, Remove and Check for updates",
+  "id": "145-addon-registry.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 145.3, in four runs: the hub-installed Installed row's Remove and no Update while the hub is at the record's version, the by-hand row with neither; 1.1.0 published and the manager reopened, `update 1.1.0` with Update watched in and the press watched to `staged 1.1.0`; after Reload UI, Remove pressed and `removed on Reload UI` read on both tabs; after Reload UI, no row on Installed and the Browse row empty with Install back.",
+  "api_version": "1.0",
+  "permissions": ["widget.value"],
+  "files": ["main.lua"]
+}

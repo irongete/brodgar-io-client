@@ -14,7 +14,9 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -24,8 +26,9 @@ import static io.brodgar.addon.AddonManager.log;
  * <b>Where a package lands before it is an addon</b> — {@code addons/.staging/}, a sibling of every
  * {@code addons/<id>/} so that the move into place is a rename on one volume, and the rule that nothing
  * changes under a running addon: {@link #stage} checks a downloaded package and unpacks it into
- * {@code .staging/<id>/}, and {@link #apply} moves what is staged into {@code addons/} at the next reload,
- * or at the next start, after every addon has been torn down and before any is loaded.
+ * {@code .staging/<id>/}, {@link #markRemove} leaves the mark {@code .staging/<id>.remove} for a folder that
+ * is to go, and {@link #apply} moves what is staged into {@code addons/} and deletes what is marked at the
+ * next reload, or at the next start, after every addon has been torn down and before any is loaded.
  *
  * <p><b>Every check comes before anything is kept.</b> The zip's sha256 must be the one the hub's item
  * advertised; every entry must sit under {@code <id>/}, climb nowhere and be relative; the count and the
@@ -33,18 +36,20 @@ import static io.brodgar.addon.AddonManager.log;
  * parser. The {@link InstallRecord} is written <b>last</b>, so a folder under {@code .staging/} that has no
  * record is an interrupted stage, and {@link #apply} sweeps it rather than moving it.
  *
- * <p>The folder being replaced goes to {@code .trash/<id>-<millis>} first, and the trash is emptied at the
- * end of every apply, best-effort: on Windows a file a loaded addon held — a font — may still be open, and a
- * move it refuses simply waits for the next apply, which the next start runs before anything is loaded.
- * Both folders are invisible to the addon scan, which lists only folders with a {@code manifest.json}
- * directly inside them. Package-private, as {@code AddonRegistry.addonDir()} is; the registry's statics are
- * the door the panel goes through.
+ * <p>The folder being replaced or removed goes to {@code .trash/<id>-<millis>} first, and the trash is
+ * emptied at the end of every apply, best-effort: on Windows a file a loaded addon held — a font — may still
+ * be open, and a move it refuses simply waits for the next apply, which the next start runs before anything
+ * is loaded. Both folders are invisible to the addon scan, which lists only folders with a
+ * {@code manifest.json} directly inside them. Package-private, as {@code AddonRegistry.addonDir()} is; the
+ * registry's statics are the door the panel goes through.
  */
 final class Staging {
     private Staging() {}
 
     /** The two folders, beside the addons. */
     static final String DIR = ".staging", TRASH = ".trash";
+    /** The suffix of a removal's mark, {@code .staging/<id>.remove}: an empty file, gone with the folder it names. */
+    static final String REMOVE = ".remove";
     /** The most entries a package may unpack to, and the most bytes — the hub's own ceilings, and a little over. */
     static final int MAX_ENTRIES = 2000;
     static final long MAX_UNPACKED = 64L * 1024 * 1024;
@@ -57,6 +62,44 @@ final class Staging {
     /** Where a download of {@code id} lands: {@code addons/.staging/<id>.zip}. */
     static File zipFor(File addons, String id) {
         return new File(dir(addons), id + ".zip");
+    }
+
+    /** The mark that says {@code addons/<id>/} is to go: {@code addons/.staging/<id>.remove}. */
+    static File markFor(File addons, String id) {
+        return new File(dir(addons), id + REMOVE);
+    }
+
+    /**
+     * Mark {@code addons/<id>/} for removal: the empty file {@link #markFor} names, which {@link #apply} turns
+     * into the folder's deletion and deletes with it. Raises {@link IOException} when the mark cannot be
+     * written, naming the file. Nothing else is touched: the folder stays as it is until the apply.
+     */
+    static void markRemove(File addons, String id) throws IOException {
+        File d = dir(addons);
+        if(!d.isDirectory() && !d.mkdirs())
+            throw new IOException("could not create " + d);
+        Files.write(markFor(addons, id).toPath(), new byte[0]);
+    }
+
+    /** Take a removal's mark back, if there is one — a stage of the same id is the later word. Best-effort. */
+    static void unmark(File addons, String id) {
+        File m = markFor(addons, id);
+        if(m.isFile() && !m.delete())
+            log("staging: could not delete " + m);
+    }
+
+    /** The ids marked for removal: every {@code .staging/<id>.remove}, in the folder's order. */
+    static Set<String> removals(File addons) {
+        Set<String> out = new LinkedHashSet<String>();
+        File[] subs = dir(addons).listFiles();
+        if(subs == null)
+            return out;
+        for(File s : subs) {
+            String n = s.getName();
+            if(s.isFile() && n.endsWith(REMOVE) && (n.length() > REMOVE.length()))
+                out.add(n.substring(0, n.length() - REMOVE.length()));
+        }
+        return out;
     }
 
     /**
@@ -208,18 +251,42 @@ final class Staging {
     }
 
     /**
-     * Move every complete stage into place, one line in the log per id: the folder it replaces goes to
-     * {@code .trash/<id>-<millis>}, the staged one takes its name, each an atomic rename. A stage without a
-     * record is swept. A move the file system refuses — a held file — is logged with its reason and left for
-     * the next apply, the folder that was there put back where it was; the trash is emptied last,
-     * best-effort. Runs where no addon is loaded: between a reload's teardown and its load, and at boot.
+     * Apply every mark and every complete stage, one line in the log per id. <b>The marks first</b>: a
+     * marked folder goes to {@code .trash/<id>-<millis>}, an atomic rename, and the mark with it — and a
+     * stage of the same id is swept before, because a mark is the player's last word on that id and a folder
+     * that is to go is not one to replace. Then the stages: the folder each replaces goes to the trash the
+     * same way, the staged one takes its name; a stage without a record is swept. A move the file system
+     * refuses — a held file — is logged with its reason and left for the next apply, a folder that was there
+     * put back where it was and a mark left standing; the trash is emptied last, best-effort. Runs where no
+     * addon is loaded: between a reload's teardown and its load, and at boot.
      */
     static void apply(File addons) {
         File[] subs = dir(addons).listFiles();
         if(subs == null)
             return;
         for(File s : subs) {
-            if(!s.isDirectory())
+            String n = s.getName();
+            if(!s.isFile() || !n.endsWith(REMOVE) || (n.length() == REMOVE.length()))
+                continue;
+            String id = n.substring(0, n.length() - REMOVE.length());
+            File stage = new File(dir(addons), id);
+            if(stage.isDirectory() && !deleteTree(stage))     // never loaded, so nothing holds it
+                log("staging: could not sweep the stage of " + id);
+            File live = new File(addons, id);
+            try {
+                boolean there = live.exists();               // a folder the player deleted by hand is gone already
+                if(there)
+                    trash(addons, live);
+                if(!s.delete())
+                    throw new IOException("could not delete " + s);
+                if(there)
+                    log("removed " + id);
+            } catch(IOException e) {
+                log("could not remove " + id + ": " + Refusal.reason(e) + " -- restart to apply");
+            }
+        }
+        for(File s : subs) {
+            if(!s.isDirectory())                              // a stage a mark swept above reads as none
                 continue;
             String id = s.getName();
             InstallRecord rec;
@@ -238,13 +305,8 @@ final class Staging {
             File live = new File(addons, id);
             File old = null;
             try {
-                if(live.exists()) {
-                    File trash = new File(addons, TRASH);
-                    if(!trash.isDirectory() && !trash.mkdirs())
-                        throw new IOException("could not create " + trash);
-                    old = new File(trash, id + "-" + System.currentTimeMillis());
-                    Files.move(live.toPath(), old.toPath(), StandardCopyOption.ATOMIC_MOVE);
-                }
+                if(live.exists())
+                    old = trash(addons, live);
                 Files.move(s.toPath(), live.toPath(), StandardCopyOption.ATOMIC_MOVE);
                 log("installed " + id + " v" + rec.version);
             } catch(IOException e) {
@@ -259,6 +321,20 @@ final class Staging {
             }
         }
         emptyTrash(addons);
+    }
+
+    /**
+     * Move a live folder into the trash, {@code .trash/<name>-<millis>}, an atomic rename on the one volume;
+     * hands back where it went. Raises {@link IOException} when the trash cannot be made or the file system
+     * refuses the move — a file of the folder still held.
+     */
+    private static File trash(File addons, File live) throws IOException {
+        File trash = new File(addons, TRASH);
+        if(!trash.isDirectory() && !trash.mkdirs())
+            throw new IOException("could not create " + trash);
+        File old = new File(trash, live.getName() + "-" + System.currentTimeMillis());
+        Files.move(live.toPath(), old.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        return old;
     }
 
     /** Delete every leftover download, {@code .staging/*.zip}: at boot, nothing can be in flight. */

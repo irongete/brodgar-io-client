@@ -189,14 +189,14 @@ commands it reaches.
 
 `:reload` rebuilds **the addon layer only**, and it is the one thing that does. Every session you have
 logged in stays connected, the world stays loaded, the client's own windows stay as they are, and each
-addon is torn down, every install the [AddOns manager](panel.md#how-an-install-lands) has staged is
-moved into `addons/` — with nothing loaded, which is the one moment a folder can change under no addon
-at all — the folder and the enabled set are re-read, the enabled addons run again from disk, `Load`
-fires, and `SessionEnteredWorld` fires again for **every session that is in the world** — the one on
-screen first, then the rest, each exactly once. The addons that were rebuilt are the client's rather than
-any character's, so every login gets the announcement and an addon that holds something per login has
-nothing to catch up on. A session that has not reached the world is not announced: there is no character
-to re-initialize for.
+addon is torn down, every folder the [AddOns manager](panel.md#how-an-install-lands) marked for removal is
+deleted and every install it has staged is moved into `addons/` — with nothing loaded, which is the one
+moment a folder can change under no addon at all — the folder and the enabled set are re-read, the enabled
+addons run again from disk, `Load` fires, and `SessionEnteredWorld` fires again for **every session that is
+in the world** — the one on screen first, then the rest, each exactly once. The addons that were rebuilt are
+the client's rather than any character's, so every login gets the announcement and an addon that holds
+something per login has nothing to catch up on. A session that has not reached the world is not announced:
+there is no character to re-initialize for.
 
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your

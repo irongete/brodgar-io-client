@@ -50,7 +50,7 @@ maintainer's and is watched for sixty seconds.
       `installed v1.0.0` without a button, and the Installed row `loaded v1.0.0`; the second run
       asserts both.
 
-- [ ] **145.3 — Installed: Update, Remove and Check for updates.** `Registry.lookup` of the
+- [x] **145.3 — Installed: Update, Remove and Check for updates.** `Registry.lookup` of the
       hub-installed ids when the Installed tab shows and on a **Check for updates** button;
       `Semver.compare` against the record; **Update** (the install path, status `update <v>` until
       pressed) and **Remove** (`AddonRegistry.markRemove` → `.staging/<id>.remove`, status

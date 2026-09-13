@@ -1214,16 +1214,18 @@ public final class AddonRegistry {
         public final String hub;
         /** The version staged under {@code addons/.staging/} for this id, waiting for the next reload, or {@code null}. */
         public final String staged;
+        /** Whether the folder is marked for removal (145.3): the next reload deletes it, and nothing replaces it. */
+        public final boolean removing;
 
         AddonInfo(String id, String name, String version, String author, String description,
                   String outdated, boolean enabled, boolean loaded, PermissionSet permissions,
                   List<String> networkHosts, String error, String manifestError, String warning,
-                  String hub, String staged) {
+                  String hub, String staged, boolean removing) {
             this.id = id; this.name = name; this.version = version; this.author = author;
             this.description = description; this.outdated = outdated; this.enabled = enabled;
             this.loaded = loaded; this.permissions = permissions;
             this.networkHosts = networkHosts; this.error = error; this.manifestError = manifestError;
-            this.warning = warning; this.hub = hub; this.staged = staged;
+            this.warning = warning; this.hub = hub; this.staged = staged; this.removing = removing;
         }
 
         /** Whether this addon declared any protected permission (it is then opt-in, behind the consent dialog). */
@@ -1279,7 +1281,8 @@ public final class AddonRegistry {
                 mferr,
                 autoDisabledWarn.get(id),
                 hubVersion(id),
-                stagedVersion(id)));
+                stagedVersion(id),
+                removing(id)));
         }
         return out;
     }
@@ -1340,40 +1343,52 @@ public final class AddonRegistry {
         return new File(addonDir(), id).isDirectory();
     }
 
-    // ------------------------------------------------------------- installs from the hub (145.2)
+    // ------------------------------------------------------------- installs from the hub (145.2, 145.3)
 
     /**
-     * <b>What is staged for one id</b> — the version unpacked under {@code addons/.staging/<id>/} and waiting
-     * for the next reload to move it into {@code addons/<id>/}, and whether the last apply <b>refused</b> to:
-     * a file the file system would not let go of, on which the row says {@code restart to apply}, because
+     * <b>What waits on one id for the next reload</b> — a <b>stage</b>: the version unpacked under
+     * {@code addons/.staging/<id>/}, which the apply moves into {@code addons/<id>/}; or a <b>removal</b>
+     * (145.3): the mark {@code .staging/<id>.remove}, on which the apply deletes the folder. One per id, the
+     * later word replacing the earlier. {@code restart} says the last apply <b>refused</b> — a file the file
+     * system would not let go of, on which the row says {@code restart} rather than {@code Reload UI}, because
      * the apply at boot runs before any addon has opened anything. Immutable; {@link #pending} hands one out.
      */
     public static final class Pending {
+        /** The version staged, or {@code null} for a removal. */
         public final String version;
+        /** Whether this is a removal: the folder goes, and nothing replaces it. */
+        public final boolean removal;
         public final boolean restart;
 
-        Pending(String version, boolean restart) {
+        Pending(String version, boolean removal, boolean restart) {
             this.version = version;
+            this.removal = removal;
             this.restart = restart;
         }
     }
 
     /**
-     * The stages in memory, id → what is waiting — written by {@link #stage} and rebuilt from disk by every
-     * {@link #applyStaged}, so it is what {@code .staging/} holds without a file read per frame: the panel's
-     * rows ask {@link #pending} on every tick.
+     * What waits, in memory, id → the stage or the removal — written by {@link #stage} and
+     * {@link #markRemove} and rebuilt from disk by every {@link #applyStaged}, so it is what {@code .staging/}
+     * holds without a file read per frame: the panel's rows ask {@link #pending} on every tick.
      */
     private static final Map<String, Pending> staged = new java.util.concurrent.ConcurrentHashMap<String, Pending>();
 
-    /** The stage waiting for {@code id}, or {@code null} when nothing is. Cheap: a map read, no disk. */
+    /** The stage or the removal waiting on {@code id}, or {@code null} when nothing is. Cheap: a map read, no disk. */
     public static Pending pending(String id) {
         return (id == null) ? null : staged.get(id);
     }
 
-    /** {@link #pending}'s version alone, for a snapshot. */
+    /** {@link #pending}'s version alone, for a snapshot: {@code null} for nothing, and for a removal. */
     private static String stagedVersion(String id) {
         Pending p = pending(id);
         return (p == null) ? null : p.version;
+    }
+
+    /** Whether a removal waits on {@code id}, for a snapshot. */
+    private static boolean removing(String id) {
+        Pending p = pending(id);
+        return (p != null) && p.removal;
     }
 
     /**
@@ -1486,17 +1501,48 @@ public final class AddonRegistry {
         } finally {
             zip.delete();
         }
-        staged.put(e.id, new Pending(e.version, false));
+        Staging.unmark(addonDir(), e.id);            // a stage after a mark is the later word: the folder stays, replaced
+        staged.put(e.id, new Pending(e.version, false, false));
         reloadNeeded = true;
         log("staged " + e.id + " v" + e.version + " - Reload UI to apply");
     }
 
     /**
-     * <b>Move every stage into place</b> — {@link Staging#apply}, then the in-memory record rebuilt from what
-     * is still on disk, each of those marked {@code restart}: a stage the apply left behind is one it could
-     * not move. Runs in {@link #reload} between the teardown and the load, and in {@code AddonManager.boot}
-     * before the first load; {@code fresh} is the boot, where a leftover download is swept as well because
-     * nothing can be in flight yet.
+     * <b>Mark {@code addons/<id>/} for removal</b> (145.3): the mark {@code .staging/<id>.remove}, which the
+     * next reload's apply turns into the folder's deletion — {@code reloadNeeded} is raised so the panel's hint
+     * says changes are pending, and the log says so. Only a folder the hub installed is marked: one without an
+     * {@link InstallRecord} is the player's own, and a press that reaches here for one is refused with a log
+     * line, nothing marked. A download in flight for the id is given up and a stage waiting on it is
+     * outranked — the mark is the later word, and the apply sweeps the stage with the folder. Nothing but the
+     * folder goes: the saved variables under {@code savedata/}, the enabled set and the consent record are
+     * untouched, so a reinstall comes back as the player had it.
+     */
+    public static void markRemove(String id) {
+        if(hubVersion(id) == null) {
+            log("remove " + id + " refused: addons/" + id + "/ is not an install from the hub");
+            return;
+        }
+        Install i = installs.remove(id);
+        if(i != null)
+            i.req.cancel();
+        try {
+            Staging.markRemove(addonDir(), id);
+        } catch(IOException e) {
+            log("could not mark " + id + " for removal: " + Refusal.reason(e));
+            return;
+        }
+        failed.remove(id);
+        staged.put(id, new Pending(null, true, false));
+        reloadNeeded = true;
+        log("marked " + id + " for removal - Reload UI to apply");
+    }
+
+    /**
+     * <b>Apply every mark and move every stage into place</b> — {@link Staging#apply}, then the in-memory
+     * record rebuilt from what is still on disk, each of those marked {@code restart}: a stage or a mark the
+     * apply left behind is one it could not move. Runs in {@link #reload} between the teardown and the load,
+     * and in {@code AddonManager.boot} before the first load; {@code fresh} is the boot, where a leftover
+     * download is swept as well because nothing can be in flight yet.
      */
     static void applyStaged(boolean fresh) {
         File dir = addonDir();
@@ -1505,7 +1551,9 @@ public final class AddonRegistry {
         Staging.apply(dir);
         staged.clear();
         for(Map.Entry<String, String> p : Staging.pending(dir).entrySet())
-            staged.put(p.getKey(), new Pending(p.getValue(), true));
+            staged.put(p.getKey(), new Pending(p.getValue(), false, true));
+        for(String id : Staging.removals(dir))
+            staged.put(id, new Pending(null, true, true));
     }
 
     /** Open the addons folder in the OS file browser (AddOns panel convenience). Best-effort, non-fatal. */

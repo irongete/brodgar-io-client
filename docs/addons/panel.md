@@ -2,9 +2,10 @@
 
 **AddOns**, on the game menu that `Ctrl+O` opens, is where your addons are switched on and off, and where
 you look for new ones. Its **Installed** tab lists every addon the client found in `addons/`, one row each,
-with its live status and the box that enables it; its **Browse** tab searches the addons published at
-`brodgar.io/addons`, the hub, shows one row per match, and installs one with a press. The client reads
-the hub anonymously: it never signs in, and nothing about you or your character travels with the request.
+with its live status and the box that enables it, and updates or removes the ones the hub installed; its
+**Browse** tab searches the addons published at `brodgar.io/addons`, the hub, shows one row per match, and
+installs one with a press. The client reads the hub anonymously: it never signs in, and nothing about you or
+your character travels with the request.
 
 ## Installed
 
@@ -20,8 +21,13 @@ a live status. The description is the row's tooltip.
 | `manifest error (hover)` | the manifest itself does not parse; the tooltip opens with the reason |
 | `outdated (…)` | not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements — `outdated (API 9.0, client 1.0)` — or it declares none — `outdated (no api_version, client 1.0)`. The tooltip says which |
 | `auto-disabled (…)` | the [CPU budget](runtime.md#budgets-and-the-watchdog) or a [fatal failure](runtime.md#when-a-failure-is-fatal) stopped it |
+| `update <version>` | the hub publishes a newer version than the one installed here; **Update** stands beside it |
+| `downloading <n>%` | an update's package is on its way, against the size the hub advertised |
 | `staged <version> - Reload UI to apply` | a version [installed from the hub](#how-an-install-lands) is waiting to replace this folder at the next reload |
 | `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
+| `removed on Reload UI` | marked for removal: the next reload [deletes the folder](#what-an-install-and-a-removal-keep) |
+| `removed on restart` | the last reload could not delete it — a file of it is still held; the next start does |
+| `failed: <why>` | an update's download or a check refused it, and nothing landed; the tooltip carries the whole sentence, and **Update** is back for another try |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it asks to reach |
 
@@ -36,6 +42,22 @@ is where its options are edited.
 the whole gesture, and a "changes pending" line says so until you do. **Enable all** turns on every addon
 that is not marked `[protected: N]`; a write addon is only ever enabled one at a time, through the consent
 dialog that ticking it raises. **Open addons folder** opens `addons/` in your file browser.
+
+**Update** and **Remove** stand on a row the hub installed — one whose folder carries the record
+[an install writes](#how-an-install-lands) — and on no other: a folder you put in `addons/` yourself is
+yours, and the client never replaces or deletes it. **Remove** marks the folder, and the next reload deletes
+it; the row reads `removed on Reload UI` until then, on both tabs, and is gone after. **Update** stands only
+once a check has found the hub's latest version greater than the installed one, ordered the hub's way
+(`MAJOR.MINOR.PATCH`, a pre-release below the release it precedes); the row reads `update <version>` until
+you press it, and the press is [an install](#how-an-install-lands): the row runs `downloading <n>%`, then
+`staged <version> - Reload UI to apply`, and the reload replaces the folder whole. Both are applied at the
+reload, like a checkbox, and neither is offered while something already waits on the folder.
+
+The check runs each time the tab comes on screen, and again on **Check for updates**. The line beside the
+button is the check's own word: `checking` while the hub is asked, `no update available`, how many are —
+`1 update available` — or, when the hub did not answer, why: its own sentence with the status it sent, or
+the failure that kept the client from reaching it. While no row was installed from the hub nothing is asked
+of it, and the line reads `no addon installed from the hub`.
 
 **Load out of date AddOns**, the box under the list, loads every addon the tab marks `outdated (…)` as if
 its [API version](manifest.md#the-api-version) were current — one stance over the whole list, kept across
@@ -71,6 +93,8 @@ is no folder of that id in your `addons/`:
 | `downloading <n>%` | the package is on its way, against the size the hub advertised |
 | `staged <version> - Reload UI to apply` | the package is checked and unpacked, waiting for the reload that [moves it into place](#how-an-install-lands) |
 | `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
+| `removed on Reload UI` | the folder is marked for removal on the Installed tab; the next reload deletes it, and **Install** is back after |
+| `removed on restart` | the last reload could not delete it — a file of it is still held; the next start does |
 | `failed: <why>` | the download or a check refused it, and nothing landed; the tooltip carries the whole sentence, and **Install** is back for another try |
 | `outdated (…)` | the published version declares an [API version](manifest.md#the-api-version) this client does not implement; the tooltip opens with the sentence. **Install** still stands: the row then reads `outdated (…)` on Installed, where **Load out of date AddOns** applies to it |
 | `manifest error (hover)` | its `api_version` is not a version at all; the tooltip names the form |
@@ -100,24 +124,26 @@ into it last: the version and the sha256 the hub named, and when. That file is w
 hub's — the Browse row reads `installed v<version>` from it, and a folder without one is yours, put there
 by hand. Deleting it makes the folder yours in the same sense: the client never replaces it again.
 
-At the reload, after every addon is torn down and before any is loaded, each staged folder takes its
-place: the folder it replaces is moved to `addons/.trash/` first, the staged one takes its name, and
-the trash is emptied. Both folders are the client's own bookkeeping — the addon scan lists neither — and
-a folder the file system will not let go of, because a file in it is still open, waits: the row reads
-`restart to apply`, and the next start moves it before anything can hold a file.
+At the reload, after every addon is torn down and before any is loaded, each folder marked for removal is
+moved to `addons/.trash/`, then each staged folder takes its place: the folder it replaces is moved to the
+trash first, the staged one takes its name, and the trash is emptied. Both folders are the client's own
+bookkeeping — the addon scan lists neither — and a folder the file system will not let go of, because a
+file in it is still open, waits: the row reads `restart to apply` or `removed on restart`, and the next
+start moves it before anything can hold a file.
 
 **Installing is not enabling.** A new addon that declares no permission is enabled like any other; one
 that declares a permission key arrives disabled and asks through the same consent dialog as a folder you
 unpacked yourself — see [permissions](guides/permissions.md).
 
-## What an install keeps
+## What an install and a removal keep
 
 A staged folder replaces the one of the same id **whole**: nothing of the old folder survives inside the
 new one, so a file you edited in it is gone with it — an addon you mean to change is one you keep by
-hand. Everything the client holds about the addon is untouched, because none of it lives in the
-folder: [your saved variables](api/store.md) under `savedata/`, whether the addon is enabled, and the
-permissions you consented to. A version that asks for more than you approved is disabled and asked again,
-as any manifest that grows is.
+hand. A removal deletes the folder, and only the folder. Everything the client holds about the addon is
+untouched by either, because none of it lives in the folder: [your saved variables](api/store.md) under
+`savedata/`, whether the addon is enabled, and the permissions you consented to — so an addon you remove
+and install again comes back as you had it. A version that asks for more than you approved is disabled and
+asked again, as any manifest that grows is.
 
 ## The hub
 
