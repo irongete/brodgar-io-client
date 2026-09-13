@@ -1388,6 +1388,13 @@ public final class Addon {
     volatile SqliteApi.Db db;
     /** Why {@link #db} is {@code null} after an open that failed — the file and the driver's reason; else {@code null}. */
     volatile String dbWhy;
+    /**
+     * This addon's <b>declared tables</b> (146.2, {@link SqliteApi.Table}), interned by the table's name as
+     * the file spells it (case-folded), so two {@code :create()}s of one name answer one object and
+     * {@code ==} is the identity test. A Table holds its live declaration and no connection, so there is
+     * nothing to tear down: the cache dies whole with this {@link Addon} like every other one here.
+     */
+    final Interned<String, LuaValue> storeTables = Interned.keyed();
 
     /**
      * The {@code hafen.store()} documents — <b>the CLIENT scope</b>, one Lua table per saved variable declared

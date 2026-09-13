@@ -453,14 +453,29 @@ public final class LuaCollection {
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue v = a.arg1();
-                if(v.isuserdata() && (v.touserdata() instanceof LuaCollection)) {
-                    String nm = ((LuaCollection)v.touserdata()).name;
+                Object o = v.isuserdata() ? v.touserdata() : null;
+                if(o instanceof LuaCollection) {
+                    String nm = ((LuaCollection)o).name;
                     throw new LuaError(fn + " is refused on " + nm + ": it is a collection, not a table — "
                         + nm + ":list() is the array, and you walk that");
                 }
+                if(o instanceof NotASequence)
+                    throw new LuaError(((NotASequence)o).iterationRefused(fn));
                 return real.invoke(a);
             }
         };
+    }
+
+    /**
+     * <b>A collection built outside this class</b>, refused by the iteration guard in its own words. A
+     * declared store table ({@link SqliteApi.Table}) is a collection of rows in every sense but this class's
+     * machinery — its filter is a SQL clause rather than a predicate, so it mounts its own verbs — and
+     * {@code pairs(t)} has to fail the way {@code pairs(coll)} does, at the line that wrote it, rather than
+     * as LuaJ's <i>table expected, got userdata</i>.
+     */
+    interface NotASequence {
+        /** The message {@code pairs}/{@code ipairs} ({@code fn}) raises on this object. */
+        String iterationRefused(String fn);
     }
 
     // ---- the metatable: methods by name, and everything else refused -------------------------------

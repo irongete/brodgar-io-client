@@ -158,6 +158,18 @@ final class Refusal {
                       + " s:console():run(line) is the verb and the session is the address —"
                       + " hafen.session():current():console():run(\"lo\") says it at the character on screen."
                       + " hafen.console() is the commands your addon REGISTERS, which are client-wide.");
+        // 146.2: the store splits by SCOPE, and the FILE is one for the whole client -- a character's documents
+        // are rows in it, and a declared table has a character as a column at most -- so what is about the
+        // file hangs off the client half alone.
+        MISPLACED.put("session:store():info",
+                      "session:store() has no verb 'info': the file is one for the whole client, and this"
+                      + " character's documents are rows in it, so hafen.store():info() is where it is"
+                      + " named. session:store() is that character's documents alone.");
+        MISPLACED.put("session:store():table",
+                      "session:store() has no verb 'table': a table you declare is the file's, one for the"
+                      + " whole client whichever character is up, so hafen.store():table(name) is where it is"
+                      + " declared. A character is a column of it — put the character's key in the rows that"
+                      + " are one character's. session:store() is that character's documents alone.");
     }
 
     /**

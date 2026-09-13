@@ -20,7 +20,7 @@ first, so a rerun is clean, and touches no other addon's file.
       `[manual]`: drag the suite's window, then `:reload` -- expect: it reopens where you left it.
       `[manual]`: run `:t146` on the launcher's rebuilt runtime -- expect: the same summary line.
 
-- [ ] **146.2 — Declared tables.** The builder — `:table(name)`, `:column`, `:key`, `:index`,
+- [x] **146.2 — Declared tables.** The builder — `:table(name)`, `:column`, `:key`, `:index`,
       `:create()` — its refusals, the evolution against `pragma_table_info`/`pragma_index_list`, the
       interned Table; `:put`, `:get`, `:remove`, `:list`, `:count`, `:find`, typed both ways by the
       live declaration, `json` through `Json.write`/`parse`, `NULL` an absent key.

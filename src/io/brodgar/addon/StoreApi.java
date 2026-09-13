@@ -241,6 +241,16 @@ final class StoreApi {
                 return SqliteApi.info(owner);
             }
         });
+        // table(name) — a bare declaration of one of this addon's own tables (146.2): :column, :key and
+        // :index configure it, and :create() is the dispatch that touches the file and answers the interned
+        // Table. It is the CLIENT half's verb because a table is the file's, whichever character is up — a
+        // character is a column of it where the rows are one character's.
+        store.set("table", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "table");
+                return SqliteApi.table(owner, a);
+            }
+        });
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():get(\"<name>\") for a client-scope name and"
@@ -666,7 +676,12 @@ final class StoreApi {
         return null;
     }
 
-    private static String uncarriable(LuaTable t, String path, Set<LuaValue> seen) {
+    /**
+     * The walk itself, over one table: the first value under {@code path} the store cannot hold, as the clause
+     * the callers quote, or {@code null}. Package-visible because a {@code json} column of a declared table
+     * ({@link SqliteApi}) holds exactly what a document holds, and is refused in the same words.
+     */
+    static String uncarriable(LuaTable t, String path, Set<LuaValue> seen) {
         // audit2 B14 (st-05): A CYCLE IS THE FIRST THING A STORE CANNOT HOLD, and it used to be the one
         // thing this walk answered `null` for. The writer breaks a cycle into the literal string "<cycle>",
         // so the table came back from disk as text where a table had been — and because this returned

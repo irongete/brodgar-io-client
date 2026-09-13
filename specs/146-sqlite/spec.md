@@ -84,11 +84,14 @@ No `docs/client/` page: everything read is `io.brodgar`.
 ## Context files
 
 - `src/io/brodgar/addon/SqliteApi.java` — 2, 3, 4 (`Db`: the connection, `transaction`, `document`,
-  `placements`, `bytes`, `close`; `open`, `close`, `db`, `require`, `info`, `Failure`)
+  `placements`, `bytes`, `close`, and the statement primitives `select` (rows, at most `max`), `change`,
+  `ddl`, `Rows`, `Arity`; `open`, `close`, `db`, `require`, `info`, `Failure`; the builder `Declaration`,
+  `Decl`, `Table`, `create`; `bindable` and `raw` — how a `?` binds and a cell reads with no declaration;
+  `run` — how a driver refusal is phrased as the verb's)
 - `src/io/brodgar/addon/StoreApi.java` — 1, 2, 3, 4 (`installStore` mounts the verbs; the persistence
   half: `loadInto`, `writeClient`, `writeChar`, `writePlacements`, `scopeRows`, `saveDir`, `scopeKey`,
   `CharStore`, `autosave`, `flush`, `detach`; `CLIENT` is the row key of the addon's own scope)
-- `src/io/brodgar/addon/Addon.java` — 2 (`db`, `dbWhy`; the interned Tables go beside them)
+- `src/io/brodgar/addon/Addon.java` — 2, 3, 4 (`db`, `dbWhy`, `storeTables`)
 - `src/io/brodgar/addon/Manifest.java` — 1 (`savedvars`, `SavedVar.client`)
 - `src/io/brodgar/addon/LuaSession.java` — 1 (`storeObj`); `AddonManager.java` — 1 (`installStore`)
 - `src/io/brodgar/addon/AddonRegistry.java` — 1 (`STEPS`, `flushAll`, `shutdown`, `detach`)

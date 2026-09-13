@@ -1,0 +1,9 @@
+{
+  "name": "146.2 — declared tables",
+  "id": "146-sqlite.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.2: hafen.store():table(name) declares a table through a builder, :create() answers the interned Table, and its rows go in and come out typed by the declaration.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}
