@@ -80,7 +80,8 @@ import java.util.WeakHashMap;
  *
  * <p>All of this runs on the UI thread under the monitor the caller already holds ({@code added} from
  * {@code AddWidget.run}, {@code uimsg} from {@code UiMessage.run}'s {@code synchronized(ui)}, {@code destroy}
- * from the closing animation's tick), so the Lua raised here never races other Lua. Not instantiable.
+ * from that same {@code uimsg} — the ring ends at its commit — or from {@code DstWidget.run}), so the Lua
+ * raised here never races other Lua. Not instantiable.
  */
 final class FlowerMenuApi {
     private FlowerMenuApi() {}
@@ -103,10 +104,11 @@ final class FlowerMenuApi {
      * (an inventory item's, the Kin window's, one the player's own next click invalidated) simply has no entry.
      *
      * <p><b>Deliberately NOT {@link #live}.</b> That map is the event-pairing state and a close takes the key
-     * out; this one is the menu's own identity and dies with the widget, because {@code :gob()} has to describe
-     * the same menu {@code :list()} and {@code :count()} do — and those keep answering through the 0.25–0.75 s
-     * closing animation, during which the widget is still in the tree. One map removed at the close and one
-     * held to the end is what makes all three reads agree about <i>which menu</i> is being described.
+     * out <i>before</i> the {@code FlowerMenuRemoved} handlers run; this one is the menu's own identity and
+     * dies with the widget, because {@code :gob()} has to describe the same menu {@code :list()} and
+     * {@code :count()} do — and those still answer inside those handlers, which run with the ring in the tree
+     * and are the last thing that does. One map removed at the close and one held to the end is what makes
+     * all three reads agree about <i>which menu</i> is being described.
      *
      * <p>Weak-keyed for the same reason as {@link #live}, and the value is an id rather than a {@link haven.Gob},
      * so a stashed menu can never pin a despawned object. UI thread only.
@@ -433,7 +435,10 @@ final class FlowerMenuApi {
      * <b>That character's</b> open radial context menu, or {@code null} if none is up — the first
      * {@link FlowerMenu} in a recursive walk of <b>its own</b> UI root (077.4).
      *
-     * <p>One tree only ever really holds one, because an open menu grabs the mouse and the keyboard. It is
+     * <p>One tree only ever really holds one: an open menu grabs the mouse and the keyboard, so no click can
+     * put a second one up beside it, and a menu leaves the tree at its commit ({@code FlowerMenu.uimsg}
+     * destroys it there, with no closing animation), so no click can put one up beside a dead one either —
+     * which matters, because the walk answers the OLDEST ring first. It is
      * the session's root and never {@link AddonManager#screen()}: a ring the player left up on a character and
      * then tabbed away from is still parented to that session's tree, which is what makes it readable and
      * pickable at a distance — and asking the drawn tree would have called it closed. A session the client

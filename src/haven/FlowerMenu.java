@@ -254,24 +254,39 @@ public class FlowerMenu extends Widget {
 	}
     }
 
+    /* addon: THE RING IS INSTANT. Upstream plays three NormAnims on it -- Opening (0.25 s) unfolds the petals
+     * from the centre, Chosen (0.75 s) and Cancel (0.25 s) fade them out and only then ui.destroy() the widget --
+     * and the fork runs none of them: the three classes above stay, unused. Every petal is put at its place on
+     * the ring, opaque, the moment the ring is laid out, and uimsg() below destroys the widget at the commit
+     * itself. The delay was not only cosmetic: both grabs come off at the commit, so for the length of Chosen or
+     * Cancel the ring stood in the tree holding no input, a second "sm" could land beside it, and
+     * FlowerMenuApi.open() -- which finds "the" ring by walking the tree, oldest first -- answered the dead one
+     * for the whole FlowerMenuAdded of the new one. Ending the ring at the commit is what keeps one tree holding
+     * one ring, the invariant that finder rests on. */
+    private void place() {
+	for(Petal p : opts) {
+	    p.move(p.ta, p.tr);
+	    p.a = 1;
+	}
+    }
+
     protected void added() {
 	if(c.equals(-1, -1))
 	    c = parent.ui.lcc;
 	mg = ui.grabmouse(this);
 	kg = ui.grabkeys(this);
 	organize(opts);
-	new Opening().ntick(0);
+	place();   // addon: was `new Opening().ntick(0)` -- whole from its first frame, see place()
 	io.brodgar.addon.AddonManager.flowerOpened(this);   // addon: 047.1 -> FlowerMenuAdded. HERE, at the END, where the petal set is complete.
     }
 
     /* addon: (143.3) append a petal of an ADDON's own to the ring, while it is being announced -- the
      * flowerOpened() call above, still inside added() and so still under this tree's monitor, before the
-     * first drawn frame. `opts` is REPLACED rather than grown in place: Opening.ntick reads the array on every
-     * tick, so the petal lands with the ring, and Chosen and Cancel index it by `num`, which it carries.
-     * organize() is re-run over the whole ring -- it is a deterministic walk from the same first position, so
-     * every petal the server sent keeps its place and the new one takes the next -- and the petal starts where
-     * Opening.ntick(0) put the others (folded in at the centre, transparent), so nothing flashes before the
-     * next tick moves it out. `run` is what choose() runs when it is picked. */
+     * first drawn frame. `opts` is REPLACED rather than grown in place: uimsg("act") and keydown index it by
+     * `num`, which the petal carries. organize() is re-run over the whole ring -- it is a deterministic walk
+     * from the same first position, so every petal the server sent keeps its place and the new one takes the
+     * next -- and place() then puts the whole ring, the new petal with it, where it stands. `run` is what
+     * choose() runs when it is picked. */
     public Petal addClientPetal(String label, Runnable run) {
 	Petal p = new Petal(label);
 	p.client = run;
@@ -281,8 +296,7 @@ public class FlowerMenu extends Widget {
 	n[opts.length] = p;
 	opts = n;
 	organize(opts);
-	p.move(p.ta + PI, 0);
-	p.a = 0;
+	place();
 	return(p);
     }
 
@@ -307,16 +321,16 @@ public class FlowerMenu extends Widget {
 
     public void uimsg(String msg, Object... args) {
 	if(msg == "cancel") {
-	    new Cancel();
 	    mg.remove();
 	    kg.remove();
 	    io.brodgar.addon.AddonManager.flowerClosed(this, null);   // addon: 047.1 -> FlowerMenuRemoved with nothing chosen -- unless choose() recorded a petal, which flowerChoosing keeps for this fire.
+	    ui.destroy(this);   // addon: was `new Cancel()` -- the ring ends at the commit, not 0.25 s after it; see place(). The seam above fires first, with the ring still in the tree for its handlers.
 	} else if(msg == "act") {
 	    int num = Utils.iv(args[0]);   // addon: 047.1 -- was inline; the seam below needs the same index
-	    new Chosen(opts[num]);
 	    mg.remove();
 	    kg.remove();
 	    io.brodgar.addon.AddonManager.flowerClosed(this, opts[num].name);   // addon: 047.1 -> FlowerMenuRemoved with the label the server committed. This branch is also the one seam a CLIENT-SIDE menu takes (BuddyWnd calls uimsg by hand).
+	    ui.destroy(this);   // addon: was `new Chosen(opts[num])` -- the ring ends at the commit, not 0.75 s after it; see place(). destroy()'s own seam finds nothing left to fire.
 	}
     }
 

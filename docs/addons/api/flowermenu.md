@@ -70,8 +70,8 @@ Everything else answers `nil`:
 - a menu that was not opened by the click it would have been matched to — you clicked something else in
   between, or the menu arrived long after the click that asked for it.
 
-Read it from inside a `FlowerMenuAdded` handler, which is where you need it. Like the other two reads it
-keeps answering while the ring fades, and it is `nil` once the ring is gone.
+Read it from inside a `FlowerMenuAdded` handler, which is where you need it. Like the other reads it still
+answers inside a `FlowerMenuRemoved` handler, and it is `nil` once the ring is gone.
 
 ```lua
 hafen.event():on("FlowerMenuAdded", function(petals)
@@ -111,13 +111,13 @@ as you play, and here the ring is frozen once it is announced.
 The ring is fixed from the moment it is announced and lives about as long as it takes to decide, so a petal is
 worth reading rather than keeping — but it is a handle, so keeping one is safe and says so.
 
-> **The menu answers while it is open, closing animation included.** A pick or an Esc starts a
-> quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from
-> inside a `FlowerMenuRemoved` handler is not yet `0`. Read what you need from the event's own payload.
+> **The menu answers until its `FlowerMenuRemoved` handlers return.** A pick, an Esc or a click away ends
+> the ring the same instant — nothing fades — but those handlers run first, with the ring still there, so a
+> `:count()` read from inside one is not yet `0`. Read what you need from the event's own payload.
 
 **Two menus at once on one character** should not happen — an open menu grabs the mouse and the keyboard,
-which is what makes "the open menu" a well-defined thing for that character. If it ever does, these verbs
-answer for the first one that character's tree is holding.
+and a menu that ends is gone at once, which is what makes "the open menu" a well-defined thing for that
+character. If it ever does, these verbs answer for the first one that character's tree is holding.
 
 ## Write (protected)
 
@@ -155,9 +155,8 @@ when the key is neither a string nor a number; `:cancel()` raises when no menu i
 errors names the character asked about and lists the ring that **is** open, numbered, so the spelling you
 missed is in the message.
 
-You can pick from inside a `FlowerMenuAdded` handler, and that is the usual place. The ring is still
-animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
-input until the animation finishes.
+You can pick from inside a `FlowerMenuAdded` handler, and that is the usual place: the ring is laid out
+whole and nothing is painted yet, so a pick made there is made before the player sees a ring at all.
 
 > **One ring takes one pick, and nothing marks it as taken.** Every addon subscribed to `FlowerMenuAdded`
 > hears the same menu and may pick from it, the order between them is not defined, and the client sends
@@ -234,11 +233,8 @@ What it may not do is spend a click on a petal nobody could see. A hidden ring
 player their own way out of it — but a click on it can only ever **end** it, never pick from it: the ring
 closes with nothing chosen, as clicking away from a painted one does. Its `1`–`9` keys do nothing at all,
 and Esc is unchanged. So a ring an addon hid and then did not decide is never a trap: the two gestures a
-player would have used anyway still dismiss it, and no click of theirs is spent blind.
-
-That dismissal is not immediate. The ring [swallows mouse input while it animates open](#write-protected),
-hidden or painted, so a click inside the first quarter second of a ring's life does nothing at all — hiding
-one does not make it dismissible any sooner.
+player would have used anyway still dismiss it, and no click of theirs is spent blind — from the ring's first
+frame, hidden or painted.
 
 `b` must be `true` or `false`, and anything else raises naming the argument — a number most of all, since in
 Lua `0` is a true value and would quietly paint a ring you meant to hide. The read answers `nil` with no menu

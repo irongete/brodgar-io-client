@@ -15,31 +15,30 @@
 | What it holds | `added()` takes `ui.grabmouse(this)` **and** `ui.grabkeys(this)` into `mg`/`kg`, so an open ring has the whole pointer and keyboard; nothing else in the tree sees either until it ends |
 | Choosing | `FlowerMenu.choose(Petal)` — `wdgmsg("cl", num, ui.modflags())` for a petal, `wdgmsg("cl", -1)` for none. Esc and a click outside both reach it with `null`; a petal with a `client` runs it and sends the `-1` |
 | The keyboard | `keydown` maps `'1'`..`'9'` and `'0'` to petals `0`..`9` and eats every digit, whether or not one is there; `key_esc` chooses nothing |
-| The three animations | `Opening` (0.25 s), `Chosen` (0.75 s) and `Cancel` (0.25 s), all `NormAnim`s. `Chosen` and `Cancel` call `ui.destroy(FlowerMenu.this)` at `s == 1.0`, which is the only thing that ends the widget |
-| The server's answers | `uimsg "cancel"` starts `Cancel` and drops both grabs; `uimsg "act"` starts `Chosen` on `opts[num]` and drops both grabs |
+| The three animations | `Opening` (0.25 s), `Chosen` (0.75 s) and `Cancel` (0.25 s), all `NormAnim`s, are upstream's, and **the fork runs none of them**: the classes stay, unused. `FlowerMenu.place()` puts every petal at its `ta`/`tr`, opaque, as the ring is laid out, and the two `uimsg` arms call `ui.destroy(this)` at the commit itself — the only thing that ends the widget short of a plain death |
+| The server's answers | `uimsg "cancel"` and `uimsg "act"` (on `opts[num]`) each drop both grabs, fire the fork's close notice, and destroy the widget — in that order |
 
 ## How a ring ends, and what fires where
 
 There are three ends and they are not symmetrical. The two `uimsg` arms are the **commit points**: the
-server has decided, and the client plays the matching animation out before destroying the widget. The
-third is a plain death — a relog, a server destroy — where nothing was committed and no `uimsg` arrives,
-and `destroy()` is the only thing that runs.
+server has decided, and the client destroys the widget there and then — after the fork's close notice, so
+that notice runs with the ring still in the tree. The third is a plain death — a relog, a server destroy —
+where nothing was committed and no `uimsg` arrives, and `destroy()` is the only thing that runs.
 
 That asymmetry is why the fork's own notice is fired from **all three**, one-shot per open, with the
 fallback in `destroy()`: whichever gets there first is the one that reports, so an open is always
 followed by exactly one close.
 
 `choose()` is not an end. It sends, and the ring stays up over the round trip until the server answers
-with `"act"` or `"cancel"` — which is a whole animation's worth of time in which the ring is still
-readable and still holds the input.
+with `"act"` or `"cancel"` — a round trip in which the ring is still readable and still holds the input.
 
 ## The fork seams
 
 | Seam | What it is for |
 |---|---|
 | `added()`, at the **end** | the open notice. It is last on purpose: the ring is laid out above it, so this is the point at which the server's petal set is complete — and the one window `FlowerMenu.addClientPetal` is called in |
-| `FlowerMenu.addClientPetal(label, run)` | a petal of the fork's own, appended while the open notice runs: it replaces `opts` wholesale (`Opening.ntick` reads the array each tick), re-runs `organize` over the whole ring — a deterministic walk, so the server's petals keep their places — and folds the new petal in at the centre, transparent, where `Opening.ntick(0)` left the others |
-| `uimsg "cancel"` and `uimsg "act"` | the two commit points, carrying `null` and `opts[num].name` |
+| `FlowerMenu.addClientPetal(label, run)` | a petal of the fork's own, appended while the open notice runs: it replaces `opts` wholesale (`uimsg "act"` and `keydown` index it by `num`), re-runs `organize` over the whole ring — a deterministic walk, so the server's petals keep their places — and `place()`s the whole ring again, the new petal with it |
+| `uimsg "cancel"` and `uimsg "act"` | the two commit points, carrying `null` and `opts[num].name` — and, after the notice, `ui.destroy(this)`. Both grabs come off at the commit, so a ring that outlives it stands in the tree holding no input, a second `sm` lands beside it, and the fork's finder — which walks the tree oldest first — answers the dead one for the whole open notice of the new one |
 | `destroy()` | the fallback close, so a menu that merely died is reported too. `BuddyWnd`'s own subclass overrides `destroy()` and calls `super`, so a client-side ring is covered as well |
 | `choose(Petal)` | records the petal before it is sent, so a client-side petal that cancels the server's menu closes carrying its own label instead of reading as nothing chosen; a petal with a `client` runs it first, then sends the cancel whatever the run did |
 | `Petal.client` after its owner is gone | the fork keeps, per ring, where each client-side petal sits and whose it is, and a teardown of that owner swaps the `Runnable` for one that does nothing — never for `null`, since `choose` branches on the field to send the cancel rather than a number the server never offered |
@@ -53,8 +52,9 @@ readable and still holds the input.
   one, and it tests the **child** it steps into, so the petals, which are themselves still visible, would
   answer a press on an unpainted ring. The fork's two guards in `mousedown` and `keydown` are what stop
   an invisible ring from spending a click on Chop; both still eat the input, because the grab is real.
-- **A click inside the first quarter second does nothing at all.** `mousedown` returns early while
-  `anims` is non-empty, so the opening animation swallows the press.
+- **`mousedown`'s `anims` guard is upstream's and never fires here.** It returns early while `anims` is
+  non-empty so that the opening animation swallows the press; the fork registers no anim on the ring, so a
+  click picks from the first frame — as a programmatic pick always could, `choose` having no such guard.
 - **`opts` is not final.** The fork appends a client-side petal from inside `added()`'s open notice by
   replacing the array, so anything that captured `opts` before that point is holding the shorter one.
 - **`uimsg "act"` indexes `opts` with the server's number and never bounds it.** `FlowerMenu.uimsg` reads
