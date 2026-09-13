@@ -1,0 +1,10 @@
+{
+  "name": "145.1 — Browse: the hub client and the tab that searches it",
+  "id": "145-addon-registry.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 145.1: the AddOns manager's two tabs, and a Browse search driven through the field that finds a by-hand row, an out-of-date row, a plain row, no match, and no rows.",
+  "api_version": "1.0",
+  "permissions": ["widget.value"],
+  "files": ["main.lua"]
+}

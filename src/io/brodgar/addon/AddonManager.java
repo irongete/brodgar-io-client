@@ -5385,8 +5385,11 @@ public final class AddonManager {
      * remembers it; and this never grows a session argument for the same reason {@code screen()} does not:
      * there is one screen. With no session up there is nothing to post to and the stdout half above carries
      * the line alone, which is what the login screen has.
+     *
+     * <p>Public for the hub client ({@code io.brodgar.addon.registry.Registry}), whose lines are the addon
+     * layer's like every other here: one log, one shape, wherever in the layer the line is written.
      */
-    static void log(String msg) {
+    public static void log(String msg) {
         System.out.println("[addon] " + msg);
         if(noticeAllowed("(client)"))                  // lg-02: a client line repeats too (a retry, a give-up)
             notice(clampMsg(msg));

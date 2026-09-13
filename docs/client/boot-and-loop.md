@@ -11,6 +11,7 @@
 | Login → session establishment → returns `RemoteUI` | `Bootstrap.run`, `Session.connect` |
 | **Per-session init (`ui.sess` bound)** | `RemoteUI.init(UI)`, called from `UI`'s own constructor. It binds the session to its `UI` and nothing else: what the fork hangs off a session is attached from the session layer instead, the moment that `UI` exists ([multi-session.md](multi-session.md)) |
 | In-game HUD construction | `GameUI` ctor (`GameUI(String chrid, long plid, String genus)`) |
+| What the client says about itself | `Utils.useragent` — a static map filled once in `Utils`'s class initialiser: `java.version`/`vendor`/`vm`, `os.name`/`arch`/`version`, `mem.heap`, `cpu.num`, and every key of the jar's **`/buildinfo`** resource as `jar.<key>` (a `Properties` file the build writes into the jar, `git-rev` among its keys). A jar without the resource leaves the `jar.*` keys out; one whose resource cannot be read is an `Error` at class load. Anything that names the build to a server reads it here rather than parsing a manifest |
 
 ## The runner state machine
 
@@ -29,13 +30,12 @@ that into the client's life, and they are not the same loop.
 | **The seam (fork)** | `Client.Main.run` hands a `RemoteUI` to `Sessions.adopt` instead of running it, so the slot holds the **login screen** and every game session is built with `bgui` on a thread of its own ([multi-session.md](multi-session.md)) |
 | The other two entries, which use neither | `Client.main2` with `haven.servargs`/`replay` set, and `HeadlessClient.main2` — both hand a bare `RemoteUI` to their own `run`, so there is no `Bootstrap` and no `Main` |
 
-**Gotchas.** (a) `Runner.init` runs **inside `new UI(…)`**, before the constructor returns and before any
-caller has the reference — so anything that init asks about the session has to be true *before* the UI is
-built, not after. (b) `newui` destroys the UI it replaces, which is why a UI that another owner may still be
-using must never be built through it. (c) `Bootstrap.useinitauth` is a **static one-shot**: only the first
-`Bootstrap` can auto-login from the launcher's cookie or token, every later one shows the login screen.
-(d) `Bootstrap.run` needs no ticks to sit and wait — it blocks on its own message queue, which only user
-input fills — so an undrawn login screen simply waits, and works the moment it is drawn again.
+**Gotchas.** (a) `Runner.init` runs **inside `new UI(…)`**, before the constructor returns and any caller has
+the reference — so what init asks about the session must be true *before* the UI is built. (b) `newui`
+destroys the UI it replaces, so a UI another owner may still be using is never built through it. (c)
+`Bootstrap.useinitauth` is a **static one-shot**: only the first `Bootstrap` auto-logs in from the launcher's
+cookie or token; every later one shows the login screen. (d) `Bootstrap.run` blocks on its own message queue,
+which only user input fills, so an undrawn login screen waits and works the moment it is drawn again.
 
 ## The way out
 

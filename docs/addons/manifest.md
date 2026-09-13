@@ -35,7 +35,7 @@ your addon out as [out of date](#the-api-version); everything else is optional.
 | `id` | string | unique id; must equal the folder name |
 | `files` | array of strings | the `.lua` files to run, in this order; at least one, each inside your own folder |
 | `api_version` | string | the API you wrote against, `"X.Y"` — this client implements API `1.0`; absent, your addon is [out of date](#the-api-version) |
-| `name` | string | display name in the AddOns panel; defaults to `id` |
+| `name` | string | display name in the [AddOns manager](panel.md); defaults to `id` |
 | `version` | string | shown in the panel and in `:addons` |
 | `author` | string | shown in the panel |
 | `description` | string | the panel row's tooltip |
@@ -79,12 +79,12 @@ your addon by itself. The editions of one generation are additive, which is the 
 
 **An out-of-date addon is not loaded, and it is not an error.** Nothing threw: the client cannot tell
 that it has what the addon was written against, so it does not run it. Its row in the
-[AddOns panel](runtime.md#the-addons-panel) reads `outdated (API 2.0, client 1.0)` — `outdated (no
+[AddOns manager](panel.md) reads `outdated (API 2.0, client 1.0)` — `outdated (no
 api_version, client 1.0)` when it declares none — its tooltip opens with the sentence in the table, and
 `:addons` lists it `[outdated]`. The enable checkbox keeps its value: the addon is waiting for a client
 that implements what it declared, or for you to lower the declaration to what you use. A disabled addon is
 never read, so its row reads `disabled` whatever it declares, and the tooltip still says why it would not
-load. **Load out of date AddOns**, a box on the [same panel](runtime.md#the-addons-panel), is the
+load. **Load out of date AddOns**, a box on the [same tab](panel.md#installed), is the
 player's say over the rule: while it is ticked, the next reload runs every out-of-date addon as it runs a
 current one, and the log names each and why.
 

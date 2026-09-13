@@ -124,14 +124,15 @@ watching everything.
 
 ## When the addon does not load
 
-`:addons` lists every folder the client found with its status, and the **AddOns** manager — on the game
-menu, which `Ctrl+O` opens — says the same thing with the error message attached. Work down this list:
+`:addons` lists every folder the client found with its status, and the [AddOns manager](../panel.md) — on
+the game menu, which `Ctrl+O` opens — says the same thing with the error message attached. Work down this
+list:
 
 | The status says | Look at |
 |---|---|
 | nothing — the addon is not listed | the folder is not under `addons/`, or has no `manifest.json` |
 | `error: …` | the message: bad JSON, a missing `id` or `files`, or an id that is not the folder name |
-| `outdated (…)` | the `api_version` line of your manifest: it names a [version](../manifest.md#the-api-version) this client does not implement, or there is no such line — the tooltip says which. To run it as it stands, tick **Load out of date AddOns** on the [panel](../runtime.md#the-addons-panel) and reload |
+| `outdated (…)` | the `api_version` line of your manifest: it names a [version](../manifest.md#the-api-version) this client does not implement, or there is no such line — the tooltip says which. To run it as it stands, tick **Load out of date AddOns** on the [Installed tab](../panel.md#installed) and reload |
 | `disabled` | the checkbox — and remember a write addon is disabled the first time it is seen |
 | `not loaded` | an enable that no `:reload` has applied yet |
 | `auto-disabled (…)` | the [CPU budget](../runtime.md#budgets-and-the-watchdog) — your addon was burning the frame — or a [fatal failure](../runtime.md#when-a-failure-is-fatal) the client contained |

@@ -31,8 +31,9 @@ The folder name is the addon's **id**, and `manifest.json` has to repeat it. Wri
 ```
 
 `id` and `files` are required. `api_version` names the API you wrote against — the one these pages
-describe — and without it the client leaves your addon out as out of date. The rest is what the AddOns
-panel shows about you. Every field the manifest accepts is listed in [the manifest](manifest.md).
+describe — and without it the client leaves your addon out as out of date. The rest is what the
+[AddOns manager](panel.md) shows about you. Every field the manifest accepts is listed in
+[the manifest](manifest.md).
 
 ## Step 2: write a line of Lua
 
@@ -224,5 +225,6 @@ data that outlives the session.
   saved data, hotkeys and commands, permissions, theming, debugging
 - [the API reference](api/README.md) — every `hafen.*` verb, one page per namespace
 - [the manifest](manifest.md) — the manifest in full, and the API version it declares
-- [the runtime](runtime.md) — the sandbox, the budgets, the AddOns panel and the console commands
+- [the runtime](runtime.md) — the sandbox, the budgets and the console commands
+- [the AddOns manager](panel.md) — enabling what you installed, and searching the hub
 - [the maintainer's addons](examples.md) — where the addons are, and the tools among them

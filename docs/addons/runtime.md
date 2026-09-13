@@ -22,10 +22,10 @@ So your addon starts on the login screen, and everything a character owns — th
 per-character saved variables — is absent until a session reaches the world. The read verbs say so rather
 than guessing: each one's reference page states what it gives back when there is no character yet.
 
-An error while a file runs stops **that** addon's file and marks it errored in the panel; an error inside a
-handler, a timer or a draw callback is logged with your addon's id and isolated, so it takes down neither
-your other handlers nor another addon nor the client. A **callback** that fails in a way that is not an
-error at all — running the client off the end of its stack or out of memory — is contained as well, and
+An error while a file runs stops **that** addon's file and marks it errored in the [AddOns manager](panel.md);
+an error inside a handler, a timer or a draw callback is logged with your addon's id and isolated, so it takes
+down neither your other handlers nor another addon nor the client. A **callback** that fails in a way that is
+not an error at all — running the client off the end of its stack or out of memory — is contained as well, and
 [costs you the addon](#when-a-failure-is-fatal).
 
 ## Your addon outlives the character
@@ -103,8 +103,8 @@ impossible, and neither one is reachable by ordinary code.
   business, and it is why there are two.
 - **Per tick: about ten milliseconds, sustained.** An addon whose total Lua time within one tick — every
   handler, timer and draw of that tick added up — goes over the budget for thirty **consecutive** ticks is
-  auto-disabled, with the reason on its row in the AddOns panel and in the console. One heavy load or a
-  single janky frame resets the count, so only sustained overrun trips it.
+  auto-disabled, with the reason on its row in the [AddOns manager](panel.md) and in the console. One heavy
+  load or a single janky frame resets the count, so only sustained overrun trips it.
 
 > An auto-disable lasts until the next load: fix what stopped it, then `:reload`. The addon's own enable
 > state is untouched.
@@ -125,52 +125,12 @@ The client contains those where it isolates every other error, and pays for them
   of failure that stack is the only description of it there is;
 - at the end of that tick your addon is torn down, exactly as the CPU budget tears one down: `Disable`
   fires, your saved variables are flushed, and everything the addon owns is given back;
-- its row in the AddOns panel reads `auto-disabled (…)`, naming what was raised, until the next load.
+- its row in the [AddOns manager](panel.md) reads `auto-disabled (…)`, naming what was raised, until the
+  next load.
 
 > **The whole addon stops, not the one callback.** That is the difference from an ordinary error, and it is
 > deliberate: a client that has just run out of stack under your handler holds nothing you could go on
 > reading. Every other addon and the client itself keep running, and so does the frame it happened in.
-
-## The AddOns panel
-
-**AddOns**, on the game menu that `Ctrl+O` opens, lists every addon the client discovered, sorted by id,
-one row each: a checkbox, the name, version and author, and a live status. The description is the row's
-tooltip.
-
-| Row shows | Meaning |
-|---|---|
-| `loaded v<version>` | running |
-| `disabled` | switched off, and not loaded |
-| `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
-| `error: …` | its manifest or its Lua failed; the message says how |
-| `outdated (…)` | not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements — `outdated (API 9.0, client 1.0)` — or it declares none — `outdated (no api_version, client 1.0)`. The tooltip says which |
-| `auto-disabled (…)` | the [CPU budget](#budgets-and-the-watchdog) or a [fatal failure](#when-a-failure-is-fatal) stopped it |
-| `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
-| `[net]` | it declared network hosts; the tooltip names every host it asks to reach |
-
-The count is the entries the addon wrote, so a `<prefix>.*` group counts as the one line you read rather
-than as the keys it covers.
-
-An addon's own settings are not on this panel: an addon that holds [a page](api/client/addon.md#the-page)
-has a row of its own on the **AddOns** tab of **Options**, beside the client's own settings, and that page
-is where its options are edited.
-
-**A checkbox is applied on the next reload**, never mid-session: ticking one and pressing **Reload UI** is
-the whole gesture, and a "changes pending" line says so until you do. **Enable all** turns on every addon
-that is not marked `[protected: N]`; a write addon is only ever enabled one at a time, through the consent
-dialog that ticking it raises. **Open addons folder** opens `addons/` in your file browser.
-
-**Load out of date AddOns**, the box under the list, loads every addon the panel marks `outdated (…)` as
-if its [API version](manifest.md#the-api-version) were current — one stance over the whole list, kept
-across restarts, off until you tick it. It is applied as a row's checkbox is: ticking it marks changes
-pending, and the next reload runs those addons, each with a line in the log naming it and why it was out
-of date. Their rows then read `loaded v…`, and each tooltip still opens with what the addon declared. Off
-again, the next reload leaves them out. It is not a permission: a write addon that is out of date is still
-disabled until you enable it, and enabling it still raises its consent dialog.
-
-An addon that declares a permission key is disabled the first time the client sees it, so a write addon
-never runs because it was merely installed. After that its state is yours — see
-[permissions](guides/permissions.md).
 
 ## The console commands
 
@@ -272,6 +232,7 @@ thirty seconds is the whole of what covers those.
 ## See also
 
 - [the manifest](manifest.md) — where an addon lives, the manifest field by field, and the API version
+- [the AddOns manager](panel.md) — the Installed rows a reload applies, and the Browse tab that reads the hub
 - [getting started](getting-started.md) — the first addon, end to end
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares

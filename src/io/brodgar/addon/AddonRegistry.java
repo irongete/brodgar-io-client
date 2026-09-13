@@ -1308,6 +1308,19 @@ public final class AddonRegistry {
         queueReload();
     }
 
+    /**
+     * <b>Whether {@code addons/<id>/} exists on disk</b>, whatever it holds — the AddOns panel's Browse tab asks
+     * it about every item the hub lists. A folder that is there is the player's: the client never replaces
+     * it, so the row reads {@code in addons/ by hand} and offers nothing, where an absent one is a candidate
+     * for an install. An id that could name anything but a direct child (a separator, a {@code ..}) is not
+     * a folder here and answers {@code false}.
+     */
+    public static boolean hasFolder(String id) {
+        if((id == null) || id.isEmpty() || id.contains("/") || id.contains("\\") || id.equals(".") || id.equals(".."))
+            return false;
+        return new File(addonDir(), id).isDirectory();
+    }
+
     /** Open the addons folder in the OS file browser (AddOns panel convenience). Best-effort, non-fatal. */
     public static void openAddonsFolder() {
         try {

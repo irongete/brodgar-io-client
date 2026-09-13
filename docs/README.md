@@ -16,7 +16,8 @@ character. Everything it may touch arrives through one `hafen.*` API.
 | [getting started](addons/getting-started.md) | an empty folder to a working addon, step by step |
 | [guides](addons/guides/README.md) | one page per task: the world, events, UI, saved data, permissions, theming, debugging |
 | [API reference](addons/api/README.md) | every `hafen.*` namespace, verb, argument and return |
-| [the runtime](addons/runtime.md) | the manifest, the sandbox, the CPU budgets, the AddOns panel, the console commands |
+| [the runtime](addons/runtime.md) | the manifest, the sandbox, the CPU budgets, the console commands |
+| [the AddOns manager](addons/panel.md) | enabling an installed addon, and searching the hub for a new one |
 | [the maintainer's addons](addons/examples.md) | where the addons are, which of them a release ships, and the tools among them for writing your own |
 
 ## Changing the client

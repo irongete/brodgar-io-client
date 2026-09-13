@@ -1,0 +1,9 @@
+{
+  "id": "145-old",
+  "name": "145 Old",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "A fixture of the 145 suites: an addon written against an API this client does not implement, published to the local hub.",
+  "api_version": "9.0",
+  "files": ["main.lua"]
+}
