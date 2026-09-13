@@ -46,7 +46,7 @@ first, so a rerun is clean, and touches no other addon's file.
       tables; `ATTACH DATABASE ':memory:' AS m`, `SELECT load_extension('x')`, `VACUUM INTO 'x'` and
       `BEGIN` each fail with the message `plan.md` gives them; `query("INSERT … RETURNING x")` answers.
 
-- [ ] **146.4 — Transactions, the bounds and vacuum.** `:transaction(fn, ...)`; the deadline through
+- [x] **146.4 — Transactions, the bounds and vacuum.** `:transaction(fn, ...)`; the deadline through
       `ProgressHandler` and `-Dhaven.addon.sqlite.timeout`; the row cap `-Dhaven.addon.sqlite.maxrows`
       over `:query`, `:list`, `:find`; `:vacuum()` raising the attach limit inside its lock.
       *Its suite* puts 10000 rows inside one `:transaction` and asserts `count()` is 10000; a `fn` that

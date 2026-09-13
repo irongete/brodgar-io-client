@@ -1,0 +1,9 @@
+{
+  "name": "146.4 — Transactions, the bounds and vacuum",
+  "id": "146-sqlite.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 146.4: hafen.store():transaction(fn, ...) — commit, rollback, no nesting, what fn answers — the statement timeout, the row cap over :query and :list, and :vacuum().",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

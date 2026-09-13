@@ -181,6 +181,16 @@ final class Refusal {
                       + " whole client whichever character is up, so hafen.store():query(sql, ...) is where it"
                       + " runs. Where the rows are one character's, bind that character's key to a ?."
                       + " session:store() is that character's documents alone.");
+        // 146.4: a transaction brackets statements on the file, and a vacuum rebuilds it.
+        MISPLACED.put("session:store():transaction",
+                      "session:store() has no verb 'transaction': a transaction brackets statements on the file,"
+                      + " which is one for the whole client whichever character is up, so"
+                      + " hafen.store():transaction(fn, ...) is where it runs. session:store() is that"
+                      + " character's documents alone, and those are written for you.");
+        MISPLACED.put("session:store():vacuum",
+                      "session:store() has no verb 'vacuum': the file is one for the whole client whichever"
+                      + " character is up, so hafen.store():vacuum() is what rebuilds it. session:store() is"
+                      + " that character's documents alone.");
     }
 
     /**

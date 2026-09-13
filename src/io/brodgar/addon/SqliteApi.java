@@ -69,12 +69,53 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * said), a {@code CREATE TABLE}/{@code CREATE INDEX} that has a builder, a name of the client's own, and the
  * keywords whose refusal has a verb to name. It is not the sandbox — the engine is, with no second database
  * attachable and no extension loadable — it is what picks the message.
+ *
+ * <p><b>The transaction, the two bounds and the vacuum</b> (146.4). {@code hafen.store():transaction(fn, ...)}
+ * brackets what {@code fn} runs — committed when it returns, rolled back when it raises, the error out of
+ * the call — and holds the connection's monitor for the whole of it, so a second thread's verb waits at the
+ * door rather than landing inside the bracket; it does not nest, and {@code :vacuum()} refuses inside it.
+ * Every statement of the addon's own runs under a <b>deadline</b> ({@link #TIMEOUT_MS}, a
+ * {@code ProgressHandler} that interrupts the step once it has passed) and a reading one under a <b>row
+ * cap</b> ({@link #MAX_ROWS}), each a refusal naming the fix, because one bridge call is what the watchdog
+ * charges one for. {@code hafen.store():vacuum()} rebuilds the file inside the same lock, raising the attach
+ * limit for the one statement that needs it and putting it back.
  */
 final class SqliteApi {
     private SqliteApi() {}
 
     /** The shape of the client's own tables, recorded in the file's {@code user_version}. */
     static final int SCHEMA = 1;
+
+    /**
+     * How long one statement of the addon's own may run, in milliseconds, before it is stopped —
+     * {@code -Dhaven.addon.sqlite.timeout}. A deadline per statement, armed as it starts and dropped as it
+     * ends, so the Lua between two statements of a transaction is not counted. Past it the statement fails
+     * naming the timeout, its own changes undone by the engine; inside a transaction the engine undoes the
+     * whole bracket, and the bracket says so ({@link Db#bracket}).
+     */
+    static final int TIMEOUT_MS = prop("haven.addon.sqlite.timeout", 5000);
+
+    /**
+     * The most rows one call reads — {@code -Dhaven.addon.sqlite.maxrows} — through {@code :query},
+     * {@code :list} and {@code :find}. Past it the call fails naming {@code LIMIT}: a result that size is a
+     * table the frame cannot afford to build, and a clause can page it.
+     */
+    static final int MAX_ROWS = prop("haven.addon.sqlite.maxrows", 50000);
+
+    /** A bound read off a launch property, clamped into what an {@code int} holds and never below 1 ({@code Json}'s rule). */
+    private static int prop(String name, int def) {
+        long v = def;
+        try {
+            String raw = haven.Utils.getprop(name, null);
+            if(raw != null)
+                v = Long.parseLong(raw.trim());
+        } catch(RuntimeException e) {
+            return def;
+        }
+        if(v < 1L)
+            return 1;
+        return (v > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int)v;
+    }
 
     /**
      * How long a statement waits on a lock another connection holds, in milliseconds — a second client
@@ -886,13 +927,25 @@ final class SqliteApi {
         }
     }
 
-    /** A failure out of the file as {@code verb}'s own refusal: the arity in the API's words, the rest as the driver said it. */
+    /**
+     * A failure out of the file as {@code verb}'s own refusal: the arity, the deadline and the row cap in the
+     * API's words, the rest as the driver said it.
+     */
     private static LuaError refused(Failure e, String verb) {
         if(e instanceof Db.Arity) {
             Db.Arity a = (Db.Arity)e;
             return new LuaError(verb + ": the statement has " + a.want + ((a.want == 1) ? " ?" : " ?s") + " and "
                 + a.got + ((a.got == 1) ? " value was" : " values were") + " passed — one value per ?");
         }
+        if(e instanceof Db.Timeout)
+            return new LuaError(verb + ": the statement ran for " + TIMEOUT_MS + " ms, which is the timeout one"
+                + " statement gets (-Dhaven.addon.sqlite.timeout, in milliseconds), and was stopped — the file"
+                + " is as it was before it. An index over what the WHERE reads, a tighter clause or a LIMIT is"
+                + " the fix");
+        if(e instanceof Db.Cap)
+            return new LuaError(verb + ": the statement answers more than " + MAX_ROWS + " rows, which is the"
+                + " most one call reads (-Dhaven.addon.sqlite.maxrows) — put a LIMIT on it, and page with OFFSET"
+                + " or a WHERE over the key; :count(clause, ...) and count(*) are how many without reading them");
         return new LuaError(verb + ": " + Refusal.reason(e));
     }
 
@@ -963,6 +1016,61 @@ final class SqliteApi {
                 t.set(rs.columns[c], v);
         }
         return t;
+    }
+
+    // ==== the transaction and the vacuum (146.4) =====================================================
+
+    /** The spelling of the two verbs in their messages. */
+    private static final String TX = ACC + ":transaction(fn, ...)", VAC = ACC + ":vacuum()";
+
+    /**
+     * {@code hafen.store():transaction(fn, ...)} — run {@code fn(...)} inside one transaction: committed when
+     * it returns, rolled back when it raises with its error out of the call, and what it answers answered.
+     * The bracket holds the file's monitor for the whole of {@code fn} ({@link Db#bracket}), so a second
+     * thread's verb waits at the door; a second bracket on the same thread is refused naming this one, since
+     * what it would run is inside the open one already.
+     */
+    static Varargs transaction(Addon a, Varargs args) {
+        final LuaValue fn = Args.required(args, 2, ACC + ":transaction", "fn");
+        if(!fn.isfunction())
+            throw new LuaError(TX + ": fn must be a function — what runs inside the transaction, with the values"
+                + " after it as its arguments — got " + fn.typename());
+        Db db = require(a, TX);
+        final Varargs rest = args.subargs(3);
+        try {
+            return db.bracket(() -> fn.invoke(rest));
+        } catch(Db.Open e) {
+            throw new LuaError(TX + ": a transaction is open already — :transaction(fn, ...) does not nest: what"
+                + " this fn would run is inside the open bracket as it is, and lands with it when the outer fn"
+                + " returns. Call the inner fn directly");
+        } catch(Db.Broken e) {
+            throw new LuaError(TX + ": a statement inside fn ran past the timeout and was stopped, and that"
+                + " ends the transaction — it is rolled back, and nothing fn ran after catching the error is"
+                + " kept. Let that error out of fn, or keep the statement under the timeout"
+                + " (-Dhaven.addon.sqlite.timeout, in milliseconds)");
+        } catch(Failure e) {
+            throw refused(e, TX);
+        }
+    }
+
+    /**
+     * {@code hafen.store():vacuum()} — rebuild the file, giving back the pages its deleted rows held, and
+     * answer the store. Inside the file's own lock; refused inside a transaction naming it, because the
+     * engine cannot vacuum inside one. Under no deadline: it is the client's own statement, sized by the
+     * file, and stopping it half-way would be the one outcome nobody meant.
+     */
+    static LuaValue vacuum(Addon a, Varargs args) {
+        LuaValue self = Args.only(args, 0, ACC + ":vacuum");
+        Db db = require(a, VAC);
+        try {
+            db.vacuum();
+        } catch(Db.Open e) {
+            throw new LuaError(VAC + ": a transaction is open — the file cannot be rebuilt inside"
+                + " :transaction(fn, ...); call :vacuum() after the bracket, from outside fn");
+        } catch(Failure e) {
+            throw refused(e, VAC);
+        }
+        return self;
     }
 
     /**
@@ -1276,11 +1384,42 @@ final class SqliteApi {
      * <p>The two tables of the client's own carry the {@code hafen_} prefix, which is what keeps them apart
      * from anything an addon declares. A <b>scope</b> is a row key: {@code ""} for the addon's own documents
      * and placements, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that character's.
+     *
+     * <p><b>A transaction is driven through the engine, never through JDBC's auto-commit</b>: {@code BEGIN},
+     * {@code COMMIT} and {@code ROLLBACK} go through {@code DB.exec}, which is the one door the driver's own
+     * auto-commit bookkeeping does not stand in — {@code setAutoCommit(false)} refuses inside a bracket the
+     * engine already holds, and {@code setAutoCommit(true)} commits it under the caller, both verified. The
+     * statements a bracket runs are prepared as usual; the driver's after-step {@code begin;}/{@code commit;}
+     * pair fails to open a second transaction inside ours and leaves it be, which is also verified.
      */
     static final class Db {
         /** Where the file is — what {@code :info().file} answers. */
         final Path file;
         private final org.sqlite.SQLiteConnection conn;
+
+        /**
+         * When the running statement of the addon's own is to be stopped, in {@code System.nanoTime()} terms
+         * — armed by {@link #arm} as one starts, {@link Long#MAX_VALUE} between statements and under the
+         * client's own. The progress handler reads it on the engine's thread, which is this one.
+         */
+        private volatile long deadline = Long.MAX_VALUE;
+
+        /**
+         * A bracket ({@link #bracket}) is open, and the engine is inside its transaction. Read and written
+         * under the monitor, which the bracket holds for its whole extent — so it is only ever {@code true}
+         * for the thread inside the bracket.
+         */
+        private boolean open;
+
+        /**
+         * A statement inside the open bracket was stopped by the deadline, which ends the bracket: an
+         * interrupted write inside an explicit transaction is rolled back by the engine with the whole
+         * transaction (verified), and {@link #failure} opens another at once so that what {@code fn} runs
+         * after catching the error lands in no file; an interrupted read leaves the transaction open, and the
+         * bracket ends it the same way so that the rule is one. Either way the bracket rolls back at
+         * {@code fn}'s return and refuses, rather than commit half.
+         */
+        private boolean broken;
 
         /** Something to run inside one transaction. */
         private interface Work {
@@ -1312,6 +1451,14 @@ final class SqliteApi {
                     if(have < SCHEMA)
                         st.execute("PRAGMA user_version = " + SCHEMA);
                 }
+                // The deadline: polled every 1000 virtual-machine steps of whatever statement is running,
+                // and a 1 stops it with SQLITE_INTERRUPT -- the statement's own changes undone, the
+                // connection as usable as before, verified. Between statements nothing is armed.
+                org.sqlite.ProgressHandler.setHandler(c, 1000, new org.sqlite.ProgressHandler() {
+                    protected int progress() {
+                        return (System.nanoTime() > deadline) ? 1 : 0;
+                    }
+                });
             } catch(java.sql.SQLException | RuntimeException e) {
                 try {
                     c.close();
@@ -1331,26 +1478,179 @@ final class SqliteApi {
             }
         }
 
-        /** Run {@code w} as one transaction: committed when it returns, rolled back when it throws. */
+        /**
+         * Run {@code w} as one transaction: committed when it returns, rolled back when it throws. Inside an
+         * open bracket it runs bare — the bracket is the transaction, and {@code w}'s rows land or go with it.
+         */
         private void transaction(Work w) {
-            try {
-                conn.setAutoCommit(false);
+            if(open) {
                 try {
                     w.run();
-                    conn.commit();
-                } catch(java.sql.SQLException | RuntimeException e) {
-                    try {
-                        conn.rollback();
-                    } catch(java.sql.SQLException x) {
-                        /* the failure below is the one to report */
-                    }
-                    throw e;
+                } catch(java.sql.SQLException e) {
+                    throw failure(e);
+                }
+                return;
+            }
+            begin();
+            try {
+                w.run();
+            } catch(java.sql.SQLException | RuntimeException e) {
+                rollback();
+                throw (e instanceof java.sql.SQLException) ? failure((java.sql.SQLException)e) : (RuntimeException)e;
+            }
+            commit();
+        }
+
+        // ---- the bracket: BEGIN, COMMIT and ROLLBACK through the engine's own door ------------------
+
+        /** A statement the bracket runs through the engine: {@code BEGIN}, {@code COMMIT}, {@code ROLLBACK}, {@code VACUUM}. */
+        private void engine(String sql) throws java.sql.SQLException {
+            conn.getDatabase().exec(sql, false);
+        }
+
+        private void begin() {
+            try {
+                engine("BEGIN");
+            } catch(java.sql.SQLException e) {
+                throw failure(e);
+            }
+        }
+
+        private void commit() {
+            try {
+                engine("COMMIT");
+            } catch(java.sql.SQLException e) {
+                rollback();
+                throw failure(e);
+            }
+        }
+
+        /** Roll the open transaction back — silently where there is none to roll back, which is the engine having done it first. */
+        private void rollback() {
+            try {
+                engine("ROLLBACK");
+            } catch(java.sql.SQLException e) {
+                /* "cannot rollback - no transaction is active": an interrupted write already ended it */
+            }
+        }
+
+        /** A second bracket while one is open, or a vacuum inside one — phrased by the verb that asked. */
+        static final class Open extends Failure {
+            Open() {
+                super("a transaction is open", null);
+            }
+        }
+
+        /** The bracket was rolled back by the engine before {@code fn} returned ({@link #broken}). */
+        static final class Broken extends Failure {
+            Broken() {
+                super("the transaction was rolled back by the engine", null);
+            }
+        }
+
+        /**
+         * <b>The bracket</b>: {@code BEGIN}, then {@code body} — which is the addon's {@code fn}, so this is
+         * the one place the monitor is held across Lua — then {@code COMMIT} when it returns with what it
+         * answered, {@code ROLLBACK} and the error out when it throws. A body that runs a second bracket meets
+         * {@link Open} at the door, on this same thread; a second thread's verb waits at the monitor until the
+         * bracket is over, so nothing of another caller's lands inside it. Every statement inside runs under
+         * its own deadline; a write the deadline stops ends the engine's transaction too, which the bracket
+         * reports as {@link Broken} at {@code body}'s return rather than committing what came after.
+         */
+        synchronized <T> T bracket(java.util.function.Supplier<T> body) {
+            if(open)
+                throw new Open();
+            begin();
+            open = true;
+            broken = false;
+            T out;
+            try {
+                out = body.get();
+            } catch(RuntimeException | Error e) {
+                open = false;
+                rollback();
+                throw e;
+            }
+            open = false;
+            if(broken) {
+                rollback();
+                throw new Broken();
+            }
+            commit();
+            return out;
+        }
+
+        /**
+         * Rebuild the file — {@code VACUUM}, which the attach limit refuses (verified: the rebuild attaches a
+         * temporary database), so the limit is raised to one for this statement and put back after it.
+         * Refused inside a bracket: the engine cannot vacuum inside a transaction.
+         */
+        synchronized void vacuum() {
+            if(open)
+                throw new Open();
+            try {
+                conn.setLimit(org.sqlite.SQLiteLimits.SQLITE_LIMIT_ATTACHED, 1);
+                try {
+                    engine("VACUUM");
                 } finally {
-                    conn.setAutoCommit(true);
+                    conn.setLimit(org.sqlite.SQLiteLimits.SQLITE_LIMIT_ATTACHED, 0);
                 }
             } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
+                throw failure(e);
             }
+        }
+
+        // ---- the deadline and the row cap ----------------------------------------------------------
+
+        /** The statement about to run is one of the addon's own: stop it {@link #TIMEOUT_MS} from now. */
+        private void arm() {
+            deadline = System.nanoTime() + TIMEOUT_MS * 1000000L;
+        }
+
+        /** The statement is over: nothing is under the deadline. */
+        private void disarm() {
+            deadline = Long.MAX_VALUE;
+        }
+
+        /** The statement ran past its deadline and was stopped. */
+        static final class Timeout extends Failure {
+            Timeout(Throwable cause) {
+                super("the statement ran past the timeout", cause);
+            }
+        }
+
+        /** The statement answers more rows than one call reads. */
+        static final class Cap extends Failure {
+            Cap() {
+                super("the statement answers more than " + MAX_ROWS + " rows", null);
+            }
+        }
+
+        /**
+         * A driver failure as the {@link Failure} its caller phrases: the interrupt, which nothing but the
+         * deadline raises on this connection, is a {@link Timeout} — and inside a bracket it marks the bracket
+         * {@link #broken} — and the rest carry the driver's message.
+         *
+         * <p>An interrupted write took the engine's transaction with it, so a {@code BEGIN} is issued here,
+         * before the error reaches Lua: what {@code fn} runs after catching it is then inside a transaction
+         * again — one the bracket rolls back at its end — rather than landing in the file on its own. After
+         * an interrupted read the engine's transaction is still open and the {@code BEGIN} fails, which is
+         * the same state.
+         */
+        private Failure failure(java.sql.SQLException e) {
+            if((e instanceof org.sqlite.SQLiteException)
+               && (((org.sqlite.SQLiteException)e).getResultCode() == org.sqlite.SQLiteErrorCode.SQLITE_INTERRUPT)) {
+                if(open) {
+                    broken = true;
+                    try {
+                        engine("BEGIN");
+                    } catch(java.sql.SQLException x) {
+                        /* "cannot start a transaction within a transaction": the read left it open */
+                    }
+                }
+                return new Timeout(e);
+            }
+            return new Failure(e.getMessage(), e);
         }
 
         // ---- the documents: one JSON row per declared saved variable, keyed by scope and name --------
@@ -1483,22 +1783,30 @@ final class SqliteApi {
         }
 
         /**
-         * Run a statement that answers rows, reading at most {@code max} of them ({@code -1} for all). The
-         * binds are {@link SqliteApi#bindable}'s kinds: {@code Long}, {@code Double}, {@code String},
-         * {@code Integer} or {@code null}; their count is held to the statement's.
+         * Run a statement that answers rows, reading at most {@code max} of them ({@code -1} for all, up to
+         * the row cap). The binds are {@link SqliteApi#bindable}'s kinds: {@code Long}, {@code Double},
+         * {@code String}, {@code Integer} or {@code null}; their count is held to the statement's. Under the
+         * deadline, as every statement of the addon's own is.
          */
         synchronized Rows select(String sql, Object[] binds, int max) {
+            arm();
             try(java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
                 bind(ps, binds);
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
                     return read(rs, max);
                 }
             } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
+                throw failure(e);
+            } finally {
+                disarm();
             }
         }
 
-        /** At most {@code max} rows of {@code rs} ({@code -1} for all), the cells as the driver hands them. */
+        /**
+         * At most {@code max} rows of {@code rs}, the cells as the driver hands them. {@code -1} is "all", and
+         * all is at most {@link #MAX_ROWS}: one row past that is a {@link Cap}. A positive {@code max} is a
+         * verb reading that deep on purpose ({@code :find} one row), and stops there with nothing said.
+         */
         private static Rows read(java.sql.ResultSet rs, int max) throws java.sql.SQLException {
             java.sql.ResultSetMetaData md = rs.getMetaData();
             String[] cols = new String[md.getColumnCount()];
@@ -1506,6 +1814,8 @@ final class SqliteApi {
                 cols[i] = md.getColumnLabel(i + 1);
             Rows out = new Rows(cols);
             while(((max < 0) || (out.rows.size() < max)) && rs.next()) {
+                if((max < 0) && (out.rows.size() >= MAX_ROWS))
+                    throw new Cap();
                 Object[] row = new Object[cols.length];
                 for(int i = 0; i < cols.length; i++)
                     row[i] = rs.getObject(i + 1);
@@ -1556,6 +1866,7 @@ final class SqliteApi {
          * answer the row count of the write before it.
          */
         synchronized Answer statement(String sql, Object[] binds, boolean rows, int max) {
+            arm();
             try(java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
                 bind(ps, binds);
                 if(answersRows(ps) != rows)
@@ -1569,7 +1880,9 @@ final class SqliteApi {
                     return new Answer(read(rs, max), 0);
                 }
             } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
+                throw failure(e);
+            } finally {
+                disarm();
             }
         }
 
@@ -1589,11 +1902,14 @@ final class SqliteApi {
 
         /** Run a statement that answers no rows, and hand back how many it changed. */
         synchronized long change(String sql, Object[] binds) {
+            arm();
             try(java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
                 bind(ps, binds);
                 return ps.executeUpdate();
             } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
+                throw failure(e);
+            } finally {
+                disarm();
             }
         }
 

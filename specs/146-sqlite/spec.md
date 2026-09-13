@@ -91,7 +91,12 @@ No `docs/client/` page: everything read is `io.brodgar`.
   `rawRow`, `statement` (the verb's wrapper, where the row ceiling of `:query` is the `-1`), `Scan`
   (`check` and the messages; `bodyEnd` is a trigger's body, `tail` the second statement), `Db.statement`
   (`total_changes()` across the step is the count; `answersRows` decides the verb before the step),
-  `Db.Answer`, `Db.Kind`, `Db.read`)
+  `Db.Answer`, `Db.Kind`, `Db.read`; the bracket and the bounds: `transaction`, `vacuum`, `TIMEOUT_MS`,
+  `MAX_ROWS`, `prop`; `Db.bracket` (holds the monitor across `fn`; `open`, `broken`), `Db.engine`/`begin`/
+  `commit`/`rollback` (through `DB.exec`, never JDBC auto-commit), `Db.vacuum` (the attach limit raised and
+  put back), `Db.arm`/`disarm` and the `ProgressHandler` in the constructor (the deadline), `Db.read` (the
+  cap), `Db.failure` (the interrupt as `Timeout`, and the `BEGIN` after an interrupted write inside a
+  bracket), `Db.Open`, `Db.Broken`, `Db.Timeout`, `Db.Cap`)
 - `src/io/brodgar/addon/StoreApi.java` — 1, 2, 3, 4 (`installStore` mounts the verbs; the persistence
   half: `loadInto`, `writeClient`, `writeChar`, `writePlacements`, `scopeRows`, `saveDir`, `scopeKey`,
   `CharStore`, `autosave`, `flush`, `detach`; `CLIENT` is the row key of the addon's own scope)

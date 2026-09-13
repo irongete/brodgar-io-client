@@ -267,6 +267,21 @@ final class StoreApi {
                 return SqliteApi.query(owner, a);
             }
         });
+        // transaction(fn, ...) — one bracket around what fn runs (146.4): committed when it returns, rolled
+        // back when it raises with the error out of the call, answering what fn answers. vacuum() — the file
+        // rebuilt in place, the store back. Both the file's verbs, so the CLIENT half's.
+        store.set("transaction", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "transaction");
+                return SqliteApi.transaction(owner, a);
+            }
+        });
+        store.set("vacuum", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "vacuum");
+                return SqliteApi.vacuum(owner, a);
+            }
+        });
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():get(\"<name>\") for a client-scope name and"
