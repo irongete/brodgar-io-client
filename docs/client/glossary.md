@@ -33,8 +33,8 @@
   `map` (MCache), `party`, `ast` (astronomy/time), character attributes (`cattr`), weather/light.
   Reached via `ui.sess.glob`.
 - **genus** — the *world / server identity* string passed to
-  `GameUI` (`GameUI(String chrid, long plid, String genus)`). Used
-  with the character name to scope saved data (`savedata/<genus>_<char>/`).
+  `GameUI` (`GameUI(String chrid, long plid, String genus)`). Prefixes the
+  map file's name (`GameUI.mapfilename()`).
 - **chrid** — the character identifier/name string on `GameUI`.
 - **plgob / plid** — the player's own gob id. `MapView.plgob` is the live
   gob id; `MapView.player()` returns the player's `Gob`. `GameUI.plid` carries the

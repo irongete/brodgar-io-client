@@ -1,0 +1,9 @@
+{
+  "name": "149.1 — The held slots live in the store",
+  "id": "149-holds-in-the-store.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 149.1: a held action-bar slot is read back from the addon's own file across a :reload, a slot released by hand stays released, s:store():flush() writes it, and hafen_holds is refused in a statement and a declaration.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

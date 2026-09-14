@@ -28,11 +28,10 @@ seen.lastLogin = os.time()
 | `hafen.store()` | your addon's own, one for the whole client | your file, keyed by nobody |
 | `s:store()` | one character's, a row per character | your file, keyed by that character |
 
-**A character's key is named by the server**, so that name is checked before anything is written under it:
-it is reduced to the characters a file name can hold, and then it has to be a name *inside* `savedata/`. A
-`..`, an absolute name or a link pointing out of it is refused like any other path outside, and a character
-whose name is refused has no key — the same state as a character who has not reached the world, and it
-raises the same way.
+**A character's key is named by the server** and is a row key and nothing else: the world's name and the
+character's, reduced to letters, digits, `.` and `-`, joined by `_`. One character is one key in every file;
+one who has not reached the world has none yet, and asking for their rows
+[raises](#each-characters-documents-are-their-own).
 
 ## Read and write
 
@@ -40,7 +39,7 @@ raises the same way.
 |---|---|
 | `s:store():get(name)` | the live table of that character's document `name`, empty until something is saved under it |
 | `s:store():list()` | the names that exist in that character's scope, sorted, as a string array |
-| `s:store():flush()` | write that character's changed documents and placements now; the store |
+| `s:store():flush()` | write that character's changed documents, placements and [held slots](../actionbar.md#a-hold-is-remembered) now; the store |
 | `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it |
 | `hafen.store():list()` | the names that exist in your addon's own scope, sorted, as a string array |
 | `hafen.store():flush()` | write your addon's own changed documents and placements now; the store |

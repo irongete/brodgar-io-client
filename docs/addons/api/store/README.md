@@ -93,6 +93,7 @@ addon has been disabled. Copy or move the folder then.
 | a row a [table](tables.md) or a [statement](statements.md) writes | when the call returns — or, inside a `:transaction`, when `fn` returns |
 | a [document](documents.md) | on the timer, every thirty seconds; when your addon is disabled or reloaded; when the client quits; on `:flush()`. A character's, also when the session holding it ends or picks another character |
 | a [remembered placement](documents.md#where-a-widget-sits-is-saved-for-you) | with the documents of the scope its widget stands in, and when the screen changes |
+| a [held slot](../actionbar.md#a-hold-is-remembered) | on the tick the hold is taken or ended by hand; on the timer; when your addon is disabled or reloaded; when the client quits; on `s:store():flush()` — it is that character's row, so `hafen.store():flush()` does not write it |
 
 The file is **closed** when your addon is disabled or reloaded and when the client quits, after its
 documents are written. A crash or a kill closes nothing: every row a call committed is in the log and is
@@ -105,9 +106,11 @@ lose the last committed rows as well; it cannot lose the file.
    `DETACH` and `VACUUM INTO` are refused: every addon's data is its own file, and none reads another's.
 2. **No extension loads.** `load_extension` is switched off, so the functions a statement has are SQLite's
    own.
-3. **The `hafen_` tables are the client's.** `hafen_documents` holds your documents and `hafen_placements`
-   your remembered placements, reached through `:get(name)` and `w:remember(name)` and never through a
-   statement. A table of yours takes any other prefix; `sqlite_` is SQLite's.
+3. **The `hafen_` tables are the client's.** `hafen_documents` holds your documents, `hafen_placements`
+   your remembered placements and `hafen_holds` the action-bar slots
+   [held](../actionbar.md#a-hold-is-remembered) for your entries, reached through `:get(name)`,
+   `w:remember(name)` and `slot:hold(pag)` and never through a statement. A table of yours takes any other
+   prefix; `sqlite_` is SQLite's.
 
 A `CREATE TABLE` or `CREATE INDEX` through `:exec` is refused too, naming the [builder](tables.md): a table
 made there is one whose rows come back typed. A virtual table — `CREATE VIRTUAL TABLE … USING fts5` — has

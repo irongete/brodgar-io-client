@@ -5,13 +5,13 @@ import haven.MenuGrid;
 
 import org.luaj.vm2.LuaError;
 
-import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
-
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static io.brodgar.addon.AddonManager.SessionState;
@@ -54,13 +54,21 @@ import static io.brodgar.addon.AddonManager.state;
  *
  * <p><b>A hold outlives the session it was taken in</b> (059.5). Where a hold is what the client is drawing
  * right now, a <b>placement</b> is the player's standing intent for that slot — kept per character in the
- * session's own map, persisted through {@link StoreApi#writeClientFile}, and re-applied by {@link #entryAdded}
- * the moment an entry with that identity is added again. At login that is the addon's own
- * {@code SessionEnteredWorld}
- * {@code :add}, so nothing has to guess when the bar is ready. The two endings above split here: a hold
- * <b>released by hand</b> — {@code slot:hold(nil)}, a right-click, the server taking the slot — is
- * <b>forgotten</b>, while one whose <b>entry merely went away</b> — {@code :remove}, a {@code :reload},
- * disable, a logout — is <b>remembered</b>, because the slot is still where that entry belongs.
+ * session's own map, persisted as {@code hafen_holds} rows in <b>the file of the addon whose entry is placed</b>
+ * (149, {@link SqliteApi.Db#holds}), and re-applied by {@link #entryAdded} the moment an entry with that
+ * identity is added again. At login that is the addon's own {@code SessionEnteredWorld} {@code :add}, so
+ * nothing has to guess when the bar is ready. The two endings above split here: a hold <b>released by
+ * hand</b> — {@code slot:hold(nil)}, a right-click, the server taking the slot — is <b>forgotten</b>, while one
+ * whose <b>entry merely went away</b> — {@code :remove}, a {@code :reload}, disable, a logout — is
+ * <b>remembered</b>, because the slot is still where that entry belongs.
+ *
+ * <p><b>Each addon's file holds its own slice</b> (149): the rows whose {@code entry} carries that addon's
+ * prefix, under the character's key, each with the moment it was placed. The session's map is the union of
+ * every loaded addon's slice, read at {@link #restore}, and a slot two files both claim — one gone stale, its
+ * store read-only or its addon uninstalled while another took the slot — is settled by the <b>newer</b>
+ * placement, which is the "last one written" the page promises; the losing file is corrected at the next
+ * write. A slice whose file could not be read is read-only for the session, as a document scope is: the
+ * empty set is never written over the only copy.
  *
  * <p><b>Whose bar</b> (073.3). A slot index names <b>one character's</b> action bar, so both maps live in
  * that session's {@code SessionState} and every entry point says which session it is about. Three of them are
@@ -81,6 +89,12 @@ import static io.brodgar.addon.AddonManager.state;
  * write is the same shape: every mutation marks the session's dirty flag and {@link #flush} runs on the tick,
  * so no file I/O ever stands on the message thread. The placements are re-read per character
  * ({@link #restore}): a slot index means another character's bar after a relogin.
+ *
+ * <p><b>Lock order</b> (149): <b>never touch a {@link SqliteApi.Db} while holding this class's monitor.</b>
+ * {@code Db.bracket} holds the connection's monitor across the Lua {@code fn} of {@code :transaction}, and
+ * that Lua may call {@code slot:hold(pag)}, which takes the monitor here — a read or write of the file made
+ * under it is the other half of that deadlock. Every read and write below gathers under the monitor, goes to
+ * the file outside it, and comes back under it to record what landed.
  */
 public final class BeltHold {
     /**
@@ -108,8 +122,20 @@ public final class BeltHold {
         }
     }
 
-    /** The layer's own per-character file, beside the addons' saved variables. */
-    private static final String FILE = "actionbar-holds.json";
+    /**
+     * One placement (149): the identity of the entry that belongs in a slot ({@code addon/<addon id>/<rel>})
+     * and the moment it was placed — what settles a slot two files both claim. Minted by {@link #place} only
+     * when the identity changes, so a placement re-taken by a {@code :reload} keeps its moment.
+     */
+    static final class Placed {
+        final String id;
+        final long at;
+
+        Placed(String id, long at) {
+            this.id = id;
+            this.at = at;
+        }
+    }
 
     private BeltHold() {
     }
@@ -328,41 +354,69 @@ public final class BeltHold {
 
     /**
      * <b>An addon has been disabled</b> ({@code AddonRegistry.setEnabled(id, false)} — the panel checkbox, the
-     * console verb) — drop every placement it owns. The reload that follows gives each held slot back to the
-     * server's own content; this is what stops the button coming back, at this restart and every one after it.
+     * console verb) — drop every placement it owns, in memory and in its file. The reload that follows gives
+     * each held slot back to the server's own content; this is what stops the button coming back, at this
+     * restart and every one after it.
      *
      * <p><b>Only a deliberate, persisted disable</b> lands here. A {@code :reload}, a logout and the
      * session-only auto-disable of a runaway addon all keep their placements, because each of them means the
      * addon comes back — and a slot the player chose is not something to lose to a restart.
+     *
+     * <p>149: the file is cleared <b>whole</b> — every character's rows, not the live sessions' alone — so the
+     * button comes back on no character. {@code a} is the loaded addon, or {@code null} when it is not loaded
+     * (errored, missing): then there is no open file to clear, and nothing of its stands in memory either.
+     * The file is touched outside the monitor, as the lock order above says.
      */
-    public static synchronized void addonDisabled(String addonId) {
+    public static void addonDisabled(String addonId, Addon a) {
         if((addonId == null) || addonId.isEmpty())
             return;
         String mine = AddonPagina.PREFIX + addonId + "/";
-        for(SessionState st : AddonManager.allStates()) {     // 073.3: in whichever session it placed them
-            for(Iterator<Map.Entry<Integer, String>> it = st.beltPlaced.entrySet().iterator(); it.hasNext(); ) {
-                if(it.next().getValue().startsWith(mine)) {
-                    it.remove();
-                    st.beltDirty = true;
+        synchronized(BeltHold.class) {
+            for(SessionState st : AddonManager.allStates()) {     // 073.3: in whichever session it placed them
+                for(Iterator<Map.Entry<Integer, Placed>> it = st.beltPlaced.entrySet().iterator(); it.hasNext(); ) {
+                    if(it.next().getValue().id.startsWith(mine)) {
+                        it.remove();
+                        st.beltDirty = true;
+                    }
                 }
+                st.beltLast.put(addonId, "");   // the file is about to hold nothing of this addon's
             }
+        }
+        if(a == null)
+            return;
+        SqliteApi.Db db = SqliteApi.db(a);
+        if(db == null)
+            return;                             // unavailable or closed: nothing on record to clear
+        try {
+            db.clearHolds();
+        } catch(RuntimeException e) {
+            AddonManager.logAbout(a, "action-bar holds: could not clear the held slots from "
+                + db.file.getFileName() + ": " + Refusal.reason(e));
         }
     }
 
     /** The slots one identity is placed in — a copy, since {@link #hold} takes the monitor this walks under. */
     private static synchronized List<Integer> slotsPlaced(SessionState st, String id) {
         List<Integer> out = new ArrayList<Integer>();
-        for(Map.Entry<Integer, String> e : st.beltPlaced.entrySet()) {
-            if(e.getValue().equals(id))
+        for(Map.Entry<Integer, Placed> e : st.beltPlaced.entrySet()) {
+            if(e.getValue().id.equals(id))
                 out.add(e.getKey());
         }
         return out;
     }
 
-    /** Record where an entry belongs, on this character's bar. Called under the monitor, from {@link #hold}. */
+    /**
+     * Record where an entry belongs, on this character's bar. Called under the monitor, from {@link #hold}. The
+     * moment is minted only when the identity changes: a hold re-taken for the same entry is the same
+     * placement, and its moment is what settles a claim against another file.
+     */
     private static void place(SessionState st, int n, String id) {
-        if(!id.equals(st.beltPlaced.put(Integer.valueOf(n), id)))
-            st.beltDirty = true;
+        Integer key = Integer.valueOf(n);
+        Placed cur = st.beltPlaced.get(key);
+        if((cur != null) && cur.id.equals(id))
+            return;
+        st.beltPlaced.put(key, new Placed(id, System.currentTimeMillis()));
+        st.beltDirty = true;
     }
 
     /** Forget where an entry belonged. Called under the monitor, by the endings that end it for good. */
@@ -372,87 +426,168 @@ public final class BeltHold {
     }
 
     /**
-     * <b>Read this character's placements back</b> (from the tick, once {@code <genus>_<char>} is known and
+     * <b>Read this character's placements back</b> — from the tick, once {@code <genus>_<char>} is known and
      * <b>before</b> {@code SessionEnteredWorld} fires, so the first {@code :add} an addon makes already sees
-     * them).
-     * Whatever the file holds is the whole state: this session's map is empty until this runs, and a
-     * slot index means this character's bar and no other. A file that is missing, unreadable or malformed
-     * leaves the bar as the server sent it, which is the same thing an empty file says.
+     * them; and once more at a {@code :reload}, for every session in the world, so what the rebuilt addons
+     * re-apply is what the file holds and a file that could not be read at the last try is tried again.
+     *
+     * <p>Whatever the files hold is the whole state: this session's map is cleared and refilled here, and a
+     * slot index means this character's bar and no other. The outgoing character's dirt is written first
+     * ({@link #flush}, under the key it was read for), then <b>every loaded addon's</b> rows under the new key
+     * are read <b>outside the monitor</b> and merged under it, newest moment first per slot. An addon whose
+     * file is unavailable or whose rows could not be read is <b>read-only</b> for the session, logged once
+     * naming the file — its slice is empty because the client could not read it, and writing that back would
+     * destroy the only copy. A slot that lost a tie marks the map dirty, so the next {@link #flush} corrects
+     * the file that held the older claim.
      */
-    static synchronized void restore(SessionState st) {
-        st.beltPlaced.clear();
-        String text = StoreApi.readClientFile(st, FILE);
-        if(text != null) {
-            try {
-                Object root = Json.parse(text);
-                if(root instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> m = (Map<String, Object>)root;
-                    for(Map.Entry<String, Object> e : m.entrySet()) {
-                        if(!(e.getValue() instanceof List))
-                            continue;
-                        for(Object o : (List<?>)e.getValue()) {
-                            if(!(o instanceof Number))
-                                continue;
-                            int n = ((Number)o).intValue();
-                            if((n >= 0) && (n < LuaSlot.SLOTS))
-                                st.beltPlaced.put(Integer.valueOf(n), e.getKey());
-                        }
-                    }
+    static void restore(SessionState st) {
+        flush(st);                              // the outgoing character's dirt lands under the OLD key
+        String scope = st.charScope;
+        Map<String, Map<Integer, Placed>> read = new LinkedHashMap<String, Map<Integer, Placed>>();
+        Set<String> readOnly = new HashSet<String>();
+        if(scope != null) {
+            for(Addon a : AddonManager.addons) {   // outside the monitor: the lock order above
+                String id = a.manifest.id;
+                SqliteApi.Db db = SqliteApi.db(a);
+                if(db == null) {
+                    readOnly.add(id);           // unavailable: SqliteApi.open said why, once
+                    continue;
                 }
-            } catch(RuntimeException e) {
-                AddonManager.log("action-bar holds: could not read " + FILE + ": " + e);
+                try {
+                    read.put(id, db.holds(scope));
+                } catch(RuntimeException e) {
+                    readOnly.add(id);
+                    AddonManager.logAbout(a, "action-bar holds: could not read the held slots from "
+                        + db.file.getFileName() + ": " + Refusal.reason(e) + " — this addon's held slots on"
+                        + " this character are READ-ONLY for this session");
+                }
             }
         }
-        st.beltLastJson = json(st);   // prime the write-skip cache: what we just read needs no writing back
-        st.beltDirty = false;
+        synchronized(BeltHold.class) {
+            st.beltPlaced.clear();
+            st.beltLast.clear();
+            st.beltReadOnly.clear();
+            st.beltReadOnly.addAll(readOnly);
+            st.beltScope = scope;
+            boolean lost = false;
+            for(Map.Entry<String, Map<Integer, Placed>> file : read.entrySet()) {
+                st.beltLast.put(file.getKey(), serialize(file.getValue()));   // prime the write-skip cache
+                for(Map.Entry<Integer, Placed> e : file.getValue().entrySet()) {
+                    int n = e.getKey().intValue();
+                    if((n < 0) || (n >= LuaSlot.SLOTS))
+                        continue;
+                    Placed cur = st.beltPlaced.get(e.getKey());
+                    if((cur == null) || (e.getValue().at > cur.at))
+                        st.beltPlaced.put(e.getKey(), e.getValue());
+                    if(cur != null)
+                        lost = true;            // two files claimed one slot: the older claim is corrected next flush
+                }
+            }
+            st.beltDirty = lost;
+        }
     }
 
     /**
-     * Write the placements if they changed (from the tick, and once more as the session is torn down). The
-     * serialization is compared with the last one written, so the common tick costs one string build and no
-     * disk I/O at all — and the file is left alone entirely on a character whose bar nobody has touched.
+     * Write the placements if they changed (from the tick). Under the monitor, every loaded addon's slice is
+     * built and compared with the last one written, so the common tick costs one string build per addon and
+     * no disk I/O at all; the slices that differ are written outside it, each into its own addon's file.
      */
     static void flush(SessionState st) {
-        String out;
+        Map<Addon, Map<Integer, Placed>> out = new LinkedHashMap<Addon, Map<Integer, Placed>>();
+        String scope;
         synchronized(BeltHold.class) {
             if(!st.beltDirty)
                 return;
             st.beltDirty = false;
-            out = json(st);
-            if(out.equals(st.beltLastJson))
-                return;
-            st.beltLastJson = out;
+            scope = st.beltScope;
+            if(scope == null)
+                return;                         // no character yet: a hold before the HUD is refused, so nothing is here
+            for(Addon a : AddonManager.addons) {
+                Map<Integer, Placed> rows = changed(st, a);
+                if(rows != null)
+                    out.put(a, rows);
+            }
         }
-        StoreApi.writeClientFile(st, FILE, out);   // outside the monitor: the message thread must never wait on disk
+        for(Map.Entry<Addon, Map<Integer, Placed>> e : out.entrySet())
+            write(e.getKey(), st, scope, e.getValue());
     }
 
     /**
-     * The placements as JSON, <b>keyed by the entry's identity</b> — {@code {"addon/myaddon/dig": [11, 12]}} —
-     * because that is the key the restore is driven by: an entry is added, and its own row says where it goes.
-     * One entry may stand in several slots, so the value is an array; a slot holds one entry, so the map here
-     * is the other way round and the two are built from each other. Sorted throughout, so one state has one
-     * serialization and the write-skip comparison above is a string compare.
+     * <b>One addon's placements, on every live character's bar</b> — the teardown's and the quit's write
+     * ({@code StoreApi.flush(a)}), made before that addon's file is closed, and the auto-save's beside its
+     * remembered placements. Skips what is unchanged.
      */
-    private static String json(SessionState st) {
-        if(st.beltPlaced.isEmpty())
-            return "{}";
-        Map<String, List<Integer>> byId = new TreeMap<String, List<Integer>>();
-        for(Map.Entry<Integer, String> e : st.beltPlaced.entrySet()) {
-            List<Integer> l = byId.get(e.getValue());
-            if(l == null)
-                byId.put(e.getValue(), l = new ArrayList<Integer>());
-            l.add(e.getKey());          // beltPlaced is sorted by slot, so each list comes out sorted too
+    static void write(Addon a) {
+        for(SessionState st : AddonManager.allStates())
+            write(a, st);
+    }
+
+    /** One addon's placements on one character's bar — {@code s:store():flush()}, and the auto-save's tick. */
+    static void write(Addon a, SessionState st) {
+        Map<Integer, Placed> rows;
+        String scope;
+        synchronized(BeltHold.class) {
+            scope = st.beltScope;
+            if(scope == null)
+                return;
+            rows = changed(st, a);
         }
-        LuaTable root = new LuaTable();
-        for(Map.Entry<String, List<Integer>> e : byId.entrySet()) {
-            LuaTable arr = new LuaTable();
-            int i = 1;
-            for(Integer n : e.getValue())
-                arr.set(i++, LuaValue.valueOf(n.intValue()));
-            root.set(e.getKey(), arr);
+        if(rows != null)
+            write(a, st, scope, rows);
+    }
+
+    /**
+     * This addon's slice of the map, or {@code null} when the file already holds it — or must not be written:
+     * a slice whose read failed, and a slice that is empty and never was in the file. Under the monitor.
+     */
+    private static Map<Integer, Placed> changed(SessionState st, Addon a) {
+        String id = a.manifest.id;
+        if(st.beltReadOnly.contains(id))
+            return null;                        // the read failed: what is held is not the file
+        Map<Integer, Placed> rows = slice(st, id);
+        String last = st.beltLast.get(id);
+        if(rows.isEmpty() && (last == null))
+            return null;                        // this addon holds nothing here and never did
+        return serialize(rows).equals(last) ? null : rows;
+    }
+
+    /** The write itself, outside the monitor; what landed is recorded under it. */
+    private static void write(Addon a, SessionState st, String scope, Map<Integer, Placed> rows) {
+        SqliteApi.Db db = SqliteApi.db(a);
+        if(db == null)
+            return;                             // closed: the teardown's write came before the close
+        try {
+            db.holds(scope, rows);
+        } catch(RuntimeException e) {
+            AddonManager.logAbout(a, "action-bar holds: could not save the held slots to "
+                + db.file.getFileName() + ": " + Refusal.reason(e));
+            return;
         }
-        return Json.write(root);
+        synchronized(BeltHold.class) {
+            st.beltLast.put(a.manifest.id, serialize(rows));
+        }
+    }
+
+    /** The rows of the map whose entry is this addon's — its slice, in slot order. Under the monitor. */
+    private static Map<Integer, Placed> slice(SessionState st, String id) {
+        String mine = AddonPagina.PREFIX + id + "/";
+        Map<Integer, Placed> out = new TreeMap<Integer, Placed>();
+        for(Map.Entry<Integer, Placed> e : st.beltPlaced.entrySet()) {
+            if(e.getValue().id.startsWith(mine))
+                out.put(e.getKey(), e.getValue());
+        }
+        return out;
+    }
+
+    /**
+     * One slice as text — {@code 11=addon/myaddon/dig@1726000000000;12=…} over the sorted map, so one state
+     * has one serialization and the write-skip comparison is a string compare.
+     */
+    private static String serialize(Map<Integer, Placed> rows) {
+        StringBuilder b = new StringBuilder();
+        for(Map.Entry<Integer, Placed> e : rows.entrySet())
+            b.append(e.getKey()).append('=').append(e.getValue().id).append('@').append(e.getValue().at).append(';');
+        return b.toString();
     }
 
     /**

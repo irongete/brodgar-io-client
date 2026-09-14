@@ -15,10 +15,6 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -76,9 +72,10 @@ import static io.brodgar.addon.AddonManager.*;
  * nobody in particular. Until 092 there was one set for the client, holding whoever was on screen, which
  * wrote a background character's window into the drawn character's rows and read it back out of them.
  *
- * <p><b>The one file the layer still writes as JSON</b> is its own per-character {@code client/} folder
- * ({@link #readClientFile}, {@link #writeClientFile}) — state the client keeps for a character that belongs to
- * no addon, so no addon's store is the place for it.
+ * <p><b>The held action-bar slots are the third record</b> (149, {@link BeltHold}): rows of the client's own in
+ * the file of the addon whose entry is placed, under that character's key, written beside the remembered
+ * placements by every write here that is a character's — {@link #flush}, {@link #save} and
+ * {@code s:store():flush()}. Nothing the client keeps for a character lives outside the addons' files.
  */
 final class StoreApi {
     private StoreApi() {}
@@ -334,6 +331,7 @@ final class StoreApi {
                 } catch(RuntimeException e) {
                     logAbout(owner, "store: could not save remembered placements: " + e);
                 }
+                BeltHold.write(owner, st);              // 149: and the slots this character's bar holds for it
                 try {
                     writeChar(owner, cs);
                 } catch(RuntimeException e) {
@@ -479,7 +477,7 @@ final class StoreApi {
         }
     }
 
-    /** The {@code savedata/} folder beside the client, where every addon's file and the layer's own live. */
+    /** The {@code savedata/} folder beside the client, where every addon's file lives. */
     static File saveDir() {
         String override = System.getProperty("haven.savedatadir");
         if((override != null) && !override.isEmpty())
@@ -728,34 +726,19 @@ final class StoreApi {
     }
 
     /**
-     * Build the {@code <genus>_<char>} key, or {@code null} if there is no character — and {@code null} too
-     * when the name the server sent is not a folder <b>inside</b> {@code savedata/}: the key is a row key in
-     * every addon's file, and it is also the layer's own folder ({@link #clientDir}), which is the reading
-     * that has to hold.
-     *
-     * <p><b>Two questions, and only one of them is a charset.</b> {@link #sanitize} answers what a folder
-     * name may be spelled with; {@link Inside} answers where the folder lands, which a charset cannot —
-     * {@code .} is a legal character and {@code ..} is two of them. So the key is minted, then asked, and a
-     * key that would land anywhere but under {@code savedata/} is no key at all — which puts the session in
-     * the state one that has not reached the world is already in, and it answers the same way.
+     * Build the {@code <genus>_<char>} key, or {@code null} if there is no character. The key is a <b>row
+     * key</b> in every addon's file and nothing else (149); its spelling is {@link #sanitize}'s, kept exactly
+     * as it is because every row already written is under the key it spells.
      */
     private static String scopeKey(String genus, String chrid) {
         if((chrid == null) || chrid.isEmpty())
             return null;
         String g = sanitize((genus == null) ? "" : genus);
         String c = sanitize(chrid);
-        String key = g.isEmpty() ? c : (g + "_" + c);
-        try {
-            Inside.inside(saveDir().toPath(), key, "store");
-        } catch(RuntimeException e) {
-            AddonManager.log("store: this character's folder name is not one savedata/ can hold ("
-                + Refusal.reason(e) + ") — nothing of this character's is written to disk this session");
-            return null;
-        }
-        return key;
+        return g.isEmpty() ? c : (g + "_" + c);
     }
 
-    /** Replace filesystem-hostile characters so a genus/char string is a safe single path segment. */
+    /** Reduce a genus/char string to letters, digits, {@code .} and {@code -}: the spelling every row key has. */
     private static String sanitize(String s) {
         StringBuilder b = new StringBuilder(s.length());
         for(int i = 0; i < s.length(); i++) {
@@ -764,37 +747,6 @@ final class StoreApi {
                      ((c >= '0') && (c <= '9')) || (c == '.') || (c == '-') ? c : '_');
         }
         return b.toString().trim();
-    }
-
-    /**
-     * <b>The layer's own per-character files</b> — state the client keeps for a character that belongs to no
-     * addon, such as the action-bar slots an addon's entry is {@link BeltHold held} in. They sit in a
-     * {@code client/} folder <i>inside</i> the character's scope directory, so no addon's file can collide
-     * with one whatever the addon is called: an addon's file is {@code <id>.sqlite} inside its own
-     * {@code savedata/<id>/} folder, and even a folder name an addon and a character happened to share
-     * would hold the two under different names, one level apart.
-     *
-     * <p>{@code null} until a character is known ({@link #enterWorld}), because "per character" has no
-     * meaning before that — the caller keeps its own state and writes it once the scope exists.
-     *
-     * <p>073.5: it takes <b>the session whose character the file is about</b>, which every caller holds —
-     * these are the layer's own files, not an addon's, so there is no manifest to resolve them through.
-     */
-    static String readClientFile(AddonManager.SessionState st, String name) {
-        if((st == null) || (st.charScope == null))
-            return null;
-        return readFile(new File(clientDir(st), name));
-    }
-
-    /** Write one of the layer's own per-character files. {@code false} when no character is known yet. */
-    static boolean writeClientFile(AddonManager.SessionState st, String name, String text) {
-        if((st == null) || (st.charScope == null))
-            return false;
-        return writeFile(new File(clientDir(st), name), text);
-    }
-
-    private static File clientDir(AddonManager.SessionState st) {
-        return Inside.inside(saveDir().toPath(), st.charScope + "/client", "store").toFile();
     }
 
     /**
@@ -878,15 +830,17 @@ final class StoreApi {
     }
 
     /**
-     * Write an addon's changed data to its file: what it <b>remembers</b> ({@code widget:remember(name)}), its
+     * Write an addon's changed data to its file: what it <b>remembers</b> ({@code widget:remember(name)}), the
+     * action-bar slots held for its entries on every live character's bar ({@link BeltHold#write}), its
      * client-scope documents, and <b>every session's</b> per-character documents — the live ones, and those of
      * a session that ended and has not been drained yet, because the step that closes the file comes right
      * after this one and the drain would find it closed. Skips unchanged rows. This is the teardown's write —
      * the addon is going, so every character it holds tables for is written.
      *
-     * <p><b>The remembered placements go first.</b> An addon that only hands a window to the user has asked for
-     * no document at all — the whole point of the verb being that it needs no handler — so nothing about the
-     * documents may stand between the top of this method and their write.
+     * <p><b>The remembered placements and the held slots go first.</b> An addon that only hands a window to
+     * the user, or a button to the bar, has asked for no document at all — the whole point of those verbs being
+     * that they need no handler — so nothing about the documents may stand between the top of this method and
+     * their write.
      */
     static void flush(Addon a) {
         if(a == null)
@@ -897,6 +851,7 @@ final class StoreApi {
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
+        BeltHold.write(a);                              // 149: the held slots, every live character's, before the close
         if(a.store == null)
             return;
         try {
@@ -912,8 +867,8 @@ final class StoreApi {
 
     /**
      * The auto-save's write: the placements and the client scope as {@link #flush} writes them, and <b>one</b>
-     * session's per-character documents — the one whose tick this is. Every session ticks, so every
-     * character's rows are written by its own login rather than by whichever one got there first.
+     * session's per-character documents and held slots — the one whose tick this is. Every session ticks, so
+     * every character's rows are written by its own login rather than by whichever one got there first.
      */
     private static void save(Addon a, AddonManager.SessionState st) {
         if(a == null)
@@ -924,6 +879,7 @@ final class StoreApi {
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
+        BeltHold.write(a, st);                          // 149: this character's held slots, beside its documents
         if(a.store == null)
             return;
         try {
@@ -1230,56 +1186,4 @@ final class StoreApi {
         for(LuaValue k : t.keys())
             t.set(k, LuaValue.NIL);
     }
-
-    /** Read a UTF-8 file, or {@code null} if it is absent/unreadable. The layer's own files only. */
-    private static String readFile(File f) {
-        if((f == null) || !f.isFile())
-            return null;
-        try {
-            return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
-        } catch(Exception e) {
-            log("store: could not read " + f + ": " + e);
-            return null;
-        }
-    }
-
-    /**
-     * Write text to a file atomically (temp file + move), creating parent dirs. Returns whether it
-     * succeeded (a failure — e.g. a read-only install — is logged, not thrown). The layer's own files only.
-     *
-     * <p><b>The temp file is this write's own</b> (audit2 B06): it was a fixed {@code <name>.tmp} sibling, so
-     * two writers of one file — which an abandoned quit produces, and which nothing else in the client
-     * prevents — appended into one temp file and the move published the mixture. A unique name per write
-     * makes the loser's move a harmless second publish of a whole file instead.
-     */
-    private static boolean writeFile(File f, String text) {
-        Path tmp = null;
-        try {
-            File parent = f.getParentFile();
-            if(parent != null)
-                parent.mkdirs();
-            Path dst = f.toPath();
-            tmp = dst.resolveSibling(f.getName() + "." + Long.toHexString(tmpseq.incrementAndGet()) + ".tmp");
-            Files.write(tmp, text.getBytes(StandardCharsets.UTF_8));
-            try {
-                Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch(Exception atomicUnsupported) {
-                Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return true;
-        } catch(Exception e) {
-            log("store: could not write " + f + ": " + e);
-            if(tmp != null) {
-                try {
-                    Files.deleteIfExists(tmp);   // a named temp that never moved is litter, not a backup
-                } catch(Exception x) {
-                    /* nothing to do about it, and the write already failed */
-                }
-            }
-            return false;
-        }
-    }
-
-    /** What makes {@link #writeFile}'s temp name this write's own. Wraps harmlessly; only the name matters. */
-    private static final java.util.concurrent.atomic.AtomicLong tmpseq = new java.util.concurrent.atomic.AtomicLong();
 }

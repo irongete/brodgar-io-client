@@ -90,7 +90,7 @@ they reach it, so the message names what to write instead.
 |---|---|
 | `CREATE TABLE` | `hafen.store():table(name)` and its `:create()` — a table made through the builder is one whose rows come back typed. A virtual table (`CREATE VIRTUAL TABLE`) has no columns to type and runs here |
 | `CREATE INDEX` | `decl:index(col, ...)` on the declaration, whose `:create()` makes it on a table already in the file too |
-| any `hafen_` name | the client's own tables — your documents and remembered placements, reached through `:get(name)` and `w:remember(name)` |
+| any `hafen_` name | the client's own tables — your documents, your remembered placements and the action-bar slots held for your entries, reached through `:get(name)`, `w:remember(name)` and `slot:hold(pag)` |
 | `ATTACH`, `DETACH` | the sandbox: this connection holds one file, yours |
 | `load_extension(...)` | the sandbox: no extension loads on this connection |
 | `VACUUM` | [`hafen.store():vacuum()`](README.md#hafenstorevacuum), which rebuilds the file in place; `VACUUM INTO` would write a second file |

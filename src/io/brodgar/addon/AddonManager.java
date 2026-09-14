@@ -96,6 +96,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -605,13 +606,22 @@ public final class AddonManager {
         final Set<CharApi.TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
         /** Slot index &rarr; the hold on it, on THIS character's action bar ({@link BeltHold}). */
         final Map<Integer, BeltHold.Hold> beltHolds = new HashMap<Integer, BeltHold.Hold>();
-        /** Slot index &rarr; the identity of the entry that BELONGS there — this character's placements.
-         *  Sorted, so one state has one serialization and an unchanged map costs no disk write. */
-        final Map<Integer, String> beltPlaced = new TreeMap<Integer, String>();
+        /** Slot index &rarr; the entry that BELONGS there and when it was placed ({@link BeltHold.Placed}) —
+         *  this character's placements, the union of every loaded addon's slice (149). Sorted, so one state
+         *  has one serialization and an unchanged slice costs no disk write. */
+        final Map<Integer, BeltHold.Placed> beltPlaced = new TreeMap<Integer, BeltHold.Placed>();
         /** Has {@link #beltPlaced} changed since the last write? Marked on the message thread too. */
         boolean beltDirty;
-        /** The last serialization written (or read) for this character, so an unchanged map writes nothing. */
-        String beltLastJson;
+        /** Addon id &rarr; that addon's slice as last read from or written to its file, so an unchanged
+         *  slice writes nothing. Keyed by id, not by {@link Addon}: a {@code :reload} replaces the objects. */
+        final Map<String, String> beltLast = new HashMap<String, String>();
+        /** The {@code <genus>_<char>} key {@link #beltPlaced} was read for, or {@code null} while it holds
+         *  nobody's. <b>Held, not looked up</b>, as {@link StoreApi.CharStore#scope} is: a write goes back
+         *  under the key the rows were read for, never under whatever {@link #charScope} is by then. */
+        String beltScope;
+        /** Addon ids whose {@code hafen_holds} rows could not be read this character: their slice is
+         *  READ-ONLY for the session, so the empty set is never written over the only copy. */
+        final Set<String> beltReadOnly = new HashSet<String>();
 
         // ---- the world (073.4) -------------------------------------------------------------------
         // A session coordinate names ONE LOGIN'S world: the origin the server re-bases whenever it drops the
@@ -658,8 +668,8 @@ public final class AddonManager {
         final Queue<Addon> httpStarts = new ConcurrentLinkedQueue<Addon>();
 
         /** {@code "<genus>_<char>"} once this session is in world, else {@code null} ({@link StoreApi}) —
-         *  the folder every per-character file of that session is read from and written back to. Volatile:
-         *  it is written on the tick that entered the world and read by whatever thread flushes. */
+         *  the row key every per-character record of that session is read from and written back under.
+         *  Volatile: it is written on the tick that entered the world and read by whatever thread flushes. */
         volatile String charScope;
         /**
          * <b>The per-character saved variables of this session</b> (079.1, {@link StoreApi.CharStore}), one

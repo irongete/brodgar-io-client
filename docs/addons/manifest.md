@@ -17,7 +17,8 @@ addons/
     icon.png           anything else you ship, loaded with hafen.asset
 savedata/
   myaddon/
-    myaddon.sqlite   everything your addon saves: its documents, its tables, where its windows sit
+    myaddon.sqlite   everything your addon saves: its documents, its tables, where its windows sit,
+                     which bar slots its entries are held in
 ```
 
 The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a

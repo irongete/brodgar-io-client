@@ -716,6 +716,9 @@ public final class AddonRegistry {
         if(who == null)
             return;
         StoreApi.enterWorld(st, g);                  // this character's saved vars (the scope is still valid)
+        BeltHold.restore(st);                        // 149: and its held slots, read back from the rebuilt addons'
+                                                     //   files — what their :add re-applies is what the file
+                                                     //   holds, and a file that could not be read is tried again
         fireSession("SessionEnteredWorld", who);
     }
 
@@ -783,9 +786,10 @@ public final class AddonRegistry {
         if(changed) {
             writeDisabled(d);
             if(!enabled)
-                BeltHold.addonDisabled(id);   // 059.5: and its action-bar slots are the player's again, for
-                                              //   good — the reload below hands each one back, and no restart
-                                              //   brings the button to it
+                BeltHold.addonDisabled(id, findLoaded(id));   // 059.5: and its action-bar slots are the player's
+                                              //   again, for good — the reload below hands each one back, and
+                                              //   no restart brings the button to it (149: its file is cleared
+                                              //   of every character's rows, so no other character's either)
             reloadNeeded = true;
         }
     }

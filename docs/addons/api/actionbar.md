@@ -271,8 +271,8 @@ end)                                         -- if it was on that bar, it is on 
 
 Nothing about that is timed, and you wait for nothing: the entry lands in its slot inside the `add`, so the
 line after it already reads `slot:hold()`. Your addon stores nothing — this is not a
-[document](store/documents.md), it is the client's own record of a slot, and a `slot:hold(pag)` call is
-remembered exactly as a drag is.
+[document](store/documents.md), it is a row of the client's own in [your file](store/README.md), keyed by
+that character, written with their documents; and a `slot:hold(pag)` call is remembered exactly as a drag is.
 
 **The two ways a hold ends are remembered differently**, as the table above says. Ending it by hand —
 `slot:hold(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
