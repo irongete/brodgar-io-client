@@ -1,8 +1,12 @@
 package io.brodgar.addon.registry;
 
+import haven.Coord;
+import haven.PUtils;
 import haven.Utils;
 import io.brodgar.addon.AddonManager;
 import io.brodgar.addon.Json;
+
+import java.awt.image.BufferedImage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -21,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,11 +36,12 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * <b>The hub client</b> — the client's side of the addon hub's JSON API ({@code brodgar-io-addons}, its
- * {@code README.md} being the contract): {@link #search} and {@link #lookup} read the list and
- * {@link #download} fetches a package, each on the one worker thread this class owns, and each hands back a
- * {@link Request} the caller <b>polls</b> from its own tick. No callback, no listener: nothing here ever
- * touches a widget, so no widget is ever touched off the UI thread, and an answer nobody polls for is
- * simply never read.
+ * {@code README.md} being the contract): {@link #page} and {@link #lookup} read the list, {@link #meta} the
+ * hub's tags, {@link #detail} one addon's page and {@link #download} fetches a package, each on the one
+ * worker thread this class owns — and {@link #image} fetches a picture on a second worker of its own — and
+ * each hands back a {@link Request} the caller <b>polls</b> from its own tick. No callback, no listener:
+ * nothing here ever touches a widget, so no widget is ever touched off the UI thread, and an answer nobody
+ * polls for is simply never read.
  *
  * <p><b>The base URL</b> is {@link #DEFAULT_BASE} unless {@code -Dhaven.addon.registry=<base>} names another
  * ({@link #base}). An {@code https://} base is taken as it is; a plain {@code http://} one is taken for a
@@ -150,7 +156,7 @@ public final class Registry {
     // ------------------------------------------------------------- requests
 
     /**
-     * <b>One exchange in flight, or finished</b> — what {@link #search} and {@link #lookup} hand back. The
+     * <b>One exchange in flight, or finished</b> — what {@link #page}, {@link #lookup} and the rest hand back. The
      * caller polls {@link #done} from its tick and then reads {@link #result} or {@link #error}, exactly one
      * of which is set. Nothing here calls back, so a request whose caller has moved on is never read: the
      * panel drops a late answer to an earlier search by never asking for it.
@@ -251,14 +257,99 @@ public final class Registry {
     }
 
     /**
-     * Search the hub — {@code GET <base>/addons?q=<q>&limit=50}: the items whose id, name, summary, author,
-     * publisher or tags match, at most fifty, the hub's relevance order. An empty {@code q} is the caller's
-     * to refuse; the hub answers it with everything.
+     * <b>One page of the hub's list</b> — what {@link #page} answers: the items, and the count and the
+     * position the hub reported them at, so the panel can say {@code 1–24 of 57} and offer the next page.
      */
-    public static Request<List<Entry>> search(final String q) {
-        return submit(new Fetch<List<Entry>>() {
-            public List<Entry> run(Request<List<Entry>> r) throws IOException {
-                return items(getJson(base() + "/addons?q=" + enc(q) + "&limit=50", r));
+    public static final class Page {
+        public final List<Entry> items;
+        /** How many match in all, which page this is (from 1), and how many a page holds. */
+        public final int total, page, limit;
+
+        Page(List<Entry> items, int total, int page, int limit) {
+            this.items = items; this.total = total; this.page = page; this.limit = limit;
+        }
+
+        /** How many pages there are, at least one. */
+        public int pages() {
+            return Math.max(1, (limit <= 0) ? 1 : (total + limit - 1) / limit);
+        }
+    }
+
+    /** What {@link #meta} answers: the hub's own facts about itself, of which the client reads the tags. */
+    public static final class Meta {
+        /** The tags an addon may be filed under, in the hub's order — the chips the Browse tab offers. */
+        public final List<String> tags;
+        /** The API version the hub checks manifests against, as the wire carries it. */
+        public final Object clientApiVersion;
+
+        Meta(List<String> tags, Object clientApiVersion) {
+            this.tags = tags; this.clientApiVersion = clientApiVersion;
+        }
+    }
+
+    /** The orders {@link #page} may ask for, the hub's own names: the first is its default. */
+    public static final String[] SORTS = {"relevance", "downloads", "updated", "name"};
+
+    /**
+     * Browse the hub — {@code GET <base>/addons?q=&tag=&sort=&page=&limit=}: the items whose id, name,
+     * summary, author, publisher or tags match {@code q}, filed under {@code tag} when one is named, in the
+     * order {@code sort} names ({@link #SORTS}; the hub's default is relevance with a {@code q} and downloads
+     * without), at most {@code limit} of them from page {@code page}. An empty {@code q} and an empty
+     * {@code tag} are everything the hub publishes, which is what its own front page shows.
+     */
+    public static Request<Page> page(final String q, final String tag, final String sort, final int page,
+                                     final int limit) {
+        return submit(new Fetch<Page>() {
+            public Page run(Request<Page> r) throws IOException {
+                Map<?, ?> doc = object(getJson(base() + "/addons?q=" + enc(q) + "&tag=" + enc(tag)
+                                              + "&sort=" + enc(sort) + "&page=" + page + "&limit=" + limit, r));
+                List<Entry> items;
+                try {
+                    items = Entry.list(doc.get("items"));
+                } catch(IllegalArgumentException e) {
+                    throw new IOException("the hub's answer is not a list of addons: " + e.getMessage());
+                }
+                return new Page(items, num(doc, "total", items.size()), num(doc, "page", page),
+                                num(doc, "limit", limit));
+            }
+        });
+    }
+
+    /** The hub's own facts — {@code GET <base>/meta} — of which the client reads the tags. */
+    public static Request<Meta> meta() {
+        return submit(new Fetch<Meta>() {
+            public Meta run(Request<Meta> r) throws IOException {
+                Map<?, ?> doc = object(getJson(base() + "/meta", r));
+                List<String> tags = new java.util.ArrayList<String>();
+                Object t = doc.get("tags");
+                if(t instanceof List) {
+                    for(Object o : (List<?>)t)
+                        if(o instanceof String)
+                            tags.add((String)o);
+                }
+                return new Meta(java.util.Collections.unmodifiableList(tags), doc.get("client_api_version"));
+            }
+        });
+    }
+
+    /**
+     * One addon's page — {@code GET <base>/addons/<id>}: the item plus its links, description, screenshots
+     * and versions ({@link Detail}). An id the hub does not carry is its own {@code 404} sentence.
+     */
+    public static Request<Detail> detail(final String id) {
+        return submit(new Fetch<Detail>() {
+            public Detail run(Request<Detail> r) throws IOException {
+                Object doc;
+                try {
+                    doc = Json.parse(getJson(base() + "/addons/" + enc(id), r));
+                } catch(RuntimeException e) {
+                    throw new IOException("the hub's answer is not JSON (" + reason(e) + ")");
+                }
+                try {
+                    return Detail.of(doc);
+                } catch(IllegalArgumentException e) {
+                    throw new IOException("the hub's answer is not an addon: " + e.getMessage());
+                }
             }
         });
     }
@@ -365,6 +456,15 @@ public final class Registry {
 
     /** The {@code items} of a list answer, each read by {@link Entry#of}; a refusal there is the answer's. */
     static List<Entry> items(String body) throws IOException {
+        try {
+            return Entry.list(object(body).get("items"));
+        } catch(IllegalArgumentException e) {
+            throw new IOException("the hub's answer is not a list of addons: " + e.getMessage());
+        }
+    }
+
+    /** A JSON body as the object it is; anything else is the answer's own refusal. */
+    static Map<?, ?> object(String body) throws IOException {
         Object doc;
         try {
             doc = Json.parse(body);
@@ -373,11 +473,114 @@ public final class Registry {
         }
         if(!(doc instanceof Map))
             throw new IOException("the hub's answer is not an object");
-        try {
-            return Entry.list(((Map<?, ?>)doc).get("items"));
-        } catch(IllegalArgumentException e) {
-            throw new IOException("the hub's answer is not a list of addons: " + e.getMessage());
+        return (Map<?, ?>)doc;
+    }
+
+    /** A number field of an answer, {@code dflt} where the hub did not write one. */
+    static int num(Map<?, ?> m, String key, int dflt) {
+        Object v = m.get(key);
+        return (v instanceof Number) ? ((Number)v).intValue() : dflt;
+    }
+
+    // ------------------------------------------------------------- pictures
+
+    /** The most a picture may be, in bytes — above the hub's own ceiling on a screenshot. */
+    static final int MAX_IMAGE = 8 * 1024 * 1024;
+    /** How many fetched pictures are kept, by URL and size: a page of icons and a few screenshots. */
+    static final int PICTURES = 96;
+
+    private static final Map<String, Request<BufferedImage>> pictures =
+        new LinkedHashMap<String, Request<BufferedImage>>(32, 0.75f, true) {
+            protected boolean removeEldestEntry(Map.Entry<String, Request<BufferedImage>> e) {
+                return size() > PICTURES;
+            }
+        };
+
+    /**
+     * A picture the hub serves — an item's {@link Entry#icon}, a page's screenshot — decoded and, where it is
+     * larger than {@code fit} on either side, scaled down to fit inside it (device pixels), never up. On the
+     * <b>picture worker</b>, not the API's: a page of icons is many small fetches and a screenshot a large
+     * one, and none of them may hold a search or a download behind it. The answers are <b>kept</b>, the last
+     * {@link #PICTURES} by URL and size, so a card rebuilt for the same item and the same icon shown on the
+     * page after it ask the hub once; a failure is kept the same way, so a broken picture is not fetched
+     * again every time it scrolls into view. {@link Request#cancel} on a kept answer is a caller's mistake
+     * and does nothing to the copy the next caller gets.
+     */
+    public static Request<BufferedImage> image(final String url, final Coord fit) {
+        String key = url + "@" + fit.x + "x" + fit.y;
+        synchronized(pictures) {
+            Request<BufferedImage> kept = pictures.get(key);
+            if(kept != null)
+                return kept;
+            final Request<BufferedImage> r = new Request<BufferedImage>();
+            pictures.put(key, r);
+            pictureWorker().execute(new Runnable() {
+                public void run() {
+                    try {
+                        r.finish(fetchImage(url, fit, r));
+                    } catch(IOException e) {
+                        r.fail(reason(e));
+                    } catch(RuntimeException e) {
+                        r.fail(e.getClass().getSimpleName() + ": " + reason(e));
+                    }
+                }
+            });
+            return r;
         }
+    }
+
+    private static BufferedImage fetchImage(String url, Coord fit, Request<?> r) throws IOException {
+        if((url == null) || url.isEmpty())
+            throw new IOException("no picture");
+        HttpURLConnection c = null;
+        byte[] bytes;
+        try {
+            c = open(url, r, "image/*");
+            int status = c.getResponseCode();
+            if(status != 200)
+                throw new IOException("the hub answered HTTP " + status);
+            bytes = readCapped(c.getInputStream(), MAX_IMAGE);
+        } catch(SocketTimeoutException e) {
+            throw new IOException("the hub did not answer within " + (TIMEOUT_MS / 1000) + " s");
+        } finally {
+            r.conn = null;
+            if(c != null)
+                c.disconnect();
+        }
+        BufferedImage img;
+        try {
+            img = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(bytes));
+        } catch(IOException e) {
+            img = null;
+        }
+        if(img == null)
+            throw new IOException("not a picture the client can decode");
+        img = PUtils.coercergba(img, false);
+        int w = img.getWidth(), h = img.getHeight();
+        if((w > fit.x) || (h > fit.y)) {
+            double s = Math.min((double)fit.x / w, (double)fit.y / h);
+            Coord tsz = new Coord(Math.max(1, (int)Math.round(w * s)), Math.max(1, (int)Math.round(h * s)));
+            img = PUtils.convolvedown(img, tsz, new PUtils.Lanczos(2));
+        }
+        return img;
+    }
+
+    private static ThreadPoolExecutor pictureWorker;
+
+    /** The picture worker: the API worker's twin, so a picture never stands in a search's or a download's way. */
+    private static synchronized ThreadPoolExecutor pictureWorker() {
+        if(pictureWorker == null) {
+            pictureWorker = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(),
+                                                   new ThreadFactory() {
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "Addon registry pictures");
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
+            pictureWorker.allowCoreThreadTimeOut(true);
+        }
+        return pictureWorker;
     }
 
     // ------------------------------------------------------------- HTTP

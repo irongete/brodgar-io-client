@@ -3,14 +3,15 @@
 **AddOns**, on the game menu that `Ctrl+O` opens, is where your addons are switched on and off, and where
 you look for new ones. Its **Installed** tab lists every addon the client found in `addons/`, one row each,
 with its live status and the box that enables it, and updates or removes the ones the hub installed; its
-**Browse** tab searches the addons published at `brodgar.io/addons`, the hub, shows one row per match, and
-installs one with a press. The client reads the hub anonymously: it never signs in, and nothing about you or
-your character travels with the request.
+**Browse** tab is the front page of `brodgar.io/addons`, the hub, drawn in the client: a search, the tags,
+one card per addon, and each addon's own page behind its card, with **Install** on both. The client reads
+the hub anonymously: it never signs in, and nothing about you or your character travels with the request.
 
 ## Installed
 
 Every addon the client discovered, sorted by id, one row each: a checkbox, the name, version and author, and
-a live status. The description is the row's tooltip.
+a live status. The description is the row's tooltip. With nothing in `addons/` the list says
+`No addons installed` in its middle, and says it exactly while that is so.
 
 | Row shows | Meaning |
 |---|---|
@@ -74,36 +75,69 @@ never runs because it was merely installed. After that its state is yours — se
 
 ## Browse
 
-Type in the field: a name, an author, a tag, part of an id. The search runs once the text has been still
-for a third of a second, or the moment you press Enter, and it is the hub's own: it matches the id, the
-name, the summary, the author, the publisher and the tags, and answers at most fifty addons, the closest
-match first. A search that is still out is dropped when you type again, so the rows are always the answer
-to what the field says now.
+The hub's front page, in the client's own widgets. The field searches as the hub's own does: a name, an
+author, a tag, part of an id — it matches the id, the name, the summary, the author, the publisher and the
+tags — once the text has been still for a third of a second, or the moment you press Enter, which also
+asks again after a hub that did not answer. Beside it the **order**: relevance (the closest match first
+with a search, the most downloaded without), most downloaded, recently updated, or by name. Under it the
+**tags** as a row of chips — **All**, then the hub's own — and the one pressed filters the list to addons
+filed under it; press it again for all. The tab shows everything the hub publishes the moment it first
+comes on screen, and again on every change of the field, the tag, the order or the page: a search still out
+is dropped, so the cards are always the answer to what the controls say now. Above the cards a line says
+which of how many — `1–24 of 57 addons` — and **Previous** and **Next** turn the pages, twenty-four to a
+page, greyed at either end.
 
-Each row is one published addon: its name, its latest version, who publishes it, and the same
-`[protected: N]` and `[net]` markers an Installed row carries. Its tooltip is the hub's summary, then the
-permissions it declares and the hosts it asks to reach — read them here, before it is on your disk. The
-status at the right is a fact about **this** client, and **Install** stands beside it exactly when there
-is no folder of that id in your `addons/`:
+**A card** is one published addon as the hub's front page shows it, on two lines: its icon — or the first
+letter of its name on a plain field, where it has none — then its name with its latest version and its
+author, and the `[net]` mark an Installed row carries, with the hosts as its tooltip; under them its summary,
+cut to the line, and at the line's end how many times it was downloaded and when it was last updated. What
+it asks for is on its page, as on the hub. The end of the name line is this client's word on it, the status,
+and **Install** stands at the card's right exactly when there is no folder of that id in your `addons/`.
+**A press anywhere else on the card opens the addon's page.**
 
-| Row shows | Meaning |
+**The page** is what the hub shows at `brodgar.io/addons/<id>`: **Back to list** at the top — the list
+comes back exactly as you left it, field, page and scroll — over the icon, the name, the version, the
+author, the tags as chips (a press filters the list by that tag and takes you back to it), the `[net]`
+mark, the summary, then **Install** with the status beside it and **Open at brodgar.io**, which opens the same page
+in your browser. Under the head, once the hub has answered: the **screenshots**, one at a time in a box
+with ‹ and › to step through them (a press on the picture steps too), the long **description** as text,
+every published **version** — its API, size, date and downloads, with its changelog under it — the
+**permissions** it asks for, each in the words the consent dialog uses, and the hub's own **About** facts:
+id, author, API, downloads, first published, last update, size, sha256, and the links the owner filed.
+`Loading the page…` stands under the head until the rest is in, and the hub's own sentence when it did not
+answer. **Install** here is the same press as on the card: the latest version, into the same download and
+the same stage.
+
+The status, on the card and on the page both, is a fact about **this** client:
+
+| It shows | Meaning |
 |---|---|
 | nothing, and **Install** | published at the hub, and not in your `addons/` |
 | `installed v<version>` | installed from the hub, at that version |
-| `in addons/ by hand` | a folder of that id is in your `addons/` that the hub did not put there. It is yours: the client never replaces a folder you put there, so the row offers nothing |
+| `in addons/ by hand` | a folder of that id is in your `addons/` that the hub did not put there. It is yours: the client never replaces a folder you put there, so nothing is offered |
 | `downloading <n>%` | the package is on its way, against the size the hub advertised |
 | `staged <version> - Reload UI to apply` | the package is checked and unpacked, waiting for the reload that [moves it into place](#how-an-install-lands) |
 | `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
 | `removed on Reload UI` | the folder is marked for removal on the Installed tab; the next reload deletes it, and **Install** is back after |
 | `removed on restart` | the last reload could not delete it — a file of it is still held; the next start does |
 | `failed: <why>` | the download or a check refused it, and nothing landed; the tooltip carries the whole sentence, and **Install** is back for another try |
-| `outdated (…)` | the published version declares an [API version](manifest.md#the-api-version) this client does not implement; the tooltip opens with the sentence. **Install** still stands: the row then reads `outdated (…)` on Installed, where **Load out of date AddOns** applies to it |
-| `manifest error (hover)` | its `api_version` is not a version at all; the tooltip names the form |
+| `outdated (…)` | the published version declares an [API version](manifest.md#the-api-version) this client does not implement; the name's tooltip opens with the sentence. **Install** still stands: the row then reads `outdated (…)` on Installed, where **Load out of date AddOns** applies to it |
+| `manifest error (hover)` | its `api_version` is not a version at all; the name's tooltip names the form |
 
-The line under the list is the tab's own word on the search: `searching` while the hub is asked,
-`no addon matches` when it answered with nothing, and — when it did not answer — why: the hub's own
-sentence with the status it sent, or the failure that kept the client from reaching it. An empty field is
-no search: the rows go and the line clears.
+On a card the status is cut to the room the name line leaves it, with an ellipsis; a failure's tooltip
+carries the whole sentence, and the page has the room for the rest.
+
+The list's own word, in its middle while it holds no cards: `Searching…` while the hub is asked, `No addon
+matches.` when it answered with nothing for the field and the tag, `Nothing published yet.` when the hub has
+nothing at all, and — when it did not answer — why: the hub's own sentence with the status it sent, or the
+failure that kept the client from reaching it.
+
+The cards, the page's screenshot box, the chips, the field and the pickers are the client's own surfaces —
+a card and the screenshot box are [panels](api/ui/style/surfaces.md#panels) that paint their own surface, so
+a sheet's `panel` rule or a tree rule naming `@AddonCard` dresses them, and every word is a `label` — so a
+[theme](guides/theming.md) reaches the tab as it reaches the rest of the client. The pictures the hub serves
+are fetched on a worker of their own and kept for the client's life, so a page of icons never holds a search
+or a download behind it, and a card shown again asks the hub for nothing.
 
 ## How an install lands
 
@@ -166,15 +200,16 @@ never from a form, so what you read on Browse is what the addon itself declares.
 carries its sha256, so the bytes the client fetches are the ones the row advertised or nothing: a
 version published again with another package is another URL.
 
-The client reads the hub at `https://brodgar.io/addons/api`. To read another — a hub you run while
-developing — start the client with `-Dhaven.addon.registry=<base>`, the base URL up to and including
-`/api`; `ant -Dregistry=<base> run` passes it. A plain `http://` base is taken for a **loopback host
+The client reads the hub at `https://brodgar.io/addons/api`, and **Open at brodgar.io** opens the page at
+that base less its `/api`. To read another — a hub you run while developing — start the client with
+`-Dhaven.addon.registry=<base>`, the base URL up to and including `/api`; `ant -Dregistry=<base> run`
+passes it. A plain `http://` base is taken for a **loopback host
 only** (`localhost`, `127.0.0.1`, `::1`); any other value is refused with a line in the log naming it and
 the reason, and the client reads `brodgar.io` as if nothing had been set.
 
 ## See also
 
-- [the manifest](manifest.md) — what a row reads: the name, the version, the permissions, the API version
+- [the manifest](manifest.md) — what a row and a card read: the name, the version, the permissions, the API version
 - [the runtime](runtime.md) — what a reload does with what this manager changed, and the console commands
 - [permissions](guides/permissions.md) — what enabling a `[protected: N]` addon asks you, and why
 - [debugging](guides/debugging.md) — reading a row that says `error`, `outdated` or `disabled`

@@ -91,6 +91,14 @@ knowing before deciding a frame is one.
    swapped in later may paint differently but must **measure identically**, or the frame moves and its contents
    do not. Exact mirror of `Deco`, where `iresize`/`contarea` *are* re-run and a replacement therefore
    can change the geometry.
+4. **A `Frame`'s own children stand in its INNER box.** `Frame.xlate(c, true)` adds `box.btloff()` to every
+   child's `c` — for the draw loop and for pointer routing alike — so a child at `(0, 0)` draws at the first
+   pixel inside the edge, and the room a `Frame` subclass has to place its children in is `sz.sub(box.bisz())`
+   (`inner()`). `with(child, …)` relies on it (the child is added at `0, 0`). A subclass that adds the inset
+   by hand as well puts everything a frame's width down and to the right of where it measured it — a
+   right-aligned label ends under the frame, a centred block sits low — and nothing headless shows it unless
+   the check draws through the real pass (`haven.rs.DrawBuffer` over `Acephal`, see
+   [widget-draw](widget-draw.md)), because a plain `child.c` read never sees the shift.
 
 ## Boxes the client draws in CODE, not from a resource
 

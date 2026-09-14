@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.CharWnd;
 import haven.Coord;
 import haven.GOut;
-import haven.SListWidget;
 import haven.TableBox;
 
 import org.luaj.vm2.LuaError;
@@ -238,8 +237,8 @@ abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Co
             final ColDef col = cols.get(i);
             final int ci = i;
             TableBox.ColSpec<TRow> spec = TableBox.ColSpec.<TRow>of(col.width, 0.0, 0.0, 0.0,
-                (c, sz) -> SListWidget.TextItem.of(sz, () -> col.title),
-                (item, idx, sz) -> SListWidget.TextItem.of(sz, () -> item.cells[ci]));
+                (c, sz) -> LuaRows.textItem(sz, () -> col.title),
+                (item, idx, sz) -> LuaRows.textItem(sz, () -> item.cells[ci]));
             specs.add(spec);
         }
         return specs;

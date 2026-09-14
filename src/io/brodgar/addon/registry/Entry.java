@@ -8,8 +8,9 @@ import java.util.regex.Pattern;
 
 /**
  * <b>One item of the hub's list</b> — an addon as {@code GET /addons/api/addons} describes it, at its latest
- * version: who it is, what it declares, and where its package is. Immutable, and a snapshot: the hub is asked
- * again for a fresh one, never this object.
+ * version: who it is, what it declares, where its package is, and what the hub's own page shows beside it —
+ * the tags, the icon, the downloads and the dates. Immutable, and a snapshot: the hub is asked again for a
+ * fresh one, never this object.
  *
  * <p>The shape is the hub's item ({@code brodgar-io-addons}, its {@code README.md}), read leniently field by
  * field — a string that is absent reads {@code null}, a list that is absent reads empty, a number that is
@@ -19,9 +20,11 @@ import java.util.regex.Pattern;
  *
  * <p>{@link #apiVersion} is kept <b>as the wire carries it</b> — a {@code String}, a {@code Double} the reader
  * hands a JSON number over as, or {@code null} — so that {@code ApiVersion.parse(Object)} makes the one
- * decision the client makes about every manifest, and its refusal reaches the row that shows the item.
+ * decision the client makes about every manifest, and its refusal reaches the row that shows the item. The
+ * three dates are kept the same way, ISO-8601 strings as the hub writes them: the panel formats them, and a
+ * date that does not parse is shown as nothing rather than refused.
  */
-public final class Entry {
+public class Entry {
     /** The hub's rule for an id: it is also a folder name under {@code addons/}. */
     static final Pattern ID = Pattern.compile("^[a-z0-9_-]{2,64}$");
 
@@ -33,16 +36,33 @@ public final class Entry {
     public final List<String> permissions;
     /** The {@code network.hosts} the manifest declared; empty when none. Unmodifiable. */
     public final List<String> hosts;
+    /** The tags the owner filed it under, in the hub's order; empty when none. Unmodifiable. */
+    public final List<String> tags;
+    /** The URL of its icon — {@code icon.png} at the package's root, served by the hub — or {@code null}. */
+    public final String icon;
     /** The package's size in bytes, {@code 0} when the hub did not say. */
     public final long size;
+    /** How many times the hub has served a package of it, every version counted. */
+    public final long downloads;
+    /** When the latest version was published, when a version last was, and when the addon was made: ISO-8601, or {@code null}. */
+    public final String publishedAt, updatedAt, createdAt;
 
     Entry(String id, String name, String author, String owner, boolean official, String summary, String version,
-          Object apiVersion, List<String> permissions, List<String> hosts, long size, String sha256,
-          String packageUrl) {
+          Object apiVersion, List<String> permissions, List<String> hosts, List<String> tags, String icon,
+          long size, long downloads, String sha256, String packageUrl, String publishedAt, String updatedAt,
+          String createdAt) {
         this.id = id; this.name = name; this.author = author; this.owner = owner; this.official = official;
         this.summary = summary; this.version = version; this.apiVersion = apiVersion;
-        this.permissions = permissions; this.hosts = hosts; this.size = size; this.sha256 = sha256;
-        this.packageUrl = packageUrl;
+        this.permissions = permissions; this.hosts = hosts; this.tags = tags; this.icon = icon;
+        this.size = size; this.downloads = downloads; this.sha256 = sha256; this.packageUrl = packageUrl;
+        this.publishedAt = publishedAt; this.updatedAt = updatedAt; this.createdAt = createdAt;
+    }
+
+    /** The same item, field for field: what {@link Detail} builds on. */
+    Entry(Entry e) {
+        this(e.id, e.name, e.author, e.owner, e.official, e.summary, e.version, e.apiVersion, e.permissions,
+             e.hosts, e.tags, e.icon, e.size, e.downloads, e.sha256, e.packageUrl, e.publishedAt, e.updatedAt,
+             e.createdAt);
     }
 
     /**
@@ -70,9 +90,15 @@ public final class Entry {
                          m.get("api_version"),
                          strs(m, "permissions"),
                          strs(m, "network_hosts"),
+                         strs(m, "tags"),
+                         str(m, "icon"),
                          num(m, "size"),
+                         num(m, "downloads"),
                          str(m, "sha256"),
-                         str(m, "package_url"));
+                         str(m, "package_url"),
+                         str(m, "published_at"),
+                         str(m, "updated_at"),
+                         str(m, "created_at"));
     }
 
     /** Every item of a list, in order — the {@code items} of a hub answer. */
@@ -85,18 +111,23 @@ public final class Entry {
         return out;
     }
 
-    private static String str(Map<?, ?> m, String key) {
+    /** Who to show as the author: the author the owner wrote, else the owner — the hub's own page does the same. */
+    public String by() {
+        return ((author != null) && !author.isEmpty()) ? author : owner;
+    }
+
+    static String str(Map<?, ?> m, String key) {
         Object v = m.get(key);
         return (v instanceof String) ? (String)v : null;
     }
 
-    private static long num(Map<?, ?> m, String key) {
+    static long num(Map<?, ?> m, String key) {
         Object v = m.get(key);
         return (v instanceof Number) ? ((Number)v).longValue() : 0L;
     }
 
     /** The strings of an array field, anything that is not a string dropped; empty when absent. */
-    private static List<String> strs(Map<?, ?> m, String key) {
+    static List<String> strs(Map<?, ?> m, String key) {
         Object v = m.get(key);
         if(!(v instanceof List))
             return Collections.emptyList();

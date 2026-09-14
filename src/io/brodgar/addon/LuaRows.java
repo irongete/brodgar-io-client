@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.GOut;
 import haven.Resource;
 import haven.SListWidget;
 import haven.Widget;
@@ -11,6 +12,7 @@ import org.luaj.vm2.LuaValue;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * The Lua-array &rarr; {@link SListWidget#items()}/{@link SListWidget#makeitem} bridge every model-backed
@@ -187,8 +189,53 @@ final class LuaRows {
      */
     static Widget content(Row item, Coord sz) {
         return (item.icon != null)
-            ? SListWidget.IconText.of(sz, () -> item.icon, () -> item.text)
-            : SListWidget.TextItem.of(sz, () -> item.text);
+            ? iconText(sz, () -> item.icon, () -> item.text)
+            : textItem(sz, () -> item.text);
+    }
+
+    /**
+     * The client's own {@link SListWidget.TextItem}, drawn as an addon's text ({@link AddonText}): the row
+     * every list here holds, and the one place the mark has to be for a row to carry it wherever it lands —
+     * inside the control, or in the popup a dropdown hangs off the tree's root, outside any control's draw.
+     * {@link CTable}'s headings and cells are these too.
+     */
+    static SListWidget.TextItem textItem(Coord sz, Supplier<String> text) {
+        return new SListWidget.TextItem(sz) {
+            protected String text() {
+                return text.get();
+            }
+
+            public void draw(GOut g) {
+                AddonText.enter();
+                try {
+                    super.draw(g);
+                } finally {
+                    AddonText.exit();
+                }
+            }
+        };
+    }
+
+    /** {@link #textItem} with an icon in front: the {@code {icon =, text =}} row. */
+    static SListWidget.IconText iconText(Coord sz, Supplier<BufferedImage> icon, Supplier<String> text) {
+        return new SListWidget.IconText(sz) {
+            protected BufferedImage img() {
+                return icon.get();
+            }
+
+            protected String text() {
+                return text.get();
+            }
+
+            public void draw(GOut g) {
+                AddonText.enter();
+                try {
+                    super.draw(g);
+                } finally {
+                    AddonText.exit();
+                }
+            }
+        };
     }
 
     /**

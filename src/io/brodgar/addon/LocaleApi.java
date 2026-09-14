@@ -39,7 +39,9 @@ import java.util.Map;
  * <p><b>The misses are the feature's own oracle.</b> Nothing above the render can see a translation, by
  * construction, so the one observable a catalogue has is the set of strings that reached a routed surface
  * and that <i>this</i> catalogue named nothing for. That is also exactly what an author needs to write their
- * first file, which is why it records from an empty catalogue too.
+ * first file, which is why it records from an empty catalogue too — and why it records the <b>client's</b>
+ * strings only: what an addon draws is translated like anything else, but it is the addon's own words, so
+ * it is never a miss ({@link AddonText}).
  */
 final class LocaleApi {
     private LocaleApi() {
@@ -104,6 +106,8 @@ final class LocaleApi {
         public void missed(String scope, String text) {
             if(missfull)
                 return;                 // the round is full: no key to build, and no monitor to take
+            if(AddonText.drawing())
+                return;                 // an addon's own words, not the client's: translated, never recorded
             // A NUL is the separator, and it has to be one: a space would make ("a b", "c") and ("a",
             // "b c") one key, and a chat line beginning with a space is an ordinary chat line.
             String key = scope + "\0" + text;
@@ -249,9 +253,10 @@ final class LocaleApi {
                 return t;
             }
         });
-        // miss() -- the strings that reached a routed surface while this catalogue was installed and that it
-        // named nothing for, each with the surface it reached. A set is a collection, so it is one; the
-        // members are objects, so :find(fn) is the search and a string filter matches the text.
+        // miss() -- the client's strings that reached a routed surface while this catalogue was installed and
+        // that it named nothing for, each with the surface it reached (what an addon drew is not in it: see
+        // AddonText). A set is a collection, so it is one; the members are objects, so :find(fn) is the
+        // search and a string filter matches the text.
         m.set("miss", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = Args.only(a, 0, "hafen.locale():miss");

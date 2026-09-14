@@ -212,6 +212,16 @@ string yours matched is not in the set at all. With two catalogues installed it 
 so a string one above yours named reaches you neither as a translation nor as a miss. Read your misses
 with yours alone installed if what you want is the whole of what a surface says.
 
+**A miss is the client's string.** What an addon draws — the caption of a window of its own, a `g:text`, a
+row of its listbox, the tip on its button, a label it wrote from its Lua — reaches the surface like
+anything else and is translated like anything else, but it is never recorded: those are the addon's own
+words, yours included, and what a miss is read back for is the client's file. So a translator's own window
+never fills its own list, and another addon's live readout does not either. What the client composes and
+draws *for* an addon is still the client's: a line `hafen.log():write` posted to the System channel is
+keyed at `chat.system` like every line there, and an [action](menugrid.md) of yours on the menu, your
+addon's name on the AddOns page or a hotkey's label on the keybindings page miss like any caption of that
+page.
+
 ## The model is not translated
 
 A catalogue lands at the **render**, which is the last thing that happens to a string before it becomes

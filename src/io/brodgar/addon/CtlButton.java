@@ -96,7 +96,12 @@ final class CtlButton extends Button implements Owned.Control, Controls.Press {
             disabled = dis;
             disable(dis);
         }
-        super.draw(Owned.dim(this, g));
+        AddonText.enter();  // the caption re-renders in here when the fonts move, and it is this addon's text
+        try {
+            super.draw(Owned.dim(this, g));
+        } finally {
+            AddonText.exit();
+        }
     }
 
     public void resize(Coord sz) {

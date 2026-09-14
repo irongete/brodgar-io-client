@@ -5,9 +5,13 @@
 .DESCRIPTION
   One command does the whole release:
 
+    .\release.ps1                                    the highest vX.Y.Z tag with Z+1 (v0.1.0 -> 0.1.1)
     .\release.ps1 0.1.0-beta.1 -Notes notes.md      a beta: a GitHub pre-release, notes from a markdown file
     .\release.ps1 0.1.0 -Message "The beta is over"  a release: a plain GitHub release, notes inline
     .\release.ps1 0.1.1                              release notes = the commit subjects since the last v* tag
+
+  Without a version, the highest vX.Y.Z tag reachable from HEAD is bumped to X.Y.(Z+1); betas are not
+  counted, so after v0.1.0 and its v0.1.1-beta.N this releases 0.1.1. A beta always names its version.
 
   It refuses to run on a dirty tree or an existing tag, compiles from scratch (build/classes is wiped, so a
   symbol that moved between files cannot hide), runs `ant -Dversion=<version> release-zip` -- dist/ rebuilt,
@@ -25,7 +29,8 @@
   Needs git, ant and gh (logged in: `gh auth login`) on the PATH.
 
 .PARAMETER Version
-  1.2.3 or 1.2.3-beta.1: the tag is v<Version>, the asset brodgar-io-client-<Version>.zip.
+  1.2.3 or 1.2.3-beta.1: the tag is v<Version>, the asset brodgar-io-client-<Version>.zip. Without it,
+  the highest vX.Y.Z tag with Z + 1.
 .PARAMETER Notes
   A markdown file with the release notes.
 .PARAMETER Message
@@ -40,7 +45,7 @@
   Build, zip and tag only: nothing is pushed and no release is created.
 #>
 param(
-    [Parameter(Mandatory = $true, Position = 0)][string]$Version,
+    [Parameter(Position = 0)][string]$Version,
     [string]$Notes,
     [string]$Message,
     [ValidateSet('release', 'beta')][string]$Channel,
@@ -50,11 +55,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Set-Location $PSScriptRoot
+
+# --- the version: given, or the highest vX.Y.Z tag with Z + 1 ----------------------------------------------
+# Betas are skipped, so after v0.1.0 and its v0.1.1-beta.N this releases 0.1.1. Only tags reachable from
+# HEAD count, so a release/<x.y> branch bumps its own line.
+if (-not $Version) {
+    $highest = git tag -l 'v*' --merged HEAD --sort=-v:refname | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Select-Object -First 1
+    if (-not $highest) { throw 'no vX.Y.Z tag reachable from HEAD to bump: give a version' }
+    $highest -match '^v(\d+)\.(\d+)\.(\d+)$' | Out-Null
+    $Version = '{0}.{1}.{2}' -f $Matches[1], $Matches[2], ([int]$Matches[3] + 1)
+    Write-Host "No version given: $highest -> $Version"
+}
+
 $repo = 'irongete/brodgar-io-client'
 $title = "Brodgar.io client $Version"
 $tag = "v$Version"
 $asset = "build\brodgar-io-client-$Version.zip"
-Set-Location $PSScriptRoot
 if (-not $Channel) { $Channel = if ($Version -match '-') { 'beta' } else { 'release' } }
 
 function Run {

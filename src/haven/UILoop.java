@@ -236,9 +236,26 @@ public abstract class UILoop implements Console.Directory {
 
     private void drawtooltip(UI ui, GOut g) {
 	Object tooltip;
+	boolean addon;
 	synchronized(ui) {
 	    tooltip = ui.tooltip(ui.mc);
+	    /* addon: a tip a widget an addon built answered is that addon's own text -- what drawtip renders
+	     * for it, a plain string or a KeyboundTip's lazy raster, is bracketed as such so no catalogue
+	     * records a miss for it (io.brodgar.addon.AddonText). Everything else the tip pass draws is the
+	     * client's. Asked under the tree's monitor, since it reads the widget's children. */
+	    addon = io.brodgar.addon.AddonText.built(ui.tipfrom());
 	}
+	if(addon)
+	    io.brodgar.addon.AddonText.enter();
+	try {
+	    drawtip(ui, g, tooltip);
+	} finally {
+	    if(addon)
+		io.brodgar.addon.AddonText.exit();
+	}
+    }
+
+    private void drawtip(UI ui, GOut g, Object tooltip) {
 	Indir<Tex> tt = null;
 	// addon: a "tooltip" font override moved (F3d, D-043) -> drop the cached render of the SAME tooltip object.
 	int fontgen = Fonts.gen();
@@ -459,7 +476,15 @@ public abstract class UILoop implements Console.Directory {
 	     * no session -- "above everything" with no exception, since a window that vanished at a logout was
 	     * living in a session after all. Its own monitor, taken after the session's is given up. */
 	    synchronized(layer) {
-		layer.draw(g);
+		/* addon: everything in the layer is an addon's -- a client widget cannot be re-homed into it --
+		 * so its whole draw is bracketed as addon text: a catalogue translates it and never records a
+		 * miss for it. See io.brodgar.addon.AddonText. */
+		io.brodgar.addon.AddonText.enter();
+		try {
+		    layer.draw(g);
+		} finally {
+		    io.brodgar.addon.AddonText.exit();
+		}
 	    }
 	} finally {
 	    io.brodgar.prof.Passes.end(buf, io.brodgar.prof.Passes.UI2D);

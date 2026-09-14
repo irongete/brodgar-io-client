@@ -22,6 +22,20 @@ and `run.bat` with a Java 17 or later.
 A JDK 21 or later and `ant`: `ant` builds a runnable `bin/`, `ant run` starts it, `ant release` builds
 `dist/`.
 
+## Release
+
+From a clean `master`, with `git`, `ant` and `gh` (`gh auth login`) on the PATH:
+
+```powershell
+.\release.ps1                 # highest vX.Y.Z tag with Z+1: v0.1.0 -> 0.1.1
+.\release.ps1 0.2.0           # this version
+.\release.ps1 0.2.0-beta.1    # a beta: a GitHub pre-release, for the launcher's Beta channel
+```
+
+[`release.ps1`](release.ps1) builds `dist/` with the addons in [`etc/release-addons`](etc/release-addons),
+zips it, tags `v<version>`, pushes and creates the GitHub release. Notes: `-Notes notes.md` or
+`-Message "..."`; without them, the commit subjects since the last tag. `-NoPublish` builds and tags only.
+
 ## License
 
 LGPL-3, as upstream — see [COPYING](COPYING).

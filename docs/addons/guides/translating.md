@@ -55,7 +55,8 @@ for the next, and the dump grows as you play.
 `:install()` starts a fresh round, so re-installing between two sweeps tells you what that one sweep
 reached. [`locale:miss()`](../api/locale.md#what-missed) is per addon and holds a bounded set, and a string
 yours matched is not in it at all — which is what makes the same command your progress report as the file
-fills up.
+fills up. Nor is anything an addon drew, yours included: the set is the client's own strings, so the window
+you read it from never lands in it.
 
 ## The file
 

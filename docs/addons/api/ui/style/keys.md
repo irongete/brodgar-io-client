@@ -19,7 +19,7 @@ These are the sites the client draws at:
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
 | `window.title` | window captions, and the [**plate**](chrome.md#ornaments) they sit on |
 | `window.frame` | the window **chrome**: the frame drawn around a window, the surface it sits on, and where its [ornaments](chrome.md#ornaments) go. Draws no text, so it takes `bg`, `border`, `padding` and the ornament properties, not `font` or `color` |
-| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either; see [what a panel does with a rule](surfaces.md#panels) |
+| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus, the AddOns manager's Browse cards and its screenshot box. Draws no text either; see [what a panel does with a rule](surfaces.md#panels) |
 | `heading` | in-window section headings, the embossed fraktur ones |
 | `button` | the client's standard buttons: their captions, and the **face** those are drawn on — its fill, its frame, and the fill's own [state faces](chrome.md#a-face-per-state) |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
@@ -185,7 +185,7 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `padding` and a border's insets actually **move** anything, because a window re-lays itself out |
 | `window.title` | yes | yes | **inert** | the two paint the caption **plate**, at the box the client sizes around the caption — [the ornaments](chrome.md#ornaments). The caption's own place is `window.frame`'s `caption`, so `padding` has nothing to move here |
 | `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](surfaces.md#panels) |
-| `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
+| `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box, a Browse card and the screenshot box on an addon's page: each paints its own surface before its contents, so a `bg` lands on it |
 | `tooltip` | yes | yes | yes | the box a tip is popped up in. The client sizes it around the tip's own text, so `padding` is the room between that text and the edge — and the box grows outward, leaving the text where it was. With neither `bg` nor `border` the client's own dark fill and yellow outline stay |
 | `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
 | `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |

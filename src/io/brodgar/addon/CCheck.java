@@ -76,6 +76,11 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole box paints dimmed
+        AddonText.enter();  // the caption re-renders in here when the fonts move, and it is this addon's text
+        try {
+            super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole box paints dimmed
+        } finally {
+            AddonText.exit();
+        }
     }
 }

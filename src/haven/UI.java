@@ -1006,6 +1006,12 @@ public class UI {
 	return(q.ret);
     }
 
+    /* addon: the widget the last tooltip(c) took its answer from, or null -- what says whose text the tip
+     * is (io.brodgar.addon.AddonText), read by UILoop.drawtooltip right after the query it follows. */
+    public Widget tipfrom() {
+	return(prevtt);
+    }
+
     public static int modflags(InputEvent ev) {
 	int mod = ev.getModifiersEx();
 	return((((mod & InputEvent.SHIFT_DOWN_MASK) != 0) ? MOD_SHIFT : 0) |

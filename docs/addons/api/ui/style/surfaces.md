@@ -46,15 +46,18 @@ insets actually **move** anything, because a window re-lays itself out around it
 
 A great deal of the client is framed without being a window: the boxes around lists and info panes in the
 character sheet, skills, quests, wounds, fight and buddy windows; the HUD portrait; party avatars; the
-map's view and marker list; flower-menu petals; dropdown menus. They draw a 9-slice of their own rather
-than carrying a window's decoration, and `panel` is the key for all of them.
+map's view and marker list; flower-menu petals; dropdown menus; the cards of the AddOns manager's Browse
+tab and the screenshot box on an addon's page. They draw a 9-slice of their own rather than carrying a
+window's decoration, and `panel` is the key for all of them.
 
 - **`border` reaches every one of them. `bg` does not, and the split is per kind.** A rule's `bg` replaces
-  a surface the client *already paints*; it never invents one. The petals, the dropdown menus and an
-  item-stock box each paint their own surface before their contents, so a `bg` lands there. The **boxed
-  panels are a border drawn *around* content that is not theirs** — the attribute rows in the character
-  sheet belong to the window, not to the box — so a fill would bury the very rows the box is drawn around.
-  On those, `bg` is **inert** and `border` is what you style with. Nothing is refused and nothing warns.
+  a surface the client *already paints*; it never invents one. The petals, the dropdown menus, an
+  item-stock box, a Browse card and the screenshot box each paint their own surface before their contents,
+  so a `bg` lands there — a card is its own `@AddonCard`, so a tree rule dresses the cards alone, and a `hover`
+  face in its `bg` is worn under the pointer. The **boxed panels are a border drawn *around* content that is
+  not theirs** — the attribute rows in the character sheet belong to the window, not to the box — so a fill
+  would bury the very rows the box is drawn around. On those, `bg` is **inert** and `border` is what you
+  style with. Nothing is refused and nothing warns.
 - **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no
   rule re-runs that. So [`padding`](chrome.md#padding) is inert here, and so are your **border's own
   insets**: the art is drawn *into* the room the stock frame had, not around it. The stock boxes are about

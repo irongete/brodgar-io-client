@@ -39,6 +39,11 @@ final class CLabel extends Label implements Owned.Control {
     public void draw(GOut g) {
         if(own.pending())   // built this statement and not armed yet: a half-configured control paints NOTHING
             return;
-        super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
+        AddonText.enter();  // the caption re-renders in here when the fonts move, and it is this addon's text
+        try {
+            super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
+        } finally {
+            AddonText.exit();
+        }
     }
 }

@@ -8,13 +8,11 @@ import haven.OptWnd;
 import haven.RichText;
 import haven.Scrollport;
 import haven.Tabs;
-import haven.TextEntry;
 import haven.UI;
 import haven.Widget;
 
 import io.brodgar.addon.AddonManager;
 import io.brodgar.addon.AddonRegistry;
-import io.brodgar.addon.ApiVersion;
 import io.brodgar.addon.PermissionSet;
 import io.brodgar.addon.AddonRegistry.AddonInfo;
 import io.brodgar.addon.registry.Entry;
@@ -49,21 +47,20 @@ import java.util.Map;
  * not answer; with nothing installed from the hub, nothing goes out. A by-hand row carries neither button:
  * the client never replaces or deletes a folder the player put there.
  *
- * <p><b>Browse</b> searches the hub ({@link Registry#search}): a field whose text is searched once it has been
- * still for a third of a second, or at once on Enter — polled from {@link #tick}, because a write the API
- * makes ({@code w:value(s)} is {@code rsettext}) is silent and typing, paste and a driven write all deserve the
- * same door — over a list of {@link BrowseRow}s and the tab's own line ({@code searching}, {@code no addon
- * matches}, or why the hub did not answer). Every answer is read from {@code tick} and only the latest
- * request is ever read, so a late answer to an earlier search is dropped. A row is the hub's item — name,
- * version, owner, the same markers and tooltip an Installed row composes — and a status that is a fact about
- * this client: {@code installed v…} where the folder carries the hub's {@code InstallRecord}, {@code in
- * addons/ by hand} where it carries none (the client never replaces a player's own folder), the out-of-date
- * label where its {@code api_version} is not this client's, else empty — and then <b>Install</b> in the
- * button column at {@link #BUTTON_X} (145.2). A press is {@link AddonRegistry#install}, and the rest is the
- * registry's — the download runs on the hub client's worker and the layer's step stages what lands — with the
- * row reading which step it is at every tick ({@code downloading n%}, {@code staged v - Reload UI to apply},
- * {@code failed: why}); the folder itself changes at the next reload, which is when every other change on this
- * panel is applied too, and an Installed row names a stage waiting on it the same way.
+ * <p><b>Browse</b> is the hub's own front page in the client's widgets — {@link BrowsePanel}: a search
+ * field with the order beside it, the tags as chips, one {@link AddonCard} per addon and a pager, and a
+ * card opens the addon's page, {@link AddonDetail}, in the same box. A card's right-hand side is this
+ * client's own word on the item — {@code installed v…} where the folder carries the hub's
+ * {@code InstallRecord}, {@code in addons/ by hand} where it carries none (the client never replaces a
+ * player's own folder), the out-of-date label where its {@code api_version} is not this client's — and
+ * <b>Install</b> where the folder is absent, on the card and on the page both. A press is
+ * {@link AddonRegistry#install}, and the rest is the registry's — the download runs on the hub client's
+ * worker and the layer's step stages what lands — with the card reading which step it is at every tick
+ * ({@code downloading n%}, {@code staged v - Reload UI to apply}, {@code failed: why}); the folder itself
+ * changes at the next reload, which is when every other change on this panel is applied too, and an
+ * Installed row names a stage waiting on it the same way. Everything the tab reads from the hub is polled
+ * from its own tick, as this panel polls the facade; the two statics a card and a row share
+ * ({@link #failTip}, {@link #pendingStatus}) live here.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
  * addon that declares any of them shows the {@code [protected: N]} row marker with its declared entries in the
@@ -74,7 +71,7 @@ import java.util.Map;
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
- * {@link CheckBox}, {@link Button}, {@link Label}, {@link TextEntry}, {@link Tabs}) is a public {@code haven}
+ * {@link CheckBox}, {@link Button}, {@link Label}, {@link Tabs}) is a public {@code haven}
  * type. It holds <b>no</b> listener or subscription — it polls the facade and the hub client in
  * {@link #tick(double)} — so there is nothing to leak when it closes. Rows are rebuilt when a reload changes
  * the addon set (watched via {@link AddonRegistry#reloadGen()}); the per-row status is refreshed cheaply each
@@ -82,11 +79,14 @@ import java.util.Map;
  */
 public class AddonPanel extends OptWnd.Panel {
     /**
-     * The list width, both tabs: a row's metadata to {@link #STATUS_X}, its status from there, and two button
-     * columns — {@link #BUTTON_X} (Install on Browse, Update on Installed) and {@link #BUTTON2_X} (Remove) —
-     * each {@link #BUTTON_W} wide, the last ending short of the port's scrollbar.
+     * The list width, both tabs: an Installed row's metadata to {@link #STATUS_X}, its status from there, and
+     * two button columns — {@link #BUTTON_X} (Update) and {@link #BUTTON2_X} (Remove) — each
+     * {@link #BUTTON_W} wide, the last ending short of the port's scrollbar. The Browse tab is
+     * {@link BrowsePanel#W} wide, which is this, and its cards lay their own columns out.
      */
     static final int LIST_W = 624, STATUS_X = 290, BUTTON_X = 480, BUTTON2_X = 544, BUTTON_W = 60;
+    /** The Installed list's height: as tall as the Browse tab leaves room for under its own controls. */
+    static final int LIST_H = 260;
     /** How long the search field's text has to be still before it is searched, in seconds. */
     static final double SEARCH_STILL = 1.0 / 3;
 
@@ -96,6 +96,7 @@ public class AddonPanel extends OptWnd.Panel {
     private final Scrollport list;
     private final Label hint;
     private final List<Row> rows = new ArrayList<Row>();
+    private Label empty;                    // "No addons installed", centred in the list, exactly while it is empty
     private int builtGen = Integer.MIN_VALUE;
     private PermissionConsentWnd consent;   // the live enable-time permission consent dialog (4c), or null/destroyed
     // -- the update check (145.3)
@@ -105,14 +106,7 @@ public class AddonPanel extends OptWnd.Panel {
     private boolean checkedOk = false;      // the line shows a count (else nothing, or a failure)
     private boolean showing = false;        // the Installed tab was on screen at the last tick
     // -- Browse
-    private final TextEntry field;
-    private final Scrollport results;
-    private final Label line;               // the tab's own line: searching / no addon matches / why not
-    private final List<BrowseRow> found = new ArrayList<BrowseRow>();
-    private String lastText = "";           // the field's text as tick last saw it
-    private double still = 0;               // how long it has been that, in seconds
-    private boolean searchDue = false;      // the text moved and no search has gone out for it yet
-    private Registry.Request<List<Entry>> pending;   // the latest request, the only one ever read
+    private final BrowsePanel browsing;     // the whole tab: the front page, and the addon's page over it
 
     public AddonPanel(OptWnd opt, OptWnd.Panel back) {
         // addon: (115.1) "AddOns" is this panel's own caption on the window, written by OptWnd.chpanel when it
@@ -150,7 +144,7 @@ public class AddonPanel extends OptWnd.Panel {
         // a button column stands at BUTTON_X beside the status, which is what widened it from 480; 145.3: a
         // second at BUTTON2_X, for Update and Remove side by side, which widened it to LIST_W.
         // The list is clipped at its edge, not wrapped, so a row wider than this reads as a status cut mid-word.
-        list = installed.add(new Scrollport(UI.scale(new Coord(LIST_W, 220))), prev.pos("bl").adds(0, 8));
+        list = installed.add(new Scrollport(UI.scale(new Coord(LIST_W, LIST_H))), prev.pos("bl").adds(0, 8));
         hint = installed.add(new Label(""), list.pos("bl").adds(0, 6));
         // 141.2: LOAD OUT OF DATE ADDONS -- the WoW checkbox of the same name, one stance over the whole list
         // rather than a per-row grant. It sits between the hint and the buttons because it is applied exactly
@@ -176,20 +170,8 @@ public class AddonPanel extends OptWnd.Panel {
         Label word = new Label("");
         checked = installed.add(word, new Coord(check.pos("ur").x + UI.scale(8), check.c.y + (check.sz.y - word.sz.y) / 2));
 
-        // ---- Browse: the field, the results, the line
-        prev = browse.add(new Label("Search the addons published at brodgar.io/addons: a name, an author, a tag."),
-                          Coord.z);
-        // The field is an anonymous subclass so that its class name stays TextEntry for a selector, and so
-        // that Enter -- which the client delivers to activate(String) through done()/gkeytype -- searches at
-        // once. Everything else about it is read by tick: text() polled, searched when still.
-        field = browse.add(new TextEntry(UI.scale(LIST_W), "") {
-                public void activate(String text) {
-                    lastText = text;
-                    search(text);
-                }
-            }, prev.pos("bl").adds(0, 4));
-        results = browse.add(new Scrollport(UI.scale(new Coord(LIST_W, 220))), field.pos("bl").adds(0, 8));
-        line = browse.add(new Label(""), results.pos("bl").adds(0, 6));
+        // ---- Browse: the hub's front page, and the addon's page over it
+        browsing = browse.add(new BrowsePanel(), Coord.z);
 
         // Tabs.pack gives both tabs the union box, so Browse is laid out to Installed's height and Back sits
         // below both at the same place whichever is showing.
@@ -201,25 +183,32 @@ public class AddonPanel extends OptWnd.Panel {
 
     /**
      * (Re)build the Installed rows from {@link AddonRegistry#describeAddons()} (reads manifests from disk), and
-     * re-read every Browse row's folder status: a reload is the moment {@code addons/} may have changed. The
+     * re-read every Browse card's folder status: a reload is the moment {@code addons/} may have changed. The
      * updates the last check found are held to the folders as they are now — one whose record has caught up
-     * with the hub's item, or whose folder is gone, is dropped — and the line says what is left.
+     * with the hub's item, or whose folder is gone, is dropped — and the line says what is left. An empty
+     * list says so in its middle, and says it exactly while it is empty: the word goes with the rows it stood
+     * in for, so an install never leaves it standing under the first row.
      */
     private void rebuild() {
         for(Row r : rows)
             r.destroy();
         rows.clear();
+        if(empty != null) {
+            empty.destroy();
+            empty = null;
+        }
         int y = 0;
         for(AddonInfo ai : AddonRegistry.describeAddons()) {
             Row r = list.cont.add(new Row(ai), new Coord(0, y));
             rows.add(r);
             y += r.sz.y + UI.scale(2);
         }
-        if(rows.isEmpty())
-            list.cont.add(new Label("No addons found."), new Coord(0, 0));
+        if(rows.isEmpty()) {
+            empty = list.cont.add(new Label("No addons installed"), Coord.z);
+            empty.c = list.cont.sz.sub(empty.sz).div(2);
+        }
         builtGen = AddonRegistry.reloadGen();
-        for(BrowseRow r : found)
-            r.rescan();
+        browsing.rescan();
         for(Iterator<Map.Entry<String, Entry>> it = updates.entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, Entry> u = it.next();
             if(!newer(u.getValue(), row(u.getKey())))
@@ -295,7 +284,6 @@ public class AddonPanel extends OptWnd.Panel {
         if(on && !showing)
             checkUpdates();
         showing = on;
-        pollSearch(dt);
         pollCheck();
     }
 
@@ -365,79 +353,6 @@ public class AddonPanel extends OptWnd.Panel {
     private void checkedLine() {
         int n = updates.size();
         checked.settext((n == 0) ? "no update available" : (n + ((n == 1) ? " update available" : " updates available")));
-    }
-
-    // ------------------------------------------------------------- Browse
-
-    /**
-     * The search field, read every frame: a text that moved is searched once it has been still for
-     * {@link #SEARCH_STILL}, whether the user typed it, pasted it, or an addon wrote it — the write is
-     * {@code rsettext} and fires no {@code changed}, so a hook there would miss it and polling misses nothing.
-     * Then the request in flight, if it has ended: its answer becomes the rows, or its error the line. Only
-     * {@link #pending} is ever read, so a request a later search replaced is dropped with its answer.
-     */
-    private void pollSearch(double dt) {
-        String t = field.text();
-        if(!t.equals(lastText)) {
-            lastText = t;
-            still = 0;
-            searchDue = true;
-        } else if(searchDue) {
-            still += dt;
-            if(still >= SEARCH_STILL)
-                search(t);
-        }
-        if((pending != null) && pending.done()) {
-            Registry.Request<List<Entry>> r = pending;
-            pending = null;
-            if(r.error() != null)
-                line.settext(r.error());
-            else
-                show(r.result());
-        }
-    }
-
-    /**
-     * Search the hub for {@code text} now; an empty text is no search at all — the rows go and the line clears.
-     * A request still in flight is cancelled first: its answer is nobody's now, and a hub that is slow or down
-     * would otherwise hold the one worker for the rest of that request's timeout before this one went out.
-     */
-    private void search(String text) {
-        searchDue = false;
-        still = 0;
-        if(pending != null) {
-            pending.cancel();
-            pending = null;
-        }
-        String q = text.trim();
-        if(q.isEmpty()) {
-            clearResults();
-            line.settext("");
-            return;
-        }
-        line.settext("searching");
-        pending = Registry.search(q);
-    }
-
-    /** The rows for an answer, in the hub's order; the line says when there are none. */
-    private void show(List<Entry> items) {
-        clearResults();
-        int y = 0;
-        for(Entry e : items) {
-            BrowseRow r = results.cont.add(new BrowseRow(e), new Coord(0, y));
-            found.add(r);
-            y += r.sz.y + UI.scale(2);
-        }
-        line.settext(items.isEmpty() ? "no addon matches" : "");
-    }
-
-    /** The rows go, and the list is back at its top: a shorter answer under an old scroll offset would draw blank. */
-    private void clearResults() {
-        for(BrowseRow r : found)
-            r.destroy();
-        found.clear();
-        results.bar.val = 0;                             // the fields, not bar.ch(): a refill is no Changed of anyone's
-        results.cont.sy = 0;
     }
 
     // ------------------------------------------------------------- what a row says, on either tab
@@ -515,7 +430,7 @@ public class AddonPanel extends OptWnd.Panel {
      * The status label's own tooltip: the whole failure where the label clips it, none otherwise. Answers what
      * it now holds, for the field that remembers it, so the tip is re-rendered only when the sentence moves.
      */
-    private static String failTip(Label status, String why, String held) {
+    static String failTip(Label status, String why, String held) {
         if(why == null)
             status.tooltip = null;
         else if(!why.equals(held))
@@ -528,7 +443,7 @@ public class AddonPanel extends OptWnd.Panel {
      * version, or the removal, and the gesture that applies it — the next reload, or a restart where the last
      * reload could not move the folder.
      */
-    private static String pendingStatus(AddonRegistry.Pending p) {
+    static String pendingStatus(AddonRegistry.Pending p) {
         String gesture = p.restart ? "restart" : "Reload UI";
         return p.removal ? ("removed on " + gesture) : ("staged " + p.version + " - " + gesture + " to apply");
     }
@@ -640,92 +555,6 @@ public class AddonPanel extends OptWnd.Panel {
                         AddonRegistry.install(e);
                 });
             remove = offer(this, remove, act, "Remove", BUTTON2_X, () -> AddonRegistry.markRemove(id));
-        }
-
-        public void tick(double dt) {
-            super.tick(dt);
-            refresh();
-        }
-    }
-
-    /**
-     * One row of the Browse tab: the hub's item — name, version, owner, the markers — with the summary, the
-     * permissions and the hosts as its tooltip, a status, and <b>Install</b> where the folder is absent
-     * (145.2). The status is the first of these that is true: {@code downloading n%} while the registry's
-     * download of it runs; the stage or the removal waiting on the folder ({@link #pendingStatus});
-     * {@code failed: why} after a download or a stage the registry refused, the whole why in the label's
-     * own tooltip; {@code installed v…} where the folder carries the hub's record; {@code in addons/ by
-     * hand} where it carries none — the client never replaces a player's own folder, so neither of those
-     * two offers the button; the out-of-date label where the item's {@code api_version} is not one this
-     * client implements (its sentence opening the tooltip, as on an Installed row); else empty. The two
-     * facts that are a folder on disk are read at build and at every rebuild ({@link #rescan}); the rest
-     * are the registry's maps, read every tick.
-     */
-    private final class BrowseRow extends Widget {
-        final Entry entry;
-        private final Label status;
-        private Button install;               // in the tree exactly while it is offered (offer)
-        private final String outdated;        // the label an Installed row would carry for this api_version, or null
-        private boolean folder;               // addons/<id>/ exists -- a fact on disk, read by rescan()
-        private String hub;                   // ...and the hub's record in it, or null for a by-hand folder
-        private String tipped;                // the failure the status label's tooltip holds, or null
-
-        BrowseRow(Entry e) {
-            // As tall as the button, which is taller than a line of text: Button.hs is its images' own height.
-            super(new Coord(UI.scale(LIST_W), Math.max(UI.scale(18), Button.hs)));
-            this.entry = e;
-            Label nm = new Label(meta(e.name, e.version, e.owner, e.permissions.size(), !e.hosts.isEmpty()));
-            add(nm, new Coord(0, (sz.y - nm.sz.y) / 2));   // a fresh Coord, as on an Installed row
-            String lead, label;
-            try {
-                // The one decision the client makes about every manifest's api_version, made about the hub's
-                // copy of it: ApiVersion.why is the sentence, ApiVersion.label the row's state. A field that is
-                // not a version at all is refused by parse naming the form, and the row shows that instead.
-                ApiVersion v = ApiVersion.parse(e.apiVersion);
-                String why = ApiVersion.why(v);
-                lead = (why != null) ? "Out of date: " + why : null;
-                label = ApiVersion.label(v);
-            } catch(IllegalArgumentException x) {
-                lead = x.getMessage();
-                label = "manifest error (hover)";
-            }
-            this.outdated = label;
-            rowTip(nm, tip(lead, e.summary, e.permissions.isEmpty() ? null : String.join(", ", e.permissions), e.hosts));
-            status = add(new Label(""), new Coord(UI.scale(STATUS_X), nm.c.y));
-            rescan();
-        }
-
-        /** Re-read the two facts on disk: the folder, and the hub's record in it. At build and at every rebuild. */
-        void rescan() {
-            folder = AddonRegistry.hasFolder(entry.id);
-            hub = folder ? AddonRegistry.hubVersion(entry.id) : null;
-            refresh();
-        }
-
-        void refresh() {
-            int progress = AddonRegistry.downloading(entry.id);
-            AddonRegistry.Pending p = AddonRegistry.pending(entry.id);
-            String why = AddonRegistry.failed(entry.id);
-            String s;
-            boolean button = false;
-            if(progress >= 0) {
-                s = "downloading " + progress + "%";
-            } else if(p != null) {
-                s = pendingStatus(p);
-            } else if(why != null) {
-                s = "failed: " + why;
-                button = !folder;               // ...and a retry is one press away
-            } else if(hub != null) {
-                s = "installed v" + hub;
-            } else if(folder) {
-                s = "in addons/ by hand";
-            } else {
-                s = (outdated != null) ? outdated : "";
-                button = true;
-            }
-            status.settext(s);
-            tipped = failTip(status, why, tipped);
-            install = offer(this, install, button, "Install", BUTTON_X, () -> AddonRegistry.install(entry));
         }
 
         public void tick(double dt) {

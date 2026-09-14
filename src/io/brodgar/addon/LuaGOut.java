@@ -732,9 +732,20 @@ final class LuaGOut {
      * {@code (String, BufferedImage)} constructor is {@code protected} — which is exactly what a subclass may
      * call, so {@code haven} is not edited for it. It happens before anything asks for {@code tex()}, since
      * that memoises the texture of whatever image the {@code Text} was holding at the time.
+     *
+     * <p><b>And whatever comes through here is an addon's own text</b> — a {@code g:text}, a label record, a
+     * measure — so the raster is bracketed as such ({@link AddonText}): a catalogue translates it and never
+     * records it as a miss, whichever thread draws it (an overlay's label is painted by the engine, outside
+     * any Lua).
      */
     private static Text render(String str, FontHandle fh, int width) {
-        Text t = render0(str, fh, width);
+        Text t;
+        AddonText.enter();
+        try {
+            t = render0(str, fh, width);
+        } finally {
+            AddonText.exit();
+        }
         if((fh == null) || (fh.outline == null))
             return t;
         // The Text we drop here has no texture yet -- tex() is lazy and nothing has called it -- so there is
