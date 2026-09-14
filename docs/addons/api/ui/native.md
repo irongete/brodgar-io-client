@@ -239,9 +239,9 @@ contents is never pinned to a box the user did not choose.
 
 **What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer, and
 when the screen moves. **The slot belongs to the tree the widget stands in**: a session's own window — the
-`@ChatUI` above — is filed under **that** character like a [per-character saved variable](../store/documents.md),
+`@ChatUI` above — is filed under **that** character like [a character's document](../store/documents.md),
 looked at or not, while one you built stands in your layer and is filed under your
-[addon's own scope](../store/documents.md#the-one-thing-saved-without-being-declared). Called before that session is in the
+[addon's own scope](../store/documents.md#where-a-widget-sits-is-saved-for-you). Called before that session is in the
 world it has nothing to put back, says so in the log, and remembers the name anyway.
 
 | Call | Does |

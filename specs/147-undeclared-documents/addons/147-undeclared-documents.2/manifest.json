@@ -1,0 +1,9 @@
+{
+  "name": "147.2 — the pages",
+  "id": "147-undeclared-documents.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 147.2: documents.md's and the store hub's example blocks run as written, and each line does what the page says.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

@@ -31,8 +31,7 @@ file is written from what the client actually offered. Install a catalogue that 
 read back what missed:
 
 ```lua
--- addons/myaddon/main.lua, beside
--- "saved_variables": [{ "name": "catalogue", "scope": "client" }] in the manifest
+-- addons/myaddon/main.lua
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
 
 hafen.console():on("dump", function()
@@ -48,10 +47,10 @@ end)
 Open the windows you mean to translate, hover the items, right-click something for its menu, then type
 `:dump`. The terminal shows a JSON object keyed exactly as a catalogue's `text` is, with every string
 doubled: paste it into the file you ship, translate the right-hand side of each pair and you have the
-file. The misses are kept in a [document](../api/store/documents.md), declared `"scope": "client"`
-because the strings the client says are the client's rather than one character's, and `:get` hands back
-the live table — an empty one on the first run — so what one sweep found is still there for the next,
-and the dump grows as you play.
+file. The misses are kept in a [document](../api/store/documents.md) of your addon's own, reached through
+`hafen.store()` because the strings the client says are the client's rather than one character's, and
+`:get` hands back the live table — an empty one on the first run — so what one sweep found is still there
+for the next, and the dump grows as you play.
 
 `:install()` starts a fresh round, so re-installing between two sweeps tells you what that one sweep
 reached. [`locale:miss()`](../api/locale.md#what-missed) is per addon and holds a bounded set, and a string

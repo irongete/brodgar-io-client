@@ -22,7 +22,7 @@ end
 
 | Shape | What it is | Reach for it when | Page |
 |---|---|---|---|
-| a **document** | a live Lua table you assign into, declared in the manifest, written for you | settings: a handful of values you read at load and change now and then | [documents](documents.md) |
+| a **document** | a live Lua table you name at `get` and assign into, written for you | settings: a handful of values you read at load and change now and then | [documents](documents.md) |
 | a **table** | columns, a key and indexes you declare; rows go in and come out typed | a record: many rows of one shape, looked up by key or by clause | [tables](tables.md) |
 | a **statement** | one SQL statement, with a value bound to each `?` | what only SQL says: an aggregate, a join, a bulk write | [statements](statements.md) |
 
@@ -34,10 +34,10 @@ both: `count(*)`, `GROUP BY`, a `JOIN` across two of your tables, an `UPDATE` of
 by clause.
 
 **A character is a column, or a row key, never a file.** The file is the client's, so where the rows are
-one character's you say so: a document declared per character is a row keyed by that character and
-reached through its [session](../session.md); a table's rows are one character's where you declare a
-column for it, and everyone's where you do not. The whole picture — every node any of your characters
-ever saw — is then one `SELECT` away, because it is one file.
+one character's you say so: a document reached through a character's [session](../session.md) is a row
+keyed by that character; a table's rows are one character's where you declare a column for it, and
+everyone's where you do not. The whole picture — every node any of your characters ever saw — is then one
+`SELECT` away, because it is one file.
 
 ## The section
 
@@ -47,8 +47,8 @@ or character is up. A character's documents are the one thing reached elsewhere,
 
 | Verb | Answers | Page |
 |---|---|---|
-| `hafen.store():get(name)` | the live table of a document declared `"scope": "client"` | [documents](documents.md) |
-| `hafen.store():list()` | the client-scope document names you declared, a string array | [documents](documents.md) |
+| `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it | [documents](documents.md) |
+| `hafen.store():list()` | the names that exist in your addon's own scope, sorted, a string array | [documents](documents.md) |
 | `hafen.store():flush()` | the store, once the client scope's documents and placements are written | [documents](documents.md) |
 | `hafen.store():info()` | `{file, bytes}` | [below](#the-file) |
 | `hafen.store():table(name)` | a bare declaration of one of your own tables | [tables](tables.md) |
@@ -76,9 +76,9 @@ nobody meant.
 **One file per addon, named by the id, in a folder named by the id.** There is no path of your choosing,
 and no file per account or per character: a file per login is one schema in as many files as you have
 logins, which no query reads together — a record that forgets every node when you log in as your other
-account. The folder and the file are created the first time your addon loads, whatever the manifest
-declares, because a remembered window and a table need it as much as a document does. Two addons never
-share one: each reads and writes its own, and nothing of another's is reachable from it.
+account. The folder and the file are created the first time your addon loads, whether or not it ever
+names a document, because a remembered window and a table need it as much as a document does. Two addons
+never share one: each reads and writes its own, and nothing of another's is reachable from it.
 
 **Beside it, in the same folder, stand two sidecars while it is open**: `<id>.sqlite-wal`, the log every
 write lands in first, and `<id>.sqlite-shm`, its index. They are part of the database — a copy of the
@@ -92,7 +92,7 @@ addon has been disabled. Copy or move the folder then.
 |---|---|
 | a row a [table](tables.md) or a [statement](statements.md) writes | when the call returns — or, inside a `:transaction`, when `fn` returns |
 | a [document](documents.md) | on the timer, every thirty seconds; when your addon is disabled or reloaded; when the client quits; on `:flush()`. A character's, also when the session holding it ends or picks another character |
-| a [remembered placement](documents.md#the-one-thing-saved-without-being-declared) | with the documents of the scope its widget stands in, and when the screen changes |
+| a [remembered placement](documents.md#where-a-widget-sits-is-saved-for-you) | with the documents of the scope its widget stands in, and when the screen changes |
 
 The file is **closed** when your addon is disabled or reloaded and when the client quits, after its
 documents are written. A crash or a kill closes nothing: every row a call committed is in the log and is
@@ -143,8 +143,8 @@ verb here refuses naming the cause. Fix it and `:reload`.
 
 ## See also
 
-- [documents](documents.md) — the declaration and its two scopes, both doors, what survives, the placements
+- [documents](documents.md) — the two doors as the two scopes, what survives, when it is written, the placements
 - [tables](tables.md) — the builder, the Table, the types both ways, and how a declaration evolves
 - [statements](statements.md) — `:exec`, `:query`, binding, what is refused, and `:transaction`
 - [saved data](../../guides/saved-data.md) — the guide: which shape, and when to read each
-- [the manifest](../../manifest.md) — where `saved_variables` is declared
+- [the manifest](../../manifest.md) — the id that names the file, and the fields beside it

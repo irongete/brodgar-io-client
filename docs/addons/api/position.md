@@ -99,7 +99,7 @@ either direction. [`hafen.json`](json.md) writes it as its durable form and read
 Position, so a place survives a file, a message, or another player.
 
 ```lua
-hafen.store():get("spot").home = s:player():gob():position()   -- a declared saved variable
+hafen.store():get("spot").home = s:player():gob():position()   -- a document, saved for you
 
 -- next session
 local home = hafen.store():get("spot").home

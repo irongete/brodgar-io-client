@@ -1,31 +1,27 @@
 # Saved data
 
 Anything your addon should still know next week goes in [your addon's file](../api/store/README.md), one per
-addon for the whole client, and it takes three shapes. A **document** is a Lua table you declare in the
-manifest, which the client restores when you load and writes back for you: settings. A **table** you declare
+addon for the whole client, and it takes three shapes. A **document** is a Lua table you name at `get`,
+which the client restores when you first name it and writes back for you: settings. A **table** you declare
 holds rows, typed, looked up by key or by clause: a record. A **statement** is SQL, for what only SQL says.
 Start with a document; move to a table the day the document would grow.
 
-## Declare it, then use it
-
-```json
-"saved_variables": ["settings", { "name": "seen", "scope": "client" }]
-```
+## Name it, and it exists
 
 ```lua
 hafen.session():current():store():get("settings").window = { x = 40, y = 200 }
 hafen.store():get("seen").lastLogin = os.time()
 ```
 
-A bare name is **per character**; the object form with `"scope": "client"` is your addon's own, one for the
-whole client whichever account or character is up. That is also the whole of the difference in how you reach
-one: a character's saved variables are that character's own, so you name [the session](../api/session.md) they
-belong to, and your addon's own are reached without naming anyone. Ask for either through the other's door
-and you get an error naming the right one.
+The door is the scope. A document reached through [a session](../api/session.md) is **that character's
+own**; one reached through `hafen.store()` is your addon's own, one for the whole client whichever account
+or character is up. That is the whole of the difference: nothing declares a scope, and the same name through
+the two doors is two documents.
 
-A declared name is always a usable table, empty when there is nothing saved yet, so there is nothing to
-create and no `nil` check to write. The table object itself never changes — a restore refills it in place —
-so a local reference you cache stays valid. See [documents](../api/store/documents.md) for the whole surface.
+A name is always a usable table, empty when there is nothing saved yet, so there is nothing to create and
+no `nil` check to write — and a misspelt name is an empty document, since there is nothing to hold it
+against. The table object itself never changes — a restore refills it in place — so a local reference you
+cache stays valid. See [documents](../api/store/documents.md) for the whole surface.
 
 ## Read it at the right moment
 
@@ -131,7 +127,7 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 ```
 
-There is no declaration, no table and no handler, because every addon that saved a layout by hand wrote
+There is no document, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
 the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and the
 character is the one **on screen**, because a window stands over whichever session you are looking at.

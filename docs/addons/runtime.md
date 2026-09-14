@@ -13,13 +13,13 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 
 | Moment | What is ready |
 |---|---|
-| your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
+| your file bodies | the whole `hafen` API is callable; your addon's own documents are readable, each when you name it; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
-| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own saved variables. **Once per character reaching the world**: again for the same session when it picks another, and again for every login in the world at a `:reload` |
+| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own documents. **Once per character reaching the world**: again for the same session when it picks another, and again for every login in the world at a `:reload` |
 | `Disable` | your last chance to write, before the engine flushes and tears down — on a reload, on being disabled, and on the way out of the client. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
-per-character saved variables — is absent until a session reaches the world. The read verbs say so rather
+that character's documents — is absent until a session reaches the world. The read verbs say so rather
 than guessing: each one's reference page states what it gives back when there is no character yet.
 
 An error while a file runs stops **that** addon's file and marks it errored in the [AddOns manager](panel.md);

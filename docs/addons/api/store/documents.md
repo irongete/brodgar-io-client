@@ -1,14 +1,16 @@
 # hafen.store: documents
 
-A **document** is a saved variable: a Lua table you name in your manifest, which the client fills from your
-[file](README.md) when your addon loads and writes back for you. You assign into it, and that is the whole of
-saving. It is the shape for settings — a handful of values read at load and changed now and then; a record
-that grows is a [table](tables.md). Every verb here is **unprotected**.
+A **document** is a Lua table you name at `get`, saved for you: it exists the first time `get(name)` names
+it, the client fills it from your [file](README.md) then and there, and writes it back when it changes.
+You assign into it, and that is the whole of saving. It is the shape for settings — a handful of values
+read once and changed now and then; a record that grows is a [table](tables.md). Every verb here is
+**unprotected**.
 
-**A scope is an address.** A character's documents are that character's own rows, so they are reached
-through [its session](../session.md) and answer about the character that session is playing, on screen or
-not; your addon's own are one set of rows for the whole client, whichever account or character is up, so
-they are reached without naming anyone.
+**The door is the scope.** `hafen.store()` reaches your addon's own documents: one set of rows for the
+whole client, whichever account or character is up. A character's documents are that character's own
+rows, so they are reached through [its session](../session.md), `s:store()`, and answer about the
+character that session is playing, on screen or not. Nothing else names a scope: the same name through
+the two doors is two documents.
 
 ```lua
 local settings = hafen.session():current():store():get("settings")   -- the live table, not a copy
@@ -19,23 +21,12 @@ local seen = hafen.store():get("seen")                                -- your ad
 seen.lastLogin = os.time()
 ```
 
-## Declare a document
+## The two doors are the two scopes
 
-Every document is named in `manifest.json` under `saved_variables`, and nothing else on this page is
-persisted:
-
-```json
-"saved_variables": ["settings", { "name": "seen", "scope": "client" }]
-```
-
-| Declaration | Whose | Where it lands | Reached through |
-|---|---|---|---|
-| a bare name, or `{ "name": …, "scope": "character" }` | one character's, a row per character | your file, keyed by the character | the session whose character it is |
-| `{ "name": …, "scope": "client" }` | your addon's own, one for the whole client | your file, keyed by nobody | `hafen.store()` |
-
-Any other word is a manifest error naming the two. A name declared **twice is an error**: one name is one
-table, so the second entry could only have been ignored, and a manifest that will not load says so at the
-moment you can fix it.
+| Door | Whose | Where it lands |
+|---|---|---|
+| `hafen.store()` | your addon's own, one for the whole client | your file, keyed by nobody |
+| `s:store()` | one character's, a row per character | your file, keyed by that character |
 
 **A character's key is named by the server**, so that name is checked before anything is written under it:
 it is reduced to the characters a file name can hold, and then it has to be a name *inside* `savedata/`. A
@@ -47,31 +38,32 @@ raises the same way.
 
 | Method | Description |
 |---|---|
-| `s:store():get(name)` | that character's persisted table for one declared document |
-| `s:store():list()` | the per-character names **this addon** declared, as a string array |
+| `s:store():get(name)` | the live table of that character's document `name`, empty until something is saved under it |
+| `s:store():list()` | the names that exist in that character's scope, sorted, as a string array |
 | `s:store():flush()` | write that character's changed documents and placements now; the store |
-| `hafen.store():get(name)` | your addon's own persisted table for one declared document |
-| `hafen.store():list()` | the client-scope names **this addon** declared, as a string array |
+| `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it |
+| `hafen.store():list()` | the names that exist in your addon's own scope, sorted, as a string array |
 | `hafen.store():flush()` | write your addon's own changed documents and placements now; the store |
 
 **What `get` hands back is the table itself, not a copy**, so writing into it is the whole of saving: there
 is no "put it back" step, and a reference you keep in a local goes on being the one written to the file. It
-is also stable for the addon's whole life — a restore refills it in place rather than replacing it — so a
-table captured at load time is still valid an hour later. Assign *into* it; you cannot assign over it.
+is also stable for the addon's whole life — the same object on every call, and a restore refills it in place
+rather than replacing it — so a table captured at load time is still valid an hour later. Assign *into* it;
+you cannot assign over it.
 
 That makes it the [third kind of value](../conventions.md#snapshots-vs-handles) in this API, beside a
 snapshot and a handle: a table the bridge owns and you write into, and the one place where a typo on a key
 is silent and then persisted.
 
-A declared name is **always a usable table**, empty when there is nothing saved yet, so you never have to
-create it. A name your manifest does not declare is an error naming the ones it does, because the set of
-documents is fixed when your addon loads and a misspelt one has no later meaning to wait for. An explicit
-`nil` for the name raises like any other value.
+**A name is what you call the document, and there is nothing to hold it against.** So a misspelt name is
+an empty document, as a misspelt table name is an empty table, and the same name through both doors is
+two documents that never meet: a value written through one is not in the other. A document nobody names
+in a session is neither read nor written. `name` is a non-empty string and nothing else: `nil`, a number
+and `""` are each refused naming the parameter and what a name is.
 
-**The name picks the door, and the wrong door names the right one.** Scope is a manifest declaration rather
-than something you choose at the call, so asking for a character's document without an address is an error
-naming the session spelling, and asking for your addon's own through a session is an error naming
-`hafen.store()`. Neither answers anything: a scope you did not mean is a row you did not mean.
+**A name exists when it has a row in your file, or a table handed out this session.** That is what
+`list()` answers for its own scope — a document written and not yet flushed is on it, and nothing of the
+other scope is.
 
 ## Each character's documents are their own
 
@@ -85,10 +77,11 @@ would take your writes and never save them: a session that is not live, whose ro
 ended, and one that has not reached the world yet, which has no character and therefore no key at all.
 `s:exists()` tells you the first; `SessionEnteredWorld` is when the second stops being true.
 
-**When each scope is ready.** Your addon's own documents are filled before your files run, so they are
-readable in the file body and in `Load`. A character's are filled when that session enters the world, just
-before its `SessionEnteredWorld` fires, because the character's key is not known until then. Read them from
-there, not in `Load`.
+**When each scope is ready.** Your addon's own documents are readable in the file body and in `Load`. A
+character's are readable from that session's `SessionEnteredWorld`, because the character's key is not
+known until then, so read them from there, not in `Load`. A session that picks another character refills
+every table it has handed out from the new character's rows, in place, and the reference you cached is
+now that character's.
 
 ## What survives
 
@@ -137,12 +130,12 @@ raised: your addon starts with empty settings instead of not starting, and that 
 something that is **not** a document — a single value, `null` — is the same failure and is reported the same
 way, rather than loading nothing in silence.
 
-## The one thing saved without being declared
+## Where a widget sits is saved for you
 
 [`w:remember(name)`](../ui/native.md#remembering-where-the-user-put-it-unprotected) keeps where a widget
-sits and how big it is, and it needs no declaration and no code of yours. That is deliberate: a placement
-is saved by the *user* moving something, not by your addon deciding to write it down, so making them declare
-a document to allow it would be asking permission for a gesture they made themselves.
+sits and how big it is, with no document and no code of yours. That is deliberate: a placement is saved by
+the *user* moving something, not by your addon deciding to write it down, so it is written when the gesture
+is made, under a name you gave once.
 
 **It is filed under the tree the widget stands in**, in rows of their own beside the documents:
 
@@ -155,7 +148,7 @@ So a session's own window has nothing to put back until **that** session is in w
 nothing: each record was already under the character it belongs to. The two `flush()` verbs each write the
 rows they name — `hafen.store():flush()` your addon's own placements, `s:store():flush()` that character's —
 and the timer, a tab and the close write every one of them, so an addon that only remembers places still
-saves though it declares nothing at all.
+saves though it names no document at all.
 
 ## See also
 

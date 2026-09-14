@@ -24,7 +24,7 @@ clean.
       `[manual]`: `:reload` with the sibling addons rebuilt -- expect: no `manifest error` row in the AddOns
       panel, and `:gobcache stats` reports your cache.
 
-- [ ] **147.2 — The pages.** `documents.md` rewritten by `DOCUMENTATION.md` §4: the definition (a Lua table
+- [x] **147.2 — The pages.** `documents.md` rewritten by `DOCUMENTATION.md` §4: the definition (a Lua table
       you name at `get`, saved for you), the two doors as the two scopes, the verb table without
       "declared", `:list()` as what exists, the one paragraph on what an undeclared name costs, and *Where
       a widget sits is saved for you* in place of the retired heading, its three inbound anchors

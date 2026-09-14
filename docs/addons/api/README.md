@@ -166,7 +166,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 |---|---|
 | [`hafen.timer`](timer.md) | run a function later, once or repeatedly |
 | [`hafen.store`](store/README.md) | the hub: your addon's one file, the three shapes it holds and which is which, when it is written and closed, the sandbox, the two caps |
-| [documents](store/documents.md) | a saved variable: the declaration and its two scopes, both doors, what survives, and the placements saved for you |
+| [documents](store/documents.md) | a live table you name at `get`, saved for you: the two doors as the two scopes, what survives, and the placements saved for you |
 | [tables](store/tables.md) | a record: the builder, the Table and its rows, the types both ways, and how a declaration evolves |
 | [statements](store/statements.md) | SQL: `:exec` and `:query`, binding, one statement per call, what is refused, and `:transaction` |
 | [`hafen.json`](json.md) | parse and encode JSON |

@@ -86,7 +86,7 @@ you enter the world, and keep the handle:
 
 ```lua
 local window                                    -- the window, once we are in the world
-local settings                                  -- this character's saved variables, once it is up
+local settings                                  -- this character's document, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.event():on("SessionEnteredWorld", function(s)
@@ -139,15 +139,9 @@ answer on it — see [owned vs borrowed](api/ui/writes.md#owned-vs-borrowed).
 
 ## Step 8: remember it across sessions
 
-The window should come back the way you left it. Declare a saved variable in `manifest.json`, next to
-`files`:
-
-```json
-"saved_variables": ["settings"]
-```
-
-A bare name is that character's own, so it is reached through the session playing it — and the
-`SessionEnteredWorld` handler is already holding one. Keep the table in a local beside the window:
+The window should come back the way you left it. A document is a table the client saves for you, and it
+exists the first time you name it: ask a session's store for one, and it is that character's own — and the
+`SessionEnteredWorld` handler is already holding a session. Keep the table in a local beside the window:
 
 ```lua
   settings = s:store():get("settings")
@@ -162,7 +156,7 @@ the hotkey's body becomes:
   settings.open = window:visible()
 ```
 
-The engine fills that table before `SessionEnteredWorld` fires and writes it back to disk for you, and the
+The engine fills that table from disk the moment you name it and writes it back for you, and the
 reference stays live, so there is nothing to put back. Reload, hide the window, log out and back in: it stays
 hidden. See [documents](api/store/documents.md) for the client scope and for what a saved table may hold.
 
@@ -178,8 +172,7 @@ hidden. See [documents](api/store/documents.md) for the client scope and for wha
   "author": "you",
   "description": "My first addon.",
   "api_version": "1.0",
-  "files": ["main.lua"],
-  "saved_variables": ["settings"]
+  "files": ["main.lua"]
 }
 ```
 
@@ -187,7 +180,7 @@ hidden. See [documents](api/store/documents.md) for the client scope and for wha
 
 ```lua
 local window                                    -- the window, once we are in the world
-local settings                                  -- this character's saved variables, once it is up
+local settings                                  -- this character's document, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.log():write("myaddon loaded")
