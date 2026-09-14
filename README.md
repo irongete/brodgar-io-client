@@ -1,6 +1,6 @@
 # Brodgar.io Client
 
-[![Latest release](https://img.shields.io/github/v/release/irongete/brodgar-io-client?include_prereleases)](https://github.com/irongete/brodgar-io-client/releases)
+[![Download the launcher](https://img.shields.io/github/v/release/irongete/brodgar-io-client-launcher?label=Download%20the%20launcher)](https://github.com/irongete/brodgar-io-client-launcher/releases/latest)
 
 A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
 [dolda2000/hafen-client](https://github.com/dolda2000/hafen-client).
@@ -11,11 +11,8 @@ A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
 
 ## Play
 
-[Download the launcher](https://github.com/irongete/brodgar-io-client-launcher/releases/latest), unzip it
-and run `run.bat`: it keeps the client at the newest release, on the Release or the Beta channel.
-
-Without it: the zip from [the releases](https://github.com/irongete/brodgar-io-client/releases), unzipped,
-and `run.bat` with a Java 17 or later.
+**[Download the launcher](https://github.com/irongete/brodgar-io-client-launcher/releases/latest)**, unzip it and
+run `run.bat`: it installs the client and keeps it at the newest release, on the Release or the Beta channel.
 
 ## Build
 
