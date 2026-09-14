@@ -6,6 +6,7 @@ import haven.MenuGrid;
 import org.luaj.vm2.LuaError;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -64,7 +65,7 @@ import static io.brodgar.addon.AddonManager.state;
  * and in the file, and the next {@code :add} of that identity takes the slot again. A right-click on a slot
  * whose row is dormant forgets the row too ({@link #release(GameUI, int)}), because ending by hand means the
  * same whether or not the addon is there to draw. The panel's Remove deletes the rows with the addon
- * ({@code ClientDb.forget}); nothing else does.
+ * ({@link #forget}, then {@code ClientDb.forget}); nothing else does.
  *
  * <p><b>Whose bar</b> (073.3). A slot index names <b>one character's</b> action bar, so both maps live in
  * that session's {@code SessionState} and every entry point says which session it is about. Three of them are
@@ -316,6 +317,24 @@ public final class BeltHold {
         for(SessionState st : AddonManager.allStates()) {
             for(Integer n : slotsOf(st, null, a))
                 release(st, n.intValue(), false);
+        }
+    }
+
+    /**
+     * <b>The addon is being removed</b> ({@code AddonRegistry.applyStaged}, after {@link #teardownHolds} gave its
+     * slots back): drop its rows from every session's map, so that no later {@link #flush} writes them back
+     * over the deletion {@code ClientDb.forget} makes in the file. Marked dirty, so a write that copied the
+     * map before this ran is followed by one that carries the drop.
+     */
+    static synchronized void forget(String id) {
+        String prefix = AddonPagina.PREFIX + id + "/";
+        for(SessionState st : AddonManager.allStates()) {
+            for(Iterator<Map.Entry<Integer, String>> i = st.beltPlaced.entrySet().iterator(); i.hasNext();) {
+                if(i.next().getValue().startsWith(prefix)) {
+                    i.remove();
+                    st.beltDirty = true;
+                }
+            }
         }
     }
 

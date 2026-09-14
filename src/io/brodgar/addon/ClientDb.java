@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.prefs.AbstractPreferences;
+import java.util.prefs.BackingStoreException;
+import java.util.prefs.Preferences;
 
 /**
  * <b>The client's own file</b>, {@code savedata/client.sqlite}. What the client keeps for itself lives
@@ -19,7 +21,8 @@ import java.util.prefs.AbstractPreferences;
  * {@code prefs} — and the two records it keeps <i>about</i> an addon, where the user put its windows
  * ({@code placements}) and which action-bar slots hold its menu entries ({@code holds}). An addon's own
  * file ({@link SqliteApi.Db}) holds what the addon stores through {@code hafen.store()}, and nothing of
- * the client's: the rule is by owner. No registry node is ever opened ({@link Prefs}).
+ * the client's: the rule is by owner. No registry node is ever opened ({@link Prefs}). The panel's Remove
+ * deletes every row about the addon with its folder ({@link #forget}); nothing else does.
  *
  * <p><b>Opened once and lazily, on the first call from any thread.</b> The earliest caller is a "Haven
  * resource loader" thread inside {@code Client.setupres()} — {@code Resource.Image} → {@code UI.scale} →
@@ -267,6 +270,52 @@ public final class ClientDb {
             return;
         try {
             conn.holds(scope, rows);
+        } catch(Exception | LinkageError e) {
+            fail("could not be written", e);
+        }
+    }
+
+    // ---- the panel's Remove ------------------------------------------------------------------------
+
+    /**
+     * <b>Forget one addon</b>: every row the client keeps about it goes, and nothing of any other's. The
+     * preferences under its option keys ({@code LuaOption.prefKeyPrefix}) and its hotkey assignments —
+     * {@code keybind/} + {@code HookApi.keyBindIdPrefix}, and the ids its custom menu entries mint
+     * ({@code AddonPagina.bindId}) — are removed through {@code Utils.prefs()}, the node every read goes
+     * through, so the map the session holds forgets them with the file; its {@code placements} rows and the
+     * {@code holds} rows whose entry is one of its go in one transaction. Every match is a prefix compare on
+     * the id followed by {@code /}, never {@code LIKE}: an id may contain {@code _} or {@code %}. The two
+     * packed lists the registry keeps — the disabled set and the consent record — are the registry's own
+     * writers' to rewrite, and it does before calling here. Runs where nothing of the addon is live: between a
+     * reload's teardown and its load, or at boot. Never throws; nothing while the file is unavailable.
+     */
+    static void forget(String id) {
+        String[] prefixes = {
+            LuaOption.prefKeyPrefix(id),
+            "keybind/" + HookApi.keyBindIdPrefix(id),                       // KeyBinding stores under "keybind/" + id
+            "keybind/" + AddonPagina.bindId(AddonPagina.PREFIX + id + "/"),
+        };
+        Preferences p = Utils.prefs();
+        try {
+            for(String key : p.keys()) {
+                for(String prefix : prefixes) {
+                    if(key.startsWith(prefix)) {
+                        p.remove(key);
+                        break;
+                    }
+                }
+            }
+        } catch(BackingStoreException e) {
+            /* neither node here throws: the file's answers from its map, the override's from memory */
+        }
+        get().forgetRows(id);
+    }
+
+    private synchronized void forgetRows(String id) {
+        if(conn == null)
+            return;
+        try {
+            conn.forget(id, AddonPagina.PREFIX + id + "/");
         } catch(Exception | LinkageError e) {
             fail("could not be written", e);
         }
@@ -549,6 +598,27 @@ public final class ClientDb {
                             half(ps, 6, p.size);
                             ps.executeUpdate();
                         }
+                    }
+                }
+            });
+        }
+
+        /**
+         * One addon's {@code placements} rows and the {@code holds} rows whose entry starts with
+         * {@code entryPrefix} deleted, in one transaction. {@code ?1} twice is one parameter, so the prefix is
+         * bound once and compared by its own length.
+         */
+        void forget(final String id, final String entryPrefix) throws java.sql.SQLException {
+            transaction(new Work() {
+                public void run() throws java.sql.SQLException {
+                    try(java.sql.PreparedStatement del = c.prepareStatement("DELETE FROM placements WHERE addon = ?")) {
+                        del.setString(1, id);
+                        del.executeUpdate();
+                    }
+                    try(java.sql.PreparedStatement del = c.prepareStatement(
+                            "DELETE FROM holds WHERE substr(entry, 1, length(?1)) = ?1")) {
+                        del.setString(1, entryPrefix);
+                        del.executeUpdate();
                     }
                 }
             });

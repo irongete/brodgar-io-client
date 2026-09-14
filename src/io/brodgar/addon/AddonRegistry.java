@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Console;
 import haven.GameUI;
+import haven.KeyBinding;
 import haven.TexI;
 import haven.UI;
 import haven.Utils;
@@ -1554,9 +1555,11 @@ public final class AddonRegistry {
      * says changes are pending, and the log says so. Only a folder the hub installed is marked: one without an
      * {@link InstallRecord} is the player's own, and a press that reaches here for one is refused with a log
      * line, nothing marked. A download in flight for the id is given up and a stage waiting on it is
-     * outranked — the mark is the later word, and the apply sweeps the stage with the folder. Nothing but the
-     * folder goes: the saved variables under {@code savedata/}, the enabled set and the consent record are
-     * untouched, so a reinstall comes back as the player had it.
+     * outranked — the mark is the later word, and the apply sweeps the stage with the folder. The apply also
+     * <b>forgets the addon</b> ({@link #forget}): every row the client keeps about it — its options, its
+     * hotkey assignments, its consent, its entry in the disabled set, its placements and its held slots —
+     * goes with the folder, so a reinstall starts as a first install does. The addon's own file under
+     * {@code savedata/} is the player's, and stays.
      */
     public static void markRemove(String id) {
         if(hubVersion(id) == null) {
@@ -1589,12 +1592,40 @@ public final class AddonRegistry {
         File dir = addonDir();
         if(fresh)
             Staging.sweepDownloads(dir);
-        Staging.apply(dir);
+        for(String id : Staging.apply(dir))
+            forget(id);
         staged.clear();
         for(Map.Entry<String, String> p : Staging.pending(dir).entrySet())
             staged.put(p.getKey(), new Pending(p.getValue(), false, true));
         for(String id : Staging.removals(dir))
             staged.put(id, new Pending(null, true, true));
+    }
+
+    /**
+     * <b>Forget one removed addon</b> (150.4) — every row the client keeps about it, and nothing of any other's.
+     * The two packed lists are this class's own to rewrite: its id leaves the disabled set through
+     * {@link #writeDisabled} and the consent record through {@link #consentRows}, each written only when it was
+     * there. Its hotkeys leave the process-wide {@link KeyBinding} registry — {@code KeyBinding.unregister},
+     * which writes an empty assignment the row deletion below then removes — so a reinstall in this same
+     * session mints them unbound rather than finding the old assignment still held in memory. Then the held
+     * slots leave every session's map ({@link BeltHold#forget}) and every row leaves the file
+     * ({@link ClientDb#forget}). Runs from {@link #applyStaged}, where nothing of the addon is live.
+     */
+    private static void forget(String id) {
+        Set<String> d = disabledCopy();
+        if(d.remove(id))
+            writeDisabled(d);
+        Map<String, Consent> consented = consentedMap();
+        if(consented.remove(id) != null)
+            Utils.setprefsl(PREF_CONSENTED, consentRows(consented));
+        String own = HookApi.keyBindIdPrefix(id), scm = AddonPagina.bindId(AddonPagina.PREFIX + id + "/");
+        for(KeyBinding kb : KeyBinding.all()) {
+            if(kb.id.startsWith(own) || kb.id.startsWith(scm))
+                KeyBinding.unregister(kb.id);
+        }
+        BeltHold.forget(id);
+        ClientDb.forget(id);
+        log("forgot " + id + ": its options, hotkeys, consent, placements and held slots");
     }
 
     /** Open the addons folder in the OS file browser (AddOns panel convenience). Best-effort, non-fatal. */

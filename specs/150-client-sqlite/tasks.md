@@ -61,7 +61,7 @@
       was dropped.
       `[manual]`: quit the client, `ls savedata/` — expect: `<id>/` folders and `client.sqlite`, nothing else.
 
-- [ ] **150.4 — Remove forgets the addon.** `ClientDb.forget(id)` — the `prefs` rows under
+- [x] **150.4 — Remove forgets the addon.** `ClientDb.forget(id)` — the `prefs` rows under
       `addon/<id>/opt/` and `keybind/` + the addon's `keyBindId` prefix, the `placements` rows of the addon,
       the `holds` rows whose entry starts with `addon/<id>/`, the two packed lists rewritten without the id
       through `writeDisabled` and the consent writer; `Staging.apply` answers the ids it removed and

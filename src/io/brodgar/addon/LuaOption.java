@@ -117,7 +117,12 @@ public final class LuaOption {
 
     /** {@link #prefKey()} for an option that is not built yet — what {@code :add()} checks the length of. */
     static String prefKey(Addon owner, String name) {
-        return "addon/" + owner.manifest.id + "/opt/" + name;
+        return prefKeyPrefix(owner.manifest.id) + name;
+    }
+
+    /** What every option key of one addon starts with — the prefix {@code ClientDb.forget} deletes under. */
+    static String prefKeyPrefix(String id) {
+        return "addon/" + id + "/opt/";
     }
 
     /**

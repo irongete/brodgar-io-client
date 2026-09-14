@@ -28,7 +28,8 @@ import static io.brodgar.addon.AddonManager.log;
  * changes under a running addon: {@link #stage} checks a downloaded package and unpacks it into
  * {@code .staging/<id>/}, {@link #markRemove} leaves the mark {@code .staging/<id>.remove} for a folder that
  * is to go, and {@link #apply} moves what is staged into {@code addons/} and deletes what is marked at the
- * next reload, or at the next start, after every addon has been torn down and before any is loaded.
+ * next reload, or at the next start, after every addon has been torn down and before any is loaded — and
+ * names what it removed, so that the registry forgets the client's rows about it with the folder.
  *
  * <p><b>Every check comes before anything is kept.</b> The zip's sha256 must be the one the hub's item
  * advertised; every entry must sit under {@code <id>/}, climb nowhere and be relative; the count and the
@@ -259,11 +260,16 @@ final class Staging {
      * refuses — a held file — is logged with its reason and left for the next apply, a folder that was there
      * put back where it was and a mark left standing; the trash is emptied last, best-effort. Runs where no
      * addon is loaded: between a reload's teardown and its load, and at boot.
+     *
+     * <p>Hands back <b>the ids it removed</b> — every mark it applied, the folder gone to the trash with it or
+     * gone by hand before — for the caller to forget what the client keeps about them. A mark it could not
+     * apply is not among them: the folder is still there, and so is everything about it.
      */
-    static void apply(File addons) {
+    static Set<String> apply(File addons) {
+        Set<String> removed = new LinkedHashSet<String>();
         File[] subs = dir(addons).listFiles();
         if(subs == null)
-            return;
+            return removed;
         for(File s : subs) {
             String n = s.getName();
             if(!s.isFile() || !n.endsWith(REMOVE) || (n.length() == REMOVE.length()))
@@ -279,6 +285,7 @@ final class Staging {
                     trash(addons, live);
                 if(!s.delete())
                     throw new IOException("could not delete " + s);
+                removed.add(id);
                 if(there)
                     log("removed " + id);
             } catch(IOException e) {
@@ -321,6 +328,7 @@ final class Staging {
             }
         }
         emptyTrash(addons);
+        return removed;
     }
 
     /**

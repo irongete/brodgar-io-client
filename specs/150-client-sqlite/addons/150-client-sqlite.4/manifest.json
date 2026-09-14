@@ -1,0 +1,9 @@
+{
+  "name": "150.4 — Remove forgets the addon",
+  "id": "150-client-sqlite.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 150.4: the rows the panel's Remove deletes exist and are this addon's — an option, a hotkey and a remembered window each read back under the addon's own key.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

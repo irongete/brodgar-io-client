@@ -67,6 +67,15 @@ public final class AddonPagina extends MenuGrid.Pagina {
     /** The prefix every custom identity carries, which is also what tells one from a resource name. */
     static final String PREFIX = "addon/";
 
+    /**
+     * The {@link KeyBinding} id of a custom entry's own hotkey, {@code scm/addon/<addon>/<rel>} — the shape
+     * the stock menu's entries mint over their resource name. Spelled once, because {@code ClientDb.forget}
+     * deletes every assignment under {@code bindId(PREFIX + id + "/")} with the addon.
+     */
+    static String bindId(String entry) {
+        return "scm/" + entry;
+    }
+
     private static Indir<Resource> standin;
 
     /** The stand-in, loaded once. Local (jar-backed), so the wait is a map lookup after the first call. */
@@ -272,7 +281,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
          * <b>inside the constructor</b>, so leaving it stock is an NPE at mint time rather than at draw time.
          */
         public KeyBinding binding() {
-            return KeyBinding.get("scm/" + ((AddonPagina)pag).id, KeyMatch.nil);
+            return KeyBinding.get(bindId(((AddonPagina)pag).id), KeyMatch.nil);
         }
 
         public KeyMatch hotkey() {
@@ -457,7 +466,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         // a process-wide map that had no removal at all, so "scm/addon/<addon>/<id>" -- and whatever the
         // player had assigned to it in Options > Keybindings -- outlived :remove, disable and :reload, and
         // then answered a button that is in no grid. One drop, on the one path every removal takes.
-        KeyBinding.unregister("scm/" + p.id);
+        KeyBinding.unregister(bindId(p.id));
         synchronized(p.scm.paginae) {
             p.scm.paginae.remove(p);
             for(MenuGrid.Pagina q : p.scm.paginae) {

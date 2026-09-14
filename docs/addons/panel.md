@@ -25,7 +25,7 @@ a live status. The description is the row's tooltip.
 | `downloading <n>%` | an update's package is on its way, against the size the hub advertised |
 | `staged <version> - Reload UI to apply` | a version [installed from the hub](#how-an-install-lands) is waiting to replace this folder at the next reload |
 | `staged <version> - restart to apply` | the last reload could not replace the folder — a file of it is still held; the next start does |
-| `removed on Reload UI` | marked for removal: the next reload [deletes the folder](#what-an-install-and-a-removal-keep) |
+| `removed on Reload UI` | marked for removal: the next reload [deletes the folder and forgets the addon](#what-an-install-keeps-and-a-removal-forgets) |
 | `removed on restart` | the last reload could not delete it — a file of it is still held; the next start does |
 | `failed: <why>` | an update's download or a check refused it, and nothing landed; the tooltip carries the whole sentence, and **Update** is back for another try |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
@@ -46,8 +46,9 @@ dialog that ticking it raises. **Open addons folder** opens `addons/` in your fi
 **Update** and **Remove** stand on a row the hub installed — one whose folder carries the record
 [an install writes](#how-an-install-lands) — and on no other: a folder you put in `addons/` yourself is
 yours, and the client never replaces or deletes it. **Remove** marks the folder, and the next reload deletes
-it; the row reads `removed on Reload UI` until then, on both tabs, and is gone after. **Update** stands only
-once a check has found the hub's latest version greater than the installed one, ordered the hub's way
+it and [forgets the addon](#what-an-install-keeps-and-a-removal-forgets); the row reads
+`removed on Reload UI` until then, on both tabs, and is gone after. **Update** stands only once a check has
+found the hub's latest version greater than the installed one, ordered the hub's way
 (`MAJOR.MINOR.PATCH`, a pre-release below the release it precedes); the row reads `update <version>` until
 you press it, and the press is [an install](#how-an-install-lands): the row runs `downloading <n>%`, then
 `staged <version> - Reload UI to apply`, and the reload replaces the folder whole. Both are applied at the
@@ -135,15 +136,24 @@ start moves it before anything can hold a file.
 that declares a permission key arrives disabled and asks through the same consent dialog as a folder you
 unpacked yourself — see [permissions](guides/permissions.md).
 
-## What an install and a removal keep
+## What an install keeps and a removal forgets
 
 A staged folder replaces the one of the same id **whole**: nothing of the old folder survives inside the
 new one, so a file you edited in it is gone with it — an addon you mean to change is one you keep by
-hand. A removal deletes the folder, and only the folder. Everything the client holds about the addon is
-untouched by either, because none of it lives in the folder: [your addon's file](api/store/README.md) under
-`savedata/`, whether the addon is enabled, and the permissions you consented to — so an addon you remove
-and install again comes back as you had it. A version that asks for more than you approved is disabled and
-asked again, as any manifest that grows is.
+hand. Everything the client holds about the addon is untouched by an install, because none of it lives in
+the folder: whether the addon is enabled, the permissions you consented to, its options, its hotkeys, where
+you put its windows and which action-bar slots hold its entries all stand, so an update comes back as you
+had it. A version that asks for more than you approved is disabled and asked again, as any manifest that
+grows is.
+
+**A removal forgets the addon.** With the folder, the reload deletes every row the client keeps about it
+in [its own file](manifest.md#where-an-addon-lives): the addon's options and the keys you assigned to its
+hotkeys, the permissions you consented to, its entry in the enabled set, where you put its windows and the
+slots its entries held — on every character. An addon you remove and install again starts as a first
+install does: it is asked for its permissions again, and its options are on their defaults. What stays is
+[your addon's file](api/store/README.md) under `savedata/<id>/`: that is the addon's own data, kept by it
+on your behalf, and yours to delete by hand. A folder you delete by hand instead of removing it leaves
+those rows where they are, dormant — put the folder back and everything is as it was.
 
 ## The hub
 

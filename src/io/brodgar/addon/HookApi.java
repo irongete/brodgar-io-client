@@ -430,7 +430,12 @@ final class HookApi {
      * the length and the door that builds the key cannot mean two different strings.
      */
     static String keyBindId(Addon owner, String name) {
-        return "addon/" + owner.manifest.id + "/" + name;
+        return keyBindIdPrefix(owner.manifest.id) + name;
+    }
+
+    /** What every hotkey id of one addon starts with — the prefix {@code ClientDb.forget} deletes under. */
+    static String keyBindIdPrefix(String id) {
+        return "addon/" + id + "/";
     }
 
     /**
