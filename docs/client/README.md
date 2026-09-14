@@ -50,6 +50,7 @@ lookup instead of a search.
 | [the Kin window](kin-window.md) | the buddy roster and its palette, the village and realm panels beside it, and the two uimsg arms that dereference `find(id)` unguarded |
 | [the radial menu](radial-menu.md) | `FlowerMenu`: what the server sends, the grabs a ring takes, the three ways one ends, and the fork seams in it |
 | [the game clock](game-clock.md) | `Glob.globtime` and the loop that converges it on the server's, the 500-second re-base, and the astronomy blob |
+| [Steam](steam.md) | the `steamworks4j` bridge and what `init` needs from the process (the app id, per working directory), the `steam ticket` login and what it does not remember, the Workshop launcher's two launch modes and the upload tool |
 | [preferences and the Options window](prefs-and-options.md) | the two disjoint stores a setting lands in, the 6144-byte budget one preference value has, and what each `OptWnd` panel writes |
 
 ## Client-wide gotchas

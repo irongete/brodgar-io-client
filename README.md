@@ -14,6 +14,10 @@ A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
 **[Download the launcher](https://github.com/irongete/brodgar-io-client-launcher/releases/latest)**, unzip it and
 run `run.bat`: it installs the client and keeps it at the newest release, on the Release or the Beta channel.
 
+**Log in with Steam**: with the Steam client running, the login screen's *Log in with Steam* button logs
+in the Haven & Hearth account your Steam account is linked to (linking is on the game's website, under
+*Account security*). The password box beside it is the native login, as ever.
+
 ## Build
 
 A JDK 21 or later and `ant`: `ant` builds a runnable `bin/`, `ant run` starts it, `ant release` builds

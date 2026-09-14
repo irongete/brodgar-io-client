@@ -252,6 +252,12 @@
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="run.bat" destdir="bin" eol="crlf" />
+    <!-- addon: the Steam app id, read by the Steamworks SDK from the working directory when the client is
+         not started by Steam. Beside hafen.jar because that folder IS the working directory of every start
+         (run.bat cd's there; the launcher starts the client in client/): it is what lets the login screen's
+         Steam button ask the running Steam client for a ticket. The one start with another working directory
+         is `ant run`, which sets SteamAppId instead. -->
+    <copy file="etc/steam_appid.txt" todir="bin" />
     <chmod file="bin/hafen.jar" perm="a+x" />
   </target>
 
@@ -307,6 +313,7 @@
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="run.bat" destdir="dist" eol="crlf" />
+    <copy file="etc/steam_appid.txt" todir="dist" />
     <chmod file="dist/hafen.jar" perm="a+x" />
     <echo message="Release ready in dist/ -- double-click dist\run.bat to play." />
   </target>
@@ -370,6 +377,9 @@
       <!-- addon: the hub the AddOns manager's Browse tab reads from. `ant -Dregistry=http://localhost:3730/addons/api run`
            points a development client at a local hub; unset, the client reads brodgar.io/addons. -->
       <sysproperty if:set="registry" key="haven.addon.registry" value="${registry}" />
+      <!-- addon: the development run's working directory is this folder, not bin/, so the Steamworks SDK
+           would not find bin/steam_appid.txt; the environment variable Steam itself sets says the same. -->
+      <env key="SteamAppId" value="3051280" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.base/java.lang=ALL-UNNAMED" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.java2d=ALL-UNNAMED" />

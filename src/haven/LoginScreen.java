@@ -158,7 +158,23 @@ public class LoginScreen extends Widget {
 		    public void click() {enter();}
 		},
 		pos("cmid").y(Math.max(pwbox.pos("bl").y, tkbox.pos("bl").y)).adds(0, 35), 0.5, 0.0);
+	    // addon: Steam login beside the native one. Upstream offers Steam only as a whole other screen
+	    // (authmech=steam, the Steambox below); this button hands the same SteamCreds to the same login
+	    // path, so the account the player's Steam account is linked to logs in from the native screen.
+	    adda(new Button(UI.scale(200), "Log in with Steam"), pos("cmid").y(exec.pos("bl").y).adds(0, 4), 0.5, 0.0)
+		.action(this::steam);
 	    pack();
+	}
+
+	// addon: the Steam button. SteamCreds refuses at once when the SDK cannot start -- Steam not running,
+	// or the process not identified as the game (steam_appid.txt beside hafen.jar, or the SteamAppId
+	// environment variable Steam itself sets); the refusal reads like any other login error.
+	private void steam() {
+	    try {
+		LoginScreen.this.wdgmsg("login", new SteamCreds(), false);
+	    } catch(java.io.IOException e) {
+		error(e.getMessage());
+	    }
 	}
 
 	private void init() {
