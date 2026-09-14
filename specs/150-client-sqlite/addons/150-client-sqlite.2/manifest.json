@@ -1,0 +1,9 @@
+{
+  "name": "150.2 — the holds live in the client's file",
+  "id": "150-client-sqlite.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 150.2: a held slot is a row of client.sqlite, comes back after a :reload and survives a disable; the addon's own file has no hafen_holds.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

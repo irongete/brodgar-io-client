@@ -39,7 +39,7 @@ one who has not reached the world has none yet, and asking for their rows
 |---|---|
 | `s:store():get(name)` | the live table of that character's document `name`, empty until something is saved under it |
 | `s:store():list()` | the names that exist in that character's scope, sorted, as a string array |
-| `s:store():flush()` | write that character's changed documents, placements and [held slots](../actionbar.md#a-hold-is-remembered) now; the store |
+| `s:store():flush()` | write that character's changed documents and placements now; the store |
 | `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it |
 | `hafen.store():list()` | the names that exist in your addon's own scope, sorted, as a string array |
 | `hafen.store():flush()` | write your addon's own changed documents and placements now; the store |

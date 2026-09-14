@@ -233,7 +233,7 @@ already named by `slot:res()`, and [`s:menugrid():get(name)`](menugrid.md) is th
 | a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared | forgotten |
 | `s:menugrid():remove(pag)` | the server's own content | remembered |
 | your addon reloads, or you log out | the server's own content | remembered |
-| your addon is **disabled** | the server's own content | forgotten |
+| your addon is **disabled** | the server's own content | remembered |
 | the **server** writes that slot | what the server just wrote — that is the slot's content now | forgotten |
 
 Every row but the last puts back exactly what the server has in the slot, unchanged and never having left
@@ -271,8 +271,8 @@ end)                                         -- if it was on that bar, it is on 
 
 Nothing about that is timed, and you wait for nothing: the entry lands in its slot inside the `add`, so the
 line after it already reads `slot:hold()`. Your addon stores nothing — this is not a
-[document](store/documents.md), it is a row of the client's own in [your file](store/README.md), keyed by
-that character, written with their documents; and a `slot:hold(pag)` call is remembered exactly as a drag is.
+[document](store/documents.md), it is a row of the client's own file, keyed by that character and written
+the moment the hold is taken or ended; and a `slot:hold(pag)` call is remembered exactly as a drag is.
 
 **The two ways a hold ends are remembered differently**, as the table above says. Ending it by hand —
 `slot:hold(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
@@ -280,9 +280,9 @@ the record goes with it. The entry merely *going away* — `:remove`, a reload, 
 about the slot, so the slot waits. A `:reload` therefore puts every one of your buttons straight back, while a
 player who right-clicked one off the bar keeps it off.
 
-**Disabling an addon takes its buttons off the bar for good.** The slots go back to the server's own content
-as the addon is torn down, and no later restart brings them back: an addon the player switched off leaves
-nothing of itself on the bar, and enabling it again starts with an empty bar and the entries you add.
+**Disabling an addon keeps its slots.** They go back to the server's own content as the addon is torn down,
+and the rows wait, dormant, with its options and hotkeys: enabling it again puts every button back where it
+was, as your `:add` runs. A right-click on a dormant slot forgets it as it forgets a live hold.
 
 The record is the character's rather than the addon's: the same entry can stand in a different slot on
 another character, and a slot you hold on one is not held on the next.

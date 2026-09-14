@@ -7,6 +7,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.prefs.AbstractPreferences;
 
@@ -227,6 +228,48 @@ public final class ClientDb {
         }
     }
 
+    // ---- the held slots ----------------------------------------------------------------------------
+
+    /**
+     * <b>Every slot held on one character's bar</b> ({@link BeltHold}), by 0-based slot index in slot order
+     * &rarr; the identity of the entry placed there ({@code addon/<addon id>/<rel>}). {@code scope} is the
+     * character's key, {@code StoreApi}'s {@code <genus>_<char>}. {@code null} when the file is unavailable
+     * or the read failed: what the session then holds in memory is not the file, and nothing writes it back.
+     */
+    static Map<Integer, String> holds(String scope) {
+        return get().readHolds(scope);
+    }
+
+    /**
+     * <b>Replace one character's held slots with {@code rows}</b> — its rows deleted and these written, in
+     * one transaction, so a reader never sees the bar half-written. Nothing while the file is unavailable or
+     * closed. Never throws.
+     */
+    static void holds(String scope, Map<Integer, String> rows) {
+        get().writeHolds(scope, rows);
+    }
+
+    private synchronized Map<Integer, String> readHolds(String scope) {
+        if(conn == null)
+            return null;
+        try {
+            return conn.holds(scope);
+        } catch(Exception | LinkageError e) {
+            fail("could not be read", e);
+            return null;
+        }
+    }
+
+    private synchronized void writeHolds(String scope, Map<Integer, String> rows) {
+        if(conn == null)
+            return;
+        try {
+            conn.holds(scope, rows);
+        } catch(Exception | LinkageError e) {
+            fail("could not be written", e);
+        }
+    }
+
     /**
      * <b>The preference node over the {@code prefs} table.</b> A root ({@code parent == null}, name
      * {@code ""}): its keys and values are a map loaded whole at the open, and a write goes to the map and
@@ -378,6 +421,55 @@ public final class ClientDb {
             try(java.sql.PreparedStatement ps = c.prepareStatement("DELETE FROM prefs WHERE key = ?")) {
                 ps.setString(1, key);
                 ps.executeUpdate();
+            }
+        }
+
+        /** Every row of {@code holds} under one character's key, in slot order. */
+        Map<Integer, String> holds(String scope) throws java.sql.SQLException {
+            Map<Integer, String> out = new TreeMap<Integer, String>();
+            try(java.sql.PreparedStatement ps = c.prepareStatement(
+                    "SELECT slot, entry FROM holds WHERE scope = ? ORDER BY slot")) {
+                ps.setString(1, scope);
+                try(java.sql.ResultSet rs = ps.executeQuery()) {
+                    while(rs.next())
+                        out.put(Integer.valueOf(rs.getInt(1)), rs.getString(2));
+                }
+            }
+            return out;
+        }
+
+        /**
+         * One character's rows deleted and {@code rows} written, in one transaction: the connection's
+         * auto-commit is switched off for its extent and back on after, whether it committed or rolled back.
+         */
+        void holds(String scope, Map<Integer, String> rows) throws java.sql.SQLException {
+            c.setAutoCommit(false);
+            boolean done = false;
+            try {
+                try(java.sql.PreparedStatement del = c.prepareStatement("DELETE FROM holds WHERE scope = ?")) {
+                    del.setString(1, scope);
+                    del.executeUpdate();
+                }
+                try(java.sql.PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO holds (scope, slot, entry) VALUES (?, ?, ?)")) {
+                    for(Map.Entry<Integer, String> e : rows.entrySet()) {
+                        ps.setString(1, scope);
+                        ps.setInt(2, e.getKey().intValue());
+                        ps.setString(3, e.getValue());
+                        ps.executeUpdate();
+                    }
+                }
+                c.commit();
+                done = true;
+            } finally {
+                if(!done) {
+                    try {
+                        c.rollback();
+                    } catch(java.sql.SQLException x) {
+                        /* the write already failed; the caller reports that one */
+                    }
+                }
+                c.setAutoCommit(true);
             }
         }
 

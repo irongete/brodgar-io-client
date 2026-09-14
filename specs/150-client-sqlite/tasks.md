@@ -20,7 +20,7 @@
       'addon/150-client-sqlite.1/%'"` — expect: the value the suite wrote.
       `[manual]`: `reg query HKCU\Software\JavaSoft\Prefs\haven\hafen | findstr 150-client` — expect: nothing.
 
-- [ ] **150.2 — The holds live in the client's file.** `ClientDb.holds(scope)` and `holds(scope, rows)`;
+- [x] **150.2 — The holds live in the client's file.** `ClientDb.holds(scope)` and `holds(scope, rows)`;
       `BeltHold` on them: `restore` one read, `flush` on the tick, `beltPlaced` a `Map<Integer, String>`;
       gone: `Placed`, `beltLast`, `beltReadOnly`, `changed`, `slice`, `serialize`, `write(a)`,
       `write(a, st)` and their calls in `StoreApi.flush`, `save` and `s:store():flush()`, `addonDisabled`

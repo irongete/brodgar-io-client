@@ -72,10 +72,9 @@ import static io.brodgar.addon.AddonManager.*;
  * nobody in particular. Until 092 there was one set for the client, holding whoever was on screen, which
  * wrote a background character's window into the drawn character's rows and read it back out of them.
  *
- * <p><b>The held action-bar slots are the third record</b> (149, {@link BeltHold}): rows of the client's own in
- * the file of the addon whose entry is placed, under that character's key, written beside the remembered
- * placements by every write here that is a character's — {@link #flush}, {@link #save} and
- * {@code s:store():flush()}. Nothing the client keeps for a character lives outside the addons' files.
+ * <p><b>The held action-bar slots are not here</b> (150, {@link BeltHold}): they are the client's own rows,
+ * in the client's own file ({@link ClientDb#holds}), keyed by the character — written by their own tick and
+ * never by a write of this class, so a store's flush writes the addon's data and nothing of the client's.
  */
 final class StoreApi {
     private StoreApi() {}
@@ -331,7 +330,6 @@ final class StoreApi {
                 } catch(RuntimeException e) {
                     logAbout(owner, "store: could not save remembered placements: " + e);
                 }
-                BeltHold.write(owner, st);              // 149: and the slots this character's bar holds for it
                 try {
                     writeChar(owner, cs);
                 } catch(RuntimeException e) {
@@ -825,17 +823,15 @@ final class StoreApi {
     }
 
     /**
-     * Write an addon's changed data to its file: what it <b>remembers</b> ({@code widget:remember(name)}), the
-     * action-bar slots held for its entries on every live character's bar ({@link BeltHold#write}), its
+     * Write an addon's changed data to its file: what it <b>remembers</b> ({@code widget:remember(name)}), its
      * client-scope documents, and <b>every session's</b> per-character documents — the live ones, and those of
      * a session that ended and has not been drained yet, because the step that closes the file comes right
      * after this one and the drain would find it closed. Skips unchanged rows. This is the teardown's write —
      * the addon is going, so every character it holds tables for is written.
      *
-     * <p><b>The remembered placements and the held slots go first.</b> An addon that only hands a window to
-     * the user, or a button to the bar, has asked for no document at all — the whole point of those verbs being
-     * that they need no handler — so nothing about the documents may stand between the top of this method and
-     * their write.
+     * <p><b>The remembered placements go first.</b> An addon that only hands a window to the user has asked
+     * for no document at all — the whole point of that verb being that it needs no handler — so nothing about
+     * the documents may stand between the top of this method and their write.
      */
     static void flush(Addon a) {
         if(a == null)
@@ -846,7 +842,6 @@ final class StoreApi {
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
-        BeltHold.write(a);                              // 149: the held slots, every live character's, before the close
         if(a.store == null)
             return;
         try {
@@ -862,8 +857,8 @@ final class StoreApi {
 
     /**
      * The auto-save's write: the placements and the client scope as {@link #flush} writes them, and <b>one</b>
-     * session's per-character documents and held slots — the one whose tick this is. Every session ticks, so
-     * every character's rows are written by its own login rather than by whichever one got there first.
+     * session's per-character documents — the one whose tick this is. Every session ticks, so every
+     * character's rows are written by its own login rather than by whichever one got there first.
      */
     private static void save(Addon a, AddonManager.SessionState st) {
         if(a == null)
@@ -874,7 +869,6 @@ final class StoreApi {
         } catch(RuntimeException e) {
             logAbout(a, "store: could not save remembered placements: " + e);
         }
-        BeltHold.write(a, st);                          // 149: this character's held slots, beside its documents
         if(a.store == null)
             return;
         try {

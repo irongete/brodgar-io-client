@@ -422,9 +422,8 @@ final class SqliteApi {
         String lower = nm.toLowerCase(Locale.ROOT);
         if(lower.startsWith("hafen_"))
             return "\"" + nm + "\" is not a name you can declare: the hafen_ prefix is the client's own"
-                + " tables (your documents, your remembered placements and the action-bar slots held for your"
-                + " entries live there: hafen_documents, hafen_placements, hafen_holds) — " + NAME_RULE
-                + ", under any other prefix";
+                + " tables (your documents and your remembered placements live there: hafen_documents,"
+                + " hafen_placements) — " + NAME_RULE + ", under any other prefix";
         if(lower.startsWith("sqlite_"))
             return "\"" + nm + "\" is not a name you can declare: the sqlite_ prefix is SQLite's own — "
                 + NAME_RULE + ", under any other prefix";
@@ -1399,10 +1398,9 @@ final class SqliteApi {
         private static void name(String w, String verb) {
             if(w.startsWith("hafen_"))
                 throw new LuaError(verb + ": \"" + w + "\" is under the hafen_ prefix, which is the client's own"
-                    + " tables — hafen_documents holds your documents, hafen_placements your remembered"
-                    + " placements and hafen_holds the action-bar slots held for your entries, reached through "
-                    + ACC + ":get(name), w:remember(name) and slot:hold(pag) and never through a statement."
-                    + " A table of yours is declared under another prefix");
+                    + " tables — hafen_documents holds your documents and hafen_placements your remembered"
+                    + " placements, reached through " + ACC + ":get(name) and w:remember(name) and never"
+                    + " through a statement. A table of yours is declared under another prefix");
             if(w.equals("load_extension"))
                 throw new LuaError(verb + ": load_extension is refused: this connection is a sandbox, and no"
                     + " extension is loaded on it — the functions a statement has are SQLite's own");
@@ -1511,10 +1509,11 @@ final class SqliteApi {
      * <b>One addon's open file.</b> The only class here that names an {@code org.sqlite} or {@code java.sql}
      * type; every method holds the monitor, so the connection sees one caller at a time.
      *
-     * <p>The three tables of the client's own carry the {@code hafen_} prefix, which is what keeps them apart
-     * from anything an addon declares. A <b>scope</b> is a row key: {@code ""} for the addon's own documents
-     * and placements, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that character's —
-     * and a held slot ({@link BeltHold}) is always a character's, so {@code hafen_holds} never carries {@code ""}.
+     * <p>The tables of the client's own carry the {@code hafen_} prefix, which is what keeps them apart from
+     * anything an addon declares. A <b>scope</b> is a row key: {@code ""} for the addon's own documents and
+     * placements, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that character's. The
+     * action-bar slots held for the addon's entries are not here: they are the client's rows, in the client's
+     * own file ({@link ClientDb#holds}).
      *
      * <p><b>A transaction is driven through the engine, never through JDBC's auto-commit</b>: {@code BEGIN},
      * {@code COMMIT} and {@code ROLLBACK} go through {@code DB.exec}, which is the one door the driver's own
@@ -1579,10 +1578,6 @@ final class SqliteApi {
                         + " json TEXT NOT NULL, PRIMARY KEY (scope, name)) WITHOUT ROWID");
                     st.execute("CREATE TABLE IF NOT EXISTS hafen_placements (scope TEXT NOT NULL, name TEXT NOT NULL,"
                         + " x INTEGER, y INTEGER, w INTEGER, h INTEGER, PRIMARY KEY (scope, name)) WITHOUT ROWID");
-                    // 149: the action-bar slots held for this addon's entries, per character (BeltHold). SCHEMA 2
-                    // is this table: a 1 file gets it here and its user_version raised below.
-                    st.execute("CREATE TABLE IF NOT EXISTS hafen_holds (scope TEXT NOT NULL, slot INTEGER NOT NULL,"
-                        + " entry TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (scope, slot)) WITHOUT ROWID");
                     if(have < SCHEMA)
                         st.execute("PRAGMA user_version = " + SCHEMA);
                 }
@@ -1904,65 +1899,6 @@ final class SqliteApi {
                 ps.setInt(at, c.x);
                 ps.setInt(at + 1, c.y);
             }
-        }
-
-        // ---- the held slots (149): a row per slot a character's bar holds for one of this addon's entries ----
-
-        /**
-         * Every slot held under one character's key, by 0-based slot index in slot order — the entry placed
-         * there and when it was placed ({@link BeltHold.Placed}). Rows the file holds are this addon's own:
-         * {@link BeltHold} writes each addon's slice into that addon's file and no other.
-         */
-        synchronized Map<Integer, BeltHold.Placed> holds(String scope) {
-            Map<Integer, BeltHold.Placed> out = new java.util.TreeMap<Integer, BeltHold.Placed>();
-            try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                    "SELECT slot, entry, at FROM hafen_holds WHERE scope = ? ORDER BY slot")) {
-                ps.setString(1, scope);
-                try(java.sql.ResultSet rs = ps.executeQuery()) {
-                    while(rs.next())
-                        out.put(Integer.valueOf(rs.getInt(1)), new BeltHold.Placed(rs.getString(2), rs.getLong(3)));
-                }
-            } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
-            }
-            return out;
-        }
-
-        /** Replace one character's held slots with {@code rows}: its rows are deleted and these written, in one transaction. */
-        synchronized void holds(final String scope, final Map<Integer, BeltHold.Placed> rows) {
-            transaction(new Work() {
-                public void run() throws java.sql.SQLException {
-                    try(java.sql.PreparedStatement del = conn.prepareStatement(
-                            "DELETE FROM hafen_holds WHERE scope = ?")) {
-                        del.setString(1, scope);
-                        del.executeUpdate();
-                    }
-                    try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO hafen_holds (scope, slot, entry, at) VALUES (?, ?, ?, ?)")) {
-                        for(Map.Entry<Integer, BeltHold.Placed> e : rows.entrySet()) {
-                            ps.setString(1, scope);
-                            ps.setInt(2, e.getKey().intValue());
-                            ps.setString(3, e.getValue().id);
-                            ps.setLong(4, e.getValue().at);
-                            ps.executeUpdate();
-                        }
-                    }
-                }
-            });
-        }
-
-        /**
-         * Delete <b>every</b> character's held slots — the persisted disable ({@link BeltHold#addonDisabled}):
-         * the button comes back on no character, the ones logged in and the ones not.
-         */
-        synchronized void clearHolds() {
-            transaction(new Work() {
-                public void run() throws java.sql.SQLException {
-                    try(java.sql.Statement st = conn.createStatement()) {
-                        st.executeUpdate("DELETE FROM hafen_holds");
-                    }
-                }
-            });
         }
 
         // ---- statements: what the declared tables run, on the addon's own tables -------------------

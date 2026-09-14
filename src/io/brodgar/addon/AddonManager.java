@@ -96,7 +96,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -606,22 +605,16 @@ public final class AddonManager {
         final Set<CharApi.TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
         /** Slot index &rarr; the hold on it, on THIS character's action bar ({@link BeltHold}). */
         final Map<Integer, BeltHold.Hold> beltHolds = new HashMap<Integer, BeltHold.Hold>();
-        /** Slot index &rarr; the entry that BELONGS there and when it was placed ({@link BeltHold.Placed}) —
-         *  this character's placements, the union of every loaded addon's slice (149). Sorted, so one state
-         *  has one serialization and an unchanged slice costs no disk write. */
-        final Map<Integer, BeltHold.Placed> beltPlaced = new TreeMap<Integer, BeltHold.Placed>();
+        /** Slot index &rarr; the identity of the entry that BELONGS there ({@code addon/<addon id>/<rel>}) —
+         *  this character's placements, whichever addon's each is, as the client's own file holds them
+         *  ({@link ClientDb#holds}; 150). A row whose addon is disabled or not loaded is dormant, not gone. */
+        final Map<Integer, String> beltPlaced = new TreeMap<Integer, String>();
         /** Has {@link #beltPlaced} changed since the last write? Marked on the message thread too. */
         boolean beltDirty;
-        /** Addon id &rarr; that addon's slice as last read from or written to its file, so an unchanged
-         *  slice writes nothing. Keyed by id, not by {@link Addon}: a {@code :reload} replaces the objects. */
-        final Map<String, String> beltLast = new HashMap<String, String>();
         /** The {@code <genus>_<char>} key {@link #beltPlaced} was read for, or {@code null} while it holds
          *  nobody's. <b>Held, not looked up</b>, as {@link StoreApi.CharStore#scope} is: a write goes back
          *  under the key the rows were read for, never under whatever {@link #charScope} is by then. */
         String beltScope;
-        /** Addon ids whose {@code hafen_holds} rows could not be read this character: their slice is
-         *  READ-ONLY for the session, so the empty set is never written over the only copy. */
-        final Set<String> beltReadOnly = new HashSet<String>();
 
         // ---- the world (073.4) -------------------------------------------------------------------
         // A session coordinate names ONE LOGIN'S world: the origin the server re-bases whenever it drops the
@@ -841,9 +834,14 @@ public final class AddonManager {
     public static void uiDestroyed(UI u) {
         if(u == null)
             return;
+        SessionState st = states.remove(u);
+        // 150: the held slots' last gesture goes to the client's file NOW, from this thread -- engine code
+        // and no Lua, unlike the per-character documents below, and the state is about to be unreachable.
+        if(st != null)
+            BeltHold.flush(st);
         // 079.1: ...and the tables that session's saved variables live in go with it, so they are handed on
         // before the state is dropped rather than looked for afterwards in a map they are no longer in.
-        StoreApi.sessionEnded(states.remove(u));
+        StoreApi.sessionEnded(st);
         // 079.4: ...and every object that session alone could see has left its last session, which nothing
         // else will ever say — OCache reports an arrival and a departure and has no third callback, so a
         // cache going whole goes in silence. The held set is re-asked on the next drain.

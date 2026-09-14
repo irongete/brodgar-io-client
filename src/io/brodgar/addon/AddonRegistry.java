@@ -556,14 +556,24 @@ public final class AddonRegistry {
     /**
      * The flush the quit always pays: every session that ended and was never drained, then every addon's own
      * write — its remembered placements, its client-scope documents and each live session's per-character
-     * documents, which is what {@link StoreApi#flush} already walks — and the close of its file. Engine code
-     * throughout: nothing here calls an addon.
+     * documents, which is what {@link StoreApi#flush} already walks — and the close of its file; and every
+     * live session's held slots into the client's file (150), so the last gesture before the quit is there.
+     * Engine code throughout: nothing here calls an addon.
      */
     private static void flushAll(List<Addon> cur) {
         try {
             StoreApi.drainEnded();   // a session that ended on the last frame still owes its own folder
         } catch(RuntimeException e) {
             logDiag("shutdown: could not write the sessions that had ended: " + e);
+        }
+        // 150: the held slots are the client's rows, one write per character. quiesce() has closed Lua and
+        // quiet() the ticks, so nothing writes a later gesture; the file itself is closed by its own hook.
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            try {
+                BeltHold.flush(st);
+            } catch(RuntimeException e) {
+                logDiag("shutdown: could not write the held slots: " + e);
+            }
         }
         for(Addon a : cur) {
             try {
@@ -716,9 +726,8 @@ public final class AddonRegistry {
         if(who == null)
             return;
         StoreApi.enterWorld(st, g);                  // this character's saved vars (the scope is still valid)
-        BeltHold.restore(st);                        // 149: and its held slots, read back from the rebuilt addons'
-                                                     //   files — what their :add re-applies is what the file
-                                                     //   holds, and a file that could not be read is tried again
+        BeltHold.restore(st);                        // 150: and its held slots, read back from the client's file —
+                                                     //   what the rebuilt addons' :add re-applies is what it holds
         fireSession("SessionEnteredWorld", who);
     }
 
@@ -784,11 +793,9 @@ public final class AddonRegistry {
         boolean changed = enabled ? d.remove(id) : d.add(id);
         if(changed) {
             writeDisabled(d);
-            if(!enabled)
-                BeltHold.addonDisabled(id, findLoaded(id));   // 059.5: and its action-bar slots are the player's
-                                              //   again, for good — the reload below hands each one back, and
-                                              //   no restart brings the button to it (149: its file is cleared
-                                              //   of every character's rows, so no other character's either)
+            // 150: nothing else is written. The reload below hands the addon's held slots back to the server's
+            // own content and its rows stay dormant in the client's file, with its options, hotkeys and
+            // placements: a disable keeps everything, and enabling it again puts every button back.
             reloadNeeded = true;
         }
     }
