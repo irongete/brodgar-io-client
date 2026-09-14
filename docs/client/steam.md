@@ -34,7 +34,7 @@
 |---|---|
 | The launcher Steam runs | `WorkshopLauncher.main` — with no Steam (`Steam.get()` null) it is `haven.Client.main`; otherwise it downloads stale items (`Updater`), reads `workshop-client.properties` from each item's `path()`, and offers the `Chooser` — *Default client* plus one row per item — unless `launchlast` finds the remembered choice |
 | An item's file | `workshop-client.properties`, at the item's root: `name`, `description` or `description-file`, `preview-image`, `visibility` (`private`/`friends`/`public`), `workshop-id`, then **one** of the two launch modes |
-| Direct launch | `main-class` + `class-path` (`:`-separated, relative to the item; a jar's own manifest `Class-Path` is honoured): a `URLClassLoader` over a `ClassUnloader` that hides the launcher's own jar, `sysprop.<name>=<value>` lines set system properties, then `main(String[0])` **in the launcher's JVM** — on the AWT event thread from the chooser's button, on the launcher's own main thread when the choice was remembered. `launch` answers false and the JVM lives on as the client's; the threads the launcher leaves behind (`Steam.listen`, the error reporter, `DeadlockWatchdog`) are daemons, so a `main` that returns leaves it to exit by itself once the chooser is disposed |
+| Direct launch | `main-class` + `class-path` (`:`-separated, relative to the item; a jar's own manifest `Class-Path` is honoured): a `URLClassLoader` over a `ClassUnloader` that hides the launcher's own jar, `sysprop.<name>=<value>` lines set system properties, then `main(String[0])` **in the launcher's JVM** — on the AWT event thread from the chooser's button, on the launcher's own main thread when the choice was remembered. `launch` answers false and the JVM lives on as the client's — **and it never ends by itself**: a `main` that returns leaves it running (see the gotchas) |
 | Chained launch | `launcher=<file>` — a `.hl` for loftar's `launcher.jar` beside the game, run as a **new JVM** (`findjvm()`, the `java.home` of the running one) |
 | The remembered choice | `Utils.getpref("workshop/last-client")` and `workshop/skip-chooser` (the item ids the choice was made over — a subscription change voids it), written by `Chooser.save` **after** `launch` returns. A `main` that calls `System.exit` skips it |
 | The upload tool | `haven.SteamWorkshop upload [-q] DIR [MESSAGE]` — reads `DIR/workshop-client.properties`, uploads the **whole directory** as the item's content (`update.contents(dir)`, tag `Client`), and needs `Steam.get()`: Steam running and the app id, `SteamAppId` in the environment being what its own error suggests. Without `workshop-id` it creates the item and prints the id to put in the file; with one it updates that item. It never writes the file itself |
@@ -50,3 +50,10 @@
   (`--add-exports` for JOGL, whatever memory it has), not the item's; an item that wants its own JVM
   starts one from `main` or chains a `.hl`. The `Class-Path` of a jar on the item's `class-path` resolves
   relative to that jar, which is how one `hafen.jar` brings its `lib/` along.
+- **A direct-launch `main` that starts a process and returns leaves the launcher's JVM alive, and Steam
+  waiting.** The threads the launcher itself leaves (`Steam.listen`, the error reporter,
+  `DeadlockWatchdog`) are daemons, but AWT's auto-shutdown never fires in that JVM — `AWT-Shutdown` waits
+  in `AWTAutoShutdown.run` and `AWT-EventQueue-0` stays, `jstack` shows — so the JVM outlives the chooser,
+  orphaned, its Steam API session open; Steam shows the game running and its Stop button waits on it
+  forever. A `main` of that kind has to `System.exit` the JVM itself — a moment after returning, since
+  `Chooser.save` (the remembered choice) runs only after `launch` returns.

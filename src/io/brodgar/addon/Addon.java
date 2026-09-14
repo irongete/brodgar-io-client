@@ -990,6 +990,7 @@ public final class Addon {
     final LuaSkill.Cache skills = new LuaSkill.Cache(this);
     final LuaCredo.Cache credos = new LuaCredo.Cache(this);
     final LuaExperience.Cache experiences = new LuaExperience.Cache(this);
+    final LuaAchievement.Cache achievements = new LuaAchievement.Cache(this);
     final LuaFood.Cache foods = new LuaFood.Cache(this);
     final LuaStudySlot.Cache studySlots = new LuaStudySlot.Cache(this);
 

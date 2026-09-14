@@ -67,3 +67,4 @@ Before calling API methods, review the core conventions:
 | **[`asset`](asset/README.md)** | Loading images, textures, and assets shipped in the addon folder. |
 | **[`virtual`](virtual/README.md)** | Spawning client-side visual ghosts and custom map models. |
 | **[`voice`](voice/README.md)** | Proximity voice chat audio and peer streaming. |
+| **[`steam`](steam.md)** | Steam client integration, player identity, and Steam achievements. |

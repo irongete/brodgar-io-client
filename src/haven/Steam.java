@@ -124,11 +124,37 @@ public class Steam {
 	}
     }
 
+    // addon: Steam stats and achievements state
+    private boolean statsLoaded = false;
+    private final List<String> achievementNames = new ArrayList<String>();
+
     private Steam() {
 	Thread th = new HackThread(this::listen, "Steam callback thread");
 	th.setDaemon(true);
 	th.start();
+	requestStats();
     }
+
+    // addon: Steam achievements and stats handling
+    private synchronized void onStatsReceived(long gameId, SteamID steamID, SteamResult result) {
+	if(result == SteamResult.OK) {
+	    achievementNames.clear();
+	    int n = api.stats.getNumAchievements();
+	    for(int i = 0; i < n; i++) {
+		String nm = api.stats.getAchievementName(i);
+		if((nm != null) && !nm.isEmpty())
+		    achievementNames.add(nm);
+	    }
+	    statsLoaded = true;
+	} else {
+	    statsLoaded = false;
+	}
+    }
+
+    private synchronized void onStatsUnloaded(SteamID steamID) {
+	statsLoaded = false;
+    }
+
 
     private void listen() {
 	try {
@@ -190,6 +216,27 @@ public class Steam {
 		    host.post("onMicroTxnAuthorization", appID, orderID, authorized);
 		}
 	    });
+	// addon: Steam user stats and achievements callback
+	final SteamUserStats stats = new SteamUserStats(new SteamUserStatsCallback() {
+		public void onUserStatsReceived(long gameId, SteamID steamID, SteamResult result) {
+		    host.onStatsReceived(gameId, steamID, result);
+		    host.post("onUserStatsReceived", gameId, steamID, result);
+		}
+
+		public void onUserStatsStored(long gameId, SteamResult result) {
+		    host.post("onUserStatsStored", gameId, result);
+		}
+
+		public void onUserStatsUnloaded(SteamID steamID) {
+		    host.onStatsUnloaded(steamID);
+		    host.post("onUserStatsUnloaded", steamID);
+		}
+
+		public void onUserAchievementStored(long gameId, boolean groupAchievement, String achievementName, int curProgress, int maxProgress) {
+		    host.post("onUserAchievementStored", gameId, groupAchievement, achievementName, curProgress, maxProgress);
+		}
+	    });
+
 
 	private static boolean loaded = false, inited = false, failed = false;
 	private static synchronized boolean init() {
@@ -271,6 +318,48 @@ public class Steam {
 	    setrp("steam_player_group_size", null);
 	}
     }
+
+    // addon: Steam achievements and user stats access
+    public synchronized boolean isStatsLoaded() {
+	return(statsLoaded);
+    }
+
+    public synchronized boolean requestStats() {
+	return(api.stats.requestCurrentStats());
+    }
+
+    public synchronized Boolean isAchieved(String name) {
+	if(!statsLoaded)
+	    return(null);
+	return(api.stats.isAchieved(name, false));
+    }
+
+    public synchronized List<String> getAchievementNames() {
+	return(new ArrayList<String>(achievementNames));
+    }
+
+    public synchronized int getNumAchievements() {
+	return(achievementNames.size());
+    }
+
+    public synchronized String getAchievementName(int index) {
+	if((index < 0) || (index >= achievementNames.size()))
+	    return(null);
+	return(achievementNames.get(index));
+    }
+
+    public synchronized boolean setAchievement(String name) {
+	return(api.stats.setAchievement(name));
+    }
+
+    public synchronized boolean clearAchievement(String name) {
+	return(api.stats.clearAchievement(name));
+    }
+
+    public synchronized boolean storeStats() {
+	return(api.stats.storeStats());
+    }
+
 
     public class WebTicket implements AutoCloseable {
 	public final byte[] data;

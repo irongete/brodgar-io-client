@@ -1436,6 +1436,7 @@ public final class AddonManager {
             // and, in the same walk, each open link's spatial vectors for this frame, which is what the
             // voice feature's per-frame tick in the map view used to be.
             VoiceApi.drain();
+            SteamApi.drain();
             drainPendingPages();   // 140.1: the pages opened since the last step get their fill, holding no tree
             Binding.drainPulls();  // 140.3: ...and a bound control in a tree its option's write could not reach
 
@@ -2468,6 +2469,7 @@ public final class AddonManager {
         "FlowerMenuAdded", "FlowerMenuRemoved",
         "ChannelAdded", "ChannelRemoved", "ChannelSelected", "MessageAdded",
         "GhostClicked", "SpriteClicked", "ObjectClicked", "PatchClicked",
+        "AchievementUnlocked", "SteamStatsLoaded",
     };
 
     /**
@@ -2908,6 +2910,17 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
             fireTo(c, event, LuaSession.of(c, user));
+    }
+
+    /** Fire AchievementUnlocked to every owner that subscribed. */
+    static void fireAchievementUnlocked(String name) {
+        for(Addon a : addons) {
+            if(hasSub(a, "AchievementUnlocked"))
+                fireTo(a, "AchievementUnlocked", LuaAchievement.of(a, name));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "AchievementUnlocked"))
+            fireTo(c, "AchievementUnlocked", LuaAchievement.of(c, name));
     }
 
     /** Fire an event to every owner (all addons + the REPL). */
@@ -5084,6 +5097,9 @@ public final class AddonManager {
         // websocket's shape with the voice engine under it: voice.connect is the key, the network block its
         // argument, and the microphone is opened by the first link and shared by every one.
         VoiceApi.install(hafen, owner);
+
+        // hafen.steam() — the Steamworks client and achievements subsystem.
+        SteamApi.installSteam(hafen, owner);
 
         // hafen.locale() — what this client DISPLAYS (102-translation). One catalogue per addon, loaded as a
         // document (:load(doc)), installed and released like a stylesheet, and read back through the strings
