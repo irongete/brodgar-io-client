@@ -44,6 +44,21 @@ draw callback that reads them at 60 fps allocates nothing. A session the client 
 > `worldToScreen` answers `nil` — it is a read, and it has a value shape to say it in. Walking is the whole of
 > what a character you are not looking at will take — see [`move`](player.md#write-protected).
 
+## Which world it is
+
+Every character stands in one world, and the server names it: an opaque string that differs per world and
+never changes within one — the *genus*, in the engine's own word, and the world half of the character key
+[`s:store()`](store/documents.md) files that character's rows under. It is what an addon keys anything that
+must not leak across worlds on: the same character name on another world is another character.
+
+```lua
+local wid = hafen.session():current():world():id()   -- e.g. "fd63ddee958da329"
+```
+
+| Call | Returns | Description |
+|---|---|---|
+| `s:world():id()` | string \| nil | the id of the world that character is in; `nil` until its HUD is up — the same beat [`s:character()`](session.md#read) answers on — and `nil` when the server named none |
+
 ## Objects
 
 `s:world():gob()` is the collection of the game objects that character has loaded, and the only way to

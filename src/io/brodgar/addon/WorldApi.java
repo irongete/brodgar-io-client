@@ -5,6 +5,7 @@ import haven.Astronomy;
 import haven.Coord;
 import haven.Coord2d;
 import haven.Coord3f;
+import haven.GameUI;
 import haven.Glob;
 import haven.Gob;
 import haven.MapFile;
@@ -95,6 +96,18 @@ final class WorldApi {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "world", "gob", W);
                 return gobs;
+            }
+        });
+        // id() — WHICH world that character is in: the server's genus, an opaque string that differs per world
+        // (it is the <genus> of the store's <genus>_<char> key). nil until the HUD is up — the same beat
+        // s:character() goes non-nil on — and nil for the empty genus a server that names none sends: an
+        // empty id names nothing, and nil is what "not known" already means on this page.
+        m.set("id", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "world", "id", W);
+                GameUI g = gameui(user);
+                return ((g == null) || (g.genus == null) || g.genus.isEmpty())
+                    ? LuaValue.NIL : LuaValue.valueOf(g.genus);
             }
         });
         // grid() — the grids streamed in right now, addressed by the point they cover.

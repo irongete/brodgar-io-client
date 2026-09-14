@@ -1,0 +1,9 @@
+{
+  "name": "148.1 — The world id",
+  "id": "148-world-id.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for s:world():id(): a non-empty string once in world, the same on every read, nil for a session the client does not hold, and a dot call refused.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}
