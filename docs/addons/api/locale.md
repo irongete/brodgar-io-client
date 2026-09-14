@@ -97,11 +97,18 @@ reaching for `"*"` first: a pattern written wide enough to catch a line the clie
 a line the player typed as well.
 
 **A key is the string as the surface composed it.** A catalogue is asked once, at the render, with whatever
-the site had assembled by then — so a tooltip that carries a keyboard shortcut is one string with the
-shortcut inside it, a line in the System log is one string with the name of the addon that wrote it in
-front, and a window caption is the caption alone. Read what a surface actually offered off
-[`locale:miss()`](#what-missed) rather than guessing at it: that is the string an entry goes under, spelt
-exactly as an entry has to spell it.
+the site had assembled by then — so a line in the System log is one string with the name of the addon that
+wrote it in front, a long description tip is its title and its body as one document, and a window
+caption is the caption alone. Read what a surface actually offered off [`locale:miss()`](#what-missed)
+rather than guessing at it: that is the string an entry goes under, spelt exactly as an entry has to spell
+it.
+
+**A keyboard shortcut is composed *around* what you answered.** The key a tip shows is the one the user
+bound, so a key composed of it would change under a rebind; instead the catalogue is asked about the
+caption alone — `Inventory`, `Craft` — and the shortcut is painted on your word after. A widget's tip
+writes `(key)` after it; a rich one writes `Keyboard shortcut: key` under it, and those words are a key of
+their own; the [action menu](menugrid.md) highlights the bound letter inside your word, or writes `[key]`
+after a word that has no such letter.
 
 **A chat line is keyed at the kind it is**, not at the channel it landed in: a System notice is
 `chat.system`, your own line is `chat.mine`, and `chat` names the ones that have no kind of their own. The

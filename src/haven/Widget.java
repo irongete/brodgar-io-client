@@ -1976,6 +1976,24 @@ public class Widget {
 	return(RichText.foundry("tooltip"));
     }
 
+    /* addon: tipfoundry()'s twin that displays NOTHING, for a tip composed AROUND what the catalogue answered
+     * (KeyboundTip): the caption was displayed on its own, so the composed string must reach no catalogue --
+     * as a key it would carry the name of the key the user bound, and as a miss it would be spelt as markup.
+     * Mirrors the twin it is derived from, and is rebuilt with it when Fonts.gen() moves. */
+    private static RichText.Foundry keytipfnd;
+    private static int keytipgen = -1;
+    private static RichText.Foundry keytipfoundry() {
+	int g = Fonts.gen();
+	if((keytipfnd == null) || (keytipgen != g)) {
+	    RichText.Foundry f = tipfoundry();
+	    keytipfnd = f.derive().aa(f.aa);
+	    keytipfnd.noresolve = f.noresolve;
+	    keytipfnd.nodisplay = true;
+	    keytipgen = g;
+	}
+	return(keytipfnd);
+    }
+
     public static class PaginaTip implements Indir<Tex> {
 	public final String title;
 	public final Indir<Resource> res;
@@ -2078,31 +2096,33 @@ public class Widget {
 	    }
 	    fontgen = fgen;   // addon:
 	    if(!hrend || (rkey != key)) {
+		/* addon: (102.2) the settip()-backed tip every widget hands out -- the surface a `w:tooltip(s)`
+		 * writes -- is rendered UNDER "tooltip", and the catalogue answers the CAPTION alone (a rich one as
+		 * its marked-up source, the way every rich surface is keyed); the key the binding writes after it
+		 * is composed around the answer, and the words a rich tip puts before that key are a key of their
+		 * own. Composed first, the string a catalogue was asked about carried the name of the key the user
+		 * bound ("Inventory ($col[255,255,0]{Tab})"), so a rebind changed the key and a miss was spelt as
+		 * markup. The render goes through keytipfoundry(), which displays nothing more. */
 		String tip;
 		int w = 0;
-		if(base != null) {
-		    if(rich) {
-			tip = base;
-			if((key != null) && (key != KeyMatch.nil))
-			    tip = String.format("%s\n\nKeyboard shortcut: $col[255,255,0]{%s}", tip, RichText.Parser.quote(key.name()));
-			w = UI.scale(300);
-		    } else {
-			tip = RichText.Parser.quote(base);
-			if((key != null) && (key != KeyMatch.nil))
-			    tip = String.format("%s ($col[255,255,0]{%s})", tip, RichText.Parser.quote(key.name()));
-		    }
-		} else {
-		    if((key == null) || (key == KeyMatch.nil))
-			tip = null;
-		    else
-			tip = String.format("Keyboard shortcut: $col[255,255,0]{%s}", RichText.Parser.quote(key.name()));
-		}
-		// addon: (102.2) ...and so is the settip()-backed tip every widget hands out -- the surface a
-		// `w:tooltip(s)` writes. The key is the string as COMPOSED: a tip with a keybind carries the
-		// binding's own markup, and a bare one is the tip verbatim.
 		Fonts.enter("tooltip");
 		try {
-		    rend = (tip == null) ? null : tipfoundry().render(tip, w).tex();   // addon: the "tooltip" scope (F3d)
+		    boolean bound = (key != null) && (key != KeyMatch.nil);
+		    if(base != null) {
+			if(rich) {
+			    tip = Fonts.display("tooltip", base);
+			    if(bound)
+				tip = String.format("%s\n\n%s", tip, shortcut(key));
+			    w = UI.scale(300);
+			} else {
+			    tip = RichText.Parser.quote(Fonts.display("tooltip", base));
+			    if(bound)
+				tip = String.format("%s ($col[255,255,0]{%s})", tip, RichText.Parser.quote(key.name()));
+			}
+		    } else {
+			tip = bound ? shortcut(key) : null;
+		    }
+		    rend = (tip == null) ? null : keytipfoundry().render(tip, w).tex();   // addon: the "tooltip" scope (F3d), displayed above
 		} finally {
 		    Fonts.exit();
 		}
@@ -2110,6 +2130,13 @@ public class Widget {
 		rkey = key;
 	    }
 	    return(rend);
+	}
+
+	/* addon: the "Keyboard shortcut: <key>" line of a rich tip: its words displayed on their own, and the
+	 * key's name -- the user's, never translated -- quoted after them. */
+	private String shortcut(KeyMatch key) {
+	    return(String.format("%s $col[255,255,0]{%s}", RichText.Parser.quote(Fonts.display("tooltip", "Keyboard shortcut:")),
+				 RichText.Parser.quote(key.name())));
 	}
     }
 

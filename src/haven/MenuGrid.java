@@ -50,13 +50,16 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     private final static Font ttstock = new Font("SansSerif", Font.PLAIN, 1).deriveFont(UI.scale(10f));
     private static RichText.Foundry bttfnd;
     private static int ttfndgen = -1;
-    /** addon: the current tooltip foundry for the {@code "tooltip"} scope (an override, else stock {@link #ttfnd}). */
+    /** addon: the current tooltip foundry for the {@code "tooltip"} scope (an override, else stock {@link #ttfnd}'s
+     * twin). It displays NOTHING: {@link PagButton#rendertt0} asks the catalogue about the action's name itself and
+     * composes the hotkey markup around the answer, so the composed string must reach no catalogue -- as a key it
+     * would carry the letter the user bound, and as a miss it would be spelt as markup. */
     public static RichText.Foundry ttfont() {
 	int g = Fonts.gen();
 	if((bttfnd == null) || (ttfndgen != g)) {
 	    Fonts.Style st = Fonts.style("tooltip");
 	    if(st == null) {
-		bttfnd = ttfnd;
+		bttfnd = ttfnd.derive().aa(ttfnd.aa);   // addon: a twin, so the flag below never reaches the stock foundry
 	    } else {
 		Font f = st.font(ttstock);
 		Color col = st.color(null);   // addon: (033.2) the sheet's `color` for "tooltip", or null when it sets none
@@ -66,6 +69,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 					 TextAttribute.FOREGROUND, col))
 		    .aa(st.aa(ttfnd.aa));
 	    }
+	    bttfnd.nodisplay = true;   // addon: the name was displayed before the markup was built around it -- see rendertt0
 	    ttfndgen = g;
 	}
 	return(bttfnd);
@@ -359,17 +363,25 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	}
 
 	private BufferedImage rendertt0(boolean withpg) {   // addon: the stock body (F3d)
-	    String tt = name();
+	    /* addon: the catalogue answers the NAME, and the hotkey markup is built around what it answered -- the
+	     * shape Text.Foundry.renderwrap has. Composed first, the key a catalogue was asked about carried the
+	     * letter the user bound ("$b{$col[255,128,0]{C}}raft"), so a rebind changed the key and a miss was
+	     * spelt as markup. Now the miss reads "Craft", and the highlighted letter -- or the [key] after a
+	     * name that has none -- is found on the displayed word. ttfont() displays nothing more. */
+	    String name = Fonts.display("tooltip", name());
 	    KeyMatch key = bind.key();
 	    int pos = -1;
 	    char vkey = bindchr(key);
 	    if((vkey != 0) && (key.modmatch == 0))
-		pos = tt.toUpperCase().indexOf(Character.toUpperCase(vkey));
+		pos = name.toUpperCase().indexOf(Character.toUpperCase(vkey));
+	    String tt;
 	    if(pos >= 0)
-		tt = tt.substring(0, pos) + "$b{$col[255,128,0]{" + tt.charAt(pos) + "}}" + tt.substring(pos + 1);
+		tt = RichText.Parser.quote(name.substring(0, pos)) + "$b{$col[255,128,0]{" + RichText.Parser.quote(name.substring(pos, pos + 1)) + "}}" + RichText.Parser.quote(name.substring(pos + 1));
 	    else if(key != KeyMatch.nil)
-		tt += " [$b{$col[255,128,0]{" + key.name() + "}}]";
-	    BufferedImage ret = ttfont().render(tt, UI.scale(300)).img;   // addon: the "tooltip" scope (F3d)
+		tt = RichText.Parser.quote(name) + " [$b{$col[255,128,0]{" + RichText.Parser.quote(key.name()) + "}}]";
+	    else
+		tt = RichText.Parser.quote(name);
+	    BufferedImage ret = ttfont().render(tt, UI.scale(300)).img;   // addon: the "tooltip" scope (F3d), displayed above
 	    if(withpg) {
 		List<ItemInfo> info = info();
 		info.removeIf(el -> el instanceof ItemInfo.Name);
