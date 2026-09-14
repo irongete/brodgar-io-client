@@ -55,7 +55,7 @@ setter is legal until `:connect()` and none after — a rule with no timing in i
 
 ```lua
 hafen.websocket():connection("wss://relay.example.com/feed")
-  :header("Authorization", "Bearer " .. hafen.store():get("cfg").token)
+  :header("Authorization", "Bearer " .. hafen.store():var("cfg").token)
   :protocol("feed.v1")
   :timeout(5000)
   :on("Open", function(c) hafen.log():write("open, speaking " .. tostring(c:protocol())) end)

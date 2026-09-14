@@ -1,27 +1,27 @@
 # Saved data
 
 Anything your addon should still know next week goes in [your addon's file](../api/store/README.md), one per
-addon for the whole client, and it takes three shapes. A **document** is a Lua table you name at `get`,
+addon for the whole client, and it takes three shapes. A **var** is a Lua table you name at `var`,
 which the client restores when you first name it and writes back for you: settings. A **table** you declare
 holds rows, typed, looked up by key or by clause: a record. A **statement** is SQL, for what only SQL says.
-Start with a document; move to a table the day the document would grow.
+Start with a var; move to a table the day the var would grow.
 
 ## Name it, and it exists
 
 ```lua
-hafen.session():current():store():get("settings").window = { x = 40, y = 200 }
-hafen.store():get("seen").lastLogin = os.time()
+hafen.session():current():store():var("settings").window = { x = 40, y = 200 }
+hafen.store():var("seen").lastLogin = os.time()
 ```
 
-The door is the scope. A document reached through [a session](../api/session.md) is **that character's
+The door is the scope. A var reached through [a session](../api/session.md) is **that character's
 own**; one reached through `hafen.store()` is your addon's own, one for the whole client whichever account
 or character is up. That is the whole of the difference: nothing declares a scope, and the same name through
-the two doors is two documents.
+the two doors is two vars.
 
 A name is always a usable table, empty when there is nothing saved yet, so there is nothing to create and
-no `nil` check to write — and a misspelt name is an empty document, since there is nothing to hold it
+no `nil` check to write — and a misspelt name is an empty var, since there is nothing to hold it
 against. The table object itself never changes — a restore refills it in place — so a local reference you
-cache stays valid. See [documents](../api/store/documents.md) for the whole surface.
+cache stays valid. See [vars](../api/store/vars.md) for the whole surface.
 
 ## Read it at the right moment
 
@@ -35,7 +35,7 @@ are until you are in the world.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(s)
-  local pos = s:store():get("settings").window
+  local pos = s:store():var("settings").window
   if pos then window:position(pos.x, pos.y) end
 end)
 ```
@@ -62,7 +62,7 @@ you can draw again. Rebuild the live objects from that on load.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(s)
-  for _, prop in ipairs(s:store():get("settings").props or {}) do
+  for _, prop in ipairs(s:store():var("settings").props or {}) do
     local p = s:world():position(prop.at)          -- :x() is nil until that grid is reachable
     if p then hafen.virtual():ghost():add(prop.res, p) end
   end
@@ -74,7 +74,7 @@ so store a [Position](../api/position.md) instead.
 
 ## A record is a table
 
-A document is held whole and written whole, so a thousand map nodes in one are a thousand entries serialised
+A var is held whole and written whole, so a thousand map nodes in one are a thousand entries serialised
 at every save. Declare a [table](../api/store/tables.md) for them instead: columns, a key and an index, and
 rows that go in and come out typed.
 
@@ -95,8 +95,8 @@ them saw is one `SELECT` away through a [statement](../api/store/statements.md).
 
 ## When it is written
 
-A document's changes are flushed on a timer, and again when the client quits, so an ordinary quit loses
-nothing and a crash loses at most the last half-minute. Your addon's own documents are written again when
+A var's changes are flushed on a timer, and again when the client quits, so an ordinary quit loses
+nothing and a crash loses at most the last half-minute. Your addon's own vars are written again when
 your addon is disabled or reloaded; a character's are written when the session holding them **ends** or
 picks another character, because that is the last moment their data is the data in those tables. A row a
 table or a statement writes waits for none of this: it is in the file when the call returns. Tabbing between
@@ -104,11 +104,11 @@ characters writes nothing and loses nothing — each session keeps its own the w
 
 `s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
 doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses a
-value a document cannot hold, naming where in your table it sits, which is the fastest way to find out that
+value a var cannot hold, naming where in your table it sits, which is the fastest way to find out that
 you stored the widget instead
 of its place.
 
-A row the client cannot parse leaves that document empty and logs the failure rather than raising it: your
+A row the client cannot parse leaves that var empty and logs the failure rather than raising it: your
 addon starts with default settings instead of not starting, and that scope is not written back until a
 load succeeds.
 
@@ -127,7 +127,7 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 ```
 
-There is no document, no table and no handler, because every addon that saved a layout by hand wrote
+There is no var, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
 the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and the
 character is the one whose window it is, on screen or not, while a window you built is your addon's own.
@@ -138,7 +138,7 @@ character is the one whose window it is, on screen or not, while a window you bu
   [`hafen.asset`](../api/asset/README.md), relative to your own folder. They are yours to read, not to write.
 - **Data from elsewhere** comes through [`hafen.http`](../api/http.md) or a
   [`hafen.websocket`](../api/websocket.md) connection, each needing a host allowlist in the manifest and the
-  user's approval of it, and lands in a document if you want it to survive the session.
+  user's approval of it, and lands in a var if you want it to survive the session.
 
 Neither one gives you a general file system: an addon reads what it ships and writes its own file, and that
 is the whole of it.

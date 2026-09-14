@@ -63,7 +63,7 @@ legal until `:send()` and none after — a rule with no timing in it.
 hafen.http():request("https://api.example.com/report")
   :method("POST")
   :body({ char = hafen.session():current():character() })
-  :header("Authorization", "Bearer " .. hafen.store():get("cfg").token)
+  :header("Authorization", "Bearer " .. hafen.store():var("cfg").token)
   :timeout(5000)
   :on("done", function(res)
       if res:ok() and (res:status() == 200) then

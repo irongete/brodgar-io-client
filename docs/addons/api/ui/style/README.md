@@ -132,7 +132,7 @@ sites inside it.
 
 The table holds nothing but strings, numbers, booleans and tables — no handle anywhere in it — so
 [`hafen.json`](../../json.md) encodes it as it stands, and a
-[document](../../store/documents.md) keeps it across sessions.
+[var](../../store/vars.md) keeps it across sessions.
 
 ## Properties
 

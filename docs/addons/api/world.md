@@ -48,7 +48,7 @@ draw callback that reads them at 60 fps allocates nothing. A session the client 
 
 Every character stands in one world, and the server names it: an opaque string that differs per world and
 never changes within one — the *genus*, in the engine's own word, and the world half of the character key
-[`s:store()`](store/documents.md) files that character's rows under. It is what an addon keys anything that
+[`s:store()`](store/vars.md) files that character's rows under. It is what an addon keys anything that
 must not leak across worlds on: the same character name on another world is another character.
 
 ```lua

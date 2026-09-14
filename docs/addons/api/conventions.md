@@ -314,7 +314,7 @@ beside every session the client holds, and nothing of yours is torn down or rebu
   it does, nothing can be written onto it — so nothing can delete a handle's own `:cancel()` — and
   `tostring(h)` names the thing, `Timer(every 5s)`, `Options(video)`, `Sub(GobAdded)`.
 - **A table the bridge owns and you write into** is the third kind, and
-  [`hafen.store():get(name)`](store/documents.md#read-and-write) is where you meet it. It is neither a copy nor a
+  [`hafen.store():var(name)`](store/vars.md#read-and-write) is where you meet it. It is neither a copy nor a
   proxy: it is the table that goes to disk, so assigning into it is the whole of saving, and it is the one
   place in this API where a typo on a key is silent — and then persisted.
 

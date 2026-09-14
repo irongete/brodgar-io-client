@@ -35,7 +35,7 @@ read back what missed:
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
 
 hafen.console():on("dump", function()
-  local out = hafen.store():get("catalogue")
+  local out = hafen.store():var("catalogue")
   for _, m in ipairs(hafen.locale():miss():list()) do
     out[m:surface()] = out[m:surface()] or {}
     out[m:surface()][m:text()] = m:text()  -- English to English, ready to edit
@@ -47,7 +47,7 @@ end)
 Open the windows you mean to translate, hover the items, right-click something for its menu, then type
 `:dump`. The terminal shows a JSON object keyed exactly as a catalogue's `text` is, with every string
 doubled: paste it into the file you ship, translate the right-hand side of each pair and you have the
-file. The misses are kept in a [document](../api/store/documents.md) of your addon's own, reached through
+file. The misses are kept in a [var](../api/store/vars.md) of your addon's own, reached through
 `hafen.store()` because the strings the client says are the client's rather than one character's, and
 `:get` hands back the live table — an empty one on the first run — so what one sweep found is still there
 for the next, and the dump grows as you play.

@@ -73,7 +73,7 @@ changes it:
 
 ```lua
 local c = hafen.ui():check():text("Show grid"):value(true)
-c:on("Changed", function(on) hafen.store():get("cfg").grid = on end)
+c:on("Changed", function(on) hafen.store():var("cfg").grid = on end)
 
 c:value()          --> true
 ```

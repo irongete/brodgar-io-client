@@ -256,7 +256,7 @@ public final class AddonRegistry {
         }),
         // 150: where every remembered widget stands goes into the CLIENT's file first -- a place the addon
         //   wrote itself lands in no gesture, and the widgets are about to go. The client's rows, so a step of
-        //   their own, apart from the addon's documents below.
+        //   their own, apart from the addon's vars below.
         new Step("remembered places", LuaWidget::rememberCapture),
         // ...then persist them (spec 05: flushed at Disable)
         new Step("saved variables", StoreApi::flush),
@@ -560,7 +560,7 @@ public final class AddonRegistry {
 
     /**
      * The flush the quit always pays: every session that ended and was never drained, then every addon's own
-     * write — its client-scope documents and each live session's per-character documents, which is what
+     * write — its client-scope vars and each live session's per-character vars, which is what
      * {@link StoreApi#flush} already walks — and the close of its file; and into the client's file (150),
      * where every remembered widget stands and every live session's held slots, so the last gesture before the
      * quit is there. Engine code throughout: nothing here calls an addon.

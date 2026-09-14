@@ -1397,20 +1397,20 @@ public final class Addon {
     final Interned<String, LuaValue> storeTables = Interned.keyed();
 
     /**
-     * The {@code hafen.store()} documents — <b>the CLIENT scope</b>, one Lua table per name the addon has asked
-     * {@code :get} for (147: a document exists when {@code get(name)} first names it, and its row is read then).
+     * The {@code hafen.store()} vars — <b>the CLIENT scope</b>, one Lua table per name the addon has asked
+     * {@code :var} for (147: a var exists when {@code var(name)} first names it, and its row is read then).
      * Minted empty in {@link AddonManager#installHafen}; the engine walks it on flush. {@code null} until installed.
      *
-     * <p>The other scope is nowhere near here (079.1): a character's documents are one session's, so they
+     * <p>The other scope is nowhere near here (079.1): a character's vars are one session's, so they
      * live in that session's own {@link AddonManager.SessionState#charStores} and there are as many sets as
      * the client has logins.
      */
     public LuaTable store;
     /**
-     * Write-skip cache: the JSON last written (or read in) for each client-scope document, by name, so an
-     * unchanged flush touches no row. Primed as each document is first read, so a flush after it writes nothing.
+     * Write-skip cache: the JSON last written (or read in) for each client-scope var, by name, so an
+     * unchanged flush touches no row. Primed as each var is first read, so a flush after it writes nothing.
      */
-    public final Map<String, String> lastClientDocs = new LinkedHashMap<String, String>();
+    public final Map<String, String> lastClientVars = new LinkedHashMap<String, String>();
     /**
      * <b>The client scope is read-only once a read fails</b> — set when the store is unavailable, or a
      * row was there and could not be read or parsed. What {@link #store} then holds is empty because the

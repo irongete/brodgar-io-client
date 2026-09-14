@@ -191,7 +191,7 @@ public final class AddonManager {
     // interested adapter(s) dirty; the step re-reads + fires holding none. Both collections are
     // session-scoped.
 
-    // -- saved variables (spec 1e / D-002 / D-023; 146): hafen.store, the documents in the addon's own
+    // -- saved variables (spec 1e / D-002 / D-023; 146): hafen.store, the vars in the addon's own
     // savedata/<id>/<id>.sqlite. Per-character vars key on <genus>_<char>, known only once the HUD is up
     // (SessionEnteredWorld) — captured here and reused on flush so a relog (which rebinds ui before the new
     // GameUI exists) writes under the OLD character's key. Client-scope vars need no char and load at
@@ -836,7 +836,7 @@ public final class AddonManager {
             return;
         SessionState st = states.remove(u);
         // 150: the held slots' last gesture goes to the client's file NOW, from this thread -- engine code
-        // and no Lua, unlike the per-character documents below, and the state is about to be unreachable.
+        // and no Lua, unlike the per-character vars below, and the state is about to be unreachable.
         if(st != null)
             BeltHold.flush(st);
         // 079.1: ...and the tables that session's saved variables live in go with it, so they are handed on
@@ -5230,10 +5230,10 @@ public final class AddonManager {
             }
         }, timerVerbs), null);
 
-        // hafen.store() — saved variables (1e / D-002 / D-023; 146). One Lua table per manifest-declared saved
-        // variable, a JSON row in the addon's own savedata/<id>/<id>.sqlite. :get(name) hands back that table — the
-        // LIVE persisted one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name
-        // throws listing the declared ones, because the set is closed by the manifest at load. :flush() forces
+        // hafen.store() — saved variables (1e / D-002 / D-023; 146). One Lua table per var the addon names, a JSON
+        // row in the addon's own savedata/<id>/<id>.sqlite. :var(name) hands back that table — the LIVE persisted
+        // one, never a copy, so hafen.store():var("cfg").foo = 1 still saves; a var exists when :var first names
+        // it (147), and nothing declares one. :flush() forces
         // a write now; :info() says where the file is and how big. Per-character vars are restored at
         // SessionEnteredWorld (the <genus>_<char> key is only known then); client-scope vars are loaded here,
         // before the addon's files run, ready in the file body / Load. The table object for each name is

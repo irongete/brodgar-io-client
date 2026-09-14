@@ -47,11 +47,11 @@ your own tables by, on the one event where the login it names has already gone.
 `SessionEnteredWorld` fires once the HUD exists — the [action menu](../../menugrid.md) included, so the
 entries your addon adds go in from there — but much character-sheet data streams in for a few seconds
 afterwards, see [missing data returns nil](../../conventions.md#missing-data-returns-nil). It is also the
-point from which that session's [own documents](../../store/documents.md) read back, on screen or not: a
+point from which that session's [own vars](../../store/vars.md) read back, on screen or not: a
 character reaching the world behind another has its rows from its own announcement, so a handler reads
 them through the `Session` it was handed. Tabbing there brings nothing more, because each session keeps
 its own tables; what a screen change writes is
-[the placements the user made](../../store/documents.md#where-a-widget-sits-is-saved-for-you), and those
+[the placements the user made](../../store/vars.md#where-a-widget-sits-is-saved-for-you), and those
 belong to the tree they stand in rather than to the screen.
 
 **The wait for the action menu is bounded at five seconds.** A session whose menu never arrives is
@@ -61,7 +61,7 @@ whose entries matter that much re-tries on a [timer](../../timer.md).
 
 **The four are not one queue.** `SessionEnteredWorld` is delivered from that character's own step, and
 the other three from your addon's. What that buys is the ordering the event exists for: that session's
-[own documents](../../store/documents.md) and its held action-bar slots are readable before your handler
+[own vars](../../store/vars.md) and its held action-bar slots are readable before your handler
 runs, because the same step put them there a line earlier. What it does not buy is a place in
 the queue the other three share — so read each of the four for what it says about its own payload, and
 never as a report of where another has got to.
@@ -113,5 +113,5 @@ told about all of them and has none to catch up on.
 - [the catalogue](README.md) — the other families, and whose character an event was
 - [`hafen.session`](../../session.md) — the payload these four hand you, and the collection of the rest
 - [when your code runs](../../../runtime.md) — the whole life of an addon, of which these are the moments
-- [saved data](../../store/documents.md) — what is read back at `SessionEnteredWorld`, and when it is written
+- [saved data](../../store/vars.md) — what is read back at `SessionEnteredWorld`, and when it is written
 - [events and timers](../../../guides/events-and-timers.md) — the guide that puts a handler to work

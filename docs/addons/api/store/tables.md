@@ -1,7 +1,7 @@
 # hafen.store: tables
 
 A **table** you declare is your addon's record: columns, a key and indexes in your [file](README.md), whose
-rows go in and come out **typed** by the declaration. Reach for it where a [document](documents.md) would
+rows go in and come out **typed** by the declaration. Reach for it where a [var](vars.md) would
 grow — map nodes, prices seen, a log of what happened — and look rows up by key or by clause. Every verb
 here is **unprotected**.
 
@@ -28,7 +28,7 @@ until then and none after, and each is refused naming what is allowed.
 
 | Verb | Does | Refused when |
 |---|---|---|
-| `hafen.store():table(name)` | a bare declaration of the table `name` | the name is not letters, digits and underscores starting with a letter or an underscore, or takes the `hafen_` prefix (the client's `hafen_documents`) or `sqlite_`; the file is [unavailable](README.md#when-the-file-cannot-be-opened) |
+| `hafen.store():table(name)` | a bare declaration of the table `name` | the name is not letters, digits and underscores starting with a letter or an underscore, or takes the `hafen_` prefix (the client's `hafen_vars`) or `sqlite_`; the file is [unavailable](README.md#when-the-file-cannot-be-opened) |
 | `decl:column(name, type)` | one column, of a [type](#the-types) below | the name breaks the rule above, the column is declared already, or the type is not one of the five |
 | `decl:key(col, ...)` | the columns that identify a row, in the order `:get` and `:remove` take them | a key is declared already, a column is not declared, is named twice or is `json` |
 | `decl:index(col, ...)` | one index over declared columns, `<table>_<cols>` in the file | a column is not declared or named twice; the same columns are indexed already |
@@ -45,7 +45,7 @@ A table has one key, and it is what `:put` upserts by: two rows with one key are
 | `integer` | `INTEGER` | a whole number, exact to 2^53 | a number |
 | `real` | `REAL` | a number | a number |
 | `boolean` | `INTEGER` | `true` or `false` | `true` or `false` |
-| `json` | `TEXT` | a table a [document](documents.md#what-survives) can hold | the table that was put; a Position inside it comes back a Position |
+| `json` | `TEXT` | a table a [var](vars.md#what-survives) can hold | the table that was put; a Position inside it comes back a Position |
 
 **The Lua types live in your declaration alone.** The file holds an `INTEGER` where you said `boolean` and a
 `TEXT` where you said `json`, and says nothing about which column is which — so the declaration is what
@@ -142,5 +142,5 @@ row keyed `Kind` does not name the column `kind`.
 
 - [the file](README.md) — the two caps, the sandbox, and when a row is on disk
 - [statements](statements.md) — the aggregate, the join and the bulk write a Table's verbs do not say
-- [documents](documents.md) — the shape for settings, and what a `json` column may hold
+- [vars](vars.md) — the shape for settings, and what a `json` column may hold
 - [conventions](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection grammar

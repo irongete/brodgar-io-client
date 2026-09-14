@@ -13,13 +13,13 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 
 | Moment | What is ready |
 |---|---|
-| your file bodies | the whole `hafen` API is callable; your addon's own documents are readable, each when you name it; there is no character |
+| your file bodies | the whole `hafen` API is callable; your addon's own vars are readable, each when you name it; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
-| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own documents. **Once per character reaching the world**: again for the same session when it picks another, and again for every login in the world at a `:reload` |
+| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own vars. **Once per character reaching the world**: again for the same session when it picks another, and again for every login in the world at a `:reload` |
 | `Disable` | your last chance to write, before the engine flushes and tears down — on a reload, on being disabled, and on the way out of the client. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
-that character's documents — is absent until a session reaches the world. The read verbs say so rather
+that character's vars — is absent until a session reaches the world. The read verbs say so rather
 than guessing: each one's reference page states what it gives back when there is no character yet.
 
 An error while a file runs stops **that** addon's file and marks it errored in the [AddOns manager](panel.md);
@@ -124,7 +124,7 @@ The client contains those where it isolates every other error, and pays for them
 - the failure is logged with your addon's id, and the stack behind it goes to the terminal — for this kind
   of failure that stack is the only description of it there is;
 - at the end of that tick your addon is torn down, exactly as the CPU budget tears one down: `Disable`
-  fires, your documents are flushed, and everything the addon owns is given back;
+  fires, your vars are flushed, and everything the addon owns is given back;
 - its row in the [AddOns manager](panel.md) reads `auto-disabled (…)`, naming what was raised, until the
   next load.
 
@@ -201,7 +201,7 @@ there is no character to re-initialize for.
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your
 stylesheet, sounds you started, and the client's own widgets you hid, moved or replaced, which are handed
-back as the user was seeing them. Written first: your documents, flushed at `Disable`.
+back as the user was seeing them. Written first: your vars, flushed at `Disable`.
 
 Everything your addon holds lives on the addon, or on the login it was made in, and goes with it — a
 disable frees what that addon had and touches no other's. **Each of those is released on its own**: one that
@@ -216,7 +216,7 @@ your login.
 
 ## What quitting writes
 
-Quitting — by closing the window, or with `:q` — writes your documents before the process ends. Every
+Quitting — by closing the window, or with `:q` — writes your vars before the process ends. Every
 logged-in character's own and your addon's own go to your addon's file, whether or not thirty seconds have
 passed since the last automatic save and whether or not anything called `flush()`; a row a table or a
 statement wrote is in the file already, and the quit closes it.

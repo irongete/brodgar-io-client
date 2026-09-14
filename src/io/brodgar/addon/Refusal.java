@@ -125,6 +125,12 @@ final class Refusal {
                   + " nothing: a line of text carries no value, so it is not an option. Build it on your"
                   + " page — hafen.ui():label() inside hafen.client():options():addon():panel(fn), with"
                   + " :text(s) for the line");
+        // The store's saved variable is a VAR, on both halves: `get` fetched nothing -- what it handed back is
+        // the live table itself, named into existence -- and the word now says so.
+        MOVED.put("hafen.store():get", "hafen.store():get(name) is hafen.store():var(name): the live table"
+                  + " of your addon's own var `name`, saved for you");
+        MOVED.put("session:store():get", "session:store():get(name) is session:store():var(name): the live"
+                  + " table of that character's var `name`, saved for you");
         KEYS.put("widget|Destroy", "widget:on(\"Destroy\", fn): the key is Removed — widget:on(\"Removed\","
                  + " fn) fires when the widget leaves its tree");
         KEYS.put("hafen.event()|FlowerMenuOpened", "hafen.event():on(\"FlowerMenuOpened\", fn): the key is"
@@ -158,39 +164,39 @@ final class Refusal {
                       + " s:console():run(line) is the verb and the session is the address —"
                       + " hafen.session():current():console():run(\"lo\") says it at the character on screen."
                       + " hafen.console() is the commands your addon REGISTERS, which are client-wide.");
-        // 146.2: the store splits by SCOPE, and the FILE is one for the whole client -- a character's documents
+        // 146.2: the store splits by SCOPE, and the FILE is one for the whole client -- a character's vars
         // are rows in it, and a declared table has a character as a column at most -- so what is about the
         // file hangs off the client half alone.
         MISPLACED.put("session:store():info",
                       "session:store() has no verb 'info': the file is one for the whole client, and this"
-                      + " character's documents are rows in it, so hafen.store():info() is where it is"
-                      + " named. session:store() is that character's documents alone.");
+                      + " character's vars are rows in it, so hafen.store():info() is where it is"
+                      + " named. session:store() is that character's vars alone.");
         MISPLACED.put("session:store():table",
                       "session:store() has no verb 'table': a table you declare is the file's, one for the"
                       + " whole client whichever character is up, so hafen.store():table(name) is where it is"
                       + " declared. A character is a column of it — put the character's key in the rows that"
-                      + " are one character's. session:store() is that character's documents alone.");
+                      + " are one character's. session:store() is that character's vars alone.");
         // 146.3: and a statement runs on the file, for the same reason.
         MISPLACED.put("session:store():exec",
                       "session:store() has no verb 'exec': a statement runs on the file, which is one for the"
                       + " whole client whichever character is up, so hafen.store():exec(sql, ...) is where it"
                       + " runs. Where the rows are one character's, bind that character's key to a ?."
-                      + " session:store() is that character's documents alone.");
+                      + " session:store() is that character's vars alone.");
         MISPLACED.put("session:store():query",
                       "session:store() has no verb 'query': a statement runs on the file, which is one for the"
                       + " whole client whichever character is up, so hafen.store():query(sql, ...) is where it"
                       + " runs. Where the rows are one character's, bind that character's key to a ?."
-                      + " session:store() is that character's documents alone.");
+                      + " session:store() is that character's vars alone.");
         // 146.4: a transaction brackets statements on the file, and a vacuum rebuilds it.
         MISPLACED.put("session:store():transaction",
                       "session:store() has no verb 'transaction': a transaction brackets statements on the file,"
                       + " which is one for the whole client whichever character is up, so"
                       + " hafen.store():transaction(fn, ...) is where it runs. session:store() is that"
-                      + " character's documents alone, and those are written for you.");
+                      + " character's vars alone, and those are written for you.");
         MISPLACED.put("session:store():vacuum",
                       "session:store() has no verb 'vacuum': the file is one for the whole client whichever"
                       + " character is up, so hafen.store():vacuum() is what rebuilds it. session:store() is"
-                      + " that character's documents alone.");
+                      + " that character's vars alone.");
     }
 
     /**

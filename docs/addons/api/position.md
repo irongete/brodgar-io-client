@@ -16,7 +16,7 @@ p:tileCoord()                           -- the tile it sits in, {x, y}
 p:durable()                             -- can it be saved?
 p:info()                                -- {gridId, x, y} — the durable form
 
-hafen.store():get("spot").home = p        -- saved and reloaded as a Position, no conversion
+hafen.store():var("spot").home = p        -- saved and reloaded as a Position, no conversion
 ```
 
 ## Read
@@ -99,10 +99,10 @@ either direction. [`hafen.json`](json.md) writes it as its durable form and read
 Position, so a place survives a file, a message, or another player.
 
 ```lua
-hafen.store():get("spot").home = s:player():gob():position()   -- a document, saved for you
+hafen.store():var("spot").home = s:player():gob():position()   -- a var, saved for you
 
 -- next session
-local home = hafen.store():get("spot").home
+local home = hafen.store():var("spot").home
 local cur = hafen.session():current()
 if home and home:x() then cur:player():move(home) end
 ```

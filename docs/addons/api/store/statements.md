@@ -90,7 +90,7 @@ they reach it, so the message names what to write instead.
 |---|---|
 | `CREATE TABLE` | `hafen.store():table(name)` and its `:create()` — a table made through the builder is one whose rows come back typed. A virtual table (`CREATE VIRTUAL TABLE`) has no columns to type and runs here |
 | `CREATE INDEX` | `decl:index(col, ...)` on the declaration, whose `:create()` makes it on a table already in the file too |
-| any `hafen_` name | the client's own table, `hafen_documents` — your documents, reached through `:get(name)` and never through a statement |
+| any `hafen_` name | the client's own table, `hafen_vars` — your vars, reached through `:var(name)` and never through a statement |
 | `ATTACH`, `DETACH` | the sandbox: this connection holds one file, yours |
 | `load_extension(...)` | the sandbox: no extension loads on this connection |
 | `VACUUM` | [`hafen.store():vacuum()`](README.md#hafenstorevacuum), which rebuilds the file in place; `VACUUM INTO` would write a second file |
@@ -137,11 +137,11 @@ inbound update's handler, a `Draw` pass — waits at the door until `fn` returns
 go and nothing else: no HTTP wait, no work the frame is waiting on.
 
 A row is on disk when the call returns, so there is no flush to call after a statement; a
-[document](documents.md) is the shape that waits for its write.
+[var](vars.md) is the shape that waits for its write.
 
 ## See also
 
 - [the file](README.md) — the sandbox, the two caps, and when the file is closed
 - [tables](tables.md) — the builder every `CREATE TABLE` points at, and the rows that come back typed
-- [documents](documents.md) — the shape for settings, held in memory and written for you
+- [vars](vars.md) — the shape for settings, held in memory and written for you
 - [threading](../threading.md) — where your handler runs and what it may reach

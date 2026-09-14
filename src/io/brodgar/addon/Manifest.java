@@ -261,12 +261,12 @@ public final class Manifest {
             throw new IllegalArgumentException("'files' must list at least one .lua file");
 
         String name = str(m, "name", false);
-        // 147: a document is not declared. It exists when hafen.store():get(name) first names it, and the door
+        // 147: a var is not declared. It exists when hafen.store():var(name) first names it, and the door
         // it is asked through is its scope -- so the field that used to announce one is refused here, at load,
         // as the hard cut's refusal in the manifest's own vocabulary, and the panel row reads it.
         if(m.containsKey("saved_variables"))
-            throw new IllegalArgumentException("'saved_variables' is not a manifest field: a document exists when"
-                + " hafen.store():get(name) first names it, and the door is its scope — remove it");
+            throw new IllegalArgumentException("'saved_variables' is not a manifest field: a var exists when"
+                + " hafen.store():var(name) first names it, and the door is its scope — remove it");
         PermissionSet perms = PermissionSet.parse(strlist(m, "permissions"));
         List<String> hosts = networkhosts(m);
         // 093.4 (A-098): the network is a KEY now, and the hosts block is that key's argument. So a manifest

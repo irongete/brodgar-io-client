@@ -432,10 +432,10 @@ public final class LuaSession {
                 return h.uiObj;
             }
         });
-        // store() — the documents of THIS character. The second half-namespace, and it splits for the same
-        // reason ui does: the addon's own documents are one set of rows whichever character is up, and keep
+        // store() — the vars of THIS character. The second half-namespace, and it splits for the same
+        // reason ui does: the addon's own vars are one set of rows whichever character is up, and keep
         // hafen.store(); a character's are that character's own rows and are reached here. The door is the
-        // scope (147): one name through both is two documents. The tables are the named session's own (079.1),
+        // scope (147): one name through both is two vars. The tables are the named session's own (079.1),
         // so this answers for a character nobody is looking at exactly as it does for the drawn one.
         m.set("store", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

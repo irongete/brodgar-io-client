@@ -234,7 +234,7 @@ is `false` for every entity that is merely waiting. A `drawn()` that is false wi
 yet*; with `failed` true it is *never*, and no amount of waiting will change it.
 
 ```lua
-local home = hafen.store():get("spot").home            -- a place saved in an earlier session
+local home = hafen.store():var("spot").home            -- a place saved in an earlier session
 local e = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", home)
 
 e:exists()             --> true    it is yours and it is placed

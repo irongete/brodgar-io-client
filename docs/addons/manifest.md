@@ -109,6 +109,6 @@ and an addon that needs the section outright declares the edition that added it.
 
 - [the runtime](runtime.md) — when your code runs, the sandbox, the budgets, the panel and the console
 - [getting started](getting-started.md) — the first addon, end to end
-- [`hafen.store`](api/store/README.md) — your addon's file, named by the id: its documents, tables and statements
+- [`hafen.store`](api/store/README.md) — your addon's file, named by the id: its vars, tables and statements
 - [permissions](guides/permissions.md) — the permission keys the manifest declares
 - [`hafen.asset`](api/asset/README.md) — the files your addon ships beside the manifest

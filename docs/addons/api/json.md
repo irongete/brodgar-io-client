@@ -90,7 +90,7 @@ Encoding and then parsing round-trips a table of scalars, arrays and objects fai
 `null` rule and the integer normalization above. JSON object key order is not significant and is not
 preserved.
 
-> **What [`hafen.store`](store/documents.md) writes is not strict.** A document must not be lost to one bad
+> **What [`hafen.store`](store/vars.md) writes is not strict.** A var must not be lost to one bad
 > table, so the timer's write puts the literal string `"<cycle>"` or `"<too deep>"` where `encode` would
 > have raised, and logs the path it degraded. It reads back as that string, so a table you saved can come
 > back as text: `hafen.store():flush()` refuses it instead, naming the path.

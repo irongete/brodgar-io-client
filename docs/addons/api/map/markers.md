@@ -49,7 +49,7 @@ place at all.
 
 ```lua
 local mark = hafen.map():marker():find("Camp")
-if mark then hafen.store():get("cfg").camp = mark:position() end   -- survives the relog
+if mark then hafen.store():var("cfg").camp = mark:position() end   -- survives the relog
 ```
 
 ## Write (protected)

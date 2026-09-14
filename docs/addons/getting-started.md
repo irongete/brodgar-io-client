@@ -86,7 +86,7 @@ you enter the world, and keep the handle:
 
 ```lua
 local window                                    -- the window, once we are in the world
-local settings                                  -- this character's document, once it is up
+local settings                                  -- this character's var, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.event():on("SessionEnteredWorld", function(s)
@@ -139,12 +139,12 @@ answer on it — see [owned vs borrowed](api/ui/writes.md#owned-vs-borrowed).
 
 ## Step 8: remember it across sessions
 
-The window should come back the way you left it. A document is a table the client saves for you, and it
+The window should come back the way you left it. A var is a table the client saves for you, and it
 exists the first time you name it: ask a session's store for one, and it is that character's own — and the
 `SessionEnteredWorld` handler is already holding a session. Keep the table in a local beside the window:
 
 ```lua
-  settings = s:store():get("settings")
+  settings = s:store():var("settings")
   if settings.open == false then window:visible(false) end
 ```
 
@@ -158,7 +158,7 @@ the hotkey's body becomes:
 
 The engine fills that table from disk the moment you name it and writes it back for you, and the
 reference stays live, so there is nothing to put back. Reload, hide the window, log out and back in: it stays
-hidden. See [documents](api/store/documents.md) for the client scope and for what a saved table may hold.
+hidden. See [vars](api/store/vars.md) for the client scope and for what a saved table may hold.
 
 ## The whole addon
 
@@ -180,7 +180,7 @@ hidden. See [documents](api/store/documents.md) for the client scope and for wha
 
 ```lua
 local window                                    -- the window, once we are in the world
-local settings                                  -- this character's document, once it is up
+local settings                                  -- this character's var, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.log():write("myaddon loaded")
@@ -193,7 +193,7 @@ hafen.event():on("SessionEnteredWorld", function(s)
     g:color(255, 220, 120)
     g:text("trees nearby: " .. trees, 6, 4)
   end)
-  settings = s:store():get("settings")
+  settings = s:store():var("settings")
   if settings.open == false then window:visible(false) end
 end)
 

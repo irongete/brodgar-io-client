@@ -26,12 +26,12 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * <b>The store's file</b> (146): one SQLite database per addon, {@code savedata/<id>/<id>.sqlite} — a folder
  * of the addon's own, so the file and its sidecars stand together and nothing else's stands beside them —
  * for the whole client: every account this client logs in with and every character read and write the same one. What
- * {@link StoreApi} keeps in it is the addon's <b>documents</b> (one JSON row each, named at {@code :get}); the
+ * {@link StoreApi} keeps in it is the addon's <b>vars</b> (one JSON row each, named at {@code :var}); the
  * tables an addon declares for itself and the statements it runs come through here too, on the same
  * connection. Nothing of the client's is in it: where the user put the addon's windows and which action-bar
  * slots hold its entries are rows of the client's own file ({@link ClientDb}).
  *
- * <p><b>Opened at {@link StoreApi#installStore}</b>, so a document is readable before {@code Load}, and
+ * <p><b>Opened at {@link StoreApi#installStore}</b>, so a var is readable before {@code Load}, and
  * <b>closed by its own teardown step</b> and by the quit's flush, which is what checkpoints the write-ahead
  * log and drops the {@code -wal}/{@code -shm} sidecars beside the file. Every {@code org.sqlite} and
  * {@code java.sql} type lives in {@link Db}, and nothing outside it names one: a runtime without
@@ -40,7 +40,7 @@ import static io.brodgar.addon.AddonManager.logAbout;
  *
  * <p><b>An open that fails leaves the store unavailable, and the addon loads.</b> The native library that
  * could not be extracted, a file that is not a database, a lock another process holds, a folder that
- * cannot be written: each is one log line naming the file and the cause. The addon's documents are then
+ * cannot be written: each is one log line naming the file and the cause. The addon's vars are then
  * empty and are never written — what is held is not the file, and writing it back would replace the file
  * with nothing — and every other store verb refuses naming the cause ({@link #require}).
  *
@@ -89,10 +89,11 @@ final class SqliteApi {
 
     /**
      * The shape of the client's own table, recorded in the file's {@code user_version}. A file below it was
-     * written when the client kept its placements and holds in the addon's file: those two tables are dropped
-     * at the open (they are the client's rows, and live in {@link ClientDb} now), and the number is raised.
+     * written when the client kept its placements and holds in the addon's file, or named the vars' table
+     * {@code hafen_documents}: at the open the two tables are dropped (they are the client's rows, and live
+     * in {@link ClientDb} now), the vars' table is renamed in place, and the number is raised.
      */
-    static final int SCHEMA = 3;
+    static final int SCHEMA = 4;
 
     /**
      * How long one statement of the addon's own may run, in milliseconds, before it is stopped —
@@ -137,7 +138,7 @@ final class SqliteApi {
 
     /**
      * Open {@code a}'s file, or leave its store unavailable. From {@link StoreApi#installStore}, before the
-     * documents are read. The file is {@code <id>/<id>.sqlite} inside {@link StoreApi#saveDir} — the addon's
+     * vars are read. The file is {@code <id>/<id>.sqlite} inside {@link StoreApi#saveDir} — the addon's
      * own folder, made here if it is not there — built through {@link Inside} like every other file under
      * {@code savedata/}: the id is a name out of a manifest.
      */
@@ -170,7 +171,7 @@ final class SqliteApi {
     /** The one log line of the unavailable state, and the cause every refusing verb then quotes. */
     private static void unavailable(Addon a, String file, String why) {
         a.dbWhy = file + " could not be opened: " + why;
-        logAbout(a, "store: " + a.dbWhy + " — this addon's store is unavailable for this session: its documents"
+        logAbout(a, "store: " + a.dbWhy + " — this addon's store is unavailable for this session: its vars"
             + " are empty and are not written, and every other store verb refuses. Fix the cause and :reload.");
     }
 
@@ -227,7 +228,7 @@ final class SqliteApi {
         Db db = db(a);
         if(db == null)
             throw new LuaError(call + " — this addon's store is unavailable: " + ((a.dbWhy != null) ? a.dbWhy
-                : "the file is closed") + ". Its documents are empty and are not written, and nothing here"
+                : "the file is closed") + ". Its vars are empty and are not written, and nothing here"
                 + " answers until the file opens: fix the cause and :reload.");
         return db;
     }
@@ -424,7 +425,7 @@ final class SqliteApi {
         String lower = nm.toLowerCase(Locale.ROOT);
         if(lower.startsWith("hafen_"))
             return "\"" + nm + "\" is not a name you can declare: the hafen_ prefix is the client's own"
-                + " table (your documents live there: hafen_documents) — " + NAME_RULE + ", under any other"
+                + " table (your vars live there: hafen_vars) — " + NAME_RULE + ", under any other"
                 + " prefix";
         if(lower.startsWith("sqlite_"))
             return "\"" + nm + "\" is not a name you can declare: the sqlite_ prefix is SQLite's own — "
@@ -918,7 +919,7 @@ final class SqliteApi {
         case JSON:
             if(!v.istable())
                 throw new LuaError(verb + ": " + c.name + " must be a table (" + hint + "), got " + v.typename());
-            // The store's own rule for what a document may hold, walked here for the same reason flush()
+            // The store's own rule for what a var may hold, walked here for the same reason flush()
             // walks it: a function or a widget handle would be written as text and read back as text.
             String bad = StoreApi.uncarriable((LuaTable)v, c.name, Collections.newSetFromMap(
                                                   new IdentityHashMap<LuaValue, Boolean>()));
@@ -1400,7 +1401,7 @@ final class SqliteApi {
         private static void name(String w, String verb) {
             if(w.startsWith("hafen_"))
                 throw new LuaError(verb + ": \"" + w + "\" is under the hafen_ prefix, which is the client's own"
-                    + " table — hafen_documents holds your documents, reached through " + ACC + ":get(name)"
+                    + " table — hafen_vars holds your vars, reached through " + ACC + ":var(name)"
                     + " and never through a statement. A table of yours is declared under another prefix");
             if(w.equals("load_extension"))
                 throw new LuaError(verb + ": load_extension is refused: this connection is a sandbox, and no"
@@ -1511,8 +1512,8 @@ final class SqliteApi {
      * type; every method holds the monitor, so the connection sees one caller at a time.
      *
      * <p>The client's own table carries the {@code hafen_} prefix, which is what keeps it apart from anything
-     * an addon declares: {@code hafen_documents}, and no other. A <b>scope</b> is a row key: {@code ""} for
-     * the addon's own documents, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that
+     * an addon declares: {@code hafen_vars}, and no other. A <b>scope</b> is a row key: {@code ""} for
+     * the addon's own vars, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that
      * character's. Where the user put the addon's windows and which action-bar slots hold its entries are not
      * here: they are the client's rows, in the client's own file ({@link ClientDb#placements},
      * {@link ClientDb#holds}).
@@ -1576,15 +1577,20 @@ final class SqliteApi {
                     if(have > SCHEMA)
                         throw new java.sql.SQLException("written by a newer client (schema " + have
                             + ", this client writes " + SCHEMA + ")");
-                    st.execute("CREATE TABLE IF NOT EXISTS hafen_documents (scope TEXT NOT NULL, name TEXT NOT NULL,"
-                        + " json TEXT NOT NULL, PRIMARY KEY (scope, name)) WITHOUT ROWID");
                     if(have < SCHEMA) {
                         // A file an earlier schema wrote: the client's placements and holds were rows of it.
                         // They are the client's own file's now, so the two tables go; nothing is carried over.
                         st.execute("DROP TABLE IF EXISTS hafen_placements");
                         st.execute("DROP TABLE IF EXISTS hafen_holds");
+                        // The vars' table was hafen_documents: the addon's own rows, so they are kept -- the
+                        // table is renamed under them, before the create below finds the new name taken.
+                        if(one(st, "SELECT count(*) FROM sqlite_master WHERE type = 'table'"
+                               + " AND name = 'hafen_documents'") > 0)
+                            st.execute("ALTER TABLE hafen_documents RENAME TO hafen_vars");
                         st.execute("PRAGMA user_version = " + SCHEMA);
                     }
+                    st.execute("CREATE TABLE IF NOT EXISTS hafen_vars (scope TEXT NOT NULL, name TEXT NOT NULL,"
+                        + " json TEXT NOT NULL, PRIMARY KEY (scope, name)) WITHOUT ROWID");
                 }
                 // The deadline: polled every 1000 virtual-machine steps of whatever statement is running,
                 // and a 1 stops it with SQLITE_INTERRUPT -- the statement's own changes undone, the
@@ -1606,7 +1612,7 @@ final class SqliteApi {
             this.conn = c;
         }
 
-        /** The one number a {@code PRAGMA} answers. */
+        /** The one number a {@code PRAGMA} or a {@code count(*)} answers. */
         private static long one(java.sql.Statement st, String sql) throws java.sql.SQLException {
             try(java.sql.ResultSet rs = st.executeQuery(sql)) {
                 return rs.next() ? rs.getLong(1) : 0L;
@@ -1788,13 +1794,13 @@ final class SqliteApi {
             return new Failure(e.getMessage(), e);
         }
 
-        // ---- the documents: one JSON row per document, keyed by scope and name (147: read when asked) ------
+        // ---- the vars: one JSON row per var, keyed by scope and name (147: read when asked) -------------
 
         /** The names saved under one scope, in the file's own order — what {@code :list()} unions with the live tables (147). */
         synchronized List<String> names(String scope) {
             List<String> out = new ArrayList<String>();
             try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                    "SELECT name FROM hafen_documents WHERE scope = ?")) {
+                    "SELECT name FROM hafen_vars WHERE scope = ?")) {
                 ps.setString(1, scope);
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
                     while(rs.next())
@@ -1806,10 +1812,10 @@ final class SqliteApi {
             return out;
         }
 
-        /** The JSON of one document, or {@code null} when nothing has been saved under that name. */
-        synchronized String document(String scope, String name) {
+        /** The JSON of one var, or {@code null} when nothing has been saved under that name. */
+        synchronized String var(String scope, String name) {
             try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                    "SELECT json FROM hafen_documents WHERE scope = ? AND name = ?")) {
+                    "SELECT json FROM hafen_vars WHERE scope = ? AND name = ?")) {
                 ps.setString(1, scope);
                 ps.setString(2, name);
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
@@ -1821,11 +1827,11 @@ final class SqliteApi {
         }
 
         /** Write {@code name → JSON} rows of one scope, all in one transaction, each replacing what it had. */
-        synchronized void documents(final String scope, final Map<String, String> rows) {
+        synchronized void vars(final String scope, final Map<String, String> rows) {
             transaction(new Work() {
                 public void run() throws java.sql.SQLException {
                     try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                            "INSERT OR REPLACE INTO hafen_documents (scope, name, json) VALUES (?, ?, ?)")) {
+                            "INSERT OR REPLACE INTO hafen_vars (scope, name, json) VALUES (?, ?, ?)")) {
                         for(Map.Entry<String, String> e : rows.entrySet()) {
                             ps.setString(1, scope);
                             ps.setString(2, e.getKey());

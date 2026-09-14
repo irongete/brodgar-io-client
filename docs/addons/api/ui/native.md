@@ -240,8 +240,8 @@ contents is never pinned to a box the user did not choose.
 **What is saved is where your levels stand**, written to the client's own file — never your store — when the
 gesture lands, when the screen changes and when the widget goes. **The row belongs to the tree the widget
 stands in**: a session's own window — the `@ChatUI` above — is filed under **that** character like
-[a character's document](../store/documents.md), looked at or not, while one you built is filed under your
-[addon's own scope](../store/documents.md#where-a-widget-sits-is-saved-for-you). Called before that session is in the
+[a character's var](../store/vars.md), looked at or not, while one you built is filed under your
+[addon's own scope](../store/vars.md#where-a-widget-sits-is-saved-for-you). Called before that session is in the
 world it has nothing to put back, says so in the log, and remembers the name anyway.
 
 | Call | Does |
