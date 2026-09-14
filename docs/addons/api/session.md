@@ -134,7 +134,7 @@ and everything under them then reads `nil`-shaped.
 | `s:info()` | [`Session`](types/world.md#session) | a plain-table **snapshot**, the escape hatch for logging |
 
 **`:get` addresses, it does not search.** The account name is the whole of a Session, so there is
-nothing to miss: a name read out of [saved variables](store/documents.md) hands back an object before that account
+nothing to miss: a name read out of a [document](store/documents.md) hands back an object before that account
 logs in and after it goes, and `:exists()` says which. The key is the account and only the account, so a
 character name hands back a session that does not exist, and anything that is not a string — a number, a
 Session — raises. To search, use the ordinary [filter](conventions.md#the-filter-argument):

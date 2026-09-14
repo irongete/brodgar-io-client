@@ -61,8 +61,8 @@ whose entries matter that much re-tries on a [timer](../../timer.md).
 
 **The four are not one queue.** `SessionEnteredWorld` is delivered from that character's own step, and
 the other three from your addon's. What that buys is the ordering the event exists for: that session's
-[per-character saved variables](../../store/documents.md) and its held action-bar slots are in place before your
-handler runs, because the same step put them there a line earlier. What it does not buy is a place in
+[own documents](../../store/documents.md) and its held action-bar slots are readable before your handler
+runs, because the same step put them there a line earlier. What it does not buy is a place in
 the queue the other three share — so read each of the four for what it says about its own payload, and
 never as a report of where another has got to.
 

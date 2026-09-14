@@ -124,7 +124,7 @@ The client contains those where it isolates every other error, and pays for them
 - the failure is logged with your addon's id, and the stack behind it goes to the terminal — for this kind
   of failure that stack is the only description of it there is;
 - at the end of that tick your addon is torn down, exactly as the CPU budget tears one down: `Disable`
-  fires, your saved variables are flushed, and everything the addon owns is given back;
+  fires, your documents are flushed, and everything the addon owns is given back;
 - its row in the [AddOns manager](panel.md) reads `auto-disabled (…)`, naming what was raised, until the
   next load.
 
@@ -201,7 +201,7 @@ there is no character to re-initialize for.
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your
 stylesheet, sounds you started, and the client's own widgets you hid, moved or replaced, which are handed
-back as the user was seeing them. Written first: your saved variables, flushed at `Disable`.
+back as the user was seeing them. Written first: your documents, flushed at `Disable`.
 
 Everything your addon holds lives on the addon, or on the login it was made in, and goes with it — a
 disable frees what that addon had and touches no other's. **Each of those is released on its own**: one that

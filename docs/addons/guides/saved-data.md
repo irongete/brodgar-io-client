@@ -138,7 +138,7 @@ character is the one **on screen**, because a window stands over whichever sessi
   [`hafen.asset`](../api/asset/README.md), relative to your own folder. They are yours to read, not to write.
 - **Data from elsewhere** comes through [`hafen.http`](../api/http.md) or a
   [`hafen.websocket`](../api/websocket.md) connection, each needing a host allowlist in the manifest and the
-  user's approval of it, and lands in a saved variable if you want it to survive the session.
+  user's approval of it, and lands in a document if you want it to survive the session.
 
 Neither one gives you a general file system: an addon reads what it ships and writes its own file, and that
 is the whole of it.

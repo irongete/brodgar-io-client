@@ -43,7 +43,7 @@ end)
 
 The first three are your addon's own and fire **once each for the client**, however many characters are
 logged in. `Disable` is your last chance to write anything you care about; the engine flushes your
-[saved variables](saved-data.md) straight afterwards. Subscribe to these in your file body or in `Load`,
+[documents](saved-data.md) straight afterwards. Subscribe to these in your file body or in `Load`,
 never inside another handler.
 
 `SessionEnteredWorld` is where most addons really start, and it belongs to a **session** rather than to
