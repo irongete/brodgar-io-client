@@ -44,10 +44,6 @@ public class KeyBinding {
     // every call would re-label the button every frame. Guarded by `bindings`, like every other claim state.
     private KeyMatch awarefor, aware;
 
-    static {
-	repair();
-    }
-
     private KeyBinding(String id, KeyMatch defkey, int modign) {
 	this.id = id;
 	this.defkey = defkey;
@@ -285,26 +281,6 @@ public class KeyBinding {
 	synchronized(bindings) {
 	    return(new ArrayList<>(bindings.values()));
 	}
-    }
-
-    // addon: one-time repair of what an EARLIER, destructive form of the rule in set() left behind. It wrote
-    // "unbound" into the loser's own pref, so a menu hotkey -- `scm/<res>`, which no panel lists, and which
-    // is a default rather than an assignment -- lost its letter to an Options binding for good, and clearing
-    // that binding again did not bring it back. Those prefs are dropped once: every menu action nothing has
-    // deliberately re-keyed goes back to the hotkey its own resource names. Assignments are left alone.
-    private static void repair() {
-	if(Utils.getprefb("keybind-repair/menu-hotkeys", false))
-	    return;
-	try {
-	    java.util.prefs.Preferences prefs = Utils.prefs();
-	    for(String nm : prefs.keys()) {
-		if(nm.startsWith("keybind/scm/") && "n".equals(prefs.get(nm, null)))
-		    prefs.remove(nm);
-	    }
-	} catch(Exception e) {
-	    /* A prefs backend that cannot enumerate keeps what it has; nothing here is worth failing over. */
-	}
-	Utils.setprefb("keybind-repair/menu-hotkeys", true);
     }
 
     public static interface Bindable {

@@ -46,7 +46,7 @@ public class Utils {
     public static final java.nio.charset.Charset utf8 = java.nio.charset.Charset.forName("UTF-8");
     public static final java.nio.charset.Charset ascii = java.nio.charset.Charset.forName("US-ASCII");
     public static final java.awt.image.ColorModel rgbm = java.awt.image.ColorModel.getRGBdefault();
-    private static Preferences prefs = null;
+    private static volatile Preferences prefs = null;    // addon: double-checked in prefs()
 
     public static void initlocale() {
 	try {
@@ -394,10 +394,11 @@ public class Utils {
 		    if(!sysprefs.isEmpty()) {
 			prefs = new MapPrefs("haven", sysprefs);
 		    } else {
-			Preferences node = Preferences.userNodeForPackage(Utils.class);
-			if(prefspec.get() != null)
-			    node = node.node(prefspec.get());
-			prefs = node;
+			// addon: the client's own file, savedata/client.sqlite, in place of the registry node
+			// java.util.prefs would open (HKCU\Software\JavaSoft\Prefs\haven\hafen on Windows,
+			// which the official client writes too). The -Dhaven.prefs branch above still installs
+			// the in-memory override. prefspec stays declared for the -p option, and nothing reads it.
+			prefs = io.brodgar.addon.ClientDb.prefs();
 		    }
 		}
 	    }

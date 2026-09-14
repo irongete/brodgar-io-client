@@ -725,13 +725,12 @@ public final class AddonRegistry {
     /**
      * The persisted disabled set, held in memory.
      *
-     * <p>{@code Utils.getprefsl} is {@code java.util.prefs}, which on Windows is the REGISTRY: one
-     * {@code disabledSet()} was a {@code WindowsRegQueryValueEx} plus a UTF-8 decode of the packed list plus
-     * a fresh {@code LinkedHashSet}. That is nothing once and everything per frame — {@code isEnabled} reads
-     * the whole list to answer about one id, {@code liveStatus} calls it, and {@code AddonPanel.Row.tick}
-     * calls that for every row of every frame. With the panel built once (it is hidden and not destroyed, so
-     * it goes on ticking) a profile measured ~2600 registry reads a second, a quarter of everything the UI
-     * thread did in Java.
+     * <p>{@code Utils.getprefsl} is a preference read ({@link ClientDb.Prefs}) plus a UTF-8 decode of the
+     * packed list plus a fresh {@code LinkedHashSet}. That is nothing once and everything per frame —
+     * {@code isEnabled} reads the whole list to answer about one id, {@code liveStatus} calls it, and
+     * {@code AddonPanel.Row.tick} calls that for every row of every frame. With the panel built once (it is
+     * hidden and not destroyed, so it goes on ticking) a profile measured ~2600 reads a second, a quarter of
+     * everything the UI thread did in Java.
      *
      * <p>Volatile and immutable: the reload thread and the UI thread both read it, and handing out a shared
      * mutable set is how a caller's {@code add} would silently become the persisted state. {@link

@@ -16,15 +16,24 @@ addons/
     main.lua           your code
     icon.png           anything else you ship, loaded with hafen.asset
 savedata/
+  client.sqlite      the client's own file: its settings, your addon's options and hotkeys among them,
+                     and what it keeps about your addon
   myaddon/
-    myaddon.sqlite   everything your addon saves: its documents, its tables, where its windows sit,
-                     which bar slots its entries are held in
+    myaddon.sqlite   your addon's own file: everything it saves through hafen.store
 ```
 
 The folder name **is** the addon's id, and the manifest has to repeat it: a mismatch is a load error, not a
 rename. Files your addon ships are read through [`hafen.asset`](api/asset/README.md), which resolves paths
 inside your own folder and rejects everything outside it. The folder under `savedata/` is written for you —
 see [`hafen.store`](api/store/README.md).
+
+**What is saved is filed by owner.** The client writes one file of its own, `client.sqlite`, and everything
+the client keeps goes there: every setting in the Options window, the [options](api/client/addon.md) and
+[hotkeys](api/client/keybindings.md) your addon declares, the permissions the user consented to, whether
+your addon is enabled, and what the client remembers about your addon on the user's behalf. Your addon's
+file holds what your addon saves, and the client keeps nothing of its own in it. A value your addon stores
+through the client — an option — survives a disable, a `:reload` and a restart because it is the client's
+to keep; a value it stores through `hafen.store` survives them because the file is yours.
 
 ## The manifest
 

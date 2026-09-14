@@ -477,14 +477,9 @@ final class StoreApi {
         }
     }
 
-    /** The {@code savedata/} folder beside the client, where every addon's file lives. */
+    /** The {@code savedata/} folder beside the client, where every addon's file lives — {@link ClientDb#dir}, beside the client's own. */
     static File saveDir() {
-        String override = System.getProperty("haven.savedatadir");
-        if((override != null) && !override.isEmpty())
-            return new File(override);
-        File addons = AddonRegistry.addonDir();
-        File parent = addons.getParentFile();
-        return new File((parent != null) ? parent : new File("."), "savedata");
+        return ClientDb.dir();
     }
 
     /**

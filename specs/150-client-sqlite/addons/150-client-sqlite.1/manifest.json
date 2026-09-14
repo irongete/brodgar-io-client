@@ -1,0 +1,9 @@
+{
+  "name": "150.1 — the client's file, and the prefs in it",
+  "id": "150-client-sqlite.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 150.1: an addon option written through hafen.client():options():addon() lands in the client's own file and reads back, and the preference store's limits hold.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

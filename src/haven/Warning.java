@@ -78,7 +78,8 @@ public class Warning extends Throwable {
 	    /* XXX: Report in some user-visible way. */
 	}
 	if(level >= CRITICAL) {
-	    try(OutputStream fp = Files.newOutputStream(Debug.somedir("haven-errors.log"), StandardOpenOption.APPEND, StandardOpenOption.CREATE)) {
+	    // addon: the log is written beside the client, in the folder that holds savedata/, not in the user's home
+	    try(OutputStream fp = Files.newOutputStream(io.brodgar.addon.ClientDb.file("haven-errors.log"), StandardOpenOption.APPEND, StandardOpenOption.CREATE)) {
 		report(new PrintStream(fp), String.format("%s: ", new Date()));
 	    } catch(IOException e) {
 		new Warning(e, "could not log critical warning").level(ERROR).issue();
