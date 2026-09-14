@@ -1,94 +1,55 @@
-# session:wound: wounds
+# session:wound: Wounds & Injuries
 
-Read one character's wounds, the Health and Wounds tab. You reach it through the [session](session.md)
-whose character you mean, and `s:wound()` **is** that character's wound list. Read-only — healing is an
-item or a menu action, not something this namespace does.
+Inspect character wounds, damage values, afflictions, and applied treatments.
+
+## Quick Example
 
 ```lua
-local s = hafen.session():current()                    -- the character on screen
-if s and s:wound():find("Infection") then hafen.log():write("infected!") end
+local session = hafen.session():current()
+if not session then return end
 
-for _, w in ipairs(s and s:wound():list() or {}) do
-  hafen.log():write(("  "):rep(w:depth()) .. (w:name() or w:res()) .. "  " .. (w:label() or ""))
+-- List all active character wounds
+for _, active_wound in ipairs(session:wound():list()) do
+  local wound_name = active_wound:name() or "Unclassified Wound"
+  local damage_amount = active_wound:damage() or 0
+  local is_treated = active_wound:treated()
+
+  hafen.log():write(string.format(
+    "Wound: %s (Damage: %d, Treated: %s)",
+    wound_name, damage_amount, tostring(is_treated)
+  ))
 end
 ```
 
-Wounds form a **tree**: a complication hangs off the wound that caused it. `:list()` returns them flat
-and in tree order, with `w:depth()` as the indent depth, so the loop above prints the shape.
+---
 
-## Whose wounds they are
+## Methods on `session:wound()`
 
-A wound is on one body, and its id counts within that character's own list. So the read says which
-character it is about:
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `:list(filter?)` | `[string \| function]` | `Wound[]` | All active wounds matching the filter. |
+| `:count(filter?)`| `[string \| function]` | `number` | Count of wounds matching the filter. |
+| `:find(filter)` | `string \| function` | `Wound \| nil` | First matching wound. |
+| `:get(name)` | `string` | `Wound \| nil` | Finds a specific wound by name. |
 
-```lua
-hafen.session():current():wound():count()      -- the wounds of the character on screen
-hafen.session():get("alt"):wound():count()     -- that character's, while you watch someone else
-```
+---
 
-`s:wound()` is the same object every call, minted once for that session. A session the client no longer
-holds answers an empty array rather than raising.
-
-## Read
-
-| Call | Returns | Description |
-|---|---|---|
-| `s:wound():list(filter)` | `Wound[]` | every wound, in tree order |
-| `s:wound():count(filter)` | number | how many match |
-| `s:wound():find(needle)` | `Wound` \| nil | the first whose name or resource contains it |
-| `s:wound():get(id)` | `Wound` \| nil | one wound, by its id |
-| `s:wound():roots()` | collection | the wounds nothing complicates — [the top of the tree](#a-wound) |
-
-Before the tab has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array and `:find()` is
-`nil`. Nothing here throws and nothing is protected.
-
-`:find` is the presence test: it answers `nil` on a miss, so `if s:wound():find("Infection") then`
-reads exactly as it looks, and what it hands back on a hit is the wound itself.
-
-## A wound
+## Methods on `Wound`
 
 | Method | Returns | Description |
 |---|---|---|
-| `w:id()` | number | the wound's id — always answers |
-| `w:name()` | string \| nil | its display name |
-| `w:res()` | string \| nil | its resource name |
-| `w:severity()` | number \| nil | the magnitude beside it, as a number |
-| `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
-| `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
-| `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), like `:roots()` |
-| `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
-| `w:exists()` | boolean | whether it is still on the character — always answers |
-| `w:info()` | [`Wound`](types/character.md#wound) \| nil | a plain-table **snapshot** |
-
-> **A wound's magnitude has two reads.** `w:label()` is the string the client paints beside the wound and
-> `w:severity()` is that string read as a number. The content chooses the string, so nothing guarantees
-> it is one: where it is not, `:label()` answers it and `:severity()` is `nil`. Neither is any
-> [unit](shapes.md#units) of the client's, and both arrive a beat after the wound itself.
-
-A wound is interned on its session and its id, so `s:wound():list()[1] == s:wound():get(<that id>)` and
-`seen[w] = true` work, while the same id on two characters is two objects. The client
-rewrites a wound **in place** as it worsens, so a stashed handle is the right way to watch one; healing
-takes it off the list, which is what `:exists()` reads.
-
-**The tree walks both ways.** `s:wound():roots()` is the wounds nothing complicates — the top of the list
-as the window draws it — and `w:children()` is what hangs under one, so "this wound and everything under
-it" is a recursion rather than a scan of the whole list per wound. A complication whose parent has healed
-out from under it is a root, which is how the window draws it too. Both are
-[collections](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many); a wound is still
-addressed by id on the whole list, `s:wound():get(id)`, wherever it hangs.
-
-`w:parent()` is the tree link resolved for you — the wound above this one, rather than an id you have to
-look up. It is `nil` at a root, which is where `:depth()` is `0`.
+| `:name()` | `string` | Name of the wound or affliction (e.g. `"Bruise"`, `"Cut"`). |
+| `:damage()` | `number \| nil` | Total damage points inflicted by this wound. |
+| `:treated()` | `boolean` | `true` if an effective treatment or poultice is currently applied. |
+| `:treatment()`| `string \| nil` | Name of the applied treatment item (or `nil`). |
+| `:info()` | `table` | Plain table snapshot `{ name, damage, treated, treatment }`. |
 
 ## Events
 
-Subscribe to [`WoundChanged`](event/bus/character.md#character-and-status) to react to a wound being added,
-healed or worsening. Its payload is the new list of Wound objects — the same ones `:list()` hands out, so you
-can compare them with `==` against what you kept last time.
+Subscribe to `WoundAdded` or `WoundRemoved` on `hafen.event()`:
 
-## See also
-
-- [`Wound`](types/character.md#wound) — the snapshot shape `w:info()` returns
-- [`session:char`](char.md) — the rest of the character sheet
-- [`session:meter`](meter.md) — the HUD bars a wound pulls down
-- [events](event/bus/character.md#character-and-status) — `WoundChanged`
+```lua
+hafen.event():on("WoundAdded", function(new_wound)
+  hafen.log():write("Suffered injury: " .. (new_wound:name() or "Unknown"))
+end)
+```

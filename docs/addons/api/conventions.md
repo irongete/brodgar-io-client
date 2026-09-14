@@ -1,394 +1,86 @@
-# API conventions: the shared vocabulary
+# API Conventions
 
-The rules that hold across the whole `hafen.*` API: how it is spelled, what a read gives back, what a
-write costs you. Read this once — every reference page assumes it. The catalogue of things a verb can
-be handed — a Gob, a kin, an asset, a selector — is [references](references.md), and what a plain table
-of numbers looks like is [shapes](shapes.md).
+The `hafen.*` API follows a consistent, predictable design across all subsystems.
 
-```lua
-hafen.timer():every(5, function()
-  hafen.log():write("still here")
-end)
-```
+---
 
-## The grammar
+## 1. Subsystems and Method Invocation
 
-One shape, learned once: **a section is called, everything after it is a colon verb, and arity is the
-verb.** A section groups one subsystem and owns one reference page; a section large enough to need
-several pages owns a folder with a hub instead.
+* Subsystems on the root global are invoked as zero-argument functions:
+  ```lua
+  local timer_service = hafen.timer()
+  local event_bus = hafen.event()
+  ```
+* Character-specific subsystems are invoked from an active `Session` object:
+  ```lua
+  local current_session = hafen.session():current()
+  local player_subsystem = current_session:player()
+  local world_subsystem = current_session:world()
+  ```
 
-### Sections: you call one
+---
 
-`hafen.time` is the section. `hafen.time()` is the **section object**, and every verb of that
-subsystem is a colon call on it, as in `hafen.time():clock()`. The object is the same one every time,
-so `hafen.time() == hafen.time()` and calling a section inside a draw callback allocates nothing.
+## 2. Getters, Setters, and Chaining (Arity)
 
-A section takes no arguments. Where a section holds exactly one thing, the section object **is** that
-thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers,
-`hafen.console()` the collection of your console commands, and `hafen.session()` the collection of the
-logins the client holds.
+The API does not use `getXYZ` / `setXYZ` prefixes:
+* **Calling with no arguments reads (Getter)**:
+  ```lua
+  local current_title = window_handle:title()
+  local is_visible = window_handle:visible()
+  ```
+* **Calling with arguments writes (Setter)**:
+  Setters return the receiver object, allowing call chaining:
+  ```lua
+  window_handle:title("Radar Window")
+    :size(200, 100)
+    :position(50, 50)
+    :visible(true)
+  ```
 
-**Not every subsystem hangs off `hafen`.** What names one character's state hangs off the
-[Session](session.md) that names that character instead, and reads the same way one call further in:
-`s:world()`, `s:player()`. Such a section is reached rather than mounted, and everything about it — one
-object per session, colon verbs, a closed vocabulary — is the rule above unchanged.
+---
 
-### Verbs: arity is the verb
+## 3. Collections and Queries
 
-A verb with no argument **reads**. The same verb with one **writes**, and hands the object back, so
-writes chain.
+Collections provide consistent search and enumeration methods:
 
-```lua
-w:title()                          -- reads
-w:title("Scout"):size(180, 48)     -- writes, and chains
-```
-
-There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is one too — written
-`w:visible(true)`, and named as a **bare adjective**, never `isX`: `kin:online()`, `gob:player()`.
-
-**A boolean argument is `true` or `false` and nothing else.** In Lua every value but `false` and `nil`
-is true, so `0` is true and so is `"no"` — which means a verb that took Lua's word for it would read
-`w:visible(0)` as *show it* and `video:shadows("no")` as *shadows on*, doing the opposite of what the
-line says and reporting nothing. The type is what is asked, exactly as it is for a
-[string and a number](#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). What your own
-**callback** returns is the other question and keeps Lua's answer: a filter ending in
-`return m:owner()` is an ordinary filter.
-
-**A verb refuses an argument it does not take.** `kin:online(1)` and `b:key("F5", "x")` raise, naming how
-many arguments the verb takes and how many it got, rather than dropping the extra — a surplus argument is a
-call the verb would have answered wrong, silently, and the refusal is what makes the mistake fail where it
-was written.
-
-**Arity binds a verb that names a property.** Three families take arguments without being writes:
-
-| Family | What the argument is | Examples |
+| Method | Return Type | Description |
 |---|---|---|
-| addressing | which member you want | `coll:get(key)`, `req:header(name)`, `s:world():grid():at(p)` |
-| actions | how the doing is done | `item:drop(n)`, `s:world():place(p, angle, button, mods)`, `sound:play(volume)` |
-| conversions | what is being converted | `p:offset(dx, dy)`, `p:distance(other)`, `grid:tile(c)` |
+| `:list(filter?)` | `table[]` | Returns an array of all matching items (empty array if none match). |
+| `:count(filter?)` | `number` | Returns the total count of matching items. |
+| `:find(filter)` | `item \| nil` | Returns the first item matching the filter. |
+| `:get(id)` | `item \| nil` | Returns the item associated with a specific key or ID. |
 
-### Collections: the noun is the kind, the verb is how many
+### Filter Syntax
+Filters accept either:
+1. **A substring string**: matches against the resource name or identifier.
+   ```lua
+   local tree_count = session:world():gob():count("terobjs/tree")
+   ```
+2. **A predicate function**: receives the candidate item and returns `true` or `false`.
+   ```lua
+   local injured_players = session:world():gob():within(30, function(game_object)
+     return game_object:player() and (game_object:health() or 1) < 1.0
+   end)
+   ```
 
-A set you can address into is reached by the **singular** kind name and hands back a collection
-object, never a bare array. The plural belongs to the verb, and **`:list()` is that verb wherever it
-appears** — it enumerates and never builds, so the control named for a list is `hafen.ui():listbox()`.
+---
 
-| Verb | Gives you |
-|---|---|
-| `:list(filter)` | a plain array of members, empty rather than `nil` |
-| `:count(filter)` | how many |
-| `:find(filter)` | the first member that matches, or `nil` |
-| `:get(key)` | one member by its key, where the members have keys — a miss is [below](#get-what-a-key-that-names-nothing-answers) |
-| `:add(...)` | a new member, where the collection can create one |
-| `:remove(keyOrMember)` | the collection, so removals chain, where it can destroy one |
+## 4. Strict Boolean Types
 
-A distinguished member is a verb on its collection rather than a second accessor: `:current()`,
-`:selected()`, `:leader()`, `:pursuing()` — and the member carries **no flag of its own**, because
-the objects are interned, so `s:party():leader() == member` is the exact test.
-
-**A section's collection is one object; every other collection is a view.** `hafen.map():marker()` is the
-same object every call; a collection off a **thing** (`gob:overlay()`, `meter:segment()`, `q:conditions()`)
-or a **partition** of one (`s:char():skill():buyable(f)`) is re-derived per call, so two calls are not `==`
-and neither outlives what it came off. Identity lives on the **members that carry a key of their own**:
-`gob:overlay():get("tag")` is one overlay.
-
-> **A collection is an object, not a sequence.** `#coll`, `coll[1]`, `pairs(coll)` and `ipairs(coll)` are
-> refused, naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
-> have: `coll:list()` is the array, and you index that.
-
-A [store table](store/tables.md) is a collection whose members are **rows** and whose filter is a SQL
-**clause**: `:list(clause, ...)`, `:count(clause, ...)` and `:find(clause, ...)` take what follows
-`FROM <table>` with a value per `?`, `:get(k, ...)` addresses a row by its key, and `:put(row)` stands where
-`:add` would — a row put twice is one row, and `put` says so.
-
-### get: what a key that names nothing answers
-
-`:get(key)` **addresses** a member, so what it does with a key nothing answers to belongs to the
-collection and is declared by it:
-
-| A miss gives you | Which collections |
-|---|---|
-| `nil` | every collection not named below |
-| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:actionbar()`, `keybindings():binding()` |
-| an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():display()` |
-
-**A collection whose members have no key has no `:get`, and says what to reach for instead.** Two buffs
-can share a resource; a marker's only id is one this client mints; a timer is only ever the one you were
-handed. So the address that does not exist is a search, and asking for it hands you the verb that is:
+Boolean parameters require strict `true` or `false` booleans. Non-boolean values (e.g. `1`, `0`, `"true"`, `nil`) will raise an error.
 
 ```lua
-hafen.timer():get(1)
--- hafen.timer() has no verb 'get' — a timer has no key: hafen.timer():after(s, fn) and
--- hafen.timer():every(s, fn) hand you the timer they make, and hafen.timer():list() is every
--- one of yours
+-- Correct
+window_handle:visible(true)
+window_handle:visible(false)
+
+-- Error: raises type mismatch
+window_handle:visible(1)
 ```
 
-### Every index is 1-based
+---
 
-Lua counts from one, so this API does — everywhere, whatever the server counts from. `:list()` hands
-back a 1-based array, and the position a member reports is the position it sits at in that array:
+## 5. Live Handles vs. Snapshots
 
-```lua
-local s = hafen.session():current()
-s:actionbar():get(1) == s:actionbar():list()[1]    -- true, and the same interned object
-s:speed():get(1)                                    -- crawl, the first of four
-```
-
-**Where the wire's number differs, it is a verb of its own** that says so — never the same verb
-counting from somewhere else. `slot:index()` is the position and `slot:wire()` is the number the
-server's `setbelt` carries; `card:index()`/`card:wire()` and `sp:index()`/`sp:wire()` are the same
-pair. A wire number is a fact about the protocol, not an address: nothing in this API takes one.
-
-### Endings: the receiver's kind picks the word
-
-Nothing here has to be ended: what your addon takes is given back for you on reload or disable. An ending
-is what you write when you want it *now*, and which of the verbs below spells it follows from what you hold.
-
-| Verb | Ends | Called on |
-|---|---|---|
-| `:off()` | a subscription | the `Sub` any [`:on`](event/README.md#subscribe) handed you — the bus, a widget, a hotkey, a console command |
-| `:remove(keyOrMember)` | a member of a collection | the [collection](#collections-the-noun-is-the-kind-the-verb-is-how-many), never the member |
-| `:release()` | a layer or a hold you took over what the client owns | a [rule](ui/style/README.md#restyle-one-widget), a [sheet](ui/style/README.md), a [grab](ui/mouse.md), a [map-overlay hold](map/overlays.md) |
-| `:destroy()` | a thing your addon built | a [widget](ui/widget.md) |
-| `:cancel()` | something in flight that had not finished | a [timer](timer.md), a [request](http.md), the open [radial menu](flowermenu.md) |
-| `:stop()` | a [sound](sound.md) still in the air | the sound |
-| `:close(code, reason)` | a [connection](websocket.md) to a server, open or not | the connection |
-| `:close()` | a [voice link](voice/link.md), open or not | the link |
-| `:finish()` | a [profiling scope](client/profiling/attribution.md) | the scope |
-
-**Where a collection exists, the ending is the collection's**, because the collection owns its members:
-`hafen.asset():remove(a)` frees a file and `hafen.session():remove(s)` ends a login. What is a member of
-nothing ends on itself. **Every ending hands the receiver back**, as every other write does, so endings
-chain; and where a page says one is idempotent, a second call answers the receiver again and raises nothing.
-
-**Some acts read like an ending and are not.** [`item:drop(n)`](ui/items.md#write-protected) puts an item
-on the ground, a game action the server sees; [`s:close()`](session.md#write-protected) ends a login, its own
-act rather than the removal of a member; and [`w:revert()`](ui/edit.md#taking-the-whole-edit-back) gives back
-your edits on a widget, as [`w:replace(nil)`](ui/replace.md) and `w:size(nil)` give back one — an undo of
-your own layer, with nothing ended at all.
-
-### Events: a subject and an edge
-
-An event key is a **subject and an edge**, and a new key takes the first edge below that is true of the
-moment it names; where none is — your addon's own `Load` and `Disable` — the word is the moment itself.
-
-| Edge | Word | Examples |
-|---|---|---|
-| it appeared | `Added` | `GobAdded`, `BuffAdded`, `SessionAdded`, `FlowerMenuAdded`, and `Added` on a [selector watch](ui/replace.md#watching-for-a-widget) |
-| it went | `Removed` | `GobRemoved`, `MeterRemoved`, `SessionRemoved`, and `Removed` on a [widget](ui/widget.md#subscribing) |
-| it changed | `Changed` | `MeterChanged`, `KinChanged`, `MarkerChanged` |
-| it crossed a threshold | `EnteredWorld` | `SessionEnteredWorld` |
-| it was picked | `Selected` | `SessionSelected`, `ChannelSelected` |
-| it was clicked | `Clicked` | `GhostClicked`, `SpriteClicked`, `ObjectClicked`, `PatchClicked` |
-
-**The subject is singular.** One change is one marker's, so the key is `MarkerChanged` even though what
-your handler is given is the whole collection the change happened in.
-
-**Where an outcome differs, the key differs.** A quest that is completed and a quest that is failed are
-two events — `QuestCompleted` and `QuestFailed` — not one event and a field to check afterwards. A key
-that covers two outcomes makes the handler that reads its name wrong half the time, silently, which is the
-one failure this whole convention exists to prevent.
-
-**One word per edge, at every level.** A frame passing is `Update` on
-[the bus](event/bus/lifecycle.md#lifecycle) and `Update` on [a surface of yours](ui/custom.md#subscribing),
-and both hand your handler the same `dt` — the same edge one object apart is not two words.
-
-The keys of an emitter whose set is **open** are not this: a [console command](console.md), a
-[hotkey](client/keybindings.md), a [`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the
-protocol chose, and those are written lower case. Every key the client itself fires is PascalCase, and its
-set is closed — an unknown one [raises](#a-name-that-moved-says-where-it-went-and-an-unknown-one-says-what-exists)
-rather than being accepted and never firing.
-
-### Objects, and the snapshot hatch
-
-A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
-once the thing it names is gone, and reports `:exists()`. Objects are interned per addon — the same
-object every call, from any thread — so `==` is the identity test and one works as a table key. A
-point-in-time copy is what `:info()` gives you, and nothing else does; every shape it returns is in
-[data types](types/README.md).
-
-### nil is an error unless it means something
-
-An explicit `nil` argument raises: arity is the verb, so a value that arrived as `nil` would otherwise turn
-the write into a read, silently. Every meaning it does carry is here, and anywhere else it is an accident:
-
-| `nil` means | Where |
-|---|---|
-| undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)`; a [font](font.md) variant's `h:size(nil)` and `h:aa(nil)` |
-| end the hold | `slot:hold(nil)` |
-| withdraw the page | [`opts:panel(nil)`](client/addon.md#the-page) |
-| unbind the control | [`w:bind(nil)`](client/addon.md#binding-a-control-shows-the-option) |
-| none | a [virtual entity](virtual/README.md)'s `:tint(nil)`, and [`gob:tint(nil)`](look.md#tint-unprotected) |
-| the root screen | `pag:parent(nil)` |
-| the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |
-| the pointer the client would have drawn | [`m:cursor(nil)`](ui/mouse.md) |
-| everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |
-| `NULL` | a value bound to a `?` of a [statement](store/statements.md) or of a store table's [clause](store/tables.md#the-clause); a column a [`:put` row](store/tables.md#nodesputrow) leaves out |
-
-The bridge separates the two cases by counting arguments, and it is exact for a value you pass
-directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing key raises. One gap
-is inherent to it: `f(g())` where `g` returns *nothing* arrives as no argument at all and is read as
-`f()`. A `g` that returns an explicit `nil` is refused like any other value.
-
-An **optional** argument is the same rule from the other side: leaving it out takes the default, and writing
-`nil` in a slot you did pass raises, because `s:world():place(p, angle, nil, 0)` passes a fourth argument and
-so passes a third. Not passing it and passing nothing in it are two different calls.
-
-### A number is not a string, and a numeric string is not a number
-
-What is checked is an argument's **type**, never what Lua would convert it to: `s:kin():add(1234)` is refused
-because a hearth secret is a string, while `entry:value("42")` is taken and a radio row may be labelled
-`"061.8"`, a string that happens to scan as a number being an ordinary string. The refusal names the verb, the
-parameter and the conversion you meant — `tostring(n)` one way, `tonumber(s)` the other.
-
-### A number is finite, and an index is whole
-
-`0/0` and `math.huge` are numbers by type, and nothing else in Lua tells them apart from `3` — so a number
-argument is checked for **being finite** as well. It has to be: every range test written after a type check
-is false for `0/0` on *both* sides at once, so a NaN volume, a NaN fraction and a NaN delay each passed
-their own bounds and reached the mixer, the screen and the clock.
-
-An **index, an id, a count or a number of design pixels is a whole number** too. Lua has one number type,
-so `2.7` is a perfectly legal number to write — but it is not a position, and `s:speed():get(2.7)` reading
-as speed 2 is a call that did something other than what it said. Both raise naming the verb, the parameter
-and the number you wrote.
-
-`x, y` and the lengths the [draw verbs](ui/drawing.md) take are the one family that is finite without being
-whole: they are sub-pixel on purpose, so a label over a moving object does not jitter, and they round once
-where they meet the screen.
-
-### A table is a value, never named arguments
-
-A table you pass in is **data**: a colour, a coordinate, a document to encode. A thing you build is
-constructed bare and configured by chained setters instead of by a table of named arguments, so the
-configuration reads in the order it happens and a setter can refuse what it cannot do. The boundary is
-deliberate rather than missing: it is why a request carries `req:header(name, value)` rather than an
-options table, and it does not reach what a verb *returns* — a `:list()` array and an `:info()` table are
-ordinary Lua tables you index normally.
-
-**A document names a file by path; a Lua call takes the handle.** A [stylesheet](ui/style/README.md) is a
-document rather than a call, so `{asset = "img/panel.png"}` and `{asset = "fonts/Inter.ttf", size = 12}`
-name a file your addon ships and load it through [`hafen.asset()`](asset/README.md)'s own door, interning to the
-very object `:get(path)` hands you. That is the one place a path string stands for a file: everywhere else
-— a [sprite](virtual/sprites.md), an [object](virtual/models.md), a [draw verb](ui/drawing.md) — a path is
-refused and the handle is what goes in.
-
-### A name that moved says where it went, and an unknown one says what exists
-
-**A name this API moves does not read as `nil`.** It raises, at the line that wrote it, naming what to
-write instead — which is the whole of what porting an addon across a version costs you: the client tells
-you where each name went, at the line that has to change.
-
-A name that was never part of this API raises too, **on an object** — `gob:pozition()` and
-`gob.pozition` alike, because a field read and a colon call are the same lookup. The message names the
-receiver and the verbs it does answer:
-
-```lua
-gob:pozition()   -- gob has no verb 'pozition' — a gob is one thing in the world: it answers :id()
-                 -- :exists() :sessions() :info() :position() :facing() :name() … and :distance()
-```
-
-An object's vocabulary is **closed**, so a name outside it is a typo and is said to be one. On the
-`hafen` table and on a section a miss still reads as plain `nil`, because that is where a feature probe
-asks — `if hafen.something then` keeps working.
-
-## Several logins, one screen
-
-The client can hold more than one account logged in at once and draws one of them, so what belongs to one
-character is reached through the [Session](session.md) that names it — [`s:world()`](world.md),
-[`s:player()`](player.md), [`s:kin()`](kin.md) — and a read says which character it is about rather than
-meaning whichever is drawn. What belongs to the **screen** stays where it was: there is one pointer and one
-scene however many logins are live. What a Session wraps, and which namespaces are addressed and which are
-not, is on [session](session.md). Your own addon is the client's, not a login's: it is loaded once, runs
-beside every session the client holds, and nothing of yours is torn down or rebuilt when the screen moves.
-
-## Snapshots vs handles
-
-- **Snapshots** are plain Lua tables, point-in-time copies from the escape-hatch `:info()` readers
-  (`gob:info()`, `item:info()`, …). They do **not** update, so re-read rather than caching one across
-  ticks. Every snapshot shape is in [data types](types/README.md).
-- **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
-  `hafen.event():on`, …), released for you when the addon is disabled or reloaded. So is every **object**
-  a read hands you: it re-resolves rather than holding a value, so one you keep tracks what it names.
-  Every one of them is **userdata with a closed vocabulary**: a name it does not answer raises naming what
-  it does, nothing can be written onto it — so nothing can delete a handle's own `:cancel()` — and
-  `tostring(h)` names the thing, `Timer(every 5s)`, `Options(video)`, `Sub(GobAdded)`.
-- **A table the bridge owns and you write into** is the third kind, and
-  [`hafen.store():var(name)`](store/vars.md#read-and-write) is where you meet it. It is neither a copy nor a
-  proxy: it is the table that goes to disk, so assigning into it is the whole of saving, and it is the one
-  place in this API where a typo on a key is silent — and then persisted.
-
-## The filter argument
-
-Every enumerating verb — `s:world():gob():list`, `s:kin():list`, `hafen.map():icon():list`,
-`s:fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
-
-| `filter` | Keeps |
-|---|---|
-| `nil` (omitted) | everything |
-| a **string** | entries whose `name` contains the string (substring match) |
-| a **function** | entries for which `filter(entry)` returns truthy |
-
-Use the function form to match on any field other than `name` — and on a set whose members have none at
-all, such as a party member, a segment or a timer, where a string is refused naming the forms that do
-work. The one collection whose filter is not this is a [store table](store/tables.md#the-clause), where
-the members are rows in a file and the filter is the SQL clause that keeps them; a function there is
-refused naming SQL. The entry your predicate receives is always the **object**, never a snapshot: read it with its own
-verbs. A member whose name has simply **not arrived yet** does not match and does not spoil the call; a
-**mistake** inside your predicate is not that, and raises out of the verb that called it.
-
-```lua
-local s = hafen.session():current()
-local gobs = s:world():gob()
-gobs:list("rabbit")                                        -- name contains "rabbit"
-gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
-hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Marker object
-```
-
-## Missing data returns nil
-
-A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before the
-world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
-loading error — the bridge swallows it. Much character-sheet data (meters, food, skills, quests, wounds)
-streams in a beat *after* `SessionEnteredWorld`, so read it on a timer or subscribe to its
-[event](event/bus/README.md).
-
-## Threading
-
-Your Lua runs either on the **step**, inside no character's UI and able to reach every one of them, or
-**answering something** — a draw, a press, a drop, a console line — inside the one character's UI that
-dispatched it, which is the only one it may reach. Taking a second is refused at the line that tries it,
-and nothing blocks anywhere: [threading](threading.md) is which handler is which.
-
-## The permission model
-
-A verb that **starts an action the player could have performed** is **protected**: it runs only
-if **your** addon declared that verb's own permission key in its
-[manifest](../manifest.md#the-manifest) and the user enabled it. **A key names the action, not the
-character**: the player could have tabbed to any of their logins and performed it there, so one grant covers
-every character the client holds. Such an addon is disabled the first time the client sees it and enabling it
-raises a consent dialog; one that never declared the key gets an error naming the verb and the key it needs.
-
-A key is named `<section>.<verb>` after the section its verb lives on — `gob.click`, `item.transfer` — and a
-`<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier as
-a whole. **Reaching outside the client is keyed in the same words**: `http.get`, `http.post`,
-`websocket.connect` and `voice.connect` are catalogue keys like any other, and the `network` host allowlist
-is **the argument of the key** — it says whether, the hosts say where, the consent dialog reads them as one
-line, and the list the user approved there is what gates the call.
-
-**A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
-character, clicking is on the gob — so the page you look a verb up on is where you meet the permission,
-under a heading reading **Write (protected)**, with the key beside the verb.
-
-**And the line is what a verb DOES**, not only what it tells the server: two keys that reach nothing outside
-the client are protected all the same — [`map.marker`](map/markers.md#write-protected) deletes a pin no
-server can restore, [`client.settings`](client/README.md) rewrites every hotkey the user has. Everything else
-observes, or writes **client-local and undoable**, so it says `(unprotected)`.
-
-## See also
-
-- [references](references.md) — every kind of thing a verb takes, and how you name one
-- [shapes](shapes.md) — what a plain table of numbers looks like: places, sizes, colours, units
-- [data types](types/README.md) — every snapshot shape the readers return
-- [events](event/bus/README.md) — the bus, and what each event hands your handler
-- [permissions](../guides/permissions.md) — the protected tier in full
+* **Live Handles (`Gob`, `Widget`, `Session`)**: Object instances that maintain an internal reference to engine state. They update automatically as game entities move or change. If the underlying entity despawns or closes, calls return `nil` or `false` on `:exists()`.
+* **Data Snapshots (`Position`, `MeterInfo`, `BuffInfo`)**: Plain, immutable Lua tables representing values at a specific instant in time.

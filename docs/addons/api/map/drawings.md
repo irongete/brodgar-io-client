@@ -1,106 +1,34 @@
-# hafen.map: minimap drawings
+# hafen.map: Minimap Drawings
 
-The picture a player recognises: the square the corner minimap paints for a piece of ground. A grid can
-render itself, and what you get back is an ordinary **image handle** — the same thing
-[`hafen.asset`](../asset/README.md) hands you for a PNG of your own.
+Render square 100×100 minimap images of recorded ground tiles at various zoom levels.
 
-| Call | Returns | Description |
-|---|---|---|
-| `grid:image(level)` | image \| nil | the recorded ground at zoom `level` — `0` (the default) up to `8` |
-| `grid:overlayImage(tag)` | image \| nil | one recorded [mask](overlays.md#the-recorded-masks) drawn in the overlay's own colour; `nil` for a tag this grid does not carry |
-
-Because it is an image handle, everything that already draws an image draws a map: `g:image` in your own
-widget, [a world sprite](../virtual/sprites.md), and a stylesheet's `bg = { image = … }`.
+## Quick Example
 
 ```lua
-local here = hafen.session():current():player():gob():position()
-local g = hafen.map():grid():get(here:info().gridId)
-local win = hafen.ui():window():title("Here"):size(100, 100)
-win:on("Draw", function(ev)
-  local img = g:image(0)                    -- nil while it renders; ask again next frame
-  if img then ev:g():image(img, 0, 0) end
-end)
+local session = hafen.session():current()
+local player_position = session and session:player():gob():position()
+
+if player_position then
+  local current_grid = hafen.map():grid():at(player_position)
+  if current_grid then
+    -- Request rendered 100x100 tile image (renders asynchronously off-thread)
+    local grid_image = current_grid:image(0)
+    if grid_image then
+      hafen.log():write("Grid map image is ready to render.")
+    else
+      hafen.log():write("Grid map image is generating in background...")
+    end
+  end
+end
 ```
 
-## The first call renders, and answers nil
+---
 
-Drawing a grid means reading every one of its 10 000 tiles out of the tileset art — milliseconds, not
-microseconds. So it happens **off the frame**, exactly where the client renders its own minimap, and the
-[nil rule](README.md#reads-answer-nil-until-the-disk-answers) covers it: the first call starts the render
-and returns `nil`, a later one returns the handle. A draw callback that re-asks every frame is the
-intended shape, and it costs nothing once the picture is there — the same `(grid, level)` hands back the
-*same* handle, never a new render.
+## Methods on `MapGrid`
 
-**A render that fails is tried again — three times, and then it stops.** If it threw, or found nothing
-to draw, that `(grid, level)` answers `nil` and the *next* ask renders it anew. Most failures here are a
-moment rather than a verdict: a render cancelled because another thread wanted the same picture, a
-resource mid-swap, a segment being rewritten under a merge. After three failures in a row nothing more
-is coming, and the picture stops being asked for.
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `:image([zoom_level])` | `[number]` | `AssetHandle \| nil` | Renders a 100×100 pixel image of the ground. `zoom_level` ranges from `0` (1 tile/pixel) to `8`. Returns `nil` while generating. |
+| `:overlayImage(tag)` | `string` | `AssetHandle \| nil` | Returns an image mask of recorded claim/village boundaries on this grid. |
 
-**`grid:info().failed` is what says so**, and it is the reason `nil` is not two answers wearing one word:
-
-| `grid:image(0)` | `grid:info().failed` | What it means |
-|---|---|---|
-| `nil` | `false` | not yet — it is rendering, ask again next frame |
-| an image | `false` | there it is |
-| `nil` | `true` | never — it was tried and given up on |
-
-So the shape stays what it always was: ask every frame and draw what you get. The flag is for the moment
-you want to say *why* nothing came — a status line, a log — rather than something to branch the draw on.
-
-## A level is a scale, not a size
-
-**Every drawing is 100×100 pixels, at every level.** What the level changes is how much ground fits in
-that square:
-
-| `level` | One pixel is | The square covers |
-|---|---|---|
-| `0` | one tile | 100×100 tiles — one grid |
-| `1` | 2×2 tiles | 200×200 tiles — four grids |
-| `n` | 2ⁿ×2ⁿ tiles | four times the ground of `n-1` |
-
-Which is why neighbouring grids **share** a drawing above level 0: the four grids under one level-1 square
-are one picture, and all four hand back the identical handle. Level 0 is drawn through the ground around
-it, so tile transitions blend across the grid border just as they do on the corner minimap.
-
-## The picture is yours, and it is bounded
-
-A drawing is an **owned resource** like a loaded image: `img:dispose()` frees its texture now, and a
-`:reload`, a disable or a logout frees everything you were holding. A disposed handle stays inert rather
-than becoming an error — it still answers `:size()`, drawing it simply draws nothing, and the next
-`grid:image(level)` renders a fresh one.
-
-The ending is **on the handle**, which is where an [asset](../asset/collection.md#the-collection) has not got one: a
-file your addon shipped is a member of `hafen.asset()` and the collection frees it, while a drawing belongs
-to no collection at all. `hafen.asset():remove(img)` on one says so.
-
-You do not have to manage it. The cache keeps the most recently asked-for drawings and **disposes what
-falls off the end**, so a panel that scrolls across a continent frees the ground behind it by itself. That
-is also why a panel should re-ask each frame rather than stash a handle for later: asking is what keeps a
-picture alive.
-
-> **It is not an asset.** A map drawing never appears in `hafen.asset()` and its `:path()` is a
-> description, not a file you could load. An asset is a file your addon shipped; this is a picture the
-> client drew of the database.
-
-It is an [object like every other handle](../asset/handles.md#every-asset) — you cannot write to it, and a name it
-does not answer raises naming the ones it does. `tostring` gives you `Asset(image, map:<gridId>@<level>)`
-for a drawing of the ground and `Asset(image, overlay:<tag>@<gridId>)` for a mask, so a log line says which
-picture it is holding. Beside `:size()`, `:type()` and `:path()` it answers two verbs an asset has not
-got — its own ending, and one read:
-
-| Method | Description |
-|---|---|
-| `img:dispose()` | free its texture **now**, also automatic on reload, disable and logout; returns the handle |
-| `img:info()` | `{source = "map", what, size = {w=, h=}, disposed}` — what was drawn, and whether it is still alive |
-
-A minimap panel is these pages end to end: its picture comes from `grid:image`, its pins from
-`seg:markers()`, and handing the handle to the stylesheet as `bg = { image = … }` makes the **engine**
-paint it — `0` draw callbacks of your own while a map is on the screen.
-
-## See also
-
-- [segments and grids](grids.md) — the `Grid` that renders itself
-- [overlays](overlays.md) — the recorded masks `grid:overlayImage` paints
-- [`hafen.asset`](../asset/README.md) — the image handle a drawing is one of, and its `:size()`
-- [`hafen.virtual`](../virtual/sprites.md) — standing one of these in the 3D world
+> Rendering occurs asynchronously off the render thread. On the first call, `:image()` initiates rendering and returns `nil`; subsequent calls return the cached image handle once available.

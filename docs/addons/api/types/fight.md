@@ -1,29 +1,47 @@
-# Data types: the fight
+# Combat Type Snapshots
 
-The snapshot shapes off the maneuver-deck builder: one maneuver, one card in the deck, and the deck's own
-totals. Each is what `:info()` copies out of a live object, so it never updates — the live reads are verbs
-on that object. The model is on [the catalogue](README.md).
+Table schemas for martial arts maneuvers, combat cards, and opponent targets.
 
-## Maneuver, DeckCard, FightSummary
+---
 
-From the `:info()` escape hatch on each of [`session:fight`](../fight.md)'s objects; the reads themselves hand
-you the live objects.
+## `Maneuver` (Combat Technique Snapshot)
 
-- **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`
-  dealt. The live reads are `man:res()`, `:name()`, `:dealable()` and `:used()`.
-- **DeckCard** — `{ slot = number, key = string?, res?, name?, used? }`, `slot` the raw 0-based deck
-  index, which `card:wire()` reads — `card:index()` is the 1-based position — and `key` the hotkey
-  label such as `"1"` or `"⇧1"`, absent for a slot past the labels the window paints. The maneuver half
-  is absent for an empty slot, where the place itself still reads.
-- **FightSummary** — `{ maxact, used, nact, nsave, usesave }`, in the window's own spelling; the live
-  reads spell them out as `sum:maxActions()`, `:used()`, `:deckSize()`, `:saveCount()` and
-  `:activeSave()`.
+Returned by `maneuver:info()`:
 
-The combat target has no shape of its own: `target:info()` is `{ id }`, and everything else about the
-creature is read off its [Gob](../gob.md).
+```lua
+{
+  name = "Punch",             -- string: display name
+  res = "martial/punch",      -- string: resource path
+  dealable = 3,               -- number: max copies allowed in school
+  used = 1                    -- number: copies currently dealt
+}
+```
 
-## See also
+---
 
-- [the catalogue](README.md) — every snapshot shape, and what a snapshot is
-- [`session:fight`](../fight.md) — the live objects these three copy, and the deck's own verbs
-- [Gob](../gob.md) — everything about the creature you are fighting
+## `DeckCard` (Combat Deck Slot Snapshot)
+
+Returned by `card:info()`:
+
+```lua
+{
+  key = "1",                  -- string | nil: hotkey button label
+  wire = 0,                   -- number: 0-based deck slot index
+  name = "Chop",              -- string | nil: maneuver name
+  res = "martial/chop",       -- string | nil: maneuver resource
+  exists = true               -- boolean: true if slot is filled
+}
+```
+
+---
+
+## `Opponent` (Combat Target Snapshot)
+
+Returned by `opponent:info()`:
+
+```lua
+{
+  id = 459102,                -- number: server entity ID
+  gob = ...                   -- Gob handle: live game object reference
+}
+```

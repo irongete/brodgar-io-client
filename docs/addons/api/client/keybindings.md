@@ -1,243 +1,153 @@
-# hafen.client: keybindings
+# hafen.client: Keybindings
 
-`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
-read, remap or reset any binding, yours or the client's own. Declaring and reading are unprotected; a
-**remap** needs [`client.settings`](../../guides/permissions.md).
+`hafen.client():options():keybindings()` manages global hotkey registrations, keyboard state polling, and key remapping.
 
 ```lua
-local keys = hafen.client():options():keybindings()
+local keybindings = hafen.client():options():keybindings()
 
-local hot = keys:on("toggle", function()
-  hafen.log():write("toggled")
+-- Declare an addon hotkey action
+local hotkey_subscription = keybindings:on("toggle_radar", function()
+  hafen.log():write("Toggle radar pressed")
 end)
 ```
 
-| Method | Returns | Description |
-|---|---|---|
-| `on(name, fn)` | a [subscription](../event/README.md#subscribe) | declare a hotkey owned by your addon; `fn` runs when it fires |
-| `binding()` | a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [Binding](#the-binding-object) | every binding the client knows: yours, other addons' and its own |
+---
 
-A hotkey is a subscription like every other `:on` in the API. What `on` gives back is a `Sub`:
-`hot:key()` is the name you declared it under and `hot:off()` drops it, which is how you stop a hotkey
-while your addon keeps running. The user's assignment survives that ending — the binding belongs to the
-client, and only the handler behind it is yours.
+## Permissions
 
-**`name` is what the user reads beside the key**, so it may not be empty, and it is remembered under a
-preference key built from your addon's id and it — a name long enough to overflow that key raises here,
-naming the length, rather than failing later when the user tries to assign a key to it.
+- **Declaring** and **reading** keybindings is **unprotected**.
+- **Remapping** keys programmatically (`binding:key(...)`) requires the [`client.settings`](../../guides/permissions.md) permission in `manifest.json`.
 
-**One live hotkey per name.** Declaring `on("toggle", …)` a second time replaces the first: the earlier
-subscription ends, exactly as `hot:off()` would end it, and the new handler takes the key. Two under one
-name would be two hotkeys the user could only see once and could only unbind together.
+---
 
-**Your handler runs on the client's UI thread, on the step, holding no character's tree** — the same
-place a [timer](../timer.md) runs. It is handed nothing: a hotkey is a key, not an event, so reach for
-the session you want through [`hafen.session()`](../session.md).
+## Declaring Addon Hotkeys
 
-**A key the user assigned to you is consumed by that assignment**, whatever your handler does. A handler
-that raises still eats the press — the error is logged and contained, and the client does not then also
-run its own binding for that key. Half a press reaching two actions would be worse than a press that
-did nothing.
+### `keybindings:on(name, callback)`
 
-`binding()` takes no arguments: it **is** the collection, and everything about a key — reading it, writing
-it, putting it back — lives on the member rather than on this handle.
-
-## Addon hotkeys start unbound
-
-`on` takes **no default key**. Your addon names an action; **the user assigns the key** in
-Options ▸ Game ▸ Keybindings, where every addon that declared a hotkey gets its own section, listed by addon
-name. That is the only model consistent with the client's one-key-one-action exclusivity: an addon-chosen
-default could not claim a key already in use, so it would lose the collision and leave you with a hotkey
-that never fires.
-
-So **advertise a suggested key in your README instead of claiming one**:
-
-> *Suggested key: `Ctrl+H` — assign it in Options ▸ Game ▸ Keybindings ▸ myaddon.*
-
-The user's assignment is persisted by the client and survives `:reload` and restarts; declaring the same
-name again after a reload picks the existing binding back up.
-
-## An assigned key answers to you and to nothing else
-
-Once the user assigns a key, that exact key **with those exact modifiers** is yours, whatever order the
-client walks its widgets in: every other binding yields it for as long as the assignment stands. That
-includes a client hotkey whose own match is looser than one combination — the action menu's hotkeys read
-`Shift` as *keep the menu open*, so `B` answers `B` and `Shift+B` alike. Assign `Shift+B` and the menu
-keeps plain `B` and loses only `Shift+B`.
-
-**Unbinding it or re-keying it hands the key straight back**, on the very next press: the client's binding
-is never written to, only shadowed while your key stands.
-
-What does *not* win is a default. Your hotkey starts unbound and so claims nothing, and a collision nobody
-assigned is settled by the walk, where the client's own bindings are offered the press first — which is
-the other half of why `on` takes no default key.
-
-> **The key is held only while your hotkey is.** The `KeyBinding` and the user's assignment are the
-> client's and outlive you — a remap survives `:reload`, a restart, everything. The **hold on the key** does
-> not: disabling your addon, deleting it, `sub:off()` on the hotkey, or the CPU watchdog killing you all let
-> go of it, and whatever the key was held off answers again. Declaring the hotkey takes it back, so a
-> `:reload` is both back to back and nothing moves. **Declare your hotkeys at load**, not from a later
-> event: the key is free for as long as you have not asked for it.
->
-> The one case where the key does not come back to you is when it was assigned to something else while you
-> were disabled. That later choice is the user's, so your assignment loses and is cleared to unbound —
-> exactly as assigning a key clears whoever else was on it.
-
-## The binding collection
-
-`keys:binding()` holds every binding the client currently knows — your hotkeys, other addons' and the
-client's own — ordered by id. It carries the
-[collection verbs](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many):
-`:list(filter)`, `:count(filter)`, `:find(filter)` and `:get(id)`, and a string filter is a substring
-test on the id.
+Registers a named action belonging to this addon. Returns a `Subscription` handle.
 
 ```lua
-for _, b in ipairs(keys:binding():list()) do
-  if b:key() then hafen.log():write(b:id() .. " = " .. b:key()) end
+local keybindings = hafen.client():options():keybindings()
+
+local toggle_subscription = keybindings:on("toggle_hud", function()
+  -- Handler executes on UI thread when hotkey is triggered
+  hafen.log():write("HUD toggled")
+end)
+
+-- To unregister during runtime:
+-- toggle_subscription:off()
+```
+
+- **Unbound by default**: Addon hotkeys do not claim default keys in code to prevent collisions. Users assign keys in **Options ▸ Game ▸ Keybindings ▸ [Addon Name]**.
+- **Lifecycle**: Subscriptions are automatically cleaned up on addon reload or disable. The user's key assignment persists in client preferences.
+- **Consumption**: When an assigned hotkey is pressed, the event is consumed and will not trigger underlying client actions.
+
+---
+
+## The Binding Collection
+
+Access all registered bindings (client-native and addon-defined) via `keybindings:binding()`:
+
+| Method | Returns | Description |
+|---|---|---|
+| `keybindings:binding():list(filter?)` | `Binding[]` | List all registered keybindings. |
+| `keybindings:binding():get(id)` | `Binding` | Retrieve binding by ID. Always returns a `Binding` object. |
+| `keybindings:binding():find(filter)` | `Binding \| nil` | Find first matching binding. |
+| `keybindings:binding():count(filter?)` | `number` | Count registered bindings. |
+
+```lua
+local binding_collection = hafen.client():options():keybindings():binding()
+
+for _, binding in ipairs(binding_collection:list()) do
+  if binding:key() then
+    hafen.log():write(string.format("%s = %s", binding:id(), binding:key()))
+  end
 end
 ```
 
-**`:get(id)` always hands you a Binding**, and `b:exists()` is the question a `nil` would have answered.
-The registry fills in as the client's own windows are built and as addons declare their hotkeys, so an id
-you address in your file body is often not there yet and is there after login — the handle you took is the
-same object either way.
+Addon-declared bindings are automatically namespaced: `binding_collection:get("toggle_hud")` addresses `addon/<addon_id>/toggle_hud`.
 
-Your own hotkeys are namespaced to your addon, so `on("test", fn)` and `binding():get("test")` name the
-same binding without you ever spelling your addon id. A name that is not one of yours is the registry id as
-you wrote it — that is how you reach a built-in hotkey, `binding():get("inv")`. Your scope is tried first,
-so a client binding can never shadow yours. `b:id()` is always the **full** registry id, so your own read
-back as `addon/<your-addon-id>/<name>`.
+---
 
-## The binding object
+## The Binding Object
 
 | Method | Returns | Description |
 |---|---|---|
-| `id()` | string | the registry id, its identity |
-| `key()` | string \| nil | the key it fires on, as a display string; `nil` when it is unbound |
-| `key(k)` | the binding | assign a key; `"None"` unbinds it |
-| `key(nil)` | the binding | put it back on the client's own default |
-| `default()` | string \| nil | the key the client gives it, `nil` where that default is unbound |
-| `assigned()` | boolean | whether the current key is the user's choice or the client's default |
-| `down()` | boolean | whether its key is held **right now** |
-| `exists()` | boolean | whether anything has declared this id yet |
-| `info()` | table \| nil | `{id=, assigned=, down=}`, plus `key` and `default` where each is bound; `nil` for an id nothing has declared |
+| `binding:id()` | `string` | Full registry identifier. |
+| `binding:key()` | `string \| nil` | Current key assignment string, or `nil` if unbound. |
+| `binding:key(key_string)` | `Binding` | Assign key. `"None"` unbinds. Requires `client.settings`. |
+| `binding:key(nil)` | `Binding` | Reset to client default binding. Requires `client.settings`. |
+| `binding:default()` | `string \| nil` | Default key assignment, or `nil` if none. |
+| `binding:assigned()` | `boolean` | `true` if current key was customized by user or script. |
+| `binding:down()` | `boolean` | `true` if the assigned key is physically held down right now. |
+| `binding:exists()` | `boolean` | `true` if the binding ID has been registered. |
+| `binding:info()` | `table \| nil` | Metadata snapshot: `{id, assigned, down, key?, default?}`. |
 
-Writing a key needs the [`client.settings` permission](../../guides/permissions.md), like every other
-setting here, and it persists exactly as the same edit made in Options ▸ Game ▸ Keybindings does — which is
-why it is keyed: `binding:key("Ctrl+I")` on `inv` takes the **client's own** inventory key, and the user has
-to undo
-that by hand. A write on a binding nothing has declared is an error; a read of one answers `nil`, except
-`id()`, which is what you addressed it by, and the three booleans, which are `false`.
+---
 
-**A binding has three states, and two of them read as no key.** It is on the client's default, or the user
-has assigned a key, or the user has unbound it — and `key()` collapses the first and the last to `nil`, so
-`assigned()` is what tells them apart. That is also why `key(nil)` exists: without it, an addon that saved a
-key and wrote it back would turn a default into an assignment it could never take off again. A default
-another binding currently holds the key for reads as `nil` too, which is what `default()` is for: it
-answers the key that binding fires on again as soon as the other one lets go.
+## Polling Held Keys: `down()`
+
+`binding:down()` queries the instantaneous state of the key. Use this for push-to-talk, continuous movement, or modifier toggles:
 
 ```lua
-local b = keys:binding():get("toggle")
+local keybindings = hafen.client():options():keybindings()
+keybindings:on("sprint_action", function() end) -- Register so user can bind it
 
--- the user's choice in a form that writes straight back; nil is "on the client's default"
-local saved = b:assigned() and (b:key() or "None") or nil
+local sprint_binding = keybindings:binding():get("sprint_action")
 
-b:key(saved)                              -- restores all three states, the default included
-```
-
-> Assigning a key takes it off whoever else was **assigned** it, and there is no undo for that binding:
-> it is left unbound, and only the user can key it again. A binding still on the client's own default is
-> not written to at all — it is **shadowed**, reading as `nil` for as long as your key stands and firing
-> again the moment you release the key. Where its own match is looser than one combination it is shadowed
-> for **your** combination alone and reads as its own key rather than `nil`: assigning `Shift+B` leaves the
-> action menu `B`, and `nil` is the exact collision. Reverting runs no such pass, so putting two bindings
-> back on defaults that share a key leaves both firing.
-
-## `down()`: the key, not the hotkey
-
-`b:down()` is the one read here that is not about the registry. Everything else on a Binding is
-configuration; this is the keyboard.
-
-```lua
-local keys = hafen.client():options():keybindings()
-keys:on("sprint", function() end)                    -- declared, so the user has a row to bind
-
-local sprint = keys:binding():get("sprint")
 hafen.timer():every(0.05, function()
-  if sprint:down() then ... end                      -- every tick it is held, not once when it went down
+  if sprint_binding:down() then
+    -- Key is actively held down
+  end
 end)
 ```
 
-**Reach for it when a key means something while it is held** — walking on a key, a push-to-talk, a modifier
-of your own. `on` gives you the **edge**, the moment the key goes down, and there is no counterpart for it
-coming up; `down()` is the **level**.
+Unlike OS key repeat, `down()` accurately reports the physical hold state regardless of desktop repeat delays or other keys being pressed.
 
-**The desktop's key repeat is not a substitute, and this is why.** A held key does fire the hotkey again at
-the system's repeat rate, so "fires that keep arriving" looks like a way to spell "still held" — but every
-desktop repeats **only the key pressed last**. Hold `W` and tap `D` and `W` stops repeating and never starts
-again, so two keys at once cannot be seen at all, and the delay before the first repeat is a system setting
-nothing here can read. Ask the keys.
+---
 
-Three things it answers exactly:
+## Key Format Strings
 
-- **It answers for the key, not for the handler.** A hotkey does not fire while a text field has the focus;
-  `down()` still reports the key down, because the question is which keys are down. Guard on focus yourself
-  if that matters — starting the poll from the hotkey and stopping it when nothing is held is usually the
-  whole of it.
-- **A binding matches the key as it was pressed.** Taking up or letting go of `Shift` after the key went
-  down neither makes nor breaks the match, so a key held through it goes on reading down.
-- **An unbound binding reads `false`**, and so does one nothing has declared. Neither can fire, so neither
-  can be held.
+Key combination strings consist of optional modifier prefixes and a primary key token:
 
-> **The window losing focus lets go of everything.** A key held through an alt-tab has its release delivered
-> to whatever took the focus, so the client drops the whole set rather than leaving a key stranded down. Come
-> back with the key still physically held and it reads up until you press it again.
+- **Modifiers**: `Ctrl+`, `Shift+`, `Alt+` (case-insensitive)
+- **Named keys**: `F1`–`F12`, `Space`, `Enter`, `Tab`, `Esc`, `Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`
+- **Single characters**: `"A"`, `"1"`, `"M"`, etc.
+- **Unbound**: `"None"`
 
-## Key strings
+Examples: `"Ctrl+H"`, `"Shift+Alt+M"`, `"F4"`, `"Space"`, `"None"`.
 
-A key is the last `+`-separated token, with optional modifiers before it: `Ctrl`/`Control`/`Ctl`, `Shift`,
-`Alt`/`Meta`, case-insensitive. Named keys are `F1`..`F12`, `Space`, `Enter`/`Return`, `Tab`, `Esc`,
-`Backspace`, `Delete`, `Insert`, `Home`, `End`, `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`;
-anything else is a single character. `"None"` means unbound.
+---
+
+## Complete Example
 
 ```lua
-"F5"   "Ctrl+M"   "Shift+Alt+Left"   "None"
-```
+local keybindings = hafen.client():options():keybindings()
 
-A key you read back is spelled the same way, with the modifiers in the order `Shift`, `Ctrl`, `Alt`.
-Modifier matching is exact: `"M"` fires only on a bare `M`, never on `Ctrl+M`.
+-- Register hotkey action
+local show_tracker_sub = keybindings:on("show_tracker", function()
+  hafen.log():write("Hotkey triggered!")
+end)
 
-## Example
-
-```lua
-local keys = hafen.client():options():keybindings()
-
-local hot = keys:on("toggle", function() hafen.log():write("toggled") end)
-
-local mine = keys:binding():get("toggle")
-hafen.log():write("my key: " .. tostring(mine:key()))          -- nil until the user assigns one
-
-local inv = keys:binding():get("inv")
-if inv:exists() then
-  hafen.log():write("inventory: " .. tostring(inv:key()) .. ", assigned: " .. tostring(inv:assigned()))
+-- Query binding status
+local tracker_binding = keybindings:binding():get("show_tracker")
+if tracker_binding:key() then
+  hafen.log():write("Bound to: " .. tracker_binding:key())
+else
+  hafen.log():write("Action is currently unbound. Assign a key in Options.")
 end
 
-hafen.log():write("bindings: " .. keys:binding():count())
+-- Inspect a native client binding
+local inventory_binding = keybindings:binding():get("inv")
+if inventory_binding:exists() then
+  hafen.log():write("Inventory key: " .. tostring(inventory_binding:key()))
+end
 ```
 
-Hotkeys are torn down with your addon on reload or disable, so there is nothing to end in `Disable`. Use
-`hot:off()` only to drop a hotkey while your addon keeps running. A key the user assigned is the client's
-and stays.
+---
 
-> A global hotkey runs through the client's binding registry, after the client's own bindings. To
-> intercept a mouse event before the widget under it sees it, subscribe on the widget instead — see
-> [subscribing](../ui/widget.md#subscribing). Keyboard input is not a widget option, so a hotkey is still
-> the only door onto a key.
+## See Also
 
-## See also
-
-- [`hafen.client():options()`](README.md) — the rest of the settings surface
-- [conventions](../conventions.md) — the collection verbs, and what `:get` answers for a key nothing holds
-- [the Widget object](../ui/widget.md#subscribing) — intercepting a mouse event before the widget does
-- [`hafen.console`](../console.md) — a console command, the other way an addon is invoked by hand
-- [`hafen.event`](../event/README.md) — the `Sub` a hotkey hands back, and every other subscription
+- [`hafen.client():options()`](README.md) — Client settings and options panels.
+- [Addon Options](addon.md) — Custom persistent addon preferences.
+- [`hafen.console`](../console.md) — Console commands and manual triggers.

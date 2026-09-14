@@ -1,96 +1,39 @@
-# hafen.timer: scheduling
+# hafen.timer: Timers & Scheduling
 
-Run a function later, once or repeatedly. Reach for a timer when the [event bus](event/bus/README.md) has
-nothing to tell you — polling a value that has no change event, or waiting out the beat after
-`SessionEnteredWorld` during which character data is still streaming in. Timers are **unprotected**, run on
-the UI thread, and are cancelled for you on reload or disable.
+Schedule recurring or delayed tasks measured in real-world seconds.
 
-```lua
-hafen.timer():after(3, function() hafen.log():write("3 seconds later") end)
-
-local tick = hafen.timer():every(1, function() hafen.log():write("tick") end)
--- later:
-tick:cancel()
-```
-
-## Schedule
-
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.timer():after(seconds, fn)` | [handle](#the-timer-handle) | run `fn()` once, `seconds` from now |
-| `hafen.timer():every(seconds, fn)` | [handle](#the-timer-handle) | run `fn()` every `seconds`, starting `seconds` from now |
-
-Both raise an error unless they get a number and a function. A negative delay counts as `0`. Timing is
-tick-resolution, not exact: a callback fires on the first tick at or after its due time, so treat the
-interval as a floor rather than a promise. A repeating timer's next run is due one interval after the
-*previous due time*, not after the callback finished, so a slow callback does not push the schedule
-out; it also fires at most once per tick, so a stall is not made up for afterwards. An interval of `0`
-is due again the moment it has run, so it fires once a tick — the most often anything can, and you pay
-for its body every frame. It keeps running until you cancel it or the addon goes away.
-
-A delay of `0` is due on the tick it was made on, and where in that tick it runs depends on where you
-scheduled it from. The client fires [`Update`](event/bus/lifecycle.md#lifecycle) — the bus's, and every
-surface's — before it runs the due timers, so a `0` scheduled from an `Update` handler runs later in
-that same step. One scheduled from a file body, a console line or a handler the client dispatched into
-a widget tree waits for the next step, which is what makes `:after(0, fn)` the way
-[off a held tree](threading.md#getting-onto-the-step-from-a-handler-that-holds-a-tree).
-
-**Timers of yours due on one tick fire in the order you made them.** Between addons there is no order:
-whose timer runs first on a given tick is not a thing to build on, and neither is whether it runs
-before or after another addon's handler for the same moment.
-
-An error inside `fn` is logged and isolated, and it does not cancel the timer — a repeating timer whose
-body throws will throw again on every tick, so cancel it yourself when the failure is permanent. A body that
-fails the client itself — off the end of the stack, out of memory — stops
-[your addon instead](../runtime.md#when-a-failure-is-fatal), timer and all.
-
-## The timer handle
-
-What `:after` and `:every` hand back: the timer itself, which answers for its own schedule, so a
-`:list()` predicate can ask any of these.
-
-| Method | Description |
-|---|---|
-| `:interval()` | the seconds between runs, and `0` for a one-shot, which has none — so `0` also reads on a repeater made with a period of `0` or less, and `:repeats()` is what tells the two apart |
-| `:repeats()` | `true` for one made with `:every`, `false` for one made with `:after` |
-| `:due()` | seconds until it next runs, `0` when it is due on this tick, `nil` once it is dead |
-| `:alive()` | still scheduled: `false` once cancelled, and once a one-shot has run |
-| `:cancel()` | stop the timer and hand it back; safe to call more than once, and on one that has already fired |
-| `:info()` | a snapshot table carrying `interval`, `repeats`, `alive`, and `due` while it is alive |
-
-`tostring(t)` reads `Timer(every 5s)`, `Timer(after 2s, fired)` or `Timer(after 2s, cancelled)`, so a
-log line of your own timers says which is which. A verb the timer has not got raises naming the ones it
-has, and writing to the handle — `t.cancel = nil` — is refused: the verb that stops your timer cannot be
-taken off it.
-
-## Read what is scheduled
-
-`hafen.timer()` is a **collection** of the timers your addon has running, so the section you schedule
-with is the section you read. It holds the same handles `:after` and `:every` gave you, so `==` finds
-one you kept.
-
-| Function | Returns | Description |
-|---|---|---|
-| `hafen.timer():list(filter)` | array of handles | every timer still scheduled |
-| `hafen.timer():count(filter)` | number | how many are still scheduled |
-| `hafen.timer():find(filter)` | handle \| nil | the first one that matches |
-
-`filter` is omitted for all of them, or a **function** called with each handle — which answers the
-[reads above](#the-timer-handle), so a predicate can ask about the schedule and not only about
-identity. A timer has no name, so the string form of the
-[filter](conventions.md#the-filter-argument) is refused here rather than matching nothing. A
-collection is an object, not an array: `#` and `[n]` on it are refused, and `:list()` is the array you
-index.
+## Quick Example
 
 ```lua
-hafen.timer():every(1, tick)
-hafen.log():write(hafen.timer():count() .. " timer(s) running, "
-                  .. hafen.timer():count(function(t) return t:repeats() end) .. " of them repeating")
-for _, t in ipairs(hafen.timer():list()) do t:cancel() end
+-- Periodic timer running every 5 seconds
+local repeating_timer = hafen.timer():every(5, function()
+  local current_session = hafen.session():current()
+  if current_session then
+    hafen.log():write("Heartbeat check for: " .. (current_session:character() or "Unknown"))
+  end
+end)
+
+-- One-shot delayed timer running after 10 seconds
+local delayed_timer = hafen.timer():after(10, function()
+  hafen.log():write("One-shot delayed timer triggered.")
+end)
+
+-- Cancel a timer when no longer needed
+repeating_timer:cancel()
 ```
 
-## See also
+## Methods on `hafen.timer()`
 
-- [events](event/bus/README.md) — the bus, for everything the client can tell you without polling
-- [threading](threading.md) — a timer body runs on the step, so it may reach any character
-- [`hafen.time`](time.md) — the *game* clock, which is not what this schedules against
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `:every(seconds, callback)` | `number, function()` | `TimerHandle` | Schedules `callback` to run repeatedly every `seconds` (real-world wall-clock seconds). |
+| `:after(seconds, callback)` | `number, function()` | `TimerHandle` | Schedules `callback` to execute once after `seconds` have elapsed. |
+
+## Methods on `TimerHandle`
+
+| Method | Parameters | Returns | Description |
+|---|---|---|---|
+| `:cancel()` | None | `self` | Cancels the timer immediately. Safe to call multiple times. |
+| `:active()` | None | `boolean` | Returns `true` if the timer is currently running and has not finished or been cancelled. |
+
+> All timers are automatically cancelled when your addon is reloaded or unloaded.

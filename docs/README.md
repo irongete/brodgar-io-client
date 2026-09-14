@@ -1,33 +1,20 @@
 # Documentation
 
-Two subtrees, two readers. **[AddOns](addons/README.md)** is for someone writing an addon, who has
-never opened the client's source. **[The client's internals](client/README.md)** is for someone
-changing that source. Take the one that matches what you are about to do — neither needs the other.
+The documentation is organized into two distinct sections:
 
-## Writing an addon
+- **[AddOns](addons/README.md)**: Developer documentation for creating client addons in Lua. Covers the `hafen.*` API, manifest configuration, UI creation, event handling, and examples.
+- **[Client Internals](client/README.md)**: Technical reference for the underlying Java client engine, subsystems, rendering pipeline, and architecture.
 
-An addon is a folder of Lua files. It reads the game state, reacts to events, draws its own UI, adds
-hotkeys and console commands, restyles the client — and, with the user's permission, drives the
-character. Everything it may touch arrives through one `hafen.*` API.
+## Quick Navigation
 
-| Page | Read it for |
-|---|---|
-| [AddOns](addons/README.md) | the landing page: what an addon is, and where everything else is |
-| [getting started](addons/getting-started.md) | an empty folder to a working addon, step by step |
-| [guides](addons/guides/README.md) | one page per task: the world, events, UI, saved data, permissions, theming, debugging |
-| [API reference](addons/api/README.md) | every `hafen.*` namespace, verb, argument and return |
-| [the runtime](addons/runtime.md) | the manifest, the sandbox, the CPU budgets, the console commands |
-| [the AddOns manager](addons/panel.md) | enabling, updating and removing an installed addon, and searching the hub for a new one |
-| [the maintainer's addons](addons/examples.md) | where the addons are, which of them a release ships, and the tools among them for writing your own |
+### Creating Addons
+- **[Getting Started](addons/getting-started.md)**: Build your first addon in 5 minutes.
+- **[Addon Guides](addons/guides/README.md)**: Step-by-step guides for UI, world interaction, events, timers, data persistence, and permissions.
+- **[API Reference](addons/api/README.md)**: Complete reference for all `hafen.*` namespaces, methods, parameters, and events.
+- **[Manifest Specification](addons/manifest.md)**: Configuration reference for `manifest.json`.
+- **[Runtime & Sandbox](addons/runtime.md)**: Execution environment, watchdog limits, lifecycle hooks, and console commands.
 
-## Changing the client
-
-The engine underneath is around 100k lines of unannotated Java.
-[The client's internals](client/README.md) maps it: one page per subsystem, saying where a thing
-lives, what owns it, and what bit the last person to go in. It turns finding a seam into a lookup
-instead of a search.
-
-It is a **map, not an authority** — where a page disagrees with the source, the source wins. It
-covers the upstream engine only: what this client adds on top is stated by
-[the API reference](addons/api/README.md) and by the code itself. And it is not a complete map:
-there is a page where the work has gone.
+### Modifying the Client
+- **[Architecture Overview](client/README.md)**: Subsystem map of the Java client codebase.
+- **[Render Pipeline](client/render-gl.md)**: OpenGL rendering architecture.
+- **[State Management](client/state.md)**: Engine state tracking and synchronization.
