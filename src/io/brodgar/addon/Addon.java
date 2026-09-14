@@ -469,7 +469,7 @@ public final class Addon {
      * Widgets this addon has asked to <b>survive the session</b> ({@code widget:remember(name)}, 062), by the
      * name each is remembered under — one name, one widget, which is what makes the name answerable when a
      * second widget asks for it. This is the <b>binding</b> alone: what is actually saved sits in
-     * {@link #placements} and on disk, and the two are deliberately dropped by different things.
+     * {@link #placeSets} and in the client's file, and the two are deliberately dropped by different things.
      *
      * <p><b>Dropping is not forgetting.</b> {@code widget:revert()}, {@code :reload} and disable clear the
      * binding and leave the record standing, which is the one place this layer's <i>put everything back</i>
@@ -479,9 +479,9 @@ public final class Addon {
     public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
     /**
      * What is saved under each of those names, <b>by scope</b> (062, re-keyed by 092.8) — a place, a box, or
-     * both, in design pixels. The key is the scope the set belongs to — the row key in the addon's store file:
-     * a character's {@code <genus>_<char>} for a widget standing in that session's own tree, and {@code ""}
-     * for one standing in the addon's layer.
+     * both, in design pixels. The key is the scope the set belongs to — with this addon's id, the row key in
+     * the client's own file ({@code ClientDb.placements}, 150): a character's {@code <genus>_<char>} for a
+     * widget standing in that session's own tree, and {@code ""} for one standing in the addon's layer.
      *
      * <p><b>Which is the whole of A-087's fix.</b> A single set keyed by the character on SCREEN is the wrong
      * address: a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
@@ -489,8 +489,9 @@ public final class Addon {
      * folder and read back out of it, silently and in both directions. Every saved variable beside it is
      * addressed by the session it belongs to, and so is this one.
      *
-     * <p>A scope's set is loaded from disk the first time something in it is touched, and every loaded set is
-     * written by each flush — so a remembered placement needs no handler of the addon's own.
+     * <p>A scope's set is read from the client's file the first time something in it is touched, and written
+     * back the moment a gesture lands on one of its widgets, when the screen changes and when a remembered
+     * widget goes — so a remembered placement needs no handler of the addon's own, and rides no timer.
      */
     public final Map<String, StoreApi.PlaceSet> placeSets =
         new ConcurrentHashMap<String, StoreApi.PlaceSet>();

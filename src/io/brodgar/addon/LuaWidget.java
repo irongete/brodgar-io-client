@@ -855,12 +855,12 @@ public final class LuaWidget {
         // clamp and the two nil undos included, and a widget:position(x, y) AFTER it wins by being the later
         // level.
         //
-        // WHAT IS SAVED IS WHERE YOUR LEVELS STAND, whenever the layer writes to disk — after a gesture, on the
-        // save timer, and at teardown. So the user dragging it is remembered with no handler of yours, and so is
-        // a place you wrote yourself. It is PER CHARACTER, like a per-character saved variable and for the same
-        // reason, so before SessionEnteredWorld there is nothing to put back and the call says so rather
-        // than applying an
-        // empty record. No manifest declaration: the slot is the layer's own file beside the addon's store.
+        // WHAT IS SAVED IS WHERE YOUR LEVELS STAND, and it is written the moment the gesture lands, when the
+        // screen changes and when the widget goes (destroy, close, teardown) -- a row of the CLIENT's own file
+        // (150), about this addon, never of the addon's store. So the user dragging it is remembered with no
+        // handler of yours, and so is a place you wrote yourself. It is PER CHARACTER, like a per-character
+        // saved variable and for the same reason, so before SessionEnteredWorld there is nothing to put back
+        // and the call says so rather than applying an empty record. No manifest declaration.
         //
         // ONE NAME, ONE WIDGET, which is what makes the name answerable: a second widget under a name this addon
         // already holds RAISES, naming the one holding it. Renaming a widget you already remember is a change of
@@ -2773,9 +2773,11 @@ public final class LuaWidget {
     }
 
     /**
-     * A gesture just ended on {@code w}: save the half it drove, if this addon remembers the widget. The value
-     * is read off the widget rather than off the level, so what is saved is where it <b>landed</b> — the clamp,
-     * and a window that re-packed itself, both having had their word.
+     * A gesture just ended on {@code w}: save the half it drove, if this addon remembers the widget — into the
+     * client's file, in this call ({@link StoreApi#land}, 150). The value is read off the widget rather than
+     * off the level, so what is saved is where it <b>landed</b> — the clamp, and a window that re-packed
+     * itself, both having had their word. From {@link Gesture} ({@code :draggable}/{@code :resizable}) and from
+     * the title-bar drag of a window this addon built ({@code UiApi}'s window, its {@code mouseup}).
      */
     static void rememberLanded(Addon owner, Widget w, boolean pos) {
         String nm = rememberedName(owner, w);
@@ -2784,10 +2786,12 @@ public final class LuaWidget {
     }
 
     /**
-     * Every remembered widget of one addon, as it stands right now — run by {@link StoreApi#flush} before it
-     * writes, which is what makes the save timer, {@code hafen.store():flush()} and teardown all record the
-     * same thing. A half this addon holds no level on is left as it was: an addon that never sized a window has
-     * nothing to say about its box, and nothing to erase either.
+     * Every remembered widget of one addon, as it stands right now, into the client's file — run where a
+     * remembered widget is about to go (the teardown's placements step, {@code widget:destroy()}, the chrome
+     * close) and when the screen changes ({@link StoreApi#rescope}), so a place the addon wrote itself lands
+     * too; a gesture writes on its own ({@link #rememberLanded}). A half this addon holds no level on is left
+     * as it was: an addon that never sized a window has nothing to say about its box, and nothing to erase
+     * either.
      *
      * <p><b>It does not ask whether the widget is still in the tree</b>, and that is the case it exists for: a
      * relog tears every addon down with the <i>new</i> {@code UI} already installed, so the last session's

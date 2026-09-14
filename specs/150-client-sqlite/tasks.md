@@ -39,7 +39,7 @@
       `[manual]`: disable the suite in the panel, `:reload`, enable it, `:reload` — expect: the entry is
       back on its slot.
 
-- [ ] **150.3 — The placements live in the client's file, and the addon's file closes to the client.**
+- [x] **150.3 — The placements live in the client's file, and the addon's file closes to the client.**
       `ClientDb.placements(id, scope)` and `placements(id, scope, rows)`; `StoreApi.loadPlacements` and
       `writePlacements` on them, `PlaceSet.readOnly` the file's flag; `land()` writes; the `UiApi` window's
       `mouseup` calls `rememberLanded` after a title-bar drag; `rememberCapture` stays at teardown,

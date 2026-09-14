@@ -455,7 +455,7 @@ final class Gesture extends Widget {
      * {@code widget:remember(name)} — where each target <b>landed</b>, into the addon's own placement slot, so
      * the next session puts it back with no handler of the addon's and no line of Lua after the arming. Only an
      * owner that remembers this target has anything to write; a press that never moved is a click and changes
-     * nothing. The disk write itself rides the store's own throttle, and teardown flushes.
+     * nothing. The row lands in the client's file in this call (150): a gesture is rare, and the file is open.
      */
     private void save() {
         if(!acted)

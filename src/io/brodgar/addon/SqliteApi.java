@@ -1,7 +1,5 @@
 package io.brodgar.addon;
 
-import haven.Coord;
-
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaInteger;
 import org.luaj.vm2.LuaTable;
@@ -17,7 +15,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,9 +26,10 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * <b>The store's file</b> (146): one SQLite database per addon, {@code savedata/<id>/<id>.sqlite} — a folder
  * of the addon's own, so the file and its sidecars stand together and nothing else's stands beside them —
  * for the whole client: every account this client logs in with and every character read and write the same one. What
- * {@link StoreApi} keeps in it is the addon's <b>documents</b> (one JSON row each, named at {@code :get})
- * and its <b>remembered placements</b>; the tables an addon declares for itself and the statements it runs
- * come through here too, on the same connection.
+ * {@link StoreApi} keeps in it is the addon's <b>documents</b> (one JSON row each, named at {@code :get}); the
+ * tables an addon declares for itself and the statements it runs come through here too, on the same
+ * connection. Nothing of the client's is in it: where the user put the addon's windows and which action-bar
+ * slots hold its entries are rows of the client's own file ({@link ClientDb}).
  *
  * <p><b>Opened at {@link StoreApi#installStore}</b>, so a document is readable before {@code Load}, and
  * <b>closed by its own teardown step</b> and by the quit's flush, which is what checkpoints the write-ahead
@@ -89,8 +87,12 @@ import static io.brodgar.addon.AddonManager.logAbout;
 final class SqliteApi {
     private SqliteApi() {}
 
-    /** The shape of the client's own tables, recorded in the file's {@code user_version}. */
-    static final int SCHEMA = 2;
+    /**
+     * The shape of the client's own table, recorded in the file's {@code user_version}. A file below it was
+     * written when the client kept its placements and holds in the addon's file: those two tables are dropped
+     * at the open (they are the client's rows, and live in {@link ClientDb} now), and the number is raised.
+     */
+    static final int SCHEMA = 3;
 
     /**
      * How long one statement of the addon's own may run, in milliseconds, before it is stopped —
@@ -422,8 +424,8 @@ final class SqliteApi {
         String lower = nm.toLowerCase(Locale.ROOT);
         if(lower.startsWith("hafen_"))
             return "\"" + nm + "\" is not a name you can declare: the hafen_ prefix is the client's own"
-                + " tables (your documents and your remembered placements live there: hafen_documents,"
-                + " hafen_placements) — " + NAME_RULE + ", under any other prefix";
+                + " table (your documents live there: hafen_documents) — " + NAME_RULE + ", under any other"
+                + " prefix";
         if(lower.startsWith("sqlite_"))
             return "\"" + nm + "\" is not a name you can declare: the sqlite_ prefix is SQLite's own — "
                 + NAME_RULE + ", under any other prefix";
@@ -1398,9 +1400,8 @@ final class SqliteApi {
         private static void name(String w, String verb) {
             if(w.startsWith("hafen_"))
                 throw new LuaError(verb + ": \"" + w + "\" is under the hafen_ prefix, which is the client's own"
-                    + " tables — hafen_documents holds your documents and hafen_placements your remembered"
-                    + " placements, reached through " + ACC + ":get(name) and w:remember(name) and never"
-                    + " through a statement. A table of yours is declared under another prefix");
+                    + " table — hafen_documents holds your documents, reached through " + ACC + ":get(name)"
+                    + " and never through a statement. A table of yours is declared under another prefix");
             if(w.equals("load_extension"))
                 throw new LuaError(verb + ": load_extension is refused: this connection is a sandbox, and no"
                     + " extension is loaded on it — the functions a statement has are SQLite's own");
@@ -1509,11 +1510,12 @@ final class SqliteApi {
      * <b>One addon's open file.</b> The only class here that names an {@code org.sqlite} or {@code java.sql}
      * type; every method holds the monitor, so the connection sees one caller at a time.
      *
-     * <p>The tables of the client's own carry the {@code hafen_} prefix, which is what keeps them apart from
-     * anything an addon declares. A <b>scope</b> is a row key: {@code ""} for the addon's own documents and
-     * placements, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that character's. The
-     * action-bar slots held for the addon's entries are not here: they are the client's rows, in the client's
-     * own file ({@link ClientDb#holds}).
+     * <p>The client's own table carries the {@code hafen_} prefix, which is what keeps it apart from anything
+     * an addon declares: {@code hafen_documents}, and no other. A <b>scope</b> is a row key: {@code ""} for
+     * the addon's own documents, the character's key ({@link StoreApi}'s {@code <genus>_<char>}) for that
+     * character's. Where the user put the addon's windows and which action-bar slots hold its entries are not
+     * here: they are the client's rows, in the client's own file ({@link ClientDb#placements},
+     * {@link ClientDb#holds}).
      *
      * <p><b>A transaction is driven through the engine, never through JDBC's auto-commit</b>: {@code BEGIN},
      * {@code COMMIT} and {@code ROLLBACK} go through {@code DB.exec}, which is the one door the driver's own
@@ -1576,10 +1578,13 @@ final class SqliteApi {
                             + ", this client writes " + SCHEMA + ")");
                     st.execute("CREATE TABLE IF NOT EXISTS hafen_documents (scope TEXT NOT NULL, name TEXT NOT NULL,"
                         + " json TEXT NOT NULL, PRIMARY KEY (scope, name)) WITHOUT ROWID");
-                    st.execute("CREATE TABLE IF NOT EXISTS hafen_placements (scope TEXT NOT NULL, name TEXT NOT NULL,"
-                        + " x INTEGER, y INTEGER, w INTEGER, h INTEGER, PRIMARY KEY (scope, name)) WITHOUT ROWID");
-                    if(have < SCHEMA)
+                    if(have < SCHEMA) {
+                        // A file an earlier schema wrote: the client's placements and holds were rows of it.
+                        // They are the client's own file's now, so the two tables go; nothing is carried over.
+                        st.execute("DROP TABLE IF EXISTS hafen_placements");
+                        st.execute("DROP TABLE IF EXISTS hafen_holds");
                         st.execute("PRAGMA user_version = " + SCHEMA);
+                    }
                 }
                 // The deadline: polled every 1000 virtual-machine steps of whatever statement is running,
                 // and a 1 stops it with SQLITE_INTERRUPT -- the statement's own changes undone, the
@@ -1830,75 +1835,6 @@ final class SqliteApi {
                     }
                 }
             });
-        }
-
-        // ---- the remembered placements: a row per name, each half nullable -------------------------
-
-        /** Every placement saved under one scope, by name. A row with neither half is not a placement. */
-        synchronized Map<String, StoreApi.Placement> placements(String scope) {
-            Map<String, StoreApi.Placement> out = new LinkedHashMap<String, StoreApi.Placement>();
-            try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                    "SELECT name, x, y, w, h FROM hafen_placements WHERE scope = ? ORDER BY name")) {
-                ps.setString(1, scope);
-                try(java.sql.ResultSet rs = ps.executeQuery()) {
-                    while(rs.next()) {
-                        StoreApi.Placement p = new StoreApi.Placement();
-                        p.pos = coord(rs, 2, 3);
-                        p.size = coord(rs, 4, 5);
-                        if((p.pos != null) || (p.size != null))
-                            out.put(rs.getString(1), p);
-                    }
-                }
-            } catch(java.sql.SQLException e) {
-                throw new Failure(e.getMessage(), e);
-            }
-            return out;
-        }
-
-        /** Two integer columns as one half of a placement, or {@code null} when either is {@code NULL}. */
-        private static Coord coord(java.sql.ResultSet rs, int xcol, int ycol) throws java.sql.SQLException {
-            int x = rs.getInt(xcol);
-            if(rs.wasNull())
-                return null;
-            int y = rs.getInt(ycol);
-            return rs.wasNull() ? null : Coord.of(x, y);
-        }
-
-        /** Replace one scope's placements with {@code rows}: its rows are deleted and these written, in one transaction. */
-        synchronized void placements(final String scope, final Map<String, StoreApi.Placement> rows) {
-            transaction(new Work() {
-                public void run() throws java.sql.SQLException {
-                    try(java.sql.PreparedStatement del = conn.prepareStatement(
-                            "DELETE FROM hafen_placements WHERE scope = ?")) {
-                        del.setString(1, scope);
-                        del.executeUpdate();
-                    }
-                    try(java.sql.PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO hafen_placements (scope, name, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?)")) {
-                        for(Map.Entry<String, StoreApi.Placement> e : rows.entrySet()) {
-                            StoreApi.Placement p = e.getValue();
-                            if((p.pos == null) && (p.size == null))
-                                continue;
-                            ps.setString(1, scope);
-                            ps.setString(2, e.getKey());
-                            half(ps, 3, p.pos);
-                            half(ps, 5, p.size);
-                            ps.executeUpdate();
-                        }
-                    }
-                }
-            });
-        }
-
-        /** Bind one half of a placement to two integer parameters, {@code NULL} when the half is not held. */
-        private static void half(java.sql.PreparedStatement ps, int at, Coord c) throws java.sql.SQLException {
-            if(c == null) {
-                ps.setNull(at, java.sql.Types.INTEGER);
-                ps.setNull(at + 1, java.sql.Types.INTEGER);
-            } else {
-                ps.setInt(at, c.x);
-                ps.setInt(at + 1, c.y);
-            }
         }
 
         // ---- statements: what the declared tables run, on the addon's own tables -------------------

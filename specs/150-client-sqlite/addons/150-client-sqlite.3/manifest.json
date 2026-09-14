@@ -1,0 +1,9 @@
+{
+  "name": "150.3 — the placements live in the client's file",
+  "id": "150-client-sqlite.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 150.3: a remembered window's place is a row of client.sqlite, applied on w:remember(name) and back after a title-bar drag and a :reload; the addon's own file holds hafen_documents alone, and the hafen_ prefix is refused naming it.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

@@ -1,9 +1,12 @@
 # hafen.store: your addon's file
 
-Everything your addon keeps between sessions lives in **one file**, `savedata/<id>/<id>.sqlite`: an SQLite
+Everything your addon stores between sessions lives in **one file**, `savedata/<id>/<id>.sqlite`: an SQLite
 database named by your addon's id, in a folder of its own under `savedata/`, read and written by every
-account this client logs in with and every character they play. `hafen.store()` is that file. Every verb on this page and on the three under it is
-**unprotected**: nothing here reaches the server, and the file it writes is your addon's own.
+account this client logs in with and every character they play. `hafen.store()` is that file. What the
+client keeps *about* your addon — where the user put your windows, which action-bar slots hold your
+entries — is in the client's own file beside it, `savedata/client.sqlite`, and never in yours. Every verb
+on this page and on the three under it is **unprotected**: nothing here reaches the server, and the file
+it writes is your addon's own.
 
 ```lua
 local seen = hafen.store():get("seen")                -- a document: a live table, saved for you
@@ -49,7 +52,7 @@ or character is up. A character's documents are the one thing reached elsewhere,
 |---|---|---|
 | `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it | [documents](documents.md) |
 | `hafen.store():list()` | the names that exist in your addon's own scope, sorted, a string array | [documents](documents.md) |
-| `hafen.store():flush()` | the store, once the client scope's documents and placements are written | [documents](documents.md) |
+| `hafen.store():flush()` | the store, once your addon's own changed documents are written | [documents](documents.md) |
 | `hafen.store():info()` | `{file, bytes}` | [below](#the-file) |
 | `hafen.store():table(name)` | a bare declaration of one of your own tables | [tables](tables.md) |
 | `hafen.store():exec(sql, ...)` | how many rows one statement changed | [statements](statements.md) |
@@ -77,7 +80,7 @@ nobody meant.
 and no file per account or per character: a file per login is one schema in as many files as you have
 logins, which no query reads together — a record that forgets every node when you log in as your other
 account. The folder and the file are created the first time your addon loads, whether or not it ever
-names a document, because a remembered window and a table need it as much as a document does. Two addons
+names a document, so that a document is readable in `Load` and a table is there to declare. Two addons
 never share one: each reads and writes its own, and nothing of another's is reachable from it.
 
 **Beside it, in the same folder, stand two sidecars while it is open**: `<id>.sqlite-wal`, the log every
@@ -92,7 +95,7 @@ addon has been disabled. Copy or move the folder then.
 |---|---|
 | a row a [table](tables.md) or a [statement](statements.md) writes | when the call returns — or, inside a `:transaction`, when `fn` returns |
 | a [document](documents.md) | on the timer, every thirty seconds; when your addon is disabled or reloaded; when the client quits; on `:flush()`. A character's, also when the session holding it ends or picks another character |
-| a [remembered placement](documents.md#where-a-widget-sits-is-saved-for-you) | with the documents of the scope its widget stands in, and when the screen changes |
+| a [remembered placement](documents.md#where-a-widget-sits-is-saved-for-you) | never: it is a row of the client's own file, not of yours, written when the gesture lands, when the screen changes and when the widget goes — no `:flush()` writes it |
 | a [held slot](../actionbar.md#a-hold-is-remembered) | never: it is a row of the client's own file, not of yours, written on the tick the hold is taken or ended by hand — no `:flush()` writes it |
 
 The file is **closed** when your addon is disabled or reloaded and when the client quits, after its
@@ -106,10 +109,11 @@ lose the last committed rows as well; it cannot lose the file.
    `DETACH` and `VACUUM INTO` are refused: every addon's data is its own file, and none reads another's.
 2. **No extension loads.** `load_extension` is switched off, so the functions a statement has are SQLite's
    own.
-3. **The `hafen_` tables are the client's.** `hafen_documents` holds your documents and `hafen_placements`
-   your remembered placements, reached through `:get(name)` and `w:remember(name)` and never through a
-   statement. The action-bar slots [held](../actionbar.md#a-hold-is-remembered) for your entries are not in
-   your file at all: they are the client's own rows. A table of yours takes any other prefix; `sqlite_` is
+3. **The `hafen_` prefix is the client's, and it names one table.** `hafen_documents` holds your documents,
+   reached through `:get(name)` and never through a statement: a statement or a declaration naming a
+   `hafen_` table is refused naming it. Your [remembered placements](documents.md#where-a-widget-sits-is-saved-for-you)
+   and the action-bar slots [held](../actionbar.md#a-hold-is-remembered) for your entries are not in your
+   file at all: they are the client's own rows. A table of yours takes any other prefix; `sqlite_` is
    SQLite's.
 
 A `CREATE TABLE` or `CREATE INDEX` through `:exec` is refused too, naming the [builder](tables.md): a table
@@ -146,7 +150,7 @@ verb here refuses naming the cause. Fix it and `:reload`.
 
 ## See also
 
-- [documents](documents.md) — the two doors as the two scopes, what survives, when it is written, the placements
+- [documents](documents.md) — the two doors as the two scopes, what survives, when it is written, and where a widget sits
 - [tables](tables.md) — the builder, the Table, the types both ways, and how a declaration evolves
 - [statements](statements.md) — `:exec`, `:query`, binding, what is refused, and `:transaction`
 - [saved data](../../guides/saved-data.md) — the guide: which shape, and when to read each

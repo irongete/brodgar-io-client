@@ -116,8 +116,8 @@ load succeeds.
 
 One kind of saved data needs none of the above.
 [`w:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's
-place and box under a name of yours, puts them back the moment you call it, and saves them again after
-every time the user moves the thing:
+place and box under a name of yours, puts them back the moment you call it, and saves them again — in the
+client's own file, not in yours — each time the user moves the thing:
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function()
@@ -130,7 +130,7 @@ end)
 There is no document, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
 the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and the
-character is the one **on screen**, because a window stands over whichever session you are looking at.
+character is the one whose window it is, on screen or not, while a window you built is your addon's own.
 
 ## The other two kinds of file
 

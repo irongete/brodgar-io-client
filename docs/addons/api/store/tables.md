@@ -28,7 +28,7 @@ until then and none after, and each is refused naming what is allowed.
 
 | Verb | Does | Refused when |
 |---|---|---|
-| `hafen.store():table(name)` | a bare declaration of the table `name` | the name is not letters, digits and underscores starting with a letter or an underscore, or takes the `hafen_` or `sqlite_` prefix; the file is [unavailable](README.md#when-the-file-cannot-be-opened) |
+| `hafen.store():table(name)` | a bare declaration of the table `name` | the name is not letters, digits and underscores starting with a letter or an underscore, or takes the `hafen_` prefix (the client's `hafen_documents`) or `sqlite_`; the file is [unavailable](README.md#when-the-file-cannot-be-opened) |
 | `decl:column(name, type)` | one column, of a [type](#the-types) below | the name breaks the rule above, the column is declared already, or the type is not one of the five |
 | `decl:key(col, ...)` | the columns that identify a row, in the order `:get` and `:remove` take them | a key is declared already, a column is not declared, is named twice or is `json` |
 | `decl:index(col, ...)` | one index over declared columns, `<table>_<cols>` in the file | a column is not declared or named twice; the same columns are indexed already |
@@ -111,7 +111,7 @@ SQL: there is no predicate form, because a `GROUP BY` or the nearest twenty rows
 two spellings for one question is what this API does not have. An aggregate or a join is a
 [statement](statements.md). What a [statement](statements.md#what-is-refused) is refused, a clause is refused
 too, naming the verb it was handed to: a `;` with anything after it (one statement per call), a `hafen_` name
-(the client's tables) and `load_extension` (the sandbox).
+(the client's table) and `load_extension` (the sandbox).
 
 ```lua
 local near = nodes:list("WHERE grid = ? AND abs(x - ?) <= 2 ORDER BY y", "g1", 1)

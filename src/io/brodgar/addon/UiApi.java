@@ -1228,11 +1228,28 @@ final class UiApi {
                 // that drag and nothing else (the verbs and the fold move a window from the step, never from
                 // inside a pointer event), so a position level standing on this window follows it
                 // (LuaWidget.chromeDragged) instead of snapping it back on the next fold.
+                private boolean dragged;
+
                 public void mousemove(Widget.MouseMoveEvent ev) {
                     Coord before = this.c;
                     super.mousemove(ev);
-                    if((this.c != null) && !this.c.equals(before))
+                    if((this.c != null) && !this.c.equals(before)) {
+                        dragged = true;
                         LuaWidget.chromeDragged(owner, this);
+                    }
+                }
+
+                // 150: ...AND WHERE IT LANDS IS WRITTEN. Window.mouseup drops the drag's grab and says nothing,
+                // so this is the one place the drag is known to have ended: a press on the title bar that
+                // moved the window is a drag, and its landing goes into the client's file as a :draggable
+                // gesture's does (Gesture.save). A press that never moved is a click, and writes nothing.
+                public boolean mouseup(Widget.MouseUpEvent ev) {
+                    boolean r = super.mouseup(ev);
+                    if(dragged) {
+                        dragged = false;
+                        LuaWidget.rememberLanded(owner, this, true);
+                    }
+                    return r;
                 }
             };
             win.add(content, Coord.z);

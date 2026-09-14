@@ -1,11 +1,13 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Utils;
 import haven.Warning;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -270,6 +272,50 @@ public final class ClientDb {
         }
     }
 
+    // ---- the remembered placements ---------------------------------------------------------------
+
+    /**
+     * <b>Where one addon's remembered widgets sit in one scope</b> ({@code widget:remember(name)},
+     * {@link StoreApi}), by name &rarr; the place and the box, each half {@code null} where the row holds none.
+     * {@code id} is the addon's, {@code scope} the tree's: {@code StoreApi.CLIENT} for the addon's own layer,
+     * the character's {@code <genus>_<char>} for a session's own tree. {@code null} when the file is
+     * unavailable or the read failed: the set is then read-only for the session, since what it holds is not
+     * the file.
+     */
+    static Map<String, StoreApi.Placement> placements(String id, String scope) {
+        return get().readPlacements(id, scope);
+    }
+
+    /**
+     * <b>Replace one addon's placements in one scope with {@code rows}</b> — its rows deleted and these
+     * written, in one transaction. A row with neither half is not written. Nothing while the file is
+     * unavailable or closed. Never throws.
+     */
+    static void placements(String id, String scope, Map<String, StoreApi.Placement> rows) {
+        get().writePlacements(id, scope, rows);
+    }
+
+    private synchronized Map<String, StoreApi.Placement> readPlacements(String id, String scope) {
+        if(conn == null)
+            return null;
+        try {
+            return conn.placements(id, scope);
+        } catch(Exception | LinkageError e) {
+            fail("could not be read", e);
+            return null;
+        }
+    }
+
+    private synchronized void writePlacements(String id, String scope, Map<String, StoreApi.Placement> rows) {
+        if(conn == null)
+            return;
+        try {
+            conn.placements(id, scope, rows);
+        } catch(Exception | LinkageError e) {
+            fail("could not be written", e);
+        }
+    }
+
     /**
      * <b>The preference node over the {@code prefs} table.</b> A root ({@code parent == null}, name
      * {@code ""}): its keys and values are a map loaded whole at the open, and a write goes to the map and
@@ -438,27 +484,110 @@ public final class ClientDb {
             return out;
         }
 
+        /** One character's rows deleted and {@code rows} written, in one transaction. */
+        void holds(final String scope, final Map<Integer, String> rows) throws java.sql.SQLException {
+            transaction(new Work() {
+                public void run() throws java.sql.SQLException {
+                    try(java.sql.PreparedStatement del = c.prepareStatement("DELETE FROM holds WHERE scope = ?")) {
+                        del.setString(1, scope);
+                        del.executeUpdate();
+                    }
+                    try(java.sql.PreparedStatement ps = c.prepareStatement(
+                            "INSERT INTO holds (scope, slot, entry) VALUES (?, ?, ?)")) {
+                        for(Map.Entry<Integer, String> e : rows.entrySet()) {
+                            ps.setString(1, scope);
+                            ps.setInt(2, e.getKey().intValue());
+                            ps.setString(3, e.getValue());
+                            ps.executeUpdate();
+                        }
+                    }
+                }
+            });
+        }
+
+        /** Every row of {@code placements} under one addon and one scope, by name. A row with neither half is not a placement. */
+        Map<String, StoreApi.Placement> placements(String id, String scope) throws java.sql.SQLException {
+            Map<String, StoreApi.Placement> out = new LinkedHashMap<String, StoreApi.Placement>();
+            try(java.sql.PreparedStatement ps = c.prepareStatement(
+                    "SELECT name, x, y, w, h FROM placements WHERE addon = ? AND scope = ? ORDER BY name")) {
+                ps.setString(1, id);
+                ps.setString(2, scope);
+                try(java.sql.ResultSet rs = ps.executeQuery()) {
+                    while(rs.next()) {
+                        StoreApi.Placement p = new StoreApi.Placement();
+                        p.pos = coord(rs, 2, 3);
+                        p.size = coord(rs, 4, 5);
+                        if((p.pos != null) || (p.size != null))
+                            out.put(rs.getString(1), p);
+                    }
+                }
+            }
+            return out;
+        }
+
+        /** One addon's rows of one scope deleted and {@code rows} written, in one transaction. */
+        void placements(final String id, final String scope, final Map<String, StoreApi.Placement> rows)
+            throws java.sql.SQLException {
+            transaction(new Work() {
+                public void run() throws java.sql.SQLException {
+                    try(java.sql.PreparedStatement del = c.prepareStatement(
+                            "DELETE FROM placements WHERE addon = ? AND scope = ?")) {
+                        del.setString(1, id);
+                        del.setString(2, scope);
+                        del.executeUpdate();
+                    }
+                    try(java.sql.PreparedStatement ps = c.prepareStatement(
+                            "INSERT INTO placements (addon, scope, name, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                        for(Map.Entry<String, StoreApi.Placement> e : rows.entrySet()) {
+                            StoreApi.Placement p = e.getValue();
+                            if((p.pos == null) && (p.size == null))
+                                continue;
+                            ps.setString(1, id);
+                            ps.setString(2, scope);
+                            ps.setString(3, e.getKey());
+                            half(ps, 4, p.pos);
+                            half(ps, 6, p.size);
+                            ps.executeUpdate();
+                        }
+                    }
+                }
+            });
+        }
+
+        /** Two integer columns as one half of a placement, or {@code null} when either is {@code NULL}. */
+        private static Coord coord(java.sql.ResultSet rs, int xcol, int ycol) throws java.sql.SQLException {
+            int x = rs.getInt(xcol);
+            if(rs.wasNull())
+                return null;
+            int y = rs.getInt(ycol);
+            return rs.wasNull() ? null : Coord.of(x, y);
+        }
+
+        /** Bind one half of a placement to two integer parameters, {@code NULL} when the half is not held. */
+        private static void half(java.sql.PreparedStatement ps, int at, Coord c) throws java.sql.SQLException {
+            if(c == null) {
+                ps.setNull(at, java.sql.Types.INTEGER);
+                ps.setNull(at + 1, java.sql.Types.INTEGER);
+            } else {
+                ps.setInt(at, c.x);
+                ps.setInt(at + 1, c.y);
+            }
+        }
+
+        /** Something to run inside one transaction. */
+        private interface Work {
+            void run() throws java.sql.SQLException;
+        }
+
         /**
-         * One character's rows deleted and {@code rows} written, in one transaction: the connection's
-         * auto-commit is switched off for its extent and back on after, whether it committed or rolled back.
+         * {@code work} inside one transaction: the connection's auto-commit is switched off for its extent and
+         * back on after, whether it committed or rolled back.
          */
-        void holds(String scope, Map<Integer, String> rows) throws java.sql.SQLException {
+        private void transaction(Work work) throws java.sql.SQLException {
             c.setAutoCommit(false);
             boolean done = false;
             try {
-                try(java.sql.PreparedStatement del = c.prepareStatement("DELETE FROM holds WHERE scope = ?")) {
-                    del.setString(1, scope);
-                    del.executeUpdate();
-                }
-                try(java.sql.PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO holds (scope, slot, entry) VALUES (?, ?, ?)")) {
-                    for(Map.Entry<Integer, String> e : rows.entrySet()) {
-                        ps.setString(1, scope);
-                        ps.setInt(2, e.getKey().intValue());
-                        ps.setString(3, e.getValue());
-                        ps.executeUpdate();
-                    }
-                }
+                work.run();
                 c.commit();
                 done = true;
             } finally {

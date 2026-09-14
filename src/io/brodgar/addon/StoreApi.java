@@ -37,8 +37,9 @@ import static io.brodgar.addon.AddonManager.*;
  * declared, the row is read the moment it is asked for ({@link #document}), and the tables handed out are the
  * whole list a save walks. {@link AddonManager} drives it via {@link #enterWorld} (a session learns its
  * character and refills what it holds from that character's rows), {@link #sessionEnded}/{@link #drainEnded} (a session died, and its documents go
- * back to the file), {@link #rescope} (the layer's tick, and the whole of when the remembered placements move),
- * {@link #flush} (teardown) and {@link #autosave} (the throttled tick save). Not instantiable.
+ * back to the file), {@link #rescope} (the layer's tick: the screen changed, and where every remembered
+ * widget stands is written), {@link #flush} (teardown) and {@link #autosave} (the throttled tick save). Not
+ * instantiable.
  *
  * <p><b>The section SPLITS by scope</b> (078.3), because the addon's own documents and a character's are not
  * the same thing. The client scope is the addon's — one set of rows for the whole client, whichever account
@@ -65,16 +66,21 @@ import static io.brodgar.addon.AddonManager.*;
  * being written to the file. A session that changes character writes the outgoing one's documents back and
  * reads the incoming one's into the very same tables.
  *
- * <p><b>The remembered placements are addressed too</b> ({@code widget:remember(name)}, 062; 092.8, A-088).
- * A placement is filed under the scope of <b>the tree the widget stands in</b>: a session's own window
- * ({@code s:ui():find("@ChatUI")}) under that character's key, and a window the addon built itself under
- * the <b>client</b> scope — the layer is the addon's and outlives every character, so its windows belong to
- * nobody in particular. Until 092 there was one set for the client, holding whoever was on screen, which
- * wrote a background character's window into the drawn character's rows and read it back out of them.
+ * <p><b>The remembered placements are addressed the same way, and are the client's rows</b>
+ * ({@code widget:remember(name)}, 062; 092.8, A-088; 150). A placement is filed under the scope of <b>the
+ * tree the widget stands in</b>: a session's own window ({@code s:ui():find("@ChatUI")}) under that
+ * character's key, and a window the addon built itself under the <b>client</b> scope — the layer is the
+ * addon's and outlives every character, so its windows belong to nobody in particular. Until 092 there was
+ * one set for the client, holding whoever was on screen, which wrote a background character's window into
+ * the drawn character's rows and read it back out of them. The rows are the client's own file's
+ * ({@link ClientDb#placements}), keyed by the addon and the scope: where the user put a window is a record
+ * the client keeps <i>about</i> the addon, and it is <b>written when the gesture lands</b> ({@link #land},
+ * {@link #forget}) and when a remembered widget is about to go ({@code LuaWidget.rememberCapture}) — never by
+ * the timer or by a store's flush, which write the addon's documents and nothing of the client's.
  *
- * <p><b>The held action-bar slots are not here</b> (150, {@link BeltHold}): they are the client's own rows,
- * in the client's own file ({@link ClientDb#holds}), keyed by the character — written by their own tick and
- * never by a write of this class, so a store's flush writes the addon's data and nothing of the client's.
+ * <p><b>The held action-bar slots are the client's rows too</b> (150, {@link BeltHold}), in the same file
+ * ({@link ClientDb#holds}), keyed by the character — written by their own tick and never by a write of this
+ * class.
  */
 final class StoreApi {
     private StoreApi() {}
@@ -114,8 +120,8 @@ final class StoreApi {
      *
      * <p>092.8: it no longer says which scope the placements hold, because they hold as many as there are
      * trees with a remembered widget in them. All it does now is let {@link #rescope} notice that the screen
-     * changed, which is a good moment to put what is owed in the file: a tab is often followed by the session
-     * being closed, and the auto-save runs every 30 seconds.
+     * changed, which is a good moment to put where every remembered widget stands in the client's file: a
+     * tab is often followed by the session being closed.
      *
      * <p>Written by {@link #rescope} and {@link #detach} alone, both on the layer's step, which is also the
      * only place it is read.
@@ -186,21 +192,14 @@ final class StoreApi {
                 return names(owner, owner.store, CLIENT);
             }
         });
-        //   092.8: ...and the CLIENT scope's remembered placements, which are the windows the addon built
-        // ITSELF: those stand in the layer, which belongs to no character, so this is the call that names
-        // their rows. A session's own widget files under that character and is written by that session's
-        // flush -- one call, one scope, which is the rule this pair already followed for the variables.
+        //   150: it writes the documents and nothing else. The remembered placements are the client's rows,
+        // in the client's own file, written when the gesture lands -- nothing of the client's rides an
+        // addon's flush.
         store.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
                 SqliteApi.require(owner, ACC + ":flush()");
                 carriable(owner, owner.store, ACC);
-                try {
-                    LuaWidget.rememberCapture(owner);
-                    writePlacements(owner, CLIENT);
-                } catch(RuntimeException e) {
-                    logAbout(owner, "store: could not save remembered placements: " + e);
-                }
                 try {
                     writeClient(owner);
                 } catch(RuntimeException e) {
@@ -301,13 +300,9 @@ final class StoreApi {
                 return document(owner, cs.vars, cs.scope, cs.last, name, false, cs);
             }
         });
-        // :flush() — write THIS character's documents now. The client half is hafen.store():flush().
+        // :flush() — write THIS character's documents now, and nothing else (150: a remembered placement is
+        // the client's row, written when the gesture lands). The client half is hafen.store():flush().
         // Refuses an unavailable store and an uncarriable value first, exactly as that one does.
-        //
-        // It writes the places this addon remembers for widget:remember(name) under THIS character's key
-        // as well (092.8) -- the widgets of this session's own tree. Before, only the session on screen wrote
-        // them anywhere, because there was one set of them and it was the screen's. The windows the addon
-        // built itself stand in the layer and are hafen.store():flush()'s: one call, one scope.
         // list() — the PER-CHARACTER names that exist for THIS character (094, A-111; 147): a row under its
         // key, or a table handed out this session, sorted. The client half is hafen.store():list().
         m.set("list", new OneArgFunction() {
@@ -324,12 +319,6 @@ final class StoreApi {
                 AddonManager.SessionState st = session(user, "flush()");
                 CharStore cs = charStore(st, owner);
                 carriable(owner, cs.vars, SS);
-                try {
-                    LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
-                    writePlacements(owner, st.charScope);
-                } catch(RuntimeException e) {
-                    logAbout(owner, "store: could not save remembered placements: " + e);
-                }
                 try {
                     writeChar(owner, cs);
                 } catch(RuntimeException e) {
@@ -493,10 +482,10 @@ final class StoreApi {
      * character nobody is looking at be that character's. Whatever the tables held first goes back where it
      * came from: a session picking a second character keeps its {@code UI} and comes through here again, so
      * the outgoing character's data is written before the incoming character's is read into the very same
-     * tables (147: the ones this session has asked for — a name not yet asked is read when it is). The
-     * remembered placements follow the screen, so {@link #rescope} is called on the way out — a
-     * session entering the world <i>as</i> the screen has both in place before {@code SessionEnteredWorld}
-     * fires, which is where the docs send an addon to read them.
+     * tables (147: the ones this session has asked for — a name not yet asked is read when it is).
+     * {@link #rescope} is called on the way out — a session entering the world <i>as</i> the screen has its
+     * documents and the remembered places written before {@code SessionEnteredWorld} fires, which is where
+     * the docs send an addon to read them.
      */
     static void enterWorld(AddonManager.SessionState st, GameUI g) {
         if((st == null) || (g == null))
@@ -517,15 +506,16 @@ final class StoreApi {
     }
 
     /**
-     * <b>The screen changed</b> — put what the remembered widgets are owed in the file (092.8). Run from the
-     * layer's own tick and from {@link #enterWorld}. When the screen still holds what it held last tick this
-     * is one map read and one string compare.
+     * <b>The screen changed</b> — where every remembered widget stands goes into the client's file (092.8;
+     * 150). Run from the layer's own tick and from {@link #enterWorld}. When the screen still holds what it
+     * held last tick this is one map read and one string compare.
      *
      * <p><b>It is not a swap</b>, and that is the point: one set of placements following the screen would make
      * a tab write the outgoing character's set back and read the incoming character's in — over widgets that
      * might be standing in neither of their trees. Every set is filed under its own tree's scope and nothing
      * has to move when the player tabs; what is left is that a tab is a <i>good moment to write</i>, since it
-     * is often followed by that session being closed and the auto-save runs every 30 seconds.
+     * is often followed by that session being closed, and a place the addon wrote itself ({@code
+     * widget:position(x, y)} on a window it built) lands in no gesture.
      *
      * <p><b>Derived, not notified</b>, and that is still deliberate: the screen changes for four different
      * reasons — a tab, a session reaching the world, a session ending, a relogin replacing a {@code UI} under
@@ -540,8 +530,8 @@ final class StoreApi {
         placeScope = want;
         for(Addon a : addons) {
             try {
-                LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands right now...
-                writePlacements(a);             //   ...each under the scope of the tree it stands in
+                LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands right now, each
+                                                //   written under the scope of the tree it stands in (150)
             } catch(RuntimeException e) {
                 logAbout(a, "store: could not save remembered placements: " + e);
             }
@@ -823,26 +813,15 @@ final class StoreApi {
     }
 
     /**
-     * Write an addon's changed data to its file: what it <b>remembers</b> ({@code widget:remember(name)}), its
-     * client-scope documents, and <b>every session's</b> per-character documents — the live ones, and those of
-     * a session that ended and has not been drained yet, because the step that closes the file comes right
-     * after this one and the drain would find it closed. Skips unchanged rows. This is the teardown's write —
-     * the addon is going, so every character it holds tables for is written.
-     *
-     * <p><b>The remembered placements go first.</b> An addon that only hands a window to the user has asked
-     * for no document at all — the whole point of that verb being that it needs no handler — so nothing about
-     * the documents may stand between the top of this method and their write.
+     * Write an addon's changed documents to its file: its client-scope documents, and <b>every session's</b>
+     * per-character documents — the live ones, and those of a session that ended and has not been drained
+     * yet, because the step that closes the file comes right after this one and the drain would find it
+     * closed. Skips unchanged rows. This is the teardown's write — the addon is going, so every character it
+     * holds tables for is written. Nothing of the client's (150): where the addon's remembered widgets stand
+     * is the client's row, written by the teardown's own placements step and by the gesture, never here.
      */
     static void flush(Addon a) {
-        if(a == null)
-            return;
-        try {
-            LuaWidget.rememberCapture(a);               // 062: where every remembered widget stands right now...
-            writePlacements(a);                         //   ...saved in the store file, beside the documents
-        } catch(RuntimeException e) {
-            logAbout(a, "store: could not save remembered placements: " + e);
-        }
-        if(a.store == null)
+        if((a == null) || (a.store == null))
             return;
         try {
             writeClient(a);                             // the client scope (always resolvable)
@@ -856,20 +835,13 @@ final class StoreApi {
     }
 
     /**
-     * The auto-save's write: the placements and the client scope as {@link #flush} writes them, and <b>one</b>
-     * session's per-character documents — the one whose tick this is. Every session ticks, so every
-     * character's rows are written by its own login rather than by whichever one got there first.
+     * The auto-save's write: the client scope as {@link #flush} writes it, and <b>one</b> session's
+     * per-character documents — the one whose tick this is. Every session ticks, so every character's rows
+     * are written by its own login rather than by whichever one got there first. Documents alone (150): a
+     * remembered placement is written when the gesture lands, and rides no timer.
      */
     private static void save(Addon a, AddonManager.SessionState st) {
-        if(a == null)
-            return;
-        try {
-            LuaWidget.rememberCapture(a);
-            writePlacements(a);
-        } catch(RuntimeException e) {
-            logAbout(a, "store: could not save remembered placements: " + e);
-        }
-        if(a.store == null)
+        if((a == null) || (a.store == null))
             return;
         try {
             writeClient(a);
@@ -879,7 +851,7 @@ final class StoreApi {
         }
     }
 
-    // ---- the remembered placement, a slot beside the documents rather than inside them (062) --------
+    // ---- the remembered placement: the client's row about this addon, in the client's file (062; 150) ----
 
     /**
      * <b>One remembered placement</b> — the place and the box one name holds for {@code widget:remember(name)},
@@ -900,15 +872,18 @@ final class StoreApi {
     static final class PlaceSet {
         final Map<String, Placement> byName = new ConcurrentHashMap<String, Placement>();
         String lastJson;
-        /** <b>Read-only until a load succeeds</b> — the same rule the document scopes keep; see
-         *  {@link StoreApi#loadInto}. A set that could not be read is not overwritten by the empty set
-         *  that failure leaves behind. */
+        /**
+         * <b>The client's file's flag</b> (150): the file was unavailable when this set was read, so what it
+         * holds is not the file, and nothing is written back — the same rule the document scopes keep
+         * ({@link StoreApi#loadInto}). The client's file never comes back within a session, so the flag never
+         * clears; the next launch reads again.
+         */
         boolean readOnly;
     }
 
     /**
      * <b>The scope of the addon's own layer</b> — the row key the client scope's documents are written
-     * under, so a remembered window of the layer sits beside the documents it belongs with. The empty
+     * under, and the scope a remembered window of the layer is filed under in the client's file. The empty
      * string, because these rows are nobody's: every character's key is a name, and this is the absence of
      * one.
      */
@@ -972,15 +947,17 @@ final class StoreApi {
 
     /**
      * Where a remembered widget <b>stands now</b>: write the halves given and leave the others holding what
-     * they held. A half arrives {@code null} when this addon has no level of that kind on the widget, and a
-     * half that is not written is not erased — an addon that stops resizing a window has not decided the user
-     * never sized it.
+     * they held, <b>and put the scope's rows in the client's file in the same call</b> (150) — a gesture is
+     * rare, the file is always open, and the row is what a {@code :reload} reads back. A half arrives
+     * {@code null} when this addon has no level of that kind on the widget, and a half that is not written is
+     * not erased — an addon that stops resizing a window has not decided the user never sized it.
      */
     static void land(Addon a, Widget w, String name, Coord pos, Coord size) {
         String scope = scopeOf(w);
         if((scope == null) || ((pos == null) && (size == null)))
             return;
-        Map<String, Placement> m = set(a, scope).byName;
+        PlaceSet ps = set(a, scope);
+        Map<String, Placement> m = ps.byName;
         Placement p = m.get(name);
         if(p == null)
             m.put(name, p = new Placement());
@@ -988,6 +965,7 @@ final class StoreApi {
             p.pos = pos;
         if(size != null)
             p.size = size;
+        writePlacements(a, scope, ps);
     }
 
     /** {@code widget:remember(nil)}: the record is <b>deleted</b>, in the file in the same call. */
@@ -1001,50 +979,26 @@ final class StoreApi {
     }
 
     /**
-     * Read one scope's placements off the file into a freshly minted set. A store that is unavailable, or
-     * rows that cannot be read, make the set read-only for the session, exactly as a document scope's do
-     * ({@link #loadInto}): what is held is empty because the client could not read it, and writing that
-     * back is a whole replacement of the only copy.
+     * Read one scope's placements of this addon off the client's file into a freshly minted set (150,
+     * {@link ClientDb#placements}). A file that is unavailable makes the set read-only for the session,
+     * exactly as a document scope's failed read does ({@link #loadInto}): what is held is empty because the
+     * client could not read it, and writing that back is a whole replacement of the only copy. The warning
+     * is {@link ClientDb}'s own, issued once.
      */
     private static void loadPlacements(Addon a, String scope, PlaceSet ps) {
-        SqliteApi.Db db = SqliteApi.db(a);
-        if(db == null) {
-            ps.readOnly = true;                 // unavailable: SqliteApi.open said why, once
-        } else {
-            try {
-                ps.byName.putAll(db.placements(scope));
-            } catch(RuntimeException e) {
-                ps.readOnly = true;
-                logAbout(a, "store: could not read the remembered placements from " + db.file.getFileName()
-                    + ": " + Refusal.reason(e) + " — this addon's remembered placements in that scope are"
-                    + " READ-ONLY for this session");
-            }
-        }
+        Map<String, Placement> rows = ClientDb.placements(a.manifest.id, scope);
+        if(rows == null)
+            ps.readOnly = true;
+        else
+            ps.byName.putAll(rows);
         ps.lastJson = placementsJson(ps);   // prime the write-skip cache, as a scope load does
     }
 
     /**
-     * <b>Write every scope this addon has placements loaded for</b> (092.8), each under its own key. A set is
-     * only ever minted for a tree something was actually remembered in, so this walks nothing on a client
-     * whose addons build no windows.
+     * <b>One scope's placements of this addon into the client's file</b> (150) — its rows replaced in one
+     * transaction, skipped when they would not change. From {@link #land} and {@link #forget}, which is to
+     * say from the gesture, from {@code widget:remember(nil)} and from every {@code LuaWidget.rememberCapture}.
      */
-    private static void writePlacements(Addon a) {
-        for(Map.Entry<String, PlaceSet> e : a.placeSets.entrySet())
-            writePlacements(a, e.getKey(), e.getValue());
-    }
-
-    /**
-     * <b>One named scope's placements</b> (092.8) — what an asked-for {@code flush()} writes, each verb
-     * naming the scope it is about: {@code hafen.store():flush()} the client's, {@code s:store():flush()}
-     * that character's. Nothing at all when this addon has remembered nothing in that scope.
-     */
-    private static void writePlacements(Addon a, String scope) {
-        PlaceSet ps = a.placeSets.get(scope);
-        if(ps != null)
-            writePlacements(a, scope, ps);
-    }
-
-    /** One scope's half of {@link #writePlacements(Addon)}, skipped when the rows would not change. */
     private static void writePlacements(Addon a, String scope, PlaceSet ps) {
         if(ps.byName.isEmpty() && (ps.lastJson == null))
             return;                                     // this addon remembers nothing here and never did
@@ -1052,11 +1006,8 @@ final class StoreApi {
         if(out.equals(ps.lastJson))
             return;
         if(ps.readOnly)
-            return;                                     // the load failed: what is held is not the file
-        SqliteApi.Db db = SqliteApi.db(a);
-        if(db == null)
-            return;                                     // closed: the teardown's write came before the close
-        db.placements(scope, ps.byName);
+            return;                                     // the file was unavailable: what is held is not the file
+        ClientDb.placements(a.manifest.id, scope, ps.byName);
         ps.lastJson = out;
     }
 

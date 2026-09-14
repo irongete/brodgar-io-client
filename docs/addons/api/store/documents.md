@@ -25,8 +25,8 @@ seen.lastLogin = os.time()
 
 | Door | Whose | Where it lands |
 |---|---|---|
-| `hafen.store()` | your addon's own, one for the whole client | your file, keyed by nobody |
-| `s:store()` | one character's, a row per character | your file, keyed by that character |
+| `hafen.store()` | your addon's own, one for the whole client | a row of your file, keyed by nobody |
+| `s:store()` | one character's, a row per character | a row of your file, keyed by that character |
 
 **A character's key is named by the server** and is a row key and nothing else: the world's name and the
 character's, reduced to letters, digits, `.` and `-`, joined by `_`. One character is one key in every file;
@@ -39,10 +39,10 @@ one who has not reached the world has none yet, and asking for their rows
 |---|---|
 | `s:store():get(name)` | the live table of that character's document `name`, empty until something is saved under it |
 | `s:store():list()` | the names that exist in that character's scope, sorted, as a string array |
-| `s:store():flush()` | write that character's changed documents and placements now; the store |
+| `s:store():flush()` | write that character's changed documents now; the store |
 | `hafen.store():get(name)` | the live table of your addon's own document `name`, empty until something is saved under it |
 | `hafen.store():list()` | the names that exist in your addon's own scope, sorted, as a string array |
-| `hafen.store():flush()` | write your addon's own changed documents and placements now; the store |
+| `hafen.store():flush()` | write your addon's own changed documents now; the store |
 
 **What `get` hands back is the table itself, not a copy**, so writing into it is the whole of saving: there
 is no "put it back" step, and a reference you keep in a local goes on being the one written to the file. It
@@ -133,21 +133,24 @@ way, rather than loading nothing in silence.
 
 [`w:remember(name)`](../ui/native.md#remembering-where-the-user-put-it-unprotected) keeps where a widget
 sits and how big it is, with no document and no code of yours. That is deliberate: a placement is saved by
-the *user* moving something, not by your addon deciding to write it down, so it is written when the gesture
-is made, under a name you gave once.
+the *user* moving something, not by your addon deciding to write it down, so it is written the moment the
+gesture lands, under a name you gave once — **a row of the client's own file**, `savedata/client.sqlite`,
+keyed by your addon, and not of yours: where the user put your window is something the client keeps about
+your addon, as it keeps the slots your entries are held on, and nothing in your file holds it.
 
-**It is filed under the tree the widget stands in**, in rows of their own beside the documents:
+**It is filed under the tree the widget stands in**, the way a document is filed under its door:
 
-| The widget | Its rows | Because |
+| The widget | Its row | Because |
 |---|---|---|
 | one of a session's own, `s:ui():match("@ChatUI")` | keyed by **that character** | where the user dragged that character's chat window is a fact about that character |
 | one you built, `hafen.ui():window()` | keyed by nobody, like your addon's own documents | it stands in your layer, which belongs to no character and outlives all of them |
 
 So a session's own window has nothing to put back until **that** session is in world, and tabbing moves
-nothing: each record was already under the character it belongs to. The two `flush()` verbs each write the
-rows they name — `hafen.store():flush()` your addon's own placements, `s:store():flush()` that character's —
-and the timer, a tab and the close write every one of them, so an addon that only remembers places still
-saves though it names no document at all.
+nothing: each record was already under the character it belongs to. Neither `flush()` writes a placement
+and no timer does: the row is written when a drag or a resize lands, when the screen changes and when the
+widget goes — destroyed, closed, or torn down with your addon — so an addon that only remembers places
+saves though it names no document at all, and a place you wrote yourself with `w:position(x, y)` lands
+with the widget.
 
 ## See also
 
