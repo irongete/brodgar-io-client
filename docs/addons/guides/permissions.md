@@ -28,7 +28,9 @@ However, **acting on the game**—moving the character, clicking entities, manip
 | `actionbar.clear` | `slot_handle:clear()` | Clear action-bar hotbar slots. |
 | `chat.send` | `channel_handle:send(text)` | Post messages into in-game chat channels. |
 | `speed.set` | `session:speed():set(speed_level)` | Switch movement speed (crawl, walk, run, sprint). |
+| `session.add` | `hafen.session():add(username)` | Log in an account the login screen remembered, as a new session. |
 | `session.close` | `session:close()` | Log out a character session. |
+| `session.forget` | `hafen.session():forget(username)` | Forget a remembered account: delete its saved login. |
 | `map.marker` | `hafen.map():marker():add(...)` / `:remove()` | Create, edit, or delete pins on the world map. |
 | `kin.add` | `session:kin():add(...)` | Add a player to your character's kin list. |
 | `kin.rename` | `kin_handle:rename(new_name)` | Rename a kin roster entry. |
@@ -62,6 +64,7 @@ Instead of listing multiple related permissions individually, you can declare wi
 | `world.*` | `world.place`, `world.select` |
 | `actionbar.*` | `actionbar.use`, `actionbar.res`, `actionbar.clear` |
 | `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
+| `session.*` | `session.add`, `session.close`, `session.forget` |
 | `http.*` | `http.get`, `http.post` |
 
 ---

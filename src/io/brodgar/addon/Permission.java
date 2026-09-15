@@ -58,7 +58,11 @@ import java.util.Map;
  * radial menu a character has open, which is a widget in that character's tree rather than the screen's.
  * 081.2 says it of the login itself: {@code session.close} logs a character out, and the character it is
  * pointed at is the addon's to choose, exactly as the player could have typed {@code :session drop} at any
- * of them.
+ * of them. {@code session.add} is its other half: it logs an account in, and which of the accounts the
+ * login screen remembered is the addon's to choose, exactly as {@code :session add} takes any of them.
+ * {@code session.forget} drops the remembered login itself — the login screen's own <i>Forget me</i> — and
+ * is protected for what it destroys, as {@code map.marker} is: the server is told nothing, and a
+ * credential the player saved is gone until they type the password again.
  */
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
@@ -96,7 +100,12 @@ public enum Permission {
                                                                               + " characters"),
     SPEED_SET        ("speed.set",          "session:speed():set",            "change the movement speed of any of"
                                                                               + " your characters"),
+    SESSION_ADD      ("session.add",        "hafen.session():add",            "log in any of the accounts you told the"
+                                                                              + " login screen to remember"),
     SESSION_CLOSE    ("session.close",      "session:close",                  "log out any of your characters"),
+    SESSION_FORGET   ("session.forget",     "hafen.session():forget",         "forget any of the accounts you told the"
+                                                                              + " login screen to remember, so it asks"
+                                                                              + " for their password again"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
                                                                               + " a field it types into — which the server sees"),

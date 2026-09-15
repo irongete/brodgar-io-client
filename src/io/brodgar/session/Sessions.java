@@ -1101,6 +1101,8 @@ public class Sessions {
 		throw(e);
 	    }
 	    io.brodgar.addon.AddonManager.sessionAdded(user);   // addon: (074.3) a session connected
+	    if(anchormember() == null)
+		anchor(m);
 	    return(m);
 	} finally {
 	    unclaim(user);
@@ -1194,6 +1196,17 @@ public class Sessions {
     public static List<String> savedusers() {
 	String confname = Bootstrap.authserv.get().host;
 	return(Utils.getprefsl("saved-tokens@" + confname, new String[] {}));
+    }
+
+    /**
+     * Drop the token the login screen saved for {@code user} — its <i>Forget me</i> button, from anywhere:
+     * the token pref goes and the name leaves {@link #savedusers}, so the account's next login is by
+     * password and the next {@link #add} of it refuses. Client-side only: the auth server is never told,
+     * and a session the account has open is untouched. A name with no token saved is a no-op.
+     */
+    public static void forgetuser(String user) {
+	String confname = Bootstrap.authserv.get().host;
+	Bootstrap.settoken(user, confname, null);
     }
 
     /* ------------------------------------------------------------------ *
@@ -1536,7 +1549,7 @@ public class Sessions {
 	 */
 	@SuppressWarnings("deprecation")
 	private void autoplay(UI u) {
-	    if(played)
+	    if(played || (chr == null))
 		return;
 	    if(u.root.findchild(GameUI.class) != null) {
 		played = true;
@@ -1553,7 +1566,7 @@ public class Sessions {
 	    synchronized(cl.chars) {
 		for(Charlist.Char c : cl.chars) {
 		    offered.add(c.name);
-		    if((chr == null) || chr.equals(c.name)) {
+		    if(chr.equals(c.name)) {
 			pick = c.name;
 			break;
 		    }

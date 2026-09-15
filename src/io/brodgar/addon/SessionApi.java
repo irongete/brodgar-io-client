@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.HackThread;
 import io.brodgar.session.Control;
 import io.brodgar.session.Sessions;
 
@@ -50,6 +51,28 @@ import java.util.List;
  * {@link LuaSession}'s {@code :close()} performs and carries the same {@code session.close} key, gated as
  * the first statement of {@code removeMember} (D-213) and giving the same refusal for an account the client
  * holds no session for. {@code :close()} stays beside it: ending one login reads best on the login.
+ *
+ * <p><b>{@code :add(user)} starts a login, and {@code :saved()} names the accounts it can start one for.</b>
+ * The collection holds the logins, so beginning one is its verb as ending one is, and it is the same act
+ * {@code :session add USER} performs: {@link Sessions#add} with the token the login screen saved for that
+ * account, on a thread of its own, because authentication and the session handshake are two blocking
+ * network round-trips and the client must keep drawing through them. The verb hands back the account's
+ * Session object at once — the one {@code :get(user)} mints — and the connection answers through it:
+ * {@code :exists()} turns true and {@code SessionAdded} fires once the server has taken the login,
+ * {@code SessionEnteredWorld} once the character is in the world, and a login that fails is said on the
+ * addon's own log line and leaves the object as {@code :get(user)} would, {@code :exists()} false. It
+ * carries the {@code session.add} key, gated as the first statement (D-213): a login leaves the client
+ * exactly as the logout behind {@code session.close} does. {@code :saved()} is <b>names and nothing
+ * else</b>: {@link Sessions#savedusers} reads the list the login screen keeps beside its tokens and never a
+ * token, so no verb here can hand one to Lua.
+ *
+ * <p><b>{@code :forget(user)} drops a remembered login</b> — the login screen's own <i>Forget me</i> button,
+ * {@link Sessions#forgetuser}: the token goes and the name leaves {@code :saved()}. It is named with the
+ * client's word, as {@code kin:forget()} is, and it is not {@code :remove}: {@code :remove(s)} ends a
+ * <i>login</i>, and {@code :saved()} is an array of names rather than a collection with members to remove.
+ * Client-local — the auth server is never told and a session the account has open is untouched — and
+ * protected all the same, behind {@code session.forget}, for what it destroys: a credential the player
+ * saved, which no server restores and which costs them a password to earn back.
  */
 public final class SessionApi {
     private SessionApi() {
@@ -124,6 +147,53 @@ public final class SessionApi {
                 return me;
             }
         });
+        // saved() — the accounts the login screen remembered, as a plain array of account names, which is what
+        // :add(user) can log in. NAMES AND NOTHING ELSE: Sessions.savedusers() reads the list the login screen
+        // keeps beside its tokens (saved-tokens@host), and the token itself is a separate pref this layer never
+        // reads, so there is no verb through which one reaches Lua. A plain array rather than a collection,
+        // as hafen.asset():files() is: a saved account is a string, not an object with verbs of its own -- the
+        // object is the Session, which :add(user) and :get(user) mint. Empty, never nil, when none is saved.
+        extra.set("saved", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "hafen.session()", "saved");
+                Args.only(a, 0, "hafen.session():saved");
+                LuaTable t = new LuaTable();
+                int n = 0;
+                for(String user : Sessions.savedusers())
+                    t.set(++n, LuaValue.valueOf(user));
+                return t;
+            }
+        });
+        // forget(user) — DROP a remembered login: the login screen's own "Forget me" button (LoginScreen.forget,
+        // which is Bootstrap.settoken(user, confname, null)), reached through Sessions.forgetuser so the one
+        // place that knows which auth server the list is kept under stays beside savedusers(). The token goes
+        // and the name leaves :saved(), so the account's next login is by password and the next :add(user)
+        // refuses. Client-local -- the auth server is never told, and a session the account has open is
+        // untouched -- and protected all the same, for what it destroys (map.marker's reason): a credential
+        // the player saved, which no server restores. The gate comes before the argument is looked at
+        // (D-213), and an account with nothing saved is refused rather than silently forgotten twice.
+        // Synchronous: two pref writes, so :saved() reads the removal back at once. Hands the collection
+        // back, as :remove(s) does, so it chains.
+        extra.set("forget", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                LuaCollection.receiver(me, "hafen.session()", "forget");
+                AddonManager.requirePermission(AddonManager.current(), Permission.SESSION_FORGET);
+                Args.only(a, 1, "hafen.session():forget");
+                LuaValue v = Args.str(a, 2, "hafen.session():forget", "user",
+                                      "the ACCOUNT name, as the login screen knows it");
+                String user = v.tojstring();
+                if(user.isEmpty())
+                    throw new LuaError("hafen.session():forget(user): user must not be empty (the ACCOUNT"
+                        + " name, as the login screen knows it)");
+                if(!Sessions.savedusers().contains(user))
+                    throw new LuaError("hafen.session():forget(user): the client has no saved login for the"
+                        + " account '" + user + "' — hafen.session():saved() lists the accounts it has one"
+                        + " for, and there is nothing to forget");
+                Sessions.forgetuser(user);
+                return me;
+            }
+        });
         Section.mount(hafen, "session", LuaCollection.create("hafen.session()", new LuaCollection.Source() {
             /* The membership in the order it was joined, which is the order `:session list` prints. A copy,
              * so a handler that drops a session mid-iteration does not walk the list it is changing. */
@@ -165,6 +235,69 @@ public final class SessionApi {
             /** Any account name is addressable, logged in or not: s:exists() is the question. */
             public LuaCollection.Missing missing() {
                 return LuaCollection.Missing.MINT;
+            }
+
+            /** The collection holds the logins, so starting one is <b>its</b> verb, as ending one is. */
+            public boolean creatable() {
+                return true;
+            }
+
+            /*
+             * add(user) -- START a login for an account the login screen remembered, which is the same act
+             * `:session add USER` performs, and hand back its Session object at once.
+             *
+             * The gate is the FIRST statement (D-213), before the argument is looked at, for the reason
+             * remove(s) gives: a refusal that ran the checks first would tell an addon which accounts this
+             * client remembers, and a caller who forgot the key has one thing to fix rather than two.
+             *
+             * The two refusals a caller can act on are given HERE, on the calling thread, where they can be
+             * caught: no saved login for that account (hafen.session():saved() is the list), and a session the
+             * client already holds for it (one account is one session, the rule Sessions.add keeps). What
+             * only the network can answer -- a rejected token, an unreachable server, a second add of the
+             * same account that is still connecting -- comes back on the connect thread and is said on the
+             * addon's own log line, exactly as the console command says it on the anchor's notice.
+             *
+             * OFF THE UI THREAD, on the console command's own kind of thread: Sessions.add is authentication
+             * and the session handshake, two blocking network round-trips, and the client must keep drawing
+             * through them. So the verb is asynchronous, exactly as remove(s) is: it returns before the member
+             * joins the list, and :exists(), SessionAdded and SessionEnteredWorld are what answer, on later
+             * ticks. The Session handed back is the one :get(user) mints -- the account name is the whole of
+             * the ref -- so an addon holds it through the connection rather than looking it up afterwards.
+             *
+             * No character is named: Sessions.add(user, null) plays whichever the server offers first, which
+             * is the one door the verb has -- picking a character is what the login screen's list is for.
+             */
+            public LuaValue addMember(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.SESSION_ADD);
+                Args.only(a, 1, "hafen.session():add");
+                // The type, not isstring(): a NUMBER answers isstring() in LuaJ, and an account literally
+                // called "42" is a string the login screen remembers like any other.
+                LuaValue v = Args.str(a, 2, "hafen.session():add", "user",
+                                      "the ACCOUNT name, as the login screen knows it");
+                final String user = v.tojstring();
+                if(user.isEmpty())
+                    throw new LuaError("hafen.session():add(user): user must not be empty (the ACCOUNT name,"
+                        + " as the login screen knows it)");
+                if(!Sessions.savedusers().contains(user))
+                    throw new LuaError("hafen.session():add(user): the client has no saved login for the"
+                        + " account '" + user + "' — hafen.session():saved() lists the accounts it has one for,"
+                        + " and logging an account in once on the login screen with \"Remember me\" ticked is"
+                        + " what saves one");
+                if(Sessions.byuser(user) != null)
+                    throw new LuaError("hafen.session():add(user): the client already holds a session for the"
+                        + " account '" + user + "' — one account is one session, and hafen.session():get(user)"
+                        + " is that one");
+                new HackThread(new Runnable() {
+                    public void run() {
+                        try {
+                            Sessions.add(user, null);
+                        } catch(Exception e) {
+                            AddonManager.log(owner, "hafen.session():add(\"" + user + "\") failed: "
+                                             + e.getMessage());
+                        }
+                    }
+                }, "session-connect").start();
+                return LuaSession.of(owner, user);
             }
 
             /**
