@@ -41,7 +41,7 @@ addons/
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `id` | `string` | **Yes** | Unique addon identifier. Must match the folder name exactly. |
-| `api_version` | `string` | **Yes** | Target API version (e.g. `"1.0"`). If omitted or unsupported, the addon will be marked outdated. |
+| `api_version` | `string` | **Yes** | Target API version. This client implements API `1.0`. If omitted or unsupported, the addon will be marked outdated. |
 | `files` | `string[]` | **Yes** | Array of `.lua` source files to execute in sequential order on startup. |
 | `name` | `string` | No | User-friendly display name shown in the AddOns manager. Defaults to `id`. |
 | `version` | `string` | No | Semantic version string (e.g. `"1.2.0"`). |

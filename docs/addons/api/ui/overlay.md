@@ -9,9 +9,9 @@ Create full-screen, click-through 2D rendering overlay planes over the 3D game w
 local hud_overlay = hafen.ui():overlay()
 
 hud_overlay:on("Draw", function(draw_event)
-  local graphics = draw_event:graphics()
-  local screen_width = draw_event:width()
-  local screen_height = draw_event:height()
+  local graphics = draw_event:g()
+  local screen_width = draw_event:w()
+  local screen_height = draw_event:h()
 
   -- Draw a subtle compass indicator at the top center of the screen
   graphics:color(255, 255, 255, 180)

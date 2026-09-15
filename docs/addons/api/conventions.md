@@ -80,6 +80,7 @@ window_handle:visible(1)
 
 ---
 
+<a id="snapshots-vs-handles"></a>
 ## 5. Live Handles vs. Snapshots
 
 * **Live Handles (`Gob`, `Widget`, `Session`)**: Object instances that maintain an internal reference to engine state. They update automatically as game entities move or change. If the underlying entity despawns or closes, calls return `nil` or `false` on `:exists()`.

@@ -1,34 +1,48 @@
-# Items & Containers Type Snapshots
+# Data types: the item and what holds it
 
-Table schemas for inventory items and container grids.
+The two snapshot shapes an item hands back: the item, and what a container states about its inside. Each
+is what `:info()` copies out of a live object, so it never updates — the live reads are verbs on that
+object. The model, and what *optional* means on the tables below, is on [the catalogue](README.md).
 
----
+## Item
 
-## `ItemInfo` (Item Snapshot)
+From [`item:info()`](../ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
+[`:items()`](../ui/items.md) — that character's backpack, worn gear, a chest, a cupboard —
+[`session:player():hand()`](../player.md#the-hand) for the cursor item, and [`widget:item()`](../ui/widget.md)
+for whatever one icon draws all hand you a live [`Item` object](../ui/items.md#the-item-object), not this table.
+Every field is optional, and the last four are absent together on something the client only draws — a recipe
+slot or listing — which is put nowhere and so has nowhere to name.
 
-Returned by `item:info()`:
+| Field | Type | Notes |
+|---|---|---|
+| `res` | string | resource name (stable identity) |
+| `name` | string | display name |
+| `quantity` | number | stack count — the number on its icon (absent for one showing none) |
+| `progress` | number | `0..1`, the completion arc painted over the icon (absent for one painting none) |
+| `durability` | table | `{cur, max}` durability counts (absent for one without wear) |
+| `quality` | number | the quality the tooltip shows (absent for an item that has none) |
+| `contents` | table | what it holds, as the [Contents](#contents) snapshot (absent for an item holding nothing) |
+| `handle` | number | its server widget id, the number it is addressed by on the wire |
+| `cell` | table | the **1-based** `{x, y}` grid cell it sits in, `item:cell()` (absent for worn or cursor items) |
+| `slots` | string[] | the equipment slots it fills, by name (absent when it is not worn) |
 
-```lua
-{
-  name = "Stone Axe",         -- string: item name
-  res = "gfx/invobjs/axe",    -- string: resource path
-  quality = 24.5,             -- number | nil: quality score
-  amount = 1,                 -- number: stack count (or 1)
-  position = { x = 0, y = 0 },-- table: grid slot coordinate
-  size = { w = 2, h = 2 }     -- table: width and height in inventory squares
-}
-```
+A snapshot holds no live objects. That is why there is no `container` field here, though
+[`item:container()`](../ui/contents.md) reads one, and why the `contents` snapshot
+below carries no `items`: a snapshot of a bag would otherwise nest snapshots of bags without end.
 
----
+## Contents
 
-## `ContainerInfo` (Inventory Grid Snapshot)
+From [`contents:info()`](../ui/contents.md), the snapshot of what one item holds;
+[`item:contents()`](../ui/contents.md) hands you the live object, and its
+`Item` objects are read off that with `contents:items()`.
+`{ name = string?, text = string?, quality = number?, level = table? }` — the caption the server gave this
+inside, the line its tooltip states about what is in there, the **content's** own quality, and the fill
+meter's `{cur, max}`, which the live `contents:fill()` reads. A container carrying items states the first,
+one that states what it holds states the rest, so which fields are present is what tells the two apart.
 
-Returned by `container:info()`:
+## See also
 
-```lua
-{
-  name = "Backpack",          -- string: container window title
-  size = { w = 6, h = 4 },    -- table: total slots (width x height)
-  itemCount = 8               -- number: occupied slots
-}
-```
+- [the catalogue](README.md) — every snapshot shape, and what a snapshot is
+- [items](../ui/items.md) — the live `Item` object this copies
+- [what an item holds](../ui/contents.md) — the live `Contents` object the other copies
+- [shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units

@@ -1,3 +1,4 @@
+<a id="client"></a>
 # hafen.client: Client Settings & State
 
 `hafen.client()` exposes global client configuration panels, execution state queries, and profiling diagnostics.

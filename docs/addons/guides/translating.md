@@ -1,50 +1,54 @@
 # Localization and Translation
 
-The [`hafen.locale()`](../api/locale.md) API allows addons to support multiple languages and translate UI strings cleanly.
+Translate client text, buttons, and tooltips using the [`hafen.locale()`](../api/locale.md) subsystem.
 
 ---
 
-## 1. Registering Translation Catalogs
+## 1. Creating and Loading a Translation Document
 
-Addons register translation key-value mappings per language code (e.g. `"en"`, `"es"`, `"de"`):
+A translation document organizes translations by target surface or regular expression patterns. Catalogs are typically loaded from a `.json` file bundled with your addon:
 
 ```lua
-local locale_manager = hafen.locale()
-
--- Register English catalog (default fallback)
-locale_manager:register("en", {
-  ["window.title"] = "Radar Scanner",
-  ["button.start"] = "Start Scanning",
-  ["status.scanning"] = "Scanning for nearby resources...",
-  ["status.found"] = "Found %d items nearby."
-})
-
--- Register Spanish catalog
-locale_manager:register("es", {
-  ["window.title"] = "Radar de Recursos",
-  ["button.start"] = "Iniciar Escaneo",
-  ["status.scanning"] = "Buscando recursos cercanos...",
-  ["status.found"] = "Se encontraron %d objetos cerca."
-})
+-- Load and install translation document
+hafen.locale():load({
+  text = {
+    ["button"] = {
+      ["Craft"] = "Fabricar",
+      ["Close"] = "Cerrar",
+      ["Inventory"] = "Inventario"
+    },
+    ["tooltip"] = {
+      ["Armor"] = "Armadura"
+    }
+  },
+  pattern = {
+    { surface = "tooltip", match = "Quality: (%d+)", text = "Calidad: %1$s" }
+  }
+}):install()
 ```
 
 ---
 
-## 2. Translating Strings in Code
+## 2. Discovering Untranslated Strings
 
-Retrieve translated strings using `hafen.locale():translate(key, ...)` or `hafen.locale():t(key, ...)`:
+To identify strings the client renders that your catalog does not yet handle, inspect `hafen.locale():miss()`:
 
 ```lua
-local current_locale = hafen.locale()
+-- Install empty or partial catalog to record misses
+hafen.locale():load({}):install()
 
--- Fetch a translated string
-local window_title = current_locale:translate("window.title")
-
--- Fetch and format with variable arguments
-local total_found = 4
-local status_message = current_locale:translate("status.found", total_found)
-
-hafen.log():write(status_message)
+-- Dump recorded untranslated strings
+for _, miss_entry in ipairs(hafen.locale():miss():list()) do
+  hafen.log():write(string.format("[%s] %s", miss_entry:surface(), miss_entry:text()))
+end
 ```
 
-If a key is missing in the active language, the system automatically falls back to the `"en"` default translation or returns the raw key if no match exists.
+---
+
+## 3. Releasing Translations
+
+Translations apply purely on the visual rendering layer and revert when the addon unloads or calls `:release()`:
+
+```lua
+hafen.locale():release()
+```

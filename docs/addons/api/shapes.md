@@ -4,6 +4,7 @@ Standard table shapes and structures used across the `hafen.*` API for coordinat
 
 ---
 
+<a id="coordinates"></a>
 ## 1. Coordinates and Dimensions
 
 ### Point / Coordinate (`{x, y}`)
@@ -26,6 +27,7 @@ local bounding_box = { x = 10, y = 10, w = 180, h = 40 }
 
 ---
 
+<a id="colours"></a>
 ## 2. Colors (`{r, g, b, [a]}`)
 
 Colors are represented as numerical arrays with values between `0` and `255`:

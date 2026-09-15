@@ -1,4 +1,4 @@
-# hafen.map():grid(): Map Grids
+# hafen.map: Map Grids
 
 Inspect server world grids, grid boundaries, tile coordinates, and cached map segments.
 
@@ -22,15 +22,18 @@ end
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `:at(position)` | `Position` | `MapGrid \| nil` | Returns the grid containing the given world position. |
-| `:get(grid_id)` | `string` | `MapGrid \| nil` | Finds a grid by its unique server grid ID. |
+| `:at(position)` | `Position` | `Grid \| nil` | Returns the grid containing the given world position. |
+| `:get(grid_id)` | `string` | `Grid \| nil` | Finds a grid by its unique server grid ID. |
 
 ---
 
-## Methods on `MapGrid`
+## Methods on `Grid`
 
 | Method | Returns | Description |
 |---|---|---|
 | `:id()` | `string` | Unique alphanumeric grid identifier. |
-| `:tile(tile_x, tile_y)`| `GridTile \| nil` | Reads terrain tile properties at local grid coordinates (`0..99`). |
-| `:origin()` | `Position` | Top-left world coordinate anchor of this grid. |
+| `:tile(tile_coords)` | `{id, name} \| nil` | Reads terrain tile properties at local grid coordinates (`0..99, 0..99`). |
+| `:position()` | `Position` | Top-left world coordinate anchor of this grid. |
+| `:segment()` | `Segment \| nil` | The map segment containing this grid. |
+| `:exists()` | `boolean` | `true` if this grid is present in the local database. |
+| `:info()` | `table \| nil` | Snapshot `{ id, seg, sc, pos, live, loaded, failed, mtime, size }`. |

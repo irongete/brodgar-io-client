@@ -10,7 +10,7 @@ local player_gob = session and session:player():gob()
 
 if player_gob then
   -- Create a floating mini health bar widget
-  local health_gauge = hafen.ui():gauge():size(80, 10):value(0.75)
+  local health_gauge = hafen.ui():progress():size(80, 10):value(0.75)
 
   -- Project widget directly into 3D space above the player
   local world_widget = hafen.virtual():widget():add(health_gauge, player_gob)

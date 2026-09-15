@@ -44,7 +44,8 @@ All queries measure distance relative to the active character.
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
 | `:id()` | None | `string \| nil` | Server world genus ID (unique per server world). |
-| `:terrain(position)` | `Position` | `TerrainTile \| nil` | Returns the ground tile under the given position. |
+| `:tile(position)` | `Position` | `Tile \| nil` | Returns the ground tile under the position (`{id, name}`). |
+| `:height(position)` | `Position` | `number \| nil` | Returns the terrain elevation under the position. |
 | `:worldToScreen(position)`| `Position` | `{x, y} \| nil` | Projects a 3D world coordinate to 2D screen design pixels. |
 | `:screenToWorld(x, y)` | `number, number` | `Position \| nil` | Projects screen pixels back onto the terrain surface. |
 

@@ -34,6 +34,10 @@ repeating_timer:cancel()
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
 | `:cancel()` | None | `self` | Cancels the timer immediately. Safe to call multiple times. |
-| `:active()` | None | `boolean` | Returns `true` if the timer is currently running and has not finished or been cancelled. |
+| `:alive()` | None | `boolean` | `true` if the timer remains scheduled (not cancelled or expired). |
+| `:due()` | None | `number \| nil` | Seconds remaining until the timer next executes (`nil` if cancelled/expired). |
+| `:interval()` | None | `number` | The recurring interval in seconds (`0` for one-shot timers). |
+| `:repeats()` | None | `boolean` | `true` if scheduled with `:every()`, `false` if scheduled with `:after()`. |
+| `:info()` | None | `table` | Plain table snapshot `{ interval, repeats, due, alive }`. |
 
 > All timers are automatically cancelled when your addon is reloaded or unloaded.

@@ -38,12 +38,12 @@ Fires when a client widget is about to transmit an action message to the server.
 
 ---
 
-## Inbound Stream (`hafen.event():update()`)
+## Inbound Stream (`hafen.event():message()`)
 
 Fires when an incoming message packet arrives from the server destined for a widget.
 
 ```lua
-hafen.event():update():on("msg", function(event)
+hafen.event():message():on("msg", function(event)
   hafen.log():write("Received server message for widget: " .. event:widget():type())
 end)
 ```

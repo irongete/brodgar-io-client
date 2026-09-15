@@ -25,4 +25,4 @@ All guide examples follow explicit naming conventions for clarity:
 * `window_handle`: Custom UI window handle (`hafen.ui():window()`).
 * `game_object`: In-world entity handle (`session:world():gob()`).
 * `position`: Coordinate location object (`game_object:position()`).
-* `graphics`: 2D drawing canvas context (`event:graphics()`).
+* `graphics`: 2D drawing canvas context (`event:g()`).

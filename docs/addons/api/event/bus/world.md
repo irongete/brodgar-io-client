@@ -1,6 +1,6 @@
 # World Events
 
-Events triggered when entities spawn, despawn, or interact with radial menus in the game world.
+Events triggered when entities spawn, despawn, overlays mutate, or virtual objects receive clicks.
 
 ## Events Reference
 
@@ -31,6 +31,30 @@ end)
 
 ---
 
+### `GobOverlayAdded`
+* **Triggered**: When a visual overlay (e.g. equipment, equipment icon, or state marker) is attached to a game object.
+* **Arguments**: `game_object` ([`Gob`](../../gob.md)), `overlay` ([`Overlay`](../../overlay.md)).
+
+---
+
+### `GobOverlayRemoved`
+* **Triggered**: When a visual overlay is detached from a game object.
+* **Arguments**: `game_object` ([`Gob`](../../gob.md)), `overlay` ([`Overlay`](../../overlay.md)).
+
+---
+
+### `GobSdtChanged`
+* **Triggered**: When an object's server data table (`sdt`) or sub-state changes.
+* **Arguments**: `game_object` ([`Gob`](../../gob.md)).
+
+---
+
+### `MarkerChanged`
+* **Triggered**: When a map marker is added, updated, or recolored.
+* **Arguments**: `marker` ([`Marker`](../../map/markers.md)).
+
+---
+
 ### `FlowerMenuAdded`
 * **Triggered**: When a radial right-click context menu opens.
 * **Arguments**: `petals` (`Petal[]`), `session` ([`Session`](../../session.md)).
@@ -46,3 +70,27 @@ end)
 ### `FlowerMenuRemoved`
 * **Triggered**: When an active radial menu is dismissed or an option is selected.
 * **Arguments**: `selected_label` (`string | nil`). `nil` if cancelled without selecting.
+
+---
+
+### `GhostClicked`
+* **Triggered**: When the player clicks on a virtual client-side ghost model.
+* **Arguments**: `ghost` ([`Ghost`](../../virtual/ghosts.md)), `button` (`number`), `modifiers` (`number`).
+
+---
+
+### `SpriteClicked`
+* **Triggered**: When the player clicks on a virtual 2D sprite standing in the world.
+* **Arguments**: `sprite` ([`Sprite`](../../virtual/sprites.md)), `button` (`number`), `modifiers` (`number`).
+
+---
+
+### `ObjectClicked`
+* **Triggered**: When the player clicks on a virtual 3D glTF model.
+* **Arguments**: `object` ([`Model`](../../virtual/models.md)), `button` (`number`), `modifiers` (`number`).
+
+---
+
+### `PatchClicked`
+* **Triggered**: When the player clicks on a virtual terrain patch or polygon.
+* **Arguments**: `patch` ([`Patch`](../../virtual/patches.md)), `button` (`number`), `modifiers` (`number`).

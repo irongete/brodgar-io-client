@@ -55,7 +55,7 @@ For larger datasets that require querying or filtering, use structured store tab
 local death_log_table = hafen.store():table("death_log")
 
 -- Record a new entry
-death_log_table:insert({
+death_log_table:put({
   character_name = "Bjorn",
   cause = "Bear attack",
   timestamp = os.time()

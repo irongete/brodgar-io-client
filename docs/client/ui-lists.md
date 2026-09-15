@@ -70,6 +70,7 @@ adapter instead rebuilds the shape from `Scrollport`'s own public pieces.
 > It goes through `Widget.add(child, Coord)`, never `addchild`, so a parent-shaped like `Scrollport` needs its
 > OWN `instanceof` branch there redirecting into `cont` — the addchild override above does not cover it.
 
+<a id="slistwidgetslistbox--the-model-backed-contract"></a>
 ## `SListWidget`/`SListBox` — the model-backed contract
 
 `SListWidget<I, W>` demands exactly two overrides —
@@ -109,6 +110,7 @@ of these — the wrap happens inside their OWN inner list class instead.
 | `added()` grabs input UNCONDITIONALLY | `SListMenu.added()` — `ui.grab`/`ui.grabkeys`, gated only by the public `grab` field (default `true`); `nograb()` is the documented opt-out, meant for exactly this: a menu that is not a modal popup |
 | Window raise vs. popup add-order | `Window.mousedown` raises itself AFTER `ev.propagate` returns — so a click that opens an `SDropBox`'s popup (added to `ui.root` DURING that propagate) is always followed by the enclosing window re-topping itself over it, same frame |
 
+<a id="gridlist--draws-cells-does-not-build-row-widgets"></a>
 ## `GridList` — DRAWS cells, does not build row widgets
 
 `GridList<T>` is the one model-backed control with no `items()`/`makeitem()` —

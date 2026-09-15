@@ -40,6 +40,7 @@ hafen.log():write("Learning Points: " .. current_lp)
 
 ---
 
+<a id="attributes"></a>
 ## Attributes Subsystem (`char:attr()`)
 
 Valid attribute names: `"str"`, `"agi"`, `"int"`, `"con"`, `"prc"`, `"csm"`, `"dex"`, `"wil"`, `"psy"`.
@@ -62,6 +63,7 @@ Valid attribute names: `"str"`, `"agi"`, `"int"`, `"con"`, `"prc"`, `"csm"`, `"d
 
 ---
 
+<a id="food"></a>
 ## Food & Hunger Subsystem (`char:food()`)
 
 Listen for the `FepChanged` event on `hafen.event()`:

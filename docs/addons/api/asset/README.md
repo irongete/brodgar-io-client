@@ -6,11 +6,12 @@ Load custom images, textures, sound files, and static assets packaged inside you
 
 ```lua
 -- Load a custom icon packaged in addons/my_addon/assets/icon.png
-local icon_asset = hafen.asset():load("assets/icon.png")
+local icon_asset = hafen.asset():get("assets/icon.png")
 
 -- Render asset in a custom UI window
 custom_window:on("Draw", function(draw_event)
-  draw_event:graphics():image(icon_asset, 10, 10)
+  local graphics = draw_event:g()
+  graphics:image(icon_asset, 10, 10)
 end)
 ```
 

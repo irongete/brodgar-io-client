@@ -18,8 +18,8 @@ local action_button = hafen.ui():button()
   :text("Trigger Action")
   :parent(root_column)
 
-action_button:on("Click", function()
-  hafen.log():write("Action button clicked!")
+action_button:on("Pressed", function()
+  hafen.log():write("Action button pressed!")
 end)
 
 custom_window:pack()

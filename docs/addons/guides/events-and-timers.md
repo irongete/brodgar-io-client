@@ -35,7 +35,7 @@ end)
 | `SessionRemoved` | `session` | A character session disconnected. |
 | `GobAdded` | `game_object` | An entity or object spawned within render distance. |
 | `GobRemoved` | `game_object` | An entity or object left render distance or despawned. |
-| `ChatMessage` | `message_info` | A new chat line was received. |
+| `MessageAdded` | `message` | A new chat line was received. |
 
 ---
 

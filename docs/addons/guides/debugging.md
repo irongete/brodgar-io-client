@@ -67,11 +67,13 @@ Use the maintainers' inspection tools (included with the client):
 To check whether your callbacks or timers are impacting client frame rates:
 
 ```lua
-local profiling_service = hafen.client():profiling()
-local addon_stats = profiling_service:addon("my_addon")
+local profiler = hafen.client():profiling()
+local addon_rows = profiler:addons()
 
-if addon_stats then
-  hafen.log():write("Frame execution time: " .. addon_stats:cpu_time_ms() .. " ms")
+for _, row in ipairs(addon_rows) do
+  if row.id == "my_addon" then
+    hafen.log():write(string.format("Frame execution time: %.2f ms (avg: %.2f ms)", row.ms, row.msAvg or row.ms))
+  end
 end
 ```
 

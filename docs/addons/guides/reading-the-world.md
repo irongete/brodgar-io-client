@@ -107,9 +107,9 @@ local session = hafen.session():current()
 if not session then return end
 
 local player_position = session:player():gob():position()
-local terrain_tile = session:world():terrain(player_position)
+local terrain_tile = session:world():tile(player_position)
 
 if terrain_tile then
-  hafen.log():write("Standing on terrain: " .. terrain_tile:name())
+  hafen.log():write("Standing on terrain: " .. (terrain_tile.name or "Unknown"))
 end
 ```

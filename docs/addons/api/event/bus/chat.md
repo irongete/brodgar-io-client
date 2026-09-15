@@ -1,27 +1,40 @@
 # Chat Events
 
-Events triggered when chat messages, area broadcasts, village communications, or private messages are received.
+Events triggered when chat messages, area broadcasts, village communications, or channels change.
 
 ## Events Reference
 
-### `ChatMessage`
+### `MessageAdded`
 * **Triggered**: When a new chat line is received by any active session.
-* **Arguments**: `message_info` (`table`).
-
-| Field in `message_info` | Type | Description |
-|---|---|---|
-| `channel` | `string` | Channel name (e.g. `"Area"`, `"Party"`, `"Village"`, or account name for PMs). |
-| `sender` | `string` | Name of the character or system sending the message. |
-| `text` | `string` | Content of the message. |
-| `session` | `Session` | The character session that received the message. |
+* **Arguments**: `message` (`Message`).
 
 ```lua
-hafen.event():on("ChatMessage", function(message_info)
-  local sender = message_info.sender or "System"
-  local text = message_info.text or ""
+hafen.event():on("MessageAdded", function(message)
+  local speaker_kin = message:speaker()
+  local sender = speaker_kin and speaker_kin:name() or "System"
+  local text = message:text() or ""
+  local channel = message:channel() and message:channel():name() or "Area"
 
-  if message_info.channel == "Area" then
+  if channel == "Area" then
     hafen.log():write(string.format("[Area] %s says: %s", sender, text))
   end
 end)
 ```
+
+---
+
+### `ChannelAdded`
+* **Triggered**: When a new chat channel becomes available (e.g. party or village channel created).
+* **Arguments**: `channel` (`Channel`).
+
+---
+
+### `ChannelRemoved`
+* **Triggered**: When a chat tab or private message channel is closed.
+* **Arguments**: `channel` (`Channel`).
+
+---
+
+### `ChannelSelected`
+* **Triggered**: When the player switches active chat channel tabs.
+* **Arguments**: `channel` (`Channel`).

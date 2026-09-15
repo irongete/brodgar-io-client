@@ -21,6 +21,7 @@ end
 
 ---
 
+<a id="methods-on-widget"></a>
 ## Read Methods
 
 | Method | Returns | Description |
@@ -71,7 +72,7 @@ end
 
 ```lua
 -- Subscribe to widget-local UI events
-custom_button:on("Click", function()
+custom_button:on("Pressed", function()
   hafen.log():write("Button pressed.")
 end)
 

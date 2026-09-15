@@ -1,6 +1,6 @@
 # session:player: Player Character
 
-Access character entity state, inventory grids, hand cursor items, and character movement.
+Access character entity state, cursor hand items, and character movement.
 
 ## Quick Example
 
@@ -17,7 +17,8 @@ if player_gob then
 end
 
 -- Inspect item on the mouse cursor (hand)
-local held_item = player:hand():item()
+local player_hand = player:hand()
+local held_item = player_hand and player_hand:item()
 if held_item then
   hafen.log():write("Cursor holding item: " .. (held_item:name() or "Unknown"))
 end
@@ -25,30 +26,21 @@ end
 
 ---
 
-## Read Methods
-
-| Method | Returns | Description |
-|---|---|---|
-| `:gob()` | `Gob \| nil` | The player's own Game Object in the world (`nil` before entering world). |
-| `:hand()` | `Hand` | The mouse cursor hand subsystem. |
-| `:inventory()` | `Widget \| nil` | The player's main backpack inventory widget. |
-| `:equipment()` | `Widget \| nil` | The player's worn equipment window. |
-| `:action()` | `string \| nil` | The current action string or progress bar status. |
-
----
-
-## Cursor Hand Subsystem (`player:hand()`)
+## Methods on `session:player()`
 
 | Method | Parameters | Returns | Permission | Description |
 |---|---|---|---|---|
-| `:item()` | None | `Item \| nil` | `-` | The item currently held on the cursor. |
-| `:use(target_gob)` | `Gob` | `self` | `player.hand.use` | Uses the held item on a target game object. |
+| `:gob()` | None | `Gob \| nil` | Unprotected | The player's own character `Gob` in the world (`nil` before entering world). |
+| `:hand()` | None | `Hand \| nil` | Unprotected | The cursor hand object carrying a held item, or `nil` if the cursor is empty. |
+| `:move(target_position)` | `Position` | `self` | `player.move` | Commands the character to walk towards `target_position`. Chains. |
 
 ---
 
-## Protected Movement
+<a id="the-hand"></a>
+## Methods on `Hand` (`player:hand()`)
 
 | Method | Parameters | Returns | Permission | Description |
 |---|---|---|---|---|
-| `:move(target_position)` | `Position` | `self` | `player.move` | Commands the character to walk towards `target_position`. |
-| `:stop()` | None | `self` | `player.move` | Stops character movement. |
+| `:item()` | None | `Item \| nil` | Unprotected | The item currently held on the cursor. |
+| `:use(target, mods?)` | `Gob \| Item \| Position, [number]` | `self` | `player.hand.use` | Applies the held item to a target entity, item, or ground position. |
+| `:info()` | None | `table` | Unprotected | Snapshot `{ item }`. |

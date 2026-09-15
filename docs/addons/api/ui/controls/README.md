@@ -7,7 +7,7 @@ Overview of the native UI widgets provided by the engine for building custom win
 | Category | Reference Page | Included Widgets |
 |---|---|---|
 | **Interactive Controls** | **[interactive.md](interactive.md)** | `button()`, `check()`, `entry()`, `slider()`, `listbox()`, `scroll()`. |
-| **Display Controls** | **[display.md](display.md)** | `label()`, `image()`, `gauge()`. |
+| **Display Controls** | **[display.md](display.md)** | `label()`, `image()`, `progress()`. |
 
 ---
 
@@ -26,7 +26,7 @@ local alert_check = hafen.ui():check():text("Enable notifications"):parent(root_
 
 -- Add submit button
 local submit_button = hafen.ui():button():text("Save Settings"):parent(root_column)
-submit_button:on("Click", function()
+submit_button:on("Pressed", function()
   hafen.log():write("Saved tag: " .. (tag_entry:text() or ""))
 end)
 

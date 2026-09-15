@@ -35,7 +35,7 @@ hafen.http():get("https://api.example.com/status")
     end
 
     if response:status() == 200 then
-      local payload = hafen.json():decode(response:body())
+      local payload = hafen.json():parse(response:body())
       hafen.log():write("Server version: " .. tostring(payload.version))
     else
       hafen.log():write("Server returned HTTP error code: " .. response:status())

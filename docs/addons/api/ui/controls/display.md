@@ -1,6 +1,6 @@
 # Display UI Controls
 
-Non-interactive visual controls for rendering text labels, icons, images, and progress gauges.
+Non-interactive visual controls for rendering text labels, icons, images, and progress bars.
 
 ## Controls Reference
 
@@ -38,11 +38,11 @@ local custom_icon = hafen.ui():image()
 
 ---
 
-### Gauges & Progress Bars (`hafen.ui():gauge()`)
+### Progress Bars (`hafen.ui():progress()`)
 Horizontal progress meter bar.
 
 ```lua
-local progress_gauge = hafen.ui():gauge()
+local progress_bar = hafen.ui():progress()
   :size(160, 16)
   :value(0.65) -- 65% progress (0.0..1.0)
   :parent(container_widget)

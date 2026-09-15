@@ -60,3 +60,9 @@ end)
 ### `SessionRemoved`
 * **Triggered**: When a character logs out or disconnects.
 * **Arguments**: `session` ([`Session`](../../session.md)).
+
+---
+
+### `SessionAdded`
+* **Triggered**: When a new character session is established before entering the world.
+* **Arguments**: `session` ([`Session`](../../session.md)).

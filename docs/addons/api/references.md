@@ -57,6 +57,6 @@ end
 | `Session` | `hafen.session():current()` | Live until account disconnects. |
 | `Gob` | `session:world():gob()` | Live until object despawns or leaves render distance. |
 | `Widget` | `hafen.ui():window()` / `session:ui():match()` | Live until window or widget is closed/destroyed. |
-| `Position` | `gob:position()` / `world:coord(...)` | Immutable coordinate snapshot. |
+| `Position` | `gob:position()` / `world:position(x, y)` | Immutable coordinate snapshot. |
 | `Item` | `session:ui():inventory():items()` | Live while item remains in inventory. |
-| `Asset` | `hafen.asset():load(...)` | Persistent while addon remains loaded. |
+| `Asset` | `hafen.asset():get(...)` | Persistent while addon remains loaded. |

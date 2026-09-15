@@ -33,6 +33,7 @@ The array also includes a non-array `total` field (`{ms: number, share: number}`
 
 ---
 
+<a id="custom-scopes"></a>
 ## Custom Measurement Scopes
 
 Addons can instrument specific code blocks using scopes:

@@ -13,9 +13,9 @@ local custom_window = hafen.ui():window()
 
 -- Paint custom graphics on Draw
 custom_window:on("Draw", function(draw_event)
-  local graphics = draw_event:graphics()
-  local width = draw_event:width()
-  local height = draw_event:height()
+  local graphics = draw_event:g()
+  local width = draw_event:w()
+  local height = draw_event:h()
 
   graphics:color(30, 30, 30, 220)
   graphics:frect(0, 0, width, height)

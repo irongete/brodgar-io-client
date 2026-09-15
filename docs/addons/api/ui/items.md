@@ -34,6 +34,7 @@ end
 
 ---
 
+<a id="the-item-object"></a>
 ## Methods on `Item`
 
 | Method | Returns | Description |

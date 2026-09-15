@@ -22,9 +22,9 @@ hafen.event():on("SessionEnteredWorld", function(session)
     :position(100, 100)
 
   window_handle:on("Draw", function(draw_event)
-    local graphics = draw_event:graphics()
-    local width = draw_event:width()
-    local height = draw_event:height()
+    local graphics = draw_event:g()
+    local width = draw_event:w()
+    local height = draw_event:h()
 
     -- Draw dark background panel
     graphics:color(20, 20, 20, 200)
@@ -104,7 +104,7 @@ hafen.event():on("SessionEnteredWorld", function(session)
     :size(140, 24)
     :parent(root_column)
 
-  scan_button:on("Click", function()
+  scan_button:on("Pressed", function()
     local crops = session:world():gob():count("terobjs/plants")
     hafen.log():write("Found crops: " .. crops)
   end)

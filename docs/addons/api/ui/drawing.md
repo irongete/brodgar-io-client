@@ -1,14 +1,14 @@
 # hafen.ui: 2D Canvas Drawing
 
-Methods available on the 2D graphics canvas context (`event:graphics()`) inside `Draw` event callbacks.
+Methods available on the 2D graphics canvas context (`event:g()`) inside `Draw` event callbacks.
 
 ## Quick Example
 
 ```lua
 window_handle:on("Draw", function(draw_event)
-  local graphics = draw_event:graphics()
-  local width = draw_event:width()
-  local height = draw_event:height()
+  local graphics = draw_event:g()
+  local width = draw_event:w()
+  local height = draw_event:h()
 
   -- Fill background
   graphics:color(20, 20, 20, 220)
@@ -37,3 +37,11 @@ end)
 | `:frect(x, y, w, h)` | `number, number, number, number` | Draws a solid filled rectangle. |
 | `:image(asset_handle, x, y)` | `AssetHandle, number, number` | Draws an image asset loaded via `hafen.asset`. |
 | `:resource(res_name, x, y)` | `string, number, number` | Draws a native game engine icon resource by path. |
+
+---
+
+## Text Rendering & Caching
+
+### Text is cached across frames
+
+Text rendered via `:text()` and measured via `hafen.ui():measure()` is cached across frames by `(string, font, width)`. Drawing identical text in the same font and dimensions reuses the existing raster texture, avoiding per-frame layout recalculations. Color tinting is applied dynamically over the cached raster without invalidating cache entries.
