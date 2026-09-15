@@ -20,6 +20,8 @@ Before calling API methods, review the core conventions:
 | **[`player`](player.md)** | Character stats, current action, inventory, movement, and cursor hand. |
 | **[`world`](world.md)** | World entity queries, terrain coordinate conversion, and area interactions. |
 | **[`gob`](gob.md)** | Game Object (Gob) inspection, position, velocity, and visual overlays. |
+| **[`gob/look`](look.md)** | Visual overrides on game objects (model scaling, tinting, and visibility toggling). |
+| **[`gob/overlay`](overlay.md)** | Floating overhead text labels and custom canvas drawings attached to game objects. |
 | **[`position`](position.md)** | Spatial coordinate representation and distance calculations. |
 | **[`map`](map/README.md)** | Minimap and world map tiles, pins, markers, and path overlays. |
 
@@ -41,6 +43,7 @@ Before calling API methods, review the core conventions:
 | **[`flowermenu`](flowermenu.md)** | Contextual radial menus when right-clicking objects. |
 | **[`placing`](placing.md)** | Blueprint placement and construction grid snapping. |
 | **[`speed`](speed.md)** | Character movement speed modes (crawl, walk, run, sprint). |
+| **[`chat`](chat.md)** | In-game chat tabs, message history, channel selection, and posting lines. |
 
 ### UI & Styling
 | Namespace | Description |
@@ -68,3 +71,15 @@ Before calling API methods, review the core conventions:
 | **[`virtual`](virtual/README.md)** | Spawning client-side visual ghosts and custom map models. |
 | **[`voice`](voice/README.md)** | Proximity voice chat audio and peer streaming. |
 | **[`steam`](steam.md)** | Steam client integration, player identity, and Steam achievements. |
+
+### Data Types & Snapshots
+| Catalog | Description |
+|---|---|
+| **[`types`](types/README.md)** | Overview and index of plain table data snapshots decoupled from live engine state. |
+| **[`types/character`](types/character.md)** | Character attributes, skills, credos, experience, food, meters, and wounds. |
+| **[`types/world`](types/world.md)** | Game objects, spatial coordinates, and terrain tile snapshots. |
+| **[`types/ui`](types/ui.md)** | Widget, chat channel, action page, and craft recipe descriptors. |
+| **[`types/items`](types/items.md)** | Item and container layout snapshots. |
+| **[`types/map`](types/map.md)** | Grid coordinates, map markers, and icon categories. |
+| **[`types/fight`](types/fight.md)** | Combat maneuvers, deck cards, fight summaries, and opponents. |
+

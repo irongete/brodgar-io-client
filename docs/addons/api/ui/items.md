@@ -45,6 +45,7 @@ end
 | `:cell()` | `{x, y} \| nil` | 1-based inventory grid coordinates. |
 | `:durability()` | `{cur, max} \| nil` | Durability hit points. |
 | `:slots()` | `string[]` | Worn equipment slots (if equipped). |
+| `:contents()` | `Contents \| nil` | Nested items or fluid volumes held within this item. See [Item Contents](contents.md). |
 | `:exists()` | `boolean` | `true` if the item is still present in the container. |
 | `:info()` | `table` | Plain table snapshot. |
 
@@ -60,3 +61,12 @@ Manipulating items requires the corresponding `item.*` permissions in `manifest.
 | `item:drop([count])` | `[number]` | `item.drop` | Drops the item (or `count` from stack) onto the ground. |
 | `item:transfer(target_container)`| `Widget` | `item.transfer` | Moves the item into another container. |
 | `item:use()` | None | `item.use` | Activates or consumes the item. |
+
+---
+
+## See Also
+
+- [Item Contents](contents.md) — Inspecting fluid volumes, stacks, and nested container items.
+- [Container Events](container.md) — Subscribing to items entering or leaving containers.
+- [Permissions](../../guides/permissions.md) — Required `item.*` permissions.
+

@@ -6,7 +6,7 @@ Events triggered when entities spawn, despawn, or interact with radial menus in 
 
 ### `GobAdded`
 * **Triggered**: When an entity or object loads into view within render distance.
-* **Arguments**: `game_object` ([`Gob`](../gob.md)).
+* **Arguments**: `game_object` ([`Gob`](../../gob.md)).
 
 ```lua
 hafen.event():on("GobAdded", function(game_object)
@@ -21,7 +21,7 @@ end)
 
 ### `GobRemoved`
 * **Triggered**: When an entity or object leaves render distance or despawns.
-* **Arguments**: `game_object` ([`Gob`](../gob.md)). Note: only `:id()` is guaranteed to answer reliably once despawned.
+* **Arguments**: `game_object` ([`Gob`](../../gob.md)). Note: only `:id()` is guaranteed to answer reliably once despawned.
 
 ```lua
 hafen.event():on("GobRemoved", function(game_object)
@@ -33,7 +33,7 @@ end)
 
 ### `FlowerMenuAdded`
 * **Triggered**: When a radial right-click context menu opens.
-* **Arguments**: `petals` (`Petal[]`), `session` ([`Session`](../session.md)).
+* **Arguments**: `petals` (`Petal[]`), `session` ([`Session`](../../session.md)).
 
 ```lua
 hafen.event():on("FlowerMenuAdded", function(petals, session)

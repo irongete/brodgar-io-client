@@ -39,7 +39,7 @@ end)
 
 ### `SessionEnteredWorld`
 * **Triggered**: When a character finishes loading and enters the game world.
-* **Arguments**: `session` ([`Session`](../session.md)).
+* **Arguments**: `session` ([`Session`](../../session.md)).
 * **Use for**: Initializing character HUD windows and reading world state.
 
 ```lua
@@ -53,10 +53,10 @@ end)
 
 ### `SessionSelected`
 * **Triggered**: When the player switches the active screen view to another character session.
-* **Arguments**: `session` ([`Session`](../session.md)).
+* **Arguments**: `session` ([`Session`](../../session.md)).
 
 ---
 
 ### `SessionRemoved`
 * **Triggered**: When a character logs out or disconnects.
-* **Arguments**: `session` ([`Session`](../session.md)).
+* **Arguments**: `session` ([`Session`](../../session.md)).

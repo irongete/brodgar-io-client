@@ -45,7 +45,8 @@ To run this:
 |---|---|---|
 | **World & Objects** | [`world`](api/world.md), [`gob`](api/gob.md), [`position`](api/position.md), [`map`](api/map/README.md) | Query objects, terrain coordinates, grid tiles, and map markers. |
 | **Character & Stats** | [`player`](api/player.md), [`char`](api/char.md), [`meter`](api/meter.md), [`buff`](api/buff.md), [`wound`](api/wound.md), [`study`](api/study.md) | Character attributes, energy/stamina meters, buffs, and study desk. |
-| **Gameplay Systems** | [`actionbar`](api/actionbar.md), [`menugrid`](api/menugrid.md), [`flowermenu`](api/flowermenu.md), [`craft`](api/craft.md), [`quest`](api/quest.md), [`kin`](api/kin.md), [`party`](api/party.md) | Menus, crafting actions, combat, action bar slots, and village/kin lists. |
+| **Gameplay Systems** | [`actionbar`](api/actionbar.md), [`menugrid`](api/menugrid.md), [`flowermenu`](api/flowermenu.md), [`craft`](api/craft.md), [`quest`](api/quest.md), [`kin`](api/kin.md), [`party`](api/party.md), [`chat`](api/chat.md) | Menus, crafting actions, combat, action bar slots, village lists, and chat channels. |
 | **User Interface** | [`ui`](api/ui/README.md), [`font`](api/font.md), [`style`](api/ui/style/README.md), [`client`](api/client/README.md) | Custom windows, UI controls, styling rules, keybindings, and settings. |
-| **Networking & IO** | [`http`](api/http.md), [`websocket`](api/websocket.md), [`json`](api/json.md), [`asset`](api/asset/README.md) | External HTTP/WebSocket communication, JSON parsing, and loading custom images/sounds. |
+| **Networking & IO** | [`http`](api/http.md), [`websocket`](api/websocket.md), [`json`](api/json.md), [`asset`](api/asset/README.md), [`voice`](api/voice/README.md) | External HTTP/WebSocket communication, JSON parsing, audio streams, and asset loading. |
 | **Core Utilities** | [`event`](api/event/README.md), [`timer`](api/timer.md), [`store`](api/store/README.md), [`log`](api/log.md), [`console`](api/console.md) | Event listeners, recurring timers, SQLite persistence, and logging. |
+| **Data & Snapshots** | [`types`](api/types/README.md) | Immutable plain-table data snapshots decoupled from live game state. |

@@ -6,7 +6,7 @@ Events fired when character vital meters, buffs, food points, or study curiositi
 
 ### `MeterChanged`
 * **Triggered**: When health, stamina, energy, or water meters update.
-* **Arguments**: `changed_meter` ([`Meter`](../meter.md)).
+* **Arguments**: `changed_meter` ([`Meter`](../../meter.md)).
 
 ```lua
 hafen.event():on("MeterChanged", function(changed_meter)
@@ -21,7 +21,7 @@ end)
 
 ### `BuffAdded` & `BuffRemoved`
 * **Triggered**: When a status buff or debuff is acquired or expires.
-* **Arguments**: `buff_item` ([`Buff`](../buff.md)).
+* **Arguments**: `buff_item` ([`Buff`](../../buff.md)).
 
 ```lua
 hafen.event():on("BuffAdded", function(buff_item)
@@ -33,13 +33,13 @@ end)
 
 ### `FepChanged`
 * **Triggered**: When the character's food event points (FEP) or hunger meter values change.
-* **Arguments**: `food_info` ([`Food`](../char.md#food)).
+* **Arguments**: `food_info` ([`Food`](../../char.md#food)).
 
 ---
 
 ### `WoundAdded` & `WoundRemoved`
 * **Triggered**: When the character suffers a physical injury or an existing wound heals.
-* **Arguments**: `wound_item` ([`Wound`](../wound.md)).
+* **Arguments**: `wound_item` ([`Wound`](../../wound.md)).
 
 ---
 

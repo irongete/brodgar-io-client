@@ -29,13 +29,41 @@ custom_window:pack()
 
 ## UI Subsystems Navigation
 
+### Core Widget Model
 | Subsystem | Reference Page | Description |
 |---|---|---|
 | **Widget Object** | **[widget.md](widget.md)** | Core `Widget` methods, dimensions, hierarchy, and visibility. |
+| **Owned vs. Borrowed** | **[writes.md](writes.md)** | Unprotected local writes vs. protected server-bound actions on widgets. |
+
+### Custom UI & Graphics
+| Subsystem | Reference Page | Description |
+|---|---|---|
 | **Custom Windows** | **[custom.md](custom.md)** | Creating draggable windows and custom canvas surfaces. |
-| **2D Drawing** | **[drawing.md](drawing.md)** | Direct 2D canvas drawing surface (`graphics:text`, `:rect`, `:frect`, `:image`). |
-| **Controls** | **[controls/README.md](controls/README.md)** | Buttons, checkboxes, labels, text entries, and images. |
 | **Layout Containers**| **[column.md](column.md)** | Auto-flowing vertical columns and horizontal rows (`:pack()`). |
-| **Selectors** | **[selectors.md](selectors.md)** | CSS-like queries to find widgets in the client tree (`s:ui():match(...)`). |
-| **Items & Inventory**| **[items.md](items.md)** | Backpack grids, inventory slots, dragging, and transferring items. |
+| **Standard Controls**| **[controls/README.md](controls/README.md)** | Buttons, checkboxes, labels, text entries, and images. |
+| **Listboxes** | **[lists.md](lists.md)** | Scrollable list selection widgets (`hafen.ui():listbox()`). |
+| **2D Drawing** | **[drawing.md](drawing.md)** | Direct 2D canvas drawing surface (`graphics:text`, `:rect`, `:frect`, `:image`). |
+| **HUD Overlays** | **[overlay.md](overlay.md)** | Full-screen click-through 2D rendering overlay planes over the screen. |
+| **Pixel Buffers** | **[pixels.md](pixels.md)** | Direct byte buffer manipulation for procedural images and textures. |
 | **Stylesheets** | **[style/README.md](style/README.md)**| Styling rules, colors, borders, and window chrome. |
+
+### Native Window Integration
+| Subsystem | Reference Page | Description |
+|---|---|---|
+| **Selectors** | **[selectors.md](selectors.md)** | CSS-like queries to find widgets in the client tree (`s:ui():match(...)`). |
+| **Native Widgets** | **[native.md](native.md)** | Repositioning, resizing, hiding, and remembering native window layouts. |
+| **Driving Controls** | **[edit.md](edit.md)** | Modifying captions and simulating input (`widget.value`, `widget.send`). |
+| **Replacing Windows** | **[replace.md](replace.md)** | Hiding native client windows and substituting custom UI implementations. |
+
+### Items & Containers
+| Subsystem | Reference Page | Description |
+|---|---|---|
+| **Items & Inventory**| **[items.md](items.md)** | Backpack grids, inventory slots, dragging, and transferring items. |
+| **Item Contents** | **[contents.md](contents.md)** | Nested containers (bags, stacks) and fluid volumes (buckets, barrels). |
+| **Container Events** | **[container.md](container.md)** | Subscribing to `"ItemAdded"`, `"ItemRemoved"`, and container close events. |
+
+### Input & Interaction
+| Subsystem | Reference Page | Description |
+|---|---|---|
+| **Mouse Pointer** | **[mouse.md](mouse.md)** | Query cursor coordinates, mouse button states, and widget hit-testing. |
+

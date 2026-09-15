@@ -47,7 +47,17 @@ These methods modify the local visual rendering of the object without altering s
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `:scale(factor)` | `number` | `self` | Scales the 3D model visual size. |
-| `:visible(is_visible)` | `boolean` | `self` | Toggles local visibility of the 3D model. |
-| `:tint(color_array)` | `{r, g, b, [a]}` | `self` | Applies a color tint overlay to the model. |
-| `:overlay()` | None | `OverlayCollection` | Subsystem for adding markers or rings around this object. |
+| `:scale(factor)` | `number` | `self` | Scales the 3D model visual size. See [Look & Visual Overrides](look.md). |
+| `:visible(is_visible)` | `boolean` | `self` | Toggles local visibility of the 3D model. Hidden objects cannot be clicked. See [Look](look.md). |
+| `:tint(color_array)` | `{r, g, b, [a]}` | `self` | Applies a color tint overlay to the model. See [Look](look.md). |
+| `:overlay()` | None | `OverlayCollection` | Subsystem for adding markers or rings around this object. See [Overlays](overlay.md). |
+
+---
+
+## See Also
+
+- [Gob Look & Visual Overrides](look.md) — Scaling, tinting, and visibility toggles on game objects.
+- [Gob Overlays](overlay.md) — Attaching overhead floating text labels and custom canvas drawings.
+- [World Queries](world.md) — Searching and enumerating game objects in the scene.
+- [Position & Distance](position.md) — Spatial coordinates and geometry calculations.
+

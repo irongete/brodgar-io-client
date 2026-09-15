@@ -30,9 +30,18 @@ However, **acting on the game**—moving the character, clicking entities, manip
 | `speed.set` | `session:speed():set(speed_level)` | Switch movement speed (crawl, walk, run, sprint). |
 | `session.close` | `session:close()` | Log out a character session. |
 | `map.marker` | `hafen.map():marker():add(...)` / `:remove()` | Create, edit, or delete pins on the world map. |
-| `kin.add` / `kin.group` | `session:kin():add(...)` / `:group(...)` | Manage kin and village relations. |
+| `kin.add` | `session:kin():add(...)` | Add a player to your character's kin list. |
+| `kin.rename` | `kin_handle:rename(new_name)` | Rename a kin roster entry. |
+| `kin.group` | `kin_handle:group(group_number)` | Change kin group assignment on your character. |
+| `kin.end` | `kin_handle:endKin()` | End kinship relation with a character. |
+| `kin.forget` | `kin_handle:forget()` | Remove/forget someone from your kin list. |
+| `widget.send` | `widget_handle:send(msg, ...)` | Dispatch raw client action messages directly to the server. |
+| `widget.value` | `widget_handle:value(new_value)` | Modify interactive client controls (checkboxes, text inputs) that report to the server. |
+| `ui.resend` | `event_handle:resend()` | Re-trigger a native button press event to send what that press sends. |
+| `ui.focus` | `session:chat():selected()` | Move keyboard focus into a chat entry line. |
+| `virtual.click` | `hafen.virtual():click(...)` | Click virtual controls rendered in the 3D world. |
 | `client.settings` | `hafen.client():options():...` | Modify native client configurations and hotkeys. |
-| `console.run` | `session:console():run(command_string)` | Execute console commands programmatically. |
+| `console.run` | `session:console():run(command_string)` | Execute console commands programmatically (including unrestricted `:lua`). |
 | `http.get` | `hafen.http():get(url)` | Make outbound HTTP GET requests (requires `network.hosts`). |
 | `http.post` | `hafen.http():post(url)` | Make outbound HTTP POST requests (requires `network.hosts`). |
 | `websocket.connect` | `hafen.websocket():connect(url)` | Open WebSocket connections (requires `network.hosts`). |
@@ -48,9 +57,12 @@ Instead of listing multiple related permissions individually, you can declare wi
 |---|---|
 | `item.*` | `item.use`, `item.take`, `item.drop`, `item.transfer` |
 | `kin.*` | `kin.add`, `kin.rename`, `kin.group`, `kin.end`, `kin.forget` |
+| `widget.*` | `widget.send`, `widget.value` |
+| `ui.*` | `ui.resend`, `ui.focus` |
 | `world.*` | `world.place`, `world.select` |
 | `actionbar.*` | `actionbar.use`, `actionbar.res`, `actionbar.clear` |
 | `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
+| `http.*` | `http.get`, `http.post` |
 
 ---
 
