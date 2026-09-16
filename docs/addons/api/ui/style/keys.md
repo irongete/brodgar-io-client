@@ -1,276 +1,201 @@
-# hafen.ui: which surfaces a rule reaches
+# hafen.ui: Which Surfaces a Rule Reaches
 
-A [sheet](README.md) key is [a selector](../selectors.md), and it resolves one of two ways. A **site key**
-names a place the client *draws* and is resolved there. Any other valid selector is a **tree key** and says
-*which widgets* to style. This page says which is which, how they compete, and what each one does with each
-property.
+A [sheet](README.md) key is a [selector](../selectors.md) resolved one of two ways: a site key names a place the client draws and is resolved there; any other valid selector is a tree key and says which widgets to style.
 
-**Which kind a key is, in one line:** a **bare role** is a site key; a **role with a refiner** — or a role
-with no site behind it (`window`, `inventory`, `item`) — is a tree key. Nothing is ambiguous and nothing has to be
-declared: the key's own shape decides. A key that is not valid *grammar* is an error, and exactly the error
-[`s:ui():match(selector)`](../selectors.md) gives.
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("*"):font(body)                                    -- what kind of surface (site key)
+sheet:rule("window[title=Cupboard]"):color{200, 180, 140}     -- which widgets (tree key)
+sheet:install()
+```
+
+| Rule | Detail |
+|---|---|
+| Which kind a key is | A bare role is a site key; a role with a refiner, or a role with no site behind it (`window`, `inventory`, `item`), is a tree key. The key's shape decides. |
+| Invalid grammar | Raises, exactly as [`session:ui():match(selector)`](../selectors.md) does. |
+
+---
 
 ## Site keys
 
-These are the sites the client draws at:
-
 | Key | What it styles |
 |---|---|
-| `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
-| `window.title` | window captions, and the [**plate**](chrome.md#ornaments) they sit on |
-| `window.frame` | the window **chrome**: the frame drawn around a window, the surface it sits on, and where its [ornaments](chrome.md#ornaments) go. Draws no text, so it takes `bg`, `border`, `padding` and the ornament properties, not `font` or `color` |
-| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus, the AddOns manager's Browse cards and its screenshot box. Draws no text either; see [what a panel does with a rule](surfaces.md#panels) |
-| `heading` | in-window section headings, the embossed fraktur ones |
-| `button` | the client's standard buttons: their captions, and the **face** those are drawn on — its fill, its frame, and the fill's own [state faces](chrome.md#a-face-per-state) |
-| `label` | body text — attribute rows, list items, explicit-foundry labels |
-| `textentry` | text-entry fields **and** the console command line: the letters, and the **field** they are typed into |
-| `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu — and the **box** the client pops one up in |
-| `inventory.slot` | the empty **square** an inventory grid and the equipment window are paved with. Draws no text, so it takes `bg` and `border` |
-| `checkbox` | the **box** a checkbox ticks. Draws no text — the caption beside it is `label`'s — so it takes `bg` and `border` |
-| `checkbox.mark` | the **tick** inside that box, drawn only while it is ticked |
-| `scrollbar` | the **rail** a scroll thumb runs down |
-| `scrollbar.knob` | the **thumb** itself, wherever along that rail it currently sits |
-| `slider` | the **rail** a slider's thumb runs along |
-| `slider.knob` | that slider's own thumb |
-| `meter` | a **bar** the game fills — hunger, stamina, a fill gauge: what its fill is drawn **on**, and the frame blitted round it. The fill itself stays the server's. Draws no text |
-| `hud.belt` | the plate the numbered belt squares are laid on, across the bottom of the screen — [the HUD's plates](hud.md) |
-| `hud.menu.left`, `hud.menu.right` | the two plates behind the toggle buttons in the bottom corners |
-| `hud.search` | the plate the action-search button sits on |
-| `minimap.frame` | the frame drawn around the corner minimap |
-| `menu` | flower-menu petals and the action-menu keybind letters |
-| `menu.slot` | the empty **square** the action menu's grid is paved with. Draws no text, so it takes `bg` and `border` |
-| `menu.frame` | the **frame** the client blits round that grid, in the bottom-right corner — `minimap.frame`'s twin, and dressed the same way, with [`picture`](chrome.md#picture) |
-| `chat` | the chat window — messages, channel tabs, the typed line — and the cascade for the five kinds below |
-| `chat.frame` | the chat's own **decoration**: the field it tiles behind everything, and the frame of corners, runs and ornaments it paints round the lot. `window.frame`'s opposite number, the chat being no window |
-| `chat.log` | the **wash** one channel lays behind its lines, inside that frame. Draws no text — the lines on it are `chat`'s |
-| `chat.system` | the **System** log's lines: what the client tells you rather than what anyone said |
-| `chat.mine` | your **own** line, in whichever channel you said it in |
-| `chat.private` | a private message, received or sent |
-| `chat.party` | a line in the Party channel |
-| `chat.urgent` | the **unread** indicator: a waiting channel's tab, and the glow on the chat button |
-| `chat.speaker` | the colour a **speaker** is given in a multi-person channel |
-| `world.nick` | floating kin names over characters |
-| `world.speech` | speech bubbles |
+| `*` | The global fallback: most UI text, and the cascade for every rule you do not write. |
+| `window.title` | Window captions, and the [plate](chrome.md#ornaments) they sit on. |
+| `window.frame` | The window chrome: the frame, the surface it sits on, and where its [ornaments](chrome.md#ornaments) go. Draws no text: takes `bg`, `border`, `padding` and the ornament properties. |
+| `panel` | The window-less framed surfaces: boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus, the AddOns manager's Browse cards and screenshot box — [panels](surfaces.md#panels). |
+| `heading` | In-window section headings, the embossed fraktur ones. |
+| `button` | Standard buttons: their captions and the face they are drawn on — fill, frame, and the fill's [state faces](chrome.md#a-face-per-state). |
+| `label` | Body text: attribute rows, list items, explicit-foundry labels. |
+| `textentry` | Text-entry fields and the console command line: the letters and the field they are typed into. |
+| `tooltip` | Every tooltip — items, buffs, meters, craft, minimap, the action menu — and the box it pops up in. |
+| `inventory.slot` | The empty square an inventory grid and the equipment window are paved with. `bg` and `border`. |
+| `checkbox` | The box a checkbox ticks (its caption is `label`'s). `bg` and `border`. |
+| `checkbox.mark` | The tick inside that box, drawn while ticked. |
+| `scrollbar`, `scrollbar.knob` | The rail a scroll thumb runs down, and the thumb. |
+| `slider`, `slider.knob` | The rail a slider's thumb runs along, and the thumb. |
+| `meter` | A bar the game fills: what its fill is drawn on, and the frame round it. The fill stays the server's. |
+| `hud.belt` | The plate under the numbered belt squares — [the HUD's plates](hud.md). |
+| `hud.menu.left`, `hud.menu.right` | The plates behind the toggle buttons in the bottom corners. |
+| `hud.search` | The plate the action-search button sits on. |
+| `minimap.frame` | The frame around the corner minimap. |
+| `menu` | Flower-menu petals and the action-menu keybind letters. |
+| `menu.slot` | The empty square the action menu's grid is paved with. `bg` and `border`. |
+| `menu.frame` | The frame around that grid, `minimap.frame`'s twin, dressed with [`picture`](chrome.md#picture). |
+| `chat` | The chat window — messages, channel tabs, the typed line — and the cascade for the kinds below. |
+| `chat.frame` | The chat's own decoration: the field it tiles behind everything and the frame round it — `window.frame`'s counterpart. |
+| `chat.log` | The wash one channel lays behind its lines, inside that frame. Draws no text. |
+| `chat.system` | The System log's lines. |
+| `chat.mine` | Your own line, in any channel. |
+| `chat.private` | A private message, received or sent. |
+| `chat.party` | A line in the Party channel. |
+| `chat.urgent` | The unread indicator: a waiting channel's tab, the glow on the chat button. |
+| `chat.speaker` | The colour a speaker is given in a multi-person channel. |
+| `world.nick` | Floating kin names over characters. |
+| `world.speech` | Speech bubbles. |
 
-Each surface keeps **its own stock size and colour** unless your rule overrides them. One key can front two
-sites with different stocks — `textentry` covers the serif fields *and* the mono command line — and both
-stay native under one rule. [surfaces](surfaces.md) describes each one and its geometry caveats,
-[the chat](chat.md) the window and its kinds of line, and [the HUD's plates](hud.md) the five the client
-blits whole.
+| Rule | Detail |
+|---|---|
+| Stock stays per surface | Each surface keeps its own stock size and colour unless a rule overrides them; `textentry` fronts the serif fields and the mono command line, and both stay native under one rule. |
+| Six keys refine `chat`, not `*` | `chat.system`, `chat.mine`, `chat.private`, `chat.party`, `chat.urgent` and `chat.speaker` fall back to [`chat`](chat.md#each-kind-falls-back-to-chat) first. Nothing else cascades through a dot: `chat.frame`, `chat.log`, `checkbox.mark`, the two knobs, `menu.slot` and `menu.frame` are parts, and take nothing from the whole — name both or the one left out stays the client's. |
 
-**Six keys refine another key rather than `*`.** The five `chat.` kinds and `chat.speaker` fall back to
-[`chat`](chat.md#each-kind-falls-back-to-chat) before they fall back to `*`, because a kind of chat line is
-a chat line. **Nothing else does, the dot notwithstanding** — a dotted name means *a kind of* at those six
-and *a part of* everywhere else, and only a kind cascades. So `chat.frame` and `chat.log` are the chat's
-decoration and the wash inside it rather than kinds of line, and take nothing from `chat`;
-`checkbox.mark` is a **part** of a checkbox rather than a kind of one and takes nothing from
-`checkbox`; and neither do the two knobs, nor `menu.slot` and `menu.frame`, which take nothing from
-`menu` — name both or the one you leave out stays the client's.
+---
 
 ## Tree keys
 
-Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain of steps, or a role
-that classifies a *widget* rather than a site (`window`, `inventory`, `item`) — is a **tree key**. Every tree rule
-that matches a widget is folded into one style, and
-[`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when nothing names it.
+Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain, or a role classifying a widget (`window`, `inventory`, `item`). Every tree rule matching a widget is folded into one style; [`widget:style()`](README.md#restyle-one-widget) reads the result, `nil` when nothing names it.
 
 ```lua
 hafen.ui():sheet():rule("window[title=Cupboard]"):color{200, 180, 140}:sheet():install()
 local session = hafen.session():current()
-session:ui():match("window[title=Cupboard]"):style()    --> { color = {r=200, g=180, b=140, a=255} }
-session:ui():inventory():style()                       --> nil
+session:ui():match("window[title=Cupboard]"):style()    -- { color = {r=200, g=180, b=140, a=255} }
+session:ui():inventory():style()                       -- nil
 ```
 
-**A tree rule covers the widget it names *and everything drawn inside it*.** The client draws parents
-before children, so the rule is in force for the whole subtree — a window's caption, its labels, its button
-captions, its rows, and any widget created inside it *later*. That is the same mechanism
-[`widget:rule()`](README.md#restyle-one-widget) uses, so a tree rule reaches every surface a site key does,
-including text drawn by the game's own resource code.
+| Rule | Detail |
+|---|---|
+| The whole subtree | Parents draw before children, so a tree rule is in force for the matched widget's caption, labels, button captions, rows and widgets created inside it later — text drawn by the game's own resource code included. |
+| A window's frame | No role names the decoration (a child of the window with no role), so `window.frame` names the site; a `["window…"]` tree rule still reaches both the text inside and the chrome, because the decoration asks the window what it resolved. |
+| The more specific rule wins, per property | Specificity is the selector's parts added up — role 1, `@Class` 2, `[title=]`/`[text=]` 4, `[res=]` 8, `[name=]` 16 — a chain summing every step. A specific rule setting only `color` does not take the `font` a broader one set. Equal specificity goes to the rule applied last, addons included; applied means when the sheet was first installed, so editing one rule never promotes a sheet. |
+| A chain reaches everything inside | `window[title=Cupboard] *` matches every widget below that window; `window[title=Cupboard]` the window alone. A chain follows a rename: a caption change re-resolves everything below it. |
+| A site key is not a widget's style | `*` and the site keys resolve where they draw; `widget:style()` never reports one. |
+| Tree over site | Where both reach the same text, the tree rule wins for the properties it names and the site rule fills the rest: the example above paints one window's text in `body`, in tan, and every other window in `body` in its own colour. |
 
-> **No role names a window's frame, but a rule that names the window still dresses it.** The chrome — the
-> border and the title bar's background — is drawn by a **child** of the window rather than by the window
-> itself, and no role classifies that child, so `window.frame` names the **site** instead. What a
-> `["window…"]` tree rule reaches is both halves: its text, because the caption and everything else is
-> drawn inside the window's subtree, **and** its chrome, because a window's decoration asks *the window*
-> what style it resolved. That is how you theme one window rather than all of them.
-
-Three rules decide what one widget resolves to:
-
-- **The more specific rule wins, per property.** Specificity is the [selector](../selectors.md)'s parts
-  added up — role 1, `@Class` 2, `[title=]`/`[text=]` 4, `[res=]` 8 — and a chain adds up every step, so
-  `window[title=Cupboard]` outranks `window` on the window it names while `window` still answers everywhere
-  else. It is folded property by property: a
-  specific rule that sets only `color` does not take the `font` a broader one set. Equal specificity goes to
-  the rule applied last, addons included — and *applied* means when the sheet was first installed, not when
-  it was last touched: editing one rule re-applies the whole sheet, and it keeps the place it already had.
-  So an unrelated `rule:color()` never promotes a sheet over an addon that installed after it.
-- **A chain reaches everything *inside* that window.** `window[title=Cupboard] *` matches every widget below
-  a window captioned `Cupboard` — the same
-  [descendant combinator](../selectors.md#the-grammar) every selector uses —
-  while `window[title=Cupboard]` matches only the window itself. **A chain follows a rename**: when a
-  window's caption changes, everything below it is resolved again, so a chain starts styling a window that
-  has just been given the caption it names, and stops styling one that no longer carries it.
-- **A site key is not a widget's style.** `*` and the other site keys resolve where they *draw*, so
-  `widget:style()` never reports one: a window contains buttons, labels and chat, each drawn at its own
-  site, and answering with one of them would be a guess.
-
-**Where both reach the same text, the tree rule wins, property by property.** A tree rule is nearer the
-draw than a site rule, so inside the widgets it covers it takes precedence — but only for the properties it
-actually names, and the site rule still fills the rest. So the pair below paints that one window's text in
-`body`, in tan, and leaves every other window in `body` in its own colour:
-
-```lua
-local sheet = hafen.ui():sheet()
-sheet:rule("*"):font(body)                                       -- what KIND of surface (site key)
-sheet:rule("window[title=Cupboard]"):color{200, 180, 140}        -- WHICH widgets       (tree key)
-sheet:install()
-```
+---
 
 ## What each key accepts
 
-Every *drawing* property is accepted on **every** key — a sheet never errors because a surface cannot use
-one — and what differs is what the surface *does* with it. Two exceptions, and both are places where the
-value itself would have to mean something different rather than merely land on nothing: the four that are
-about a widget's place — three that lay it out, and the `margin` a column keeps around it — which only a
-tree key may carry, and `color` on the two keys whose colour the client
-[walks rather than holds](chat.md#the-two-colours-the-client-walks), which take a sequence and refuse a
-colour. First the two that write text:
+Every drawing property is accepted on every key; what differs is what the surface does with it. Two exceptions raise: `position`, `anchor`, `size` and `margin` on a site key, and a flat `color` on `chat.urgent` or `chat.speaker`, which take a sequence.
 
-| Key | `font` | `color` | Worth knowing |
+### Text
+
+| Key | `font` | `color` | Notes |
 |---|---|---|---|
-| `*` | yes | yes | cascades to every key you do not write, including the colour |
-| `window.title` | yes | **with `emboss(false)`** | an *embossed* surface: a texture is tiled through the glyph mask, so there is nothing left to tint until [the relief is dropped](text.md#emboss) |
-| `heading` | yes | **with `emboss(false)`** | embossed the same way. Two stock sizes ride this key and a size-less rule keeps each |
-| `button` | yes | **partly** | the ordinary caption is embossed, so it needs `emboss(false)` too; a `wrapped` multi-line caption, or one the client sets *with* a colour, follows a `color` rule as it stands. Stock is bold serif 12, so a serif 12 rule installs correctly and looks like nothing happened |
-| `label` | yes | yes | a larger `size=` clips: row heights were measured at construction |
-| `textentry` | yes | yes | a larger `size=` clips: a field's height comes from its background, not the font — and a `bg` **is** a background, so the art you give it is what a field built afterwards is as tall as |
-| `tooltip` | yes | yes | `$col[…]` rows keep their own colour; `size=` is safe, since a tip sizes its box around its text |
-| `menu` | yes | yes | `size=` is safe — a petal re-sizes around its own centre |
-| `chat` | yes | yes | one rule paints every kind of line alike — the five keys below are how you keep them apart |
-| `chat.system`, `chat.mine`, `chat.private`, `chat.party` | yes | yes | one kind of line each, [falling back to `chat`](chat.md#each-kind-falls-back-to-chat) and then to `*`. `$col[…]` in the line still wins |
-| `chat.urgent`, `chat.speaker` | **inert** | **a sequence** | neither draws text, and neither holds one colour: each takes [the sequence it hands out](chat.md#the-two-colours-the-client-walks), per level and per speaker. A flat `color` on either is an **error** |
-| `world.nick` | yes | yes | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
-| `world.speech` | yes | **inert** | the bubble blits its finished text under a flat black tint, so the glyph colour is thrown away on the way to the screen. `size=` is safe — the bubble measures its frame around the text every frame |
-| any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` waits on an `emboss`. `:style()` reports the colour a rule set even where the surface then throws it away |
-| `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
+| `*` | Yes | Yes | Cascades to every key you do not write. |
+| `window.title` | Yes | With `emboss(false)` | Embossed: a texture is tiled through the glyph mask, so nothing tints until [the relief is dropped](text.md#emboss). |
+| `heading` | Yes | With `emboss(false)` | Embossed. Two stock sizes ride this key; a size-less rule keeps each. |
+| `button` | Yes | Partly | The ordinary caption is embossed (needs `emboss(false)`); a `wrapped` caption, or one the client sets with a colour, follows `color` as it stands. Stock is bold serif 12. |
+| `label` | Yes | Yes | A larger `size` clips: row heights were measured at construction. |
+| `textentry` | Yes | Yes | A larger `size` clips: a field's height comes from its background, and a `bg` is that background, so the art you give is the height of a field built afterwards. |
+| `tooltip` | Yes | Yes | `$col[…]` rows keep their colour; `size` is safe, a tip sizing its box around its text. |
+| `menu` | Yes | Yes | `size` is safe: a petal re-sizes around its centre. |
+| `chat` | Yes | Yes | One rule paints every kind of line alike. |
+| `chat.system`, `chat.mine`, `chat.private`, `chat.party` | Yes | Yes | One kind each, [falling back to `chat`](chat.md#each-kind-falls-back-to-chat), then `*`. `$col[…]` in the line wins. |
+| `chat.urgent`, `chat.speaker` | Inert | A sequence | Neither draws text nor holds one colour: each takes [the sequence it hands out](chat.md#the-two-colours-the-client-walks). A flat `color` raises. |
+| `world.nick` | Yes | Yes | A `color` rule flattens the kin-group colours; a font-only rule leaves them. |
+| `world.speech` | Yes | Inert | The bubble blits its text under a flat black tint. `size` is safe. |
+| Any tree key, `widget:rule()` | Yes | Per surface | Resolved per widget over its subtree, carrying the caveats above: a rule on a window covers its caption, where `color` waits on `emboss`. `:style()` reports a colour a surface then throws away. |
 
-And the two that dress a **carved** surface — what its letters are filled with, and what sits behind them.
-[`emboss`](text.md#emboss) reaches the keys the client renders as a **mask** and fills with a picture, which
-is exactly the set where `color` is inert until it is dropped, and [`glow`](text.md#glow) the halo those same
-keys are blurred behind. The two are independent: a key may carry either alone.
+### Carved surfaces
 
-| Key | `emboss` | `glow` | Worth knowing |
+[`emboss`](text.md#emboss) reaches the keys the client renders as a mask and fills with a picture; [`glow`](text.md#glow) the halo behind them. Independent: a key may carry either alone.
+
+| Key | `emboss` | `glow` | Notes |
 |---|---|---|---|
-| `window.title` | yes | yes | the caption, in the theme's texture or in the rule's flat `color`, on the theme's halo. The plate behind the lot is [`bg`](chrome.md#bg) on the same key |
-| `heading` | yes | yes | both sizes of in-window section heading, the big fraktur ones and the smaller group captions above a grid |
-| `button` | yes | yes | the ordinary button caption. A `wrapped` one was never embossed or blurred, so it is unaffected either way |
-| `*` | **cascades** | **cascades** | into those three and nowhere else, they being the only surfaces the client carves. So one rule on `*` flattens every carved caption in the client at once |
-| a tree key, and `widget:rule()` | yes | yes | resolved per widget and drawn over its whole subtree, so `["window[title=Inventory]"]` flattens one window's caption and leaves every other window carved |
-| every other key | **inert** | **inert** | nothing else in the client draws its text through a mask or blurs a halo behind it. Readable back through `:style()`, and inert everywhere it lands |
+| `window.title` | Yes | Yes | The caption, in the theme's texture or the rule's flat `color`, on the theme's halo. The plate behind it is [`bg`](chrome.md#bg) on the same key. |
+| `heading` | Yes | Yes | Both sizes of section heading. |
+| `button` | Yes | Yes | The ordinary caption; a `wrapped` one was never carved. |
+| `*` | Cascades | Cascades | Into those three alone: one rule on `*` flattens every carved caption. |
+| A tree key, `widget:rule()` | Yes | Yes | Per widget: `["window[title=Inventory]"]` flattens one window's caption. |
+| Every other key | Inert | Inert | Readable through `:style()`. |
 
-A window's caption is drawn one way when the window has focus and another when it does not, and the
-difference is the colour of that halo. A `glow` rule replaces both, so a themed client tells a focused
-window from an unfocused one by whatever else the theme says, not by its caption's shadow.
+A window's caption halo differs focused and unfocused; a `glow` rule replaces both.
 
-And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
-the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
-in, an inventory square and an action-menu cell, a button's face, a text field, the boxes, rails and thumbs
-of the three controls the client blits, the field a chat channel is painted on, the trough a meter's fill
-runs along, and the speech bubble over a talking character.
-A [state face](chrome.md#a-face-per-state) inside a `bg` is
-worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
+### Chrome
 
-| Key | `bg` | `border` | `padding` | Worth knowing |
+Worn by the surfaces that draw a box of their own. A [state face](chrome.md#a-face-per-state) inside a `bg` is worn by the surfaces that have that state.
+
+| Key | `bg` | `border` | `padding` | Notes |
 |---|---|---|---|---|
-| `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `padding` and a border's insets actually **move** anything, because a window re-lays itself out |
-| `window.title` | yes | yes | **inert** | the two paint the caption **plate**, at the box the client sizes around the caption — [the ornaments](chrome.md#ornaments). The caption's own place is `window.frame`'s `caption`, so `padding` has nothing to move here |
-| `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](surfaces.md#panels) |
-| `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box, a Browse card and the screenshot box on an addon's page: each paints its own surface before its contents, so a `bg` lands on it |
-| `tooltip` | yes | yes | yes | the box a tip is popped up in. The client sizes it around the tip's own text, so `padding` is the room between that text and the edge — and the box grows outward, leaving the text where it was. With neither `bg` nor `border` the client's own dark fill and yellow outline stay |
-| `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
-| `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |
-| `textentry` | yes | yes | yes | the **field** every line is typed into: the `bg` stands in for its stretched middle, the `border` for the two end caps, and `padding` is the room between those and the text, which moves inside a width the caller still owns — [what a field is](surfaces.md#textentry) |
-| `menu.slot` | yes | yes | **inert** | one cell of the action menu's grid, at the size and pitch the client's own has. It is the very raster `inventory.slot` paves a bag with, under a key of its own — so a theme that wants an action grid to read differently from a bag can say so, and one that does not writes the two rules alike |
-| `chat.frame` | yes | yes | **inert** | the chat's own decoration: the `bg` is the field it tiles inside its margin, the `border` the frame it paints round everything. The client's own frame has **no bottom edge** — the chat is open at the foot — so art for it wants a transparent bottom slice. `padding` has nothing to move: the chat's box is the size the user dragged it to — [the chat](chat.md#the-chats-own-decoration) |
-| `chat.log` | yes | yes | **inert** | the wash one channel lays behind its lines, over its own box inside that frame. The client paints a flat tint there and **no** frame, so a `border` here **adds** one |
-| `meter` | yes | yes | **inert** | a bar's `bg` is what its fill is drawn **on** — the trough on a horizontal bar, the whole box on a vertical one, which has no trough — and its `border` frames the whole bar. The **fill** between them is never a rule's: that colour is the server's, one per meter, and it is what tells a hunger bar from a stamina one |
-| `checkbox`, `scrollbar`, `slider` | yes | yes | **inert** | the box a checkbox ticks and the two **rails** a thumb runs along, each painted over the rectangle the control was built with, so `padding` has nothing to move. A [`checked` face](chrome.md#a-face-per-state) inside a `checkbox` `bg` is what a ticked box wears, and it is the only state any of the three enters on its own; a checkbox you built and [greyed out](../writes.md#enabled-and-disabled) wears `disabled`. A checkbox drawn as a single **picture** — the HUD's map and menu buttons, a dropdown's arrow — is not in this key, for the reason an icon button is not in `button` — [the three controls](surfaces.md#checkbox-scrollbar-and-slider) |
-| `checkbox.mark`, `scrollbar.knob`, `slider.knob` | yes | yes | **inert** | the tick and the two **thumbs**, each a key of its own so the part is dressed apart from the whole it sits on. A part never takes the whole's art: name both or the one you leave out stays the client's |
-| `world.speech` | yes | yes | **inert** | the **bubble** over a talking character: the `bg` stands in for its white fill, the `border` for the frame around it, and either alone leaves the other the client's own. The bubble measures itself around the sentence every frame, so `padding` has nothing to move — [what the bubble is](surfaces.md#worldspeech-and-worldnick) |
-| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
-| the five [HUD plate](hud.md) keys | **inert** | **inert** | **inert** | a plate is a whole picture rather than a fill inside a frame, so what dresses one is [`picture`](chrome.md#picture) and these three land on it and do nothing |
-| every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
-| a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
-| a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
-| a tree key **matching a button or a field** | yes | yes | per surface | likewise again: each asks itself, so `["@Button"]` or `["window[title=…] @TextEntry"]` dresses those alone. `padding` follows the two rows above; a field's **height** does not, being read where a field is built and so from the site half alone |
-| a tree key **matching a widget an addon built** | yes | yes | **on a column** | a bare surface from [`hafen.ui():widget()`](../custom.md#naming-and-dressing-your-own-surfaces) wears what a rule that *names* it says, over its own [stock](../custom.md#naming-and-dressing-your-own-surfaces). Its `bg` goes under whatever that addon's `Draw` handler paints and its `border` over the lot. `padding` is the room inside a [column or a row](../column.md), which lays its own children out; on any other surface of an addon's it has nothing to move, the addon having placed the contents itself |
-| a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
-| `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, on a button its face, anywhere else it is inert |
+| `window.frame` | Yes | Yes | Yes | Every window wearing the stock decoration. The one surface where `padding` and a border's insets move anything, since a window re-lays itself out. |
+| `window.title` | Yes | Yes | Inert | Paint the caption plate at the box the client sizes around the caption; the caption's place is `window.frame`'s `caption`. |
+| `panel`, boxed | Inert | Yes | Inert | List and info boxes, the HUD portrait, party avatars, the map's view and marker list: a border around content that is not the panel's — [why](surfaces.md#panels). |
+| `panel`, self-painting | Yes | Yes | Inert | Flower-menu petals, dropdown menus, an item-stock box, a Browse card, the screenshot box. |
+| `tooltip` | Yes | Yes | Yes | The box a tip pops up in; `padding` is the room between text and edge, the box growing outward. Without `bg` or `border` the client's dark fill and yellow outline stay. |
+| `inventory.slot` | Yes | Yes | Inert | One grid square at the client's size and pitch — [the square](surfaces.md#inventoryslot). |
+| `button` | Yes | Yes | Inert | The face: `bg` stands in for the fill, `border` for the four edge caps; either alone leaves the other. Its box was fixed when built — [the face](surfaces.md#button). |
+| `textentry` | Yes | Yes | Yes | The field: `bg` the stretched middle, `border` the two end caps, `padding` the room between those and the text, inside a width the caller owns — [the field](surfaces.md#textentry). |
+| `menu.slot` | Yes | Yes | Inert | One action-menu cell, the same raster as `inventory.slot` under its own key. |
+| `chat.frame` | Yes | Yes | Inert | `bg` the field tiled inside the margin, `border` the frame. The client's frame has no bottom edge, so art wants a transparent bottom slice — [the chat](chat.md#the-chats-own-decoration). |
+| `chat.log` | Yes | Yes | Inert | The wash behind a channel's lines; the client paints no frame there, so a `border` adds one. |
+| `meter` | Yes | Yes | Inert | `bg` is what the fill is drawn on (the trough of a horizontal bar, the whole box of a vertical one); `border` frames the bar. The fill is the server's, one per meter. |
+| `checkbox`, `scrollbar`, `slider` | Yes | Yes | Inert | The box and the two rails, over the rectangle the control was built with. A `checked` face in a `checkbox` `bg` is what a ticked box wears; a checkbox you built and [disabled](../writes.md#enabled-and-disabled) wears `disabled`. A checkbox drawn as one picture (the HUD's map and menu buttons, a dropdown's arrow) is not in this key — [the three controls](surfaces.md#checkbox-scrollbar-and-slider). |
+| `checkbox.mark`, `scrollbar.knob`, `slider.knob` | Yes | Yes | Inert | The tick and the two thumbs, each dressed apart from its whole. |
+| `world.speech` | Yes | Yes | Inert | The bubble: `bg` its white fill, `border` its frame — [the bubble](surfaces.md#worldspeech-and-worldnick). |
+| `*` | Cascades | Cascades | Cascades | Into every row above, each under its own row; text-only surfaces ignore it. |
+| The [HUD plate](hud.md) keys | Inert | Inert | Inert | A plate is a whole picture: [`picture`](chrome.md#picture) dresses it. |
+| Every other site key | Inert | Inert | Inert | A text site has no surface to paint. |
+| A tree key matching a window | Yes | Yes | Yes | That window's chrome. |
+| A tree key matching a panel | Per panel | Yes | Inert | `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. |
+| A tree key matching a button or field | Yes | Yes | Per surface | `["@Button"]`, `["window[title=…] @TextEntry"]`. A field's height is read where it is built, from the site half alone. |
+| A tree key matching a widget an addon built | Yes | Yes | On a column | Worn over the widget's own [stock](../custom.md#naming-and-dressing-your-own-surfaces): `bg` under the addon's `Draw`, `border` over it; `padding` is the room inside a [column or row](../column.md). |
+| A tree key matching anything else | Inert | Inert | Inert | Readable through `widget:style()`. |
+| `widget:rule()` | Per surface | Per surface | Per surface | As the rows above, one widget at a time. |
 
-And the ones that dress a window's [ornaments](chrome.md#ornaments).
-One surface draws them, so this table is one row.
+> A site key does not compose with `*` per property: within the site half a key has a rule of its own or falls back to `*` whole, so `["*"] = {bg = …}` beside `["window.frame"] = {border = …}` gives the border alone. Write both properties in the rule naming the surface. Levels above the site half do [compose per property](README.md#the-cascade).
 
-| Key | `caption` | `sizer` | `closeButton` | Worth knowing |
+### Ornaments
+
+| Key | `caption` | `sizer` | `closeButton` | Notes |
 |---|---|---|---|---|
-| `window.frame` | yes | yes | yes | where the decoration puts the caption, and the art and corner of the two ornaments that have one. A window that draws no sizer — which is nearly all of them — ignores that one |
-| every other key, `*` included | **inert** | **inert** | **inert** | nothing else in the client draws a window's ornaments. Readable back through `:style()`, and inert everywhere it lands |
+| `window.frame` | Yes | Yes | Yes | Where the decoration puts the caption, and the art and corner of the two ornaments. A window that draws no sizer ignores that one. |
+| Every other key, `*` included | Inert | Inert | Inert | Readable through `:style()`. |
 
-> **A site key does not compose with `*` per property.** Within the site half of the cascade a key either
-> has a rule of its own or falls back to `*`; it does not take half of each. So `["*"] = {bg = …}` beside
-> `["window.frame"] = {border = …}` gives you the border **alone** — write both properties in the rule that
-> names the surface. Levels *above* the site half, a tree rule or a `widget:rule()`, do
-> [compose per property](README.md#the-cascade).
+### Picture
 
-And the one that replaces a surface outright. [`picture`](chrome.md#picture) reaches two kinds of key,
-because the client shows a picture two ways: at a handful of **places of its own**, which have names, and
-through pictures the **server** places, which are told apart by nothing but where they sit in the tree.
+[`picture`](chrome.md#picture) reaches the places of the client's own that blit a picture, and the pictures the server places, told apart by where they sit in the tree.
 
-| Key | `picture` | Worth knowing |
+| Key | `picture` | Notes |
 |---|---|---|
-| the five [HUD plate](hud.md) keys | yes | `hud.belt`, `hud.menu.left`, `hud.menu.right`, `hud.search` and `minimap.frame`: the plates the client blits at fixed places of its own. The rule's picture fills the rectangle the client already had, so nothing moves and every button on a plate still takes its click |
-| `menu.frame` | yes | the frame round the action menu's grid, at the fixed place the client blits it — `minimap.frame`'s twin in the other corner. The grid is drawn **over** it, so art with no hole in the middle hides the actions; nothing moves and every click still lands, but you see the plate alone |
-| `meter` | yes | the frame a bar blits round itself, replaced where that meter draws its own — **over** the fill on a horizontal bar, **under** it on a vertical one. On the horizontal one the art is the **server's**, one per meter, so a single picture makes every bar look alike; give it a centre the fill shows through |
-| `*` | **cascades** | into those five, and into `menu.frame` and `meter`, and nowhere else — they being the only sites that blit a picture of their own. So a `picture` on `*` paints the whole HUD, the action menu's frame **and every meter** alike — name the key you mean |
-| a tree key **matching a picture** | yes | `["@Img"]`, or a chain naming the window it sits in. A [state face](chrome.md#a-face-per-state) inside the value is worn by a surface that enters that state, and a picture the server re-points keeps following the rule |
-| `widget:rule()` | yes | the same, one picture at a time and named by hand |
-| every other site key | **inert** | a text site draws no picture, and a surface that draws a box wears [`bg`](chrome.md#bg) and [`border`](chrome.md#border) instead. Readable back through `:style()`, and inert everywhere it lands |
-| a tree key matching anything else | **inert** | nothing else in the client shows a picture of its own |
+| The [HUD plate](hud.md) keys | Yes | The rule's picture fills the rectangle the client had; nothing moves and every button keeps its click. |
+| `menu.frame` | Yes | The grid is drawn over it, so art with no hole hides the actions. |
+| `meter` | Yes | The frame a bar blits round itself, over the fill on a horizontal bar, under it on a vertical one; on the horizontal one the art is the server's, one per meter, so give a single picture a centre the fill shows through. |
+| `*` | Cascades | Into the plates, `menu.frame` and `meter` alone: a `picture` on `*` paints the whole HUD, the action menu's frame and every meter alike. |
+| A tree key matching a picture | Yes | `["@Img"]`, or a chain naming its window. A state face inside is worn by a surface entering that state; a picture the server re-points keeps following the rule. |
+| `widget:rule()` | Yes | One picture at a time. |
+| Every other key | Inert | A text site draws no picture; a boxed surface wears `bg` and `border`. |
 
-And the four that are about a widget's place: three that lay it out, and the room a column keeps around it.
-This table is short because the answer is: a widget, or an error.
+### Layout
 
-| Key | `position` / `anchor` | `size` | `margin` | Worth knowing |
+| Key | `position` / `anchor` | `size` | `margin` | Notes |
 |---|---|---|---|---|
-| any tree key | **unless a column places it** | **unless the widget owns its size** | **inside a column** | the widget it matches is moved for real — the field a drag writes — so what you place is what you click. A child a [column](../column.md) lays out has no place of its own, and a column's box is its content's: inert on both, never an error. A window that packs around its contents re-packs itself: inert the same way. [`margin`](geometry.md#margin) is the other way about — honoured on a child a column lays out, inert on a widget placed by hand |
-| any site key, `*` included | **error** | **error** | **error** | a site is where the client draws text, and text has no position and no box for a column to keep room around. The error names the fix: select the widget |
-| `widget:rule()` | **error** | **error** | yes | the hand-named level of a place is the verb, [`w:position(x, y)`](../native.md) — the error says so. No verb spells a margin, so here this level *is* the hand-named one, as it is for `padding`; a [`:stock`](../custom.md#naming-and-dressing-your-own-surfaces) takes it the same way |
+| Any tree key | Unless a column places it | Unless the widget owns its size | Inside a column | The matched widget is moved for real, the field a drag writes. A child a [column](../column.md) lays out has no place of its own and a column's box is its content's: inert, never an error; a window that packs around its contents re-packs, inert the same way. [`margin`](geometry.md#margin) is honoured on a column's child and inert on a widget placed by hand. |
+| Any site key, `*` included | Raises | Raises | Raises | A site is where text is drawn. The error names the fix: select the widget. |
+| `widget:rule()` | Raises | Raises | Yes | The hand-named level of a place is [`widget:position(x, y)`](../native.md). No verb spells a margin, so this level is its hand-named one, as for `padding`; a [`:stock`](../custom.md#naming-and-dressing-your-own-surfaces) takes it too. |
 
-**Where `color` is inert, the glyph colour is thrown away before anything reaches the screen.** Most of
-those surfaces are *embossed*: the client renders the text as a mask, tiles a texture through it and blurs
-a [halo](text.md#glow) behind, so there is nothing left for a rule to override until
-[`emboss(false)`](text.md#emboss)
-stops the tiling — which is what that property is for. The speech bubble is the one that stays inert
-whatever you write: it blits its finished text under a flat black tint, and no rule reaches inside that.
-All of them still follow a `font` rule perfectly. Nothing is refused and nothing warns.
+| Structural limit | Detail |
+|---|---|
+| Where `color` is inert | The glyph colour is thrown away before the screen: embossed surfaces until [`emboss(false)`](text.md#emboss); the speech bubble always. `font` still applies. |
+| Text rasterised at class-load | A static field's text never follows a rule; the one such row the client ships is reached by carrying a local copy of that resource's code — [surfaces](surfaces.md#tooltip). |
+| `$col[…]` markup | Wins over a `color` rule: it is part of the string. |
+| A rule flattens meaning | While `["*"] = {color = …}` is on, a red warning is the same colour as everything else; style one key when that matters. |
+| Geometry | Only [`padding`](chrome.md#padding) moves anything, where a surface owns its layout; a larger font `size` clips where a box was measured from the stock font — [surfaces](surfaces.md). |
 
-Three more limits are structural rather than per-key, and none of them is a bug to report:
+---
 
-- **Text the client rasterised into a static field at class-load** can never follow a rule, because the JVM
-  does not re-run a static initialiser. The one such row the client still ships is reached by carrying a
-  local copy of that resource's code; see [surfaces](surfaces.md#tooltip).
-- **`$col[…]` markup wins over a `color` rule**, everywhere. It is part of the *string*, not the site's
-  choice of colour.
-- **A rule flattens colour that carried meaning.** While `["*"] = {color = …}` is on, a red warning is the
-  same colour as everything else. Style one key rather than `*` when that matters.
+## See Also
 
-The only *drawing* property that changes geometry is [`padding`](chrome.md#padding), and only where a surface owns
-its own layout. A `font` rule never moves anything, but a larger `size=` can still *clip* where a surface's
-box was measured from the stock font; [surfaces](surfaces.md) says which ones, and why.
-
-## See also
-
-- [style](README.md) — the sheet, the cascade and `widget:rule()`
-- [surfaces](surfaces.md) — what each of these keys actually is on screen
-- [the HUD's plates](hud.md) — the five whose whole surface is one picture
-- [text](text.md) · [chrome](chrome.md) · [geometry](geometry.md) — the properties themselves
-- [selectors](../selectors.md) — the grammar, and the roles this vocabulary shares
+- [Style](README.md) — the sheet, the cascade and `widget:rule()`.
+- [Surfaces](surfaces.md), [HUD](hud.md), [Chat](chat.md) — what each key is on screen.
+- [Text](text.md), [Chrome](chrome.md), [Geometry](geometry.md) — the properties.
+- [Selectors](../selectors.md) — the grammar, and the roles this vocabulary shares.

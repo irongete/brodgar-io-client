@@ -1,350 +1,184 @@
-# hafen.ui: naming a widget
+# hafen.ui: Selectors
 
-A **selector is a string**, and `s:ui():match` / `:matchAll` are the lookups. Reach for one whenever you
-need a piece of the client's UI — to read it, to move it, to replace it, or as the key of a
-[stylesheet](style/keys.md) rule.
-
-A lookup searches **one character's tree**, so it is addressed at that character's
-[session](../session.md): `s` below is `hafen.session():current()` for the one on screen, and
-`hafen.session():get(user)` for any other. A session nobody is looking at keeps its whole tree, so its
-windows answer the same searches.
+A selector is a CSS-shaped string naming a piece of the client's UI; `session:ui():match` and `:matchAll` are the lookups, and the same string is the key of a [stylesheet](style/keys.md) rule.
 
 ```lua
 local session = hafen.session():current()
-session:ui():match("window[title=Cupboard]")             -- the one match, or nil
+session:ui():match("window[title=Cupboard]")                 -- the one match, or nil
 session:ui():matchAll("inventory")                           -- every open container, in tree order
-session:ui():match("window[title=Cupboard] inventory")   -- the grid inside that window
-session:ui():match("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
-session:ui():match("@Equipory")                          -- by widget class
-session:ui():matchAll("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
-session:ui():root()                                     -- no selector at all: that character's whole tree
+session:ui():match("window[title=Cupboard] inventory")       -- the grid inside that window
+session:ui():match("window[title=Foo] button[text=Close]")   -- one exact widget, in one string
+session:ui():match("@Equipory")                              -- by class
+session:ui():matchAll("*[res*=gfx/hud/meter]")               -- by resource name, as a substring
+session:ui():root()                                          -- no selector: the whole tree
 ```
 
-The windows **your addon** builds are not in any of those trees — they stand in the addon layer, above
-every session — so no selector reaches one. Hold the handle
-[the builder](custom.md) gave you.
+A lookup searches one character's tree, so it is addressed at that character's [session](../session.md): `hafen.session():current()` for the one on screen, `hafen.session():get(user)` for any other, whose tree answers the same searches whether or not it is drawn. Windows your addon builds stand in the addon layer and match no selector; hold [the builder's](custom.md) handle.
 
-## One, or all of them
+---
 
-`:match` answers only where there **is** one answer. No match is `nil`; exactly one match is that widget;
-**two or more raises an error** saying how many matched and handing you the two spellings that do have an
-answer. `:matchAll` always answers — an array in tree order, empty rather than `nil`.
+## Lookups
 
-> A selector that names several widgets today may name one on your screen. "The Cupboard window" is one
-> widget right up to the moment a second cupboard opens, and a lookup that quietly picked whichever came
-> first would then act on the wrong one. That is the error you are being handed instead.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:ui():match(selector)` | [`Widget`](widget.md) `\| nil` | Unprotected | The one match in that character's tree. No match is `nil`; two or more raise, saying how many matched and naming `matchAll(selector)[i]`. |
+| `session:ui():matchAll(selector)` | `Widget[]` | Unprotected | Every match, in tree order; empty, never `nil`. |
+| `session:ui():root()` | `Widget \| nil` | Unprotected | The top of that character's tree. |
+| `widget:match(selector)`, `widget:matchAll(selector)` | as above | Unprotected | The same search over `widget`'s own subtree, `widget` included — [below](#inside-one-widget). |
 
-So `:match` is for a selector that identifies **one** widget — a chain down to an exact button, a unique
-caption, a class only one widget has — and `:matchAll` for a question with several answers.
+### One, or all of them
+
+`:match` is for a selector that identifies one widget: a chain down to an exact button, a unique caption, a class only one widget has. A selector naming several today may name one on your screen — "the Cupboard window" is one widget until a second cupboard opens — so a lookup that picked whichever came first would act on the wrong one; the raise is the answer instead. `:matchAll` is for a question with several answers.
 
 ### Inside one widget
 
-`w:match(sel)` and `w:matchAll(sel)` run the same search over `w`'s **own subtree**, `w` included. Same
-grammar, same errors, same strictness. The scope decides which widgets are *candidates*; an ancestor step
-may still name a widget above it, exactly as in CSS.
+`widget:match(sel)` and `widget:matchAll(sel)` run the same grammar with the same strictness over one widget's subtree. The scope decides the candidates; an ancestor step may still name a widget above it, as in CSS. Inside an [`Added` callback](replace.md#watching-for-a-widget) it is the right lookup: the whole tree has no single answer to `window[title=Cupboard] inventory` while two cupboards are open, and the widget you were handed does.
 
 ```lua
-s:ui():on("window[title=Cupboard]", "Added", function(widget)
-  local grid = widget:match("inventory")       -- THIS cupboard's grid, whatever else is open
-  ...
+session:ui():on("window[title=Cupboard]", "Added", function(cupboard)
+  local grid = cupboard:match("inventory")       -- this cupboard's grid, whatever else is open
 end)
 ```
 
-That is the right lookup inside an [`Added` callback](replace.md#watching-for-a-widget), and the reason the
-pair exists: `s:ui():match("window[title=Cupboard] inventory")` asks a whole tree a question that has no
-single answer while two cupboards are open, while the widget your callback was handed does.
+Both refuse on a widget that has left the tree: "nothing matched" and "the thing searched is gone" are different answers. Ask [`:exists()`](widget.md#read-methods) first when unsure.
 
-Both **refuse on a widget that has left the tree**, rather than reporting an empty result — "nothing matched"
-and "the thing you were searching is gone" are different answers, and a handle you kept across a window's
-lifetime is exactly where they get confused. Ask [`:exists()`](widget.md#read) if you are unsure.
+---
 
 ## The grammar
 
-It is CSS. A selector is one or more **steps** separated by spaces, and a step is a role (or `*`), any of the
-refiners, or both — in any order, each refiner at most once. Refiners alone are a step (`@Equipory`,
-`[res*=gfx/hud]`); the one that needs a role is `[title=]`, and the role it needs is `window`.
+A selector is one or more steps separated by spaces; a step is a role or `*`, refiners, or both, in any order, each refiner at most once. Refiners alone are a step (`@Equipory`, `[res*=gfx/hud]`).
 
-| Part | Meaning |
+| Part | Matches |
 |---|---|
-| `*` | any widget, including one no role classifies |
-| a **role** | what the widget *is* — see [the table below](#roles) |
-| `@Class` | its class name, the same string `:type()` reports |
-| `[title=…]` | a **window's own caption**; only valid in a step whose role is `window` |
-| `[text=…]` | the words a widget **displays** — a button's caption, a label, a checkbox's label, an entry's contents |
-| `[res=…]` | its resource name (`:res()`) |
-| `[name=…]` | what the addon that **built** it calls it, as `<addon>/<name>` — [see below](#the-one-refiner-an-addon-owns) |
-
-### The one refiner an addon owns
-
-Every other part of a step describes what a widget *happens to be*, and somebody else decided it: a role and
-a class come off its Java type, a caption and a text off what it displays, a resource off what the server
-named. **`[name=…]` is what an addon calls a widget it built**, and it is the only part an author *chose*.
-
-It exists because without it there is nothing finer to say. Every bare surface every addon builds reports the
-same class, so `@AddonWidget` reaches one addon's action bar, another's meter and a third's overlay all at
-once, and no refiner tells them apart.
-
-```lua
--- in the addon, once, where the widget is built
-local bar = hafen.ui():widget():parent(hud):name("bar")
-
--- in a theme, or in any other addon
-["[name=actionbars/bar]"] = { bg = {color = {9, 13, 22, 214}} }
-```
-
-- **The engine writes the addon's id in front.** You say `:name("bar")`, the selector says
-  `[name=actionbars/bar]`. Two addons naming a bar cannot collide, and a rule reads as the thing it points
-  at without anyone having to look up whose bar it is.
-- **It outranks everything: 16**, above `[res=]`'s 8. Not because it identifies one widget — it does not —
-  but because it is the only part of a step an author *chose*. Everything else describes what a widget
-  happens to be; a name is what its builder decided to call it, so it wins.
-- **Give each surface its own name, and reach a group with an operator.** `[name=…]` takes the same four
-  the other refiners do — `=`, `*=`, `^=`, `$=` — so an action bar that names its squares `slot1` …
-  `slot12` can be dressed both ways, and a theme chooses which it means:
-
-  ```json
-  "[name^=actionbars/slot]":  { … },   // all twelve, in one rule
-  "[name=actionbars/slot7]":  { … }    // ...and that one
-  ```
-
-  Naming all twelve the *same* is legal — nothing here requires a name to be unique, and what is written
-  once is the name *of one widget*, never the name across widgets — but it buys nothing the prefix does
-  not, and it costs the ability to name one of them.
-- **Two rules that weigh the same are not ordered.** `[name^=…]` and `[name=…]` are both 16, and a theme
-  loaded from JSON has no key order to break the tie with. So an exception is written as a **chain**, which
-  sums: `["[name=actionbars/bar] [name=actionbars/slot7]"]` is 32 and beats the group's 16, deterministically.
-  It is the same thing a CSS author writes for the same reason.
-- **It is written once.** A name is identity, not state — the states a surface enters ride
-  [inside the value](style/chrome.md#a-face-per-state), never in a selector, and renaming to express one
-  would leave every rule naming the old one silently pointing at nothing.
-- **Only on a widget your addon built.** Naming one of the client's own is refused, and the refusal names
-  [`widget:rule()`](style/README.md#restyle-one-widget) — your own level on somebody else's widget, reverted
-  with your addon.
-
-A name a theme writes and nobody answers to is not an error: like every selector here, it stays valid grammar
-and matches nothing.
-
-**A space is the descendant combinator**, exactly as in CSS: `window[title=Cupboard] inventory` is the
-container grid *anywhere* below the Cupboard window, however many layout wrappers sit in between. That is
-how you name one exact widget in one string, and it is the only thing that looks upward — every refiner
-tests the widget its own step is written on. There is no `>` (direct child).
-
-**Every refiner takes one of four operators**, so a selector says which test it is doing:
+| `*` | Any widget, including one no role classifies. |
+| A role | What the widget is — [roles](#roles). |
+| `@Class` | Its class name, the string `:type()` reports: the nearest named class, so `@Window` matches a plain `Window` and not a `CharWnd`; use the `window` role for any window. |
+| `[title=…]` | A window's own caption; valid only in a step whose role is `window`. |
+| `[text=…]` | The words a widget displays: a button's caption, a label, a checkbox's label, an entry's contents. Refused on a `window` step, and never matches a window under `*`. |
+| `[res=…]` | Its resource name, `:res()` — [what carries one](#what-carries-a-res). |
+| `[name=…]` | What the addon that built it calls it, as `<addon>/<name>` — [below](#the-one-refiner-an-addon-owns). |
 
 | Operator | Matches when the value |
 |---|---|
-| `=` | is exactly this |
-| `*=` | contains this |
-| `^=` | starts with this |
-| `$=` | ends with this |
+| `=` | Is exactly this. |
+| `*=` | Contains this. |
+| `^=` | Starts with this. |
+| `$=` | Ends with this. |
 
-Anything else raises an error naming the offending part and, for a bad role, listing every valid one. The
-same error comes back when an invalid selector is used as a [sheet key](style/keys.md).
+| Rule | Detail |
+|---|---|
+| The space | The descendant combinator: `window[title=Cupboard] inventory` is the grid anywhere below the Cupboard window. It is the only part that looks upward; every refiner tests its own step. There is no `>`. |
+| Where `[title=]` goes | The client wraps bare widgets in titled windows, so the grid is `window[title=Cupboard] inventory`. `inventory[title=Cupboard]` is refused and the error hands back that spelling; under CSS it would parse and never match. |
+| Captions | Match the client's own English whatever it displays: a [catalogue](../locale.md) lands at the render, so `[title=Inventory]` matches a window drawn in another language. |
+| Errors | Anything else raises naming the offending part, listing every valid role for a bad one; the same error comes back for an invalid [sheet key](style/keys.md). |
+
+### The one refiner an addon owns
+
+Every other part describes what a widget happens to be; `[name=…]` is what an addon called a widget it built, through [`:name(word)`](custom.md#naming-and-dressing-your-own-surfaces). Without it every bare surface reports `@AddonWidget` and nothing tells one addon's bar from another's meter.
+
+```lua
+local bar = hafen.ui():widget():parent(hud):name("bar")      -- in the addon, once
+```
+
+```json
+"[name=actionbars/bar]":   { "bg": {"color": [9, 13, 22, 214]} },
+"[name^=actionbars/slot]": { "bg": {"asset": "themes/cyberpunk/slot.png"} }
+```
+
+| Rule | Detail |
+|---|---|
+| The addon's id is written in front | `:name("bar")` is `[name=actionbars/bar]`; two addons naming a bar cannot collide. |
+| Weight 16 | Above `[res=]`'s 8: the only part an author chose. `[name^=…]` and `[name=…]` weigh the same and a JSON theme has no key order, so an exception is a chain, which sums: `[name=actionbars/bar] [name=actionbars/slot7]` is 32. |
+| Operators | Every one, so `slot1`…`slot12` are dressed as a group by `^=` and one of them by `=`. Naming twelve surfaces the same is legal and buys nothing the prefix does not. |
+| Written once | A name is identity, not state; the states a surface enters ride [inside a rule's value](style/chrome.md#a-face-per-state). |
+| Owned only | Naming a client widget is refused, naming [`widget:rule()`](style/README.md#restyle-one-widget). A name nobody answers to matches nothing and is not an error. |
+
+---
 
 ## Roles
 
-`:role()` answers what a widget is, or `nil` when nothing classifies it. The names are the same vocabulary
-as the stylesheet's [site keys](style/keys.md), deliberately, so there is one set of names rather than two —
-**every site key is a role**, and `item`, `column` and `row` classify a widget and name no render site.
-
-**The vocabulary describes itself.** `hafen.ui():role()` is the collection of every role the client
-publishes, each answering `:name()` and `:selector()` — the same string when it can match a widget, and
-`nil` for a **site** role, which is valid in a stylesheet rule and matches no widget by construction. So
-`for _, r in ipairs(hafen.ui():role():list()) do` enumerates the table below rather than reading it.
+`:role()` answers what a widget is, or `nil`. The names are the stylesheet's [site keys](style/keys.md): every site key is a role, and `item`, `column` and `row` classify a widget and name no site. `hafen.ui():role()` is the collection of every role the client publishes, each answering `:name()` and `:selector()` — the same string for a role that matches a widget, `nil` for a site role.
 
 | Role | Matches |
 |---|---|
-| `window` | `Window` and every subclass, including the `Hidewnd` the client wraps the inventory in |
-| `inventory` | `Inventory` and `Equipory` — *every* open container, not just yours |
-| `button` | `Button`, `IButton` |
-| `label` | `Label` |
-| `textentry` | `TextEntry` |
-| `chat` | `ChatUI` and its channels |
-| `menu` | `MenuGrid`, `FlowerMenu` |
-| `item` | the icon **one item** is drawn as, wherever it is drawn — a container's cell, an equipment slot, the cursor while the item is carried, a crafting recipe's input or output slot, and an icon a resource ships its own widget for |
-| `column`, `row` | a [column or a row](column.md) an addon built — the one surface of an addon's with a role, its axis being a fact about the widget |
+| `window` | `Window` and every subclass, the `Hidewnd` around the inventory included. |
+| `inventory` | `Inventory` and `Equipory`: every open container. |
+| `button` | `Button`, `IButton`. |
+| `label` | `Label`. |
+| `textentry` | `TextEntry`. |
+| `chat` | `ChatUI` and its channels. |
+| `menu` | `MenuGrid`, `FlowerMenu`. |
+| `item` | The icon one item is drawn as, wherever: a container's cell, an equipment slot, the cursor's item, a recipe's input or output slot, an icon a resource ships its own widget for. Exactly the widgets [`widget:item()`](widget.md#read-methods) answers on. |
+| `column`, `row` | A [column or row](column.md) an addon built. |
 
-**The table above is every role that matches a widget.** Every other name in the vocabulary is a *site*
-key: `window.title`, `window.frame`, `panel`, `heading`, `tooltip`, `inventory.slot`, `world.nick` and
-`world.speech`, the parts a control is drawn out of (`checkbox`, `checkbox.mark`, `slider`,
-`slider.knob`, `scrollbar`, `scrollbar.knob`, `meter`), the chat's own kinds (`chat.mine`,
-`chat.private`, `chat.system` and the rest) and the HUD's furniture (`hud.belt`, `hud.menu.left`,
-`menu.slot`, `minimap.frame` and theirs). They name a place the client *draws*, not a thing it
-*places*: a window's caption and frame are drawn by the window's decoration, an inventory's empty square
-is paved by the grid rather than placed in it, a tooltip is painted rather than placed, a checkbox's
-mark is part of that checkbox's picture. They stay valid selectors, because the vocabulary is shared
-with the sheet, so `s:ui():match("checkbox")` is accepted and answers nothing — which is why the read
-that tells them apart is `role:selector()`, `nil` for exactly these.
+| Rule | Detail |
+|---|---|
+| Site roles | `window.title`, `window.frame`, `panel`, `heading`, `tooltip`, `inventory.slot`, `world.nick`, `world.speech`, the parts of a control (`checkbox`, `checkbox.mark`, `slider`, `slider.knob`, `scrollbar`, `scrollbar.knob`, `meter`), the chat kinds (`chat.mine`, `chat.private`, `chat.system`, …) and the HUD's furniture (`hud.belt`, `hud.menu.left`, `menu.slot`, `minimap.frame`, …) name a place the client draws, not a widget it places. `session:ui():match("checkbox")` is accepted and answers nothing; `role:selector()` is `nil` for exactly these. |
+| No role | Most widgets: layout containers, scroll ports, images, a bare surface of yours. Reach them with `*`, `@Class`, `[res=]`, `[name=]`, or a chain on their window. |
 
-Most widgets have **no** role — the client's layout containers, scroll ports, images, a bare surface of
-yours. That is the rule working, not a gap: an unrecognised widget answers `nil` rather than being guessed
-into the nearest role. Reach those with `*`, `@Class`, `[res=]`, `[name=]`, or by a chain on their window.
-
-**`item` is why a role is not `@Class`.** A role is what a widget *is*, so it covers the subclasses `@Class`
-deliberately does not: the icon under the cursor is one class, a recipe's input slot is another, and an addon
-decorating icons wants both without having to learn either name. The role is exactly
-[`widget:item()`](widget.md#read) answering — one test behind the match and the read, so a role can never name
-an icon whose item the read then refuses to give you. `item` is also the one role with no site key behind it —
-an icon draws a picture and whatever overlays its own resource publishes, and has no text of its own to give a
-font to, so calling it a site would promise a style nothing reads.
-
-## Two rules that are easy to get wrong
-
-- **`[title=]` is the window's *own* caption, and the space is what reaches inside it.** The client wraps
-  bare widgets in titled windows — the inventory grid itself has no caption — so the grid inside the
-  Cupboard window is `window[title=Cupboard] inventory`, and the window itself is `window[title=Cupboard]`.
-  Writing the refiner on the inner step instead (`inventory[title=Cupboard]`) is **refused**, and the error
-  hands you the spelling above: under CSS rules it would parse and then silently never match, which is a
-  worse answer than an error. For the same reason `[text=]` is refused *on* a `window` — a window's words
-  are its caption, and that is `[title=]` — and no `[text=]` matches a window even when the step says `*`,
-  so the two keys never name the same thing.
-- **`@Class` is the class name, not a base class.** `@Window` matches a plain `Window`, not a `CharWnd`.
-  Use the `window` role for "any window". The client builds most widgets as anonymous subclasses, and both
-  `@Class` and `:type()` report the nearest **named** class, so this is the name you actually see.
+---
 
 ## What carries a res
 
-`[res=]` is the *stable* key: a resource name never changes with the client's language, where a caption
-can. But only some widgets have one — a **container's cell** (`gfx/invobjs/…`, its item's), **meters**
-(`gfx/hud/meter/hp`), a building site's **material boxes** (`@ISBox`, the material each counts), and
-widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Most windows carry none**: the client's
-own windows are plain Java classes with nothing behind them. So in practice, `[res=]` for items and meters,
-`[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.
+`[res=]` is the stable key: a resource name never changes with the client's language. Only some widgets have one — a container's cell (`gfx/invobjs/…`, its item's), meters (`gfx/hud/meter/hp`), a building site's material boxes (`@ISBox`, the material each counts), and widgets whose code ships in a resource (`ui/rchan`, `ui/vlg`). Most windows carry none: `[res=]` for items and meters, `[title=]` for windows; [`widget:res()`](widget.md#read-methods) tells you.
 
-Not every `item` does: an icon drawing a [depiction](items.md#a-depiction-that-is-not-an-item) — a recipe
-slot, a listing a resource draws itself — carries the resource its own code came out of, or none, because
-that resource is the thing drawn's rather than the widget's. Refine those on the item, where
-[`w:item():res()`](items.md#the-item-object) answers for every icon there is.
-
-A caption selector matches the client's **own English**, whatever the client is displaying: a
-[catalogue](../locale.md) lands at the render and nowhere above it, so `[title=Inventory]` goes on matching
-a window whose caption is drawn in another language.
-
-A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
-meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource name is *exactly* that.
-
-> **A `[res=]` refiner has about twenty frames to land.** A widget's resource arrives with no event of its
-> own, so a rule that did not match is re-asked for a bounded run of frames and then settles — and a
-> resource that resolves later than that never starts matching, for that widget. It is not a wait you can
-> lengthen. Where it bites is a widget placed in the same breath as a cold resource load; installing the
-> sheet again re-opens every answer, and so does any edit to it.
-
-
+| Rule | Detail |
+|---|---|
+| A path wants `*=` | `[res*=gfx/hud/meter]` catches every meter; `[res=gfx/hud/meter]` matches nothing. |
+| Depictions | An icon drawing a [depiction](items.md#a-depiction-that-is-not-an-item) carries the resource its own code came from, or none; refine those on the item, where [`widget:item():res()`](items.md#the-item-object) answers for every icon. |
+| A `[res=]` rule lands within about twenty frames | A widget's resource arrives with no event, so a rule that did not match is re-asked for a bounded run of frames and then settles; a resource resolving later never starts matching for that widget. Installing the sheet again, or any edit to it, re-opens every answer. |
 
 ### The picture is a different read
 
-`:res()` names the resource a widget's own **code** came from. Most of the client's chrome is an ordinary
-Java class showing an ordinary piece of the game's art, and that art has a name of its own:
-[`w:picture()`](widget.md#read) answers it, where `w:res()` answers `nil`.
+`:res()` names the resource a widget's code came from; most of the client's chrome is a Java class showing a piece of the game's art, and [`widget:picture()`](widget.md#read-methods) names that art where `:res()` is `nil`. `:picture()` has no selector key.
 
 ```lua
-local window = hafen.ui():window():title("Sample")
-local close = window:match("@IButton")  -- the close box: the client put it in the chrome, not you
-close:picture()                    -- "gfx/hud/wnd/lg/cbtnu"
-close:res()                        -- nil
+local sample_window = hafen.ui():window():title("Sample")
+local close_button = sample_window:match("@IButton")   -- the close box the client put in the chrome
+close_button:picture()                                 -- "gfx/hud/wnd/lg/cbtnu"
+close_button:res()                                     -- nil
 ```
 
-The two never merge, and `:picture()` has **no selector key**: `[res=]` matches what `:res()` reads and
-nothing else, so every selector already written keeps meaning what it meant. `:picture()` answers on a
-widget that *holds* a picture — a [picture control](controls/display.md#picture), a picture button, a
-picture checkbox — and `nil` on one that composes or paints its art instead of holding one, an inventory
-square or a meter's bar among them. It also answers `nil` for a picture that came out of **your own**
-[asset](../asset/README.md) file rather than the client's art: the name it hands back is a client resource name or
-nothing. One picture shared by two widgets names one resource on both, which is the true answer — they are
-showing the same art. Any argument raises.
+`:picture()` answers on a widget that holds a picture — a [picture control](controls/display.md#picture), a picture button, a picture checkbox — and `nil` on one that composes or paints its art (an inventory square, a meter's bar) and for a picture out of your own [asset](../asset/README.md) file. Two widgets sharing one picture name one resource. Any argument raises.
 
-## The inspector
-
-Nobody guesses a widget's role. The **`widgetstack`** addon answers it by hovering: its bottom
-panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its own `[title=]` or
-`[text=]` — whichever key its role takes — its `[res=]`, and its **anchor**, the nearest enclosing
-**captioned** window, written as the first step of a chain. Under those it lists **every selector it can
-build from those parts and then resolve back to this widget**, most specific first, with how many widgets
-each one matches and where this one falls among them.
-
-Chains come first, because they are what name **one** widget. Hovering the grid in your Inventory offers
-`window[title=Inventory] inventory@Inventory`, matching exactly that grid, where the flat `inventory` matches
-every container on screen. The panel offers [the operators](#the-grammar) too, wherever they say something
-`=` cannot: `[res*=…]` on the last segment of a resource path, and the `^=` form of the widget's own key on
-the part of its value before the first digit — `[title^=…]` on a window, `[text^=…]` on anything else, the
-form that keeps matching when a counter ticks over.
-
-The bottom line is ready to paste into `:lua` — it is
-`hafen.session():current():ui():match("…")` when the selector matches this widget and **nothing else**, and
-`…:matchAll("…")[i]` when it matches more. Every offered selector is
-resolved before it is offered, so it always hands back the widget you were pointing at.
-
-Some widgets cannot be named alone, and the panel says so rather than inventing a key: nine identical
-attribute rows in one window differ in nothing the grammar can see, so an index is the best line there is.
-The header counts the tree walks the last hover cost and how many of them were chains, since a chain
-candidate costs one walk more than the flat step it extends.
-
-Click a row, or run `:selector`, to log the line: chat-log text is selectable, which is how it reaches your
-editor. Freeze the stack first with `widgetstack`'s `freeze` hotkey, or moving the mouse to the window
-re-hovers.
-
-> **Hovering a window's frame does not give you the window.** The chrome — border, title bar, close button
-> — is the window's *decoration*, a child widget of its own, so the hover resolves to that (`@DefaultDeco`,
-> role `nil`) and not to the `Window`. Address the deco with a chain, `window[title=…] @DefaultDeco`; for
-> the window itself, click one level up in the stack, or write `window[title=…]`.
-
-## What the inspector says a widget answers
-
-Under the selector list sits the other half: every [read](widget.md#read) that has something to say about
-the widget you are pointing at, in one fixed order, in the hover panel and in an inspector window alike.
-A read answering `nil`, an empty collection or a plain `false` prints **no line**, so what you are looking
-at is what the widget *has* — a window's close button is one `picture:` line, a plain label is none at all.
-
-Some of those reads — `:range()`, `:rows()`, `:rowHeight()`, `:cellSize()`, `:columns()`, `:source()` and
-`:image()` — answer a [control](controls/README.md)'s own configuration, which belongs to the addon that
-**built** it. Over one of the client's own controls they say nothing, which is the honest answer rather
-than a guess at one. `:picture()`, `:tooltip()`, `:value()`, `:items()`, `:focused()` and `:style()` answer
-on any widget in the tree, whoever put it there, so those are the lines you read off the client's own UI.
-
-## Hold the result
-
-Every lookup walks its whole scope — one character's tree for `s:ui():match` and `:matchAll`, one widget's
-subtree for [the pair on a widget](#inside-one-widget) — and `:match` walks all of it too, since it cannot
-know a match is the only one until it has looked everywhere. Once per event, or once when the hover changes,
-that is nothing; sixty times a second it is a real slice of your frame budget. The selector string is
-parsed on every call too, so holding the *string* in a local saves nothing — what there is to hold is
-the widget the lookup answered. Because widgets are [interned](widget.md), holding it costs nothing and
-the objects stay `==`-comparable, so select once, keep it, and use `:exists()` when you need to know it
-is still there. There is no cache underneath any of this: holding the result is the whole of what makes
-a per-frame lookup affordable.
+---
 
 ## Hit-testing
 
-[`hafen.ui():mouse():over()`](mouse.md) and `hafen.ui():hit(x, y)` answer *what widget is under
-a point*. Both **mirror the engine's own pointer dispatch**: they walk children topmost-first, skip
-invisible widgets, follow scroll offsets and honour non-rectangular hit areas, so they return exactly the
-widget a real click would hit. A naive position-plus-size rectangle test is *wrong* inside scrolled lists
-and for custom hit shapes. Walk [`:parent()`](widget.md#read) up from the hit for the full stack;
-`:rootPos()` and `:size()` give the rectangle to outline it.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():hit(x, y)` | `Widget \| nil` | Unprotected | The deepest widget under a root design-pixel point. |
+| [`hafen.ui():mouse():over()`](mouse.md) | `Widget \| nil` | Unprotected | The same, at the pointer. |
+
+Both mirror the engine's pointer dispatch — children topmost-first, invisible widgets skipped, scroll offsets followed, non-rectangular hit areas honoured — so they return the widget a click would hit; a position-plus-size rectangle test is wrong inside scrolled lists. Walk [`:parent()`](widget.md#read-methods) up for the stack; `:rootPos()` and `:size()` give the outline.
 
 ```lua
-local last                                             -- the leaf we last built the stack for
+local last                                             -- the leaf the stack was last built for
 hafen.event():on("Update", function(delta)
-  local leaf = hafen.ui():mouse():over()                -- deepest widget under the cursor, or nil
+  local leaf = hafen.ui():mouse():over()
   if leaf == last then return end                      -- hover unchanged: no walk, no rebuild
   last = leaf
   local stack, node = {}, leaf
-  while node do stack[#stack + 1] = node; node = node:parent() end  -- leaf to root
-  -- ... render `stack`; outline the leaf with leaf:rootPos() + leaf:size()
+  while node do stack[#stack + 1] = node; node = node:parent() end
 end)
 ```
 
-The guard is the point: `Update` fires every frame, but the walk and the relayout run **only when the
-hovered widget changes** — and because widgets are interned, that guard is a plain `==`, which covers
-"still hovering nothing" too, since `nil == nil`. Reading the cursor and the geometry is unprotected
-client-side data; sending a message from the resolved widget still goes through the protected
-[`widget:send`](widget.md#send-a-message-protected).
+Widgets are interned, so the guard is a plain `==` and covers `nil == nil`. Hovering a window's frame resolves to its decoration (`@DefaultDeco`, role `nil`), a child widget of its own; the window is one level up, or `window[title=…]`.
 
-## See also
+## Hold the result
 
-- [widget](widget.md) — what you can read off the widget a selector found
-- [style](style/keys.md) — the same selector, used as a rule's key
-- [replace](replace.md#watching-for-a-widget) — waiting for a widget instead of polling for it
-- [native](native.md) — moving, hiding and handing over what you named
-- [references](../references.md#selector-naming-a-piece-of-the-ui) — where selectors sit among the
-  other reference kinds
+Every lookup walks its whole scope and parses the selector on every call, so hold the widget the lookup answered, not the string: widgets are interned, holding one is free, and `:exists()` says whether it is still there. There is no cache underneath.
+
+## The inspector
+
+The `widgetstack` addon reports the hovered widget's role, class, own `[title=]` or `[text=]`, `[res=]` and anchor (the nearest captioned window, as the first step of a chain), then every selector it can build from those parts and resolve back to the widget, most specific first, with how many widgets each matches. Chains come first, since they name one widget; `[res*=…]` on a path's last segment and the `^=` form of a value before its first digit are offered where `=` would not hold. The bottom line is ready for `:lua`: `hafen.session():current():ui():match("…")` when it matches this widget alone, `…:matchAll("…")[i]` otherwise. Under it, every [read](widget.md#read-methods) with something to say prints a line; a control's own configuration (`:range()`, `:rows()`, `:rowHeight()`, `:cellSize()`, `:columns()`, `:source()`, `:image()`) is the builder's and says nothing on a client control. Click a row or run `:selector` to log the line; the `freeze` hotkey holds the stack.
+
+---
+
+## See Also
+
+- [Widget](widget.md) — what you read off the widget a selector found.
+- [Style keys](style/keys.md) — the same selector as a rule's key.
+- [Replace](replace.md#watching-for-a-widget) — waiting for a widget instead of polling.
+- [Native](native.md) — moving, hiding and handing over what you named.
+- [References](../references.md#selector-naming-a-piece-of-the-ui) — selectors among the other reference kinds.

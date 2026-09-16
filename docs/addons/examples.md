@@ -29,7 +29,7 @@ log is [the streams and the bus](api/event/README.md) at once.
 The inspector. It shows the live stack of widgets under the cursor, outlines the hovered one, and opens a
 browsable window for any of them: type, id, position, size, text, [role](api/ui/selectors.md#roles),
 resource, parent, children, and
-[everything else the widget answers](api/ui/selectors.md#what-the-inspector-says-a-widget-answers) — the
+[everything else the widget answers](api/ui/selectors.md#the-inspector) — the
 picture it shows, the tooltip it carries, what it holds — a line each, and none for a read with nothing to
 say. Its selector panel answers the question the
 [selector grammar](api/ui/selectors.md) is useless without — what is this widget, and how do I name

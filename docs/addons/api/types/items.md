@@ -9,7 +9,7 @@ object. The model, and what *optional* means on the tables below, is on [the cat
 From [`item:info()`](../ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
 [`:items()`](../ui/items.md) — that character's backpack (`s:ui():inventory()`), its worn gear
 (`s:ui():equipment()`), a chest, a cupboard — [`s:player():hand()`](../player.md#the-hand) for the cursor
-item, and [`widget:item()`](../ui/widget.md#read) for whatever one icon draws all hand you a live
+item, and [`widget:item()`](../ui/widget.md#read-methods) for whatever one icon draws all hand you a live
 [`Item` object](../ui/items.md#the-item-object), not this table. Every field is optional, and the last four
 are absent together on [something the client only draws](../ui/items.md#a-depiction-that-is-not-an-item) —
 a recipe slot, a listing — which is put nowhere and so has nowhere to name.

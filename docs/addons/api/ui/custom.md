@@ -1,73 +1,69 @@
-# hafen.ui: your own windows and widgets
+# hafen.ui: Your Own Windows and Widgets
 
-Two builders make a surface of your own — a window with chrome, or a bare rectangle. Each is built **bare**
-and configured by chained setters. Both are unprotected, and both are torn down with your addon.
-
-This page is about the surfaces you **paint**. To put one of the client's own controls in one instead of
-drawing it, see [controls](controls/README.md); to draw over the screen, or over one widget the client
-has already put there, rather than build a surface at all, see [overlays](overlay.md).
+Two builders make a surface of your own — a framed window or a bare canvas — configured by chained setters, painted on `Draw`, and torn down with your addon.
 
 ```lua
-local win = hafen.ui():window()
+local clock_window = hafen.ui():window()
   :title("Clock")
   :size(160, 40)
   :position(50, 50)
 
-win:on("Draw", function(event)
-  local graphics = event:g()
+clock_window:on("Draw", function(draw_event)
+  local graphics = draw_event:g()
   graphics:color(255, 255, 0)
   graphics:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
 end)
 
-win:position(320, 200)                        -- the handle the builder gave you IS the widget
+clock_window:position(320, 200)      -- the handle the builder gave you is the widget
 ```
+
+To put the client's own controls in a surface instead of painting them, see [controls](controls/README.md); to paint over the screen or over an existing widget without building one, see [overlays](overlay.md).
+
+---
 
 ## Your windows live in the layer
 
-**A surface you build goes in the addon layer** — a widget tree of its own, above every character the client
-holds, drawn over whichever one is on screen and over the login screen when none is. It is in no character's
-tree: nothing about it is a window of the client's, and a logout leaves it exactly where it was.
+A surface you build stands in the **addon layer**: a widget tree of its own, above every character the client holds, drawn over whichever is on screen and over the login screen. It is in no character's tree, so `session:ui():match`, `:matchAll`, `:root` and an [`Added` subscription](replace.md#watching-for-a-widget) never reach it; hold the handle the builder gave you. `==` is its identity and `widget:match(selector)` searches inside it. A logout leaves it where it was.
 
-That is why the [search verbs](widget.md#getting-a-widget) are addressed at a character —
-`s:ui():match`, `:matchAll`, `:root` and an [`"Added"` subscription](replace.md#watching-for-a-widget) all
-search one session's tree, never the layer — while a hit test, which asks about a point on the screen,
-is not addressed at all. None of them reaches a window of yours. Hold the handle the builder gave you: it
-is the widget, `==` is its identity, and `w:match(selector)` searches **inside** it.
+---
 
-## Windows and widgets
+## Builders
 
-| Verb | Returns | Description |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():window()` | [`Widget`](widget.md) | Unprotected | A draggable, titled window wrapping your content. Born 200x140 at (100, 100), no caption. |
+| `hafen.ui():widget()` | [`Widget`](widget.md) | Unprotected | A bare content rectangle, no chrome. Same defaults. |
+| `hafen.ui():column()`, `hafen.ui():row()` | [`Widget`](widget.md) | Unprotected | The bare rectangle with an axis: it [lays its children out](column.md) and sizes itself to them. |
+
+None takes an argument. Every property is a setter on the Widget; every setter chains and has a bare read.
+
+## Setters
+
+| Method | Read | Description |
 |---|---|---|
-| `hafen.ui():window()` | [Widget](widget.md) | a draggable, titled window wrapping your content |
-| `hafen.ui():widget()` | [Widget](widget.md) | a bare content rectangle, no chrome |
-| `hafen.ui():column()` / `:row()` | [Widget](widget.md) | the bare rectangle with an axis: it [lays its children out](column.md) and sizes itself to them |
+| `:title(caption)` | `:title()` | The window caption. A bare widget has no chrome and refuses. Answers on [a client window](edit.md#what-a-window-says) too. |
+| `:parent(w)` | `:parent()` | What it hangs under; the layer by default. Naming [a client window](edit.md#your-own-controls-inside-one-of-the-clients-windows) puts it in that character's tree, where it ends with the window. Legal while the surface is [pending](#a-surface-never-paints-half-configured). The same verb [takes a client widget into a surface of yours](native.md#taking-one-into-a-surface-of-your-own-unprotected). |
+| `:position(x, y)` | `:position()` | Place within the parent, in [design pixels](pixels.md). |
+| `:size(w, h)` | `:size()` | The content box, in design pixels; a window's chrome refits around it. The read answers the same content box; the frame is [`:chrome().frame`](widget.md#read-methods). |
+| `:font(handle)` | `:font()` | The default font of this widget's `g:text`/`g:atext`, not of its caption. A [font handle](../font.md). |
+| `:name(word)` | `:name()` | What your addon calls it; a [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back as `<addon>/<word>`. One word, no space, `]` or `/`; written once. |
+| `:stock(t)` | `:stock()` | Its look when no rule names it — [below](#naming-and-dressing-your-own-surfaces). |
+| `:resizable(true)` | `:resizable()` | The client's corner grip on a window of yours — [below](#letting-the-user-resize-a-window-of-yours). `false` removes it. |
+| `:draggable(h)`, `:resizable(h)`, `:remember(name)` | the same, bare | The user's hand and the saved place — [native](native.md#letting-the-user-drag-it-unprotected). |
+| `:visible(shown)` | `:visible()` | Drawn or hidden. |
+| `:pack()` | — | Sized to what is inside it — [below](#packing-a-surface-around-what-is-inside-it). |
+| `:destroy()` | — | Removed with everything in it. |
 
-None takes an argument. A surface is born with the client's own defaults — no caption, a place and a
-size it did not choose — and every property is a setter on the [Widget](widget.md) it hands back:
+| Rule | Detail |
+|---|---|
+| Owned only | Every setter answers on a surface your addon built. `:title(s)` also writes [a client window](edit.md#what-a-window-says) as a restoring level, and `:parent(w)` also takes one as the place a control is [built into](edit.md#your-own-controls-inside-one-of-the-clients-windows). A client widget and a [control](controls/README.md) have nowhere to put a font of yours. |
+| Units | [Design pixels](pixels.md): what you write is what you read back at every interface scale. |
 
-| Setter | Read | Meaning |
-|---|---|---|
-| `:title(s)` | `:title()` | window caption — a bare widget has no chrome to write it on and refuses; it answers on [one of the client's windows](edit.md#what-a-window-says) too |
-| `:parent(w)` | `:parent()` | which widget it hangs under; the default is the layer, and [one of the client's own windows](edit.md#your-own-controls-inside-one-of-the-clients-windows) may be named — which puts it in that character's tree, where it ends with them. The same verb says the other direction too: [one of the client's widgets, taken into a surface of yours](native.md#taking-one-into-a-surface-of-your-own-unprotected) |
-| `:position(x, y)` | `:position()` | place within the parent, in [design pixels](pixels.md) |
-| `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it, and the read answers that same content box — the frame's own is [`:chrome().frame`](widget.md#read) |
-| `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
+---
 
 ## Naming and dressing your own surfaces
 
-Two more setters, and they are what makes a surface you built **themeable by somebody else**: one says what
-you call it, the other what it looks like when nobody says otherwise.
-
-> **Painting is final; a stock is a default anybody can beat.** Pixels you lay down in your `Draw` handler
-> with [`g:frect`, `g:image`, `g:text`](drawing.md) are yours and nothing can override them — a rule is a
-> value the client reads, not a painter that reaches into your callback. The *same look* declared as a
-> `stock` renders identically and stays replaceable. So the question is never "shall I paint or declare",
-> it is **which parts of my surface do I want somebody else to be able to change**.
-
-| Setter | Read | Meaning |
-|---|---|---|
-| `:name(s)` | `:name()` | what your addon calls this widget. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back, as `<your addon>/<s>` |
-| `:stock(t)` | `:stock()` | what it looks like when **no rule** names it: the same properties a [rule](style/README.md#properties) carries, minus the three that lay a widget out |
+Pixels a `Draw` handler lays down with [`g:frect`, `g:image`, `g:text`](drawing.md) are final: no rule overrides them. The same look declared as a `stock` renders identically and stays replaceable by a theme, so declare what somebody else may change and paint the rest.
 
 ```lua
 local bar = hafen.ui():widget():parent(hud):name("bar")
@@ -80,233 +76,152 @@ for index = 1, 12 do
 end
 ```
 
-That addon now has a default look, and knows nothing about themes. A theme dresses it by naming it:
+A theme dresses that surface by naming it, without the addon knowing the theme:
 
 ```json
-"[name^=actionbars/slot]": {
-  "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" }
-}
+"[name^=actionbars/slot]": { "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" } }
 ```
-
-### Which of the two does what
-
-They are **independent**, and only one of them decides whether a theme can reach you at all:
 
 | `:name` | `:stock` | What a theme can do |
 |:---:|:---:|---|
-| ✗ | ✗ | Almost nothing. `["@AddonWidget"]` reaches it — along with every bare surface every *other* addon built |
-| ✗ | ✓ | The same. It has a default look, but still nothing to single it out by |
-| ✓ | ✗ | **Everything.** Named, so a rule finds it; bare until one does |
-| ✓ | ✓ | **Everything**, and it starts from the look you chose |
+| No | No | Almost nothing: `["@AddonWidget"]` reaches it, together with every bare surface every other addon built. |
+| No | Yes | The same; it has a default look, and nothing to single it out by. |
+| Yes | No | Everything: named, so a rule finds it; bare until one does. |
+| Yes | Yes | Everything, starting from the look you chose. |
 
-**`:name` is the one that enables.** `:stock` only decides the starting point — it neither opens nor closes
-the door. And neither is required: a surface with neither is exactly what a bare widget has always been.
+| Rule | Detail |
+|---|---|
+| `:name` enables, `:stock` starts | Neither is required; a surface with neither is a bare rectangle. |
+| Client-built widgets need neither | `:window()`, `:button()`, `:label()`, `:entry()` and the rest are client widgets, so the [site keys](style/keys.md#site-keys) already reach them. This section is about `hafen.ui():widget()`. |
+| The stock is the bottom of the [cascade](style/README.md#the-cascade) | Every rule beats it, per property: a theme naming only `bg` leaves your `border` standing. A `widget:rule()` would sit at the top, out of every theme's reach; a tree rule of your own would tie with the theme's. |
+| Properties | The same a [rule](style/README.md#properties) carries, minus the layout three (`position`, `anchor`, `size`), which are refused naming [`widget:position(x, y)`](native.md). `{}` drops the declaration; `:stock()` reads back what you wrote, or `nil`. |
+| Painting order | A surface with a stock, or one a rule names, paints its `bg` under your `Draw` and its `border` over it. No site key (`["*"]` included) falls into a widget you built; only a rule that names it reaches it. |
+| Yours alone | Naming or declaring a stock on a client widget is refused; your level on somebody else's widget is [`widget:rule()`](style/README.md#restyle-one-widget). |
 
-Widgets you build out of the client's own pieces — [`:window()`, `:button()`, `:label()`,
-`:entry()`](controls/README.md) and the rest — need none of this. They *are* client widgets, so the
-[site keys](style/keys.md#site-keys) already reach them and always did. This section is about
-`hafen.ui():widget()`, the bare rectangle, which was the one surface no rule could name.
+---
 
-### Worth knowing
+## Packing a surface around what is inside it
 
-- **A stock is the BOTTOM of the [cascade](style/README.md#the-cascade)**, under every rule, and that is the
-  whole reason to use it rather than a rule of your own. A `widget:rule()` would sit at the *top*, where no
-  theme could ever reach past it; a tree rule in your own sheet would **tie** with the theme's and leave the
-  winner to whichever sheet installed last, which nothing orders. A level beneath every rule has neither
-  problem: your default shows, and anybody's rule beats it, per property.
-- **A rule beats it per property, not wholesale.** A theme that names only your slot's `bg` leaves the
-  `border` you declared standing.
-- **`{}` drops the declaration**, and `:stock()` reads back what you wrote, or `nil`.
-- **Your surface wears it.** A widget with a stock, or that some rule names, paints its `bg` under whatever
-  your `Draw` handler draws and its `border` over the lot — the order the client's own panels use. One
-  with neither stays exactly what it always was: a bare rectangle that paints nothing of its own.
-- **No site key falls into it.** A widget you built is a widget, not one of the places the client draws, so
-  `["*"]` and the other [site keys](style/keys.md#site-keys) never reach it. Only a rule that *names* it
-  does, which is what keeps an unnamed surface bare.
-- **Both are yours alone.** Naming or declaring a stock on one of the client's own widgets is refused; the
-  level you have on somebody else's widget is [`widget:rule()`](style/README.md#restyle-one-widget).
-- **The layout three are refused**, with the same message `widget:rule()` gives: where a widget *sits* is the
-  verb, [`widget:position(x, y)`](native.md).
-
-Every setter returns the widget, so a whole surface is one expression; every one has a matching bare read,
-so nothing you configured needs a variable of its own to be readable later. They answer on a surface
-**your** addon painted, and two of them reach further: `:title(s)` writes
-[one of the client's windows](edit.md#what-a-window-says) as well, where it is a level that restores, and
-`:parent(w)` takes one as the place your control is
-[built into](edit.md#your-own-controls-inside-one-of-the-clients-windows). A native widget has nowhere to
-put a default font of yours, and neither does a [control](controls/README.md), which the client draws and
-drives.
-
-Sizes and positions are [design pixels](pixels.md): what you write is what you read back, on every client
-whatever the user's interface scale. `:position` is within the parent; on a window `:size` is the
-**content** size, written and read alike, and the chrome around it is derived — `:chrome()` says where it went.
-
-### Packing a surface around what is inside it
-
-**A surface has no art of its own**, so the one-number `:size(w)` a [control](controls/README.md#sizing)
-takes refuses here, naming the two-number write and `:pack()` — which sizes a window or a bare widget to
-the controls inside it, so a panel's box is read rather than added up. A [column](column.md) is the
-exception both ways: its children answer for its height, so `:size(w)` pins its width alone, and it is
-packed by construction, so `:pack()` refuses on it.
+A surface has no art of its own, so the one-number `:size(w)` a [control](controls/README.md#sizing) takes is refused, naming `:size(w, h)` and `:pack()`.
 
 ```lua
-local win = hafen.ui():window():title("Harvest"):position(80, 120)
-hafen.ui():button():parent(win):position(0, 0):size(120):text("Go")
-win:pack()                                       -- the window is now exactly that button
+local harvest_window = hafen.ui():window():title("Harvest"):position(80, 120)
+hafen.ui():button():parent(harvest_window):position(0, 0):size(120):text("Go")
+harvest_window:pack()                          -- the window is now exactly that button
 ```
 
-**Once packed, a surface follows what is inside it.** From the `:pack()` on, a child that enters, leaves,
-moves, resizes, hides or shows re-packs the surface before the call that changed it returns: a window
-packed around a [column](column.md) grows by a row when the column does, and a caption written longer
-widens the window around it. `:size(w, h)` takes the box back — the surface is that size whatever happens
-inside it, until you `:pack()` it again.
+| Rule | Detail |
+|---|---|
+| `:pack()` | Sizes a window or a bare widget to the controls inside it; chains. From then on the surface follows its content: a child that enters, leaves, moves, resizes, hides or shows re-packs it before the call that changed it returns. |
+| `:size(w, h)` after a pack | Takes the box back; the surface keeps that size until the next `:pack()`. |
+| A [column](column.md) | Packed by construction: `:pack()` refuses on it, and `:size(w)` pins its width alone. |
+
+---
 
 ## Subscribing
 
-A window or a bare widget answers the five universal [`:on(key, fn)`](widget.md#subscribing) keys every
-widget does — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Removed` — plus four more of its own, since
-it is a surface with content to paint and a lifetime to report:
+A surface answers the universal keys every [widget](widget.md#subscribing) does — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Removed`, `Dragged`, `Resized` — plus four of its own. `:on(key, fn)` returns a subscription, not the widget, so it is its own statement after the builder chain. Two handlers on one key both fire, in registration order.
 
-| Key | handler receives | Cancelable | Fires |
+| Key | Handler receives | Cancelable | Fires |
 |---|---|---|---|
-| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame, in the pass that paints this widget; `:w()`/`:h()` is the box you sized, in [design pixels](pixels.md) — see [the `g` wrapper](drawing.md) |
-| `Update` | `dt` | no | every frame, on the [step](../threading.md), before the pass that draws it |
-| `Drop` | `ev` — `:x()` `:y()` `:thing()` `:preventDefault()` | yes | the client's drag gesture drops something on it |
-| `Close` | `ev` — `:preventDefault()` | yes | the window's close button; a bare widget has none, so it never fires. Left alone, the window is destroyed when the handlers return; cancelled, it stands, and what the button means is yours to say |
-| `Resized` | `ev` — `:w()` `:h()` | no | the user released the [corner grip](#letting-the-user-resize-a-window-of-yours) or a [`:resizable(h)`](native.md#letting-the-user-resize-it-unprotected) handle; the content box, as `:size()` reads it |
+| `Draw` | `event` — `:g()`, `:w()`, `:h()` | No | Every frame, in the pass that paints this widget; `:w()`/`:h()` is the content box in design pixels — [the `g` wrapper](drawing.md). |
+| `Update` | `delta_seconds` | No | Every frame, on the [step](../threading.md), before the pass that draws it. |
+| `Drop` | `event` — `:x()`, `:y()`, `:thing()`, `:preventDefault()` | Yes | The client's drag gesture drops something on it — [below](#drop-makes-a-widget-a-drop-target). |
+| `Close` | `event` — `:preventDefault()` | Yes | The window's close button; a bare widget has none. Left alone, the window is destroyed when the handlers return; cancelled, it stands — [below](#the-close-button-destroys-the-window-unless-you-say-otherwise). |
+| `Resized` | `event` — `:w()`, `:h()` | No | The user released the [corner grip](#letting-the-user-resize-a-window-of-yours) or a [`:resizable(h)`](native.md#letting-the-user-resize-it-unprotected) handle; the content box, as `:size()` reads it. |
 
-`Update` and `Draw` run in different places, and it matters as soon as you have more than one character
-logged in: `Update` is on the step and may reach any of them, while `Draw` — and every press, drop and
-close beside it — runs inside the tree this widget stands in and may reach only that one. A `Draw` handler
-that has to change something elsewhere records it and lets the step do the work; see
-[threading](../threading.md).
-
-`:on(key, fn)` is its own statement, after the builder chain that made the widget finishes — it hands back
-a subscription, not the widget, so it cannot sit mid-chain or be a chain's last call. Two handlers on
-`Draw` both paint, in registration order; two on any of these both fire.
+`Update` runs on the step and may reach any character's tree. `Draw`, and every press, drop and close, runs inside the tree this widget stands in and may reach only that one; a `Draw` handler that changes something elsewhere records it for the step — [threading](../threading.md).
 
 ### Where a press lands
 
-A window is your content inside the client's own frame, and everything you subscribe to speaks the
-**content**. `Draw` paints from its top-left corner, and `MouseDown`, `MouseUp`, `MouseMove` and `Wheel`
-call that same corner `0, 0` — so `ev:x(), ev:y()` on a press is the pixel `g:text(s, x, y)` writes at, and
-a hit test written against what you drew is right by construction:
+A window is your content inside the client's frame, and every key speaks the **content**: `Draw` paints from its top-left corner, and `MouseDown`, `MouseUp`, `MouseMove` and `Wheel` call that corner `0, 0`, so a hit test written against what you drew is right by construction.
 
 ```lua
-win:on("Draw", function(event) event:g():frect(40, 40, 48, 48) end)
-win:on("MouseDown", function(event)
-  if (event:x() >= 40) and (event:x() < 88) and (event:y() >= 40) and (event:y() < 88) then
+clock_window:on("Draw", function(draw_event) draw_event:g():frect(40, 40, 48, 48) end)
+clock_window:on("MouseDown", function(press)
+  if (press:x() >= 40) and (press:x() < 88) and (press:y() >= 40) and (press:y() < 88) then
     hafen.log():write("in the square")
   end
-  event:preventDefault()                         -- yours now: see below
+  press:preventDefault()                         -- the press is yours and stops here
 end)
 ```
 
-**A press you do not cancel falls through to the frame underneath**, which is what drags the window — so a
-surface that answers clicks at all ends its handler with `ev:preventDefault()`. Cancel it and the press is
-yours and stops there.
-
-**The caption, the frame and the close button are the client's**, not yours: a press on any of them reaches
-no handler of yours at all, and dragging the title moves the window. There is nothing to filter and nothing
-to subtract. What the close button does reach is `Close`, and `:size()` is the content box, so the frame
-never enters your arithmetic either.
+| Rule | Detail |
+|---|---|
+| Uncancelled presses fall through | To the frame underneath, which drags the window. A surface that answers clicks ends its handler with `event:preventDefault()`. |
+| The chrome is the client's | The caption, the frame and the close button reach no handler of yours; dragging the title moves the window. The close button reaches `Close`. |
+| `MouseMove` fires outside the box too | The client hands a move to every widget (how a control un-hovers), so `event:x()`/`:y()` can be negative or past `:size()`. |
+| Other widgets | A bare widget and a control have no chrome, so the rule reads the same. A client window speaks its own coordinates: the outer box, caption included. |
 
 ### The close button destroys the window, unless you say otherwise
 
-The X on a window of yours fires `Close` and then destroys the window, its controls and every subscription
-on it — so a toggle that hides and shows one window dies at the first X, its handle stale. A handler that
-cancels keeps the window standing, and hiding it is then one line:
+The X fires `Close`, then destroys the window, its controls and every subscription on it, so a toggle by `:visible()` dies at the first X with a stale handle. A handler that cancels keeps the window standing:
 
 ```lua
-win:on("Close", function(close_event)
+clock_window:on("Close", function(close_event)
   close_event:preventDefault()
-  win:visible(false)                          -- the X hides; :visible(true) brings it back
+  clock_window:visible(false)                  -- the X hides; :visible(true) brings it back
 end)
 ```
 
 ### Letting the user resize a window of yours
 
-`win:resizable(true)` switches on the client's own corner grip — the sizer the frame draws at its bottom
-right, the one the map window has — so the user drags the corner and the content box follows, live. Your
-`Draw` paints the new box on the next frame, `Update` reads it back through `:size()`, and `Resized` fires
-once, on release, with the box the window landed at:
+`window:resizable(true)` switches on the client's own corner grip, the sizer the frame draws at its bottom right. The user drags the corner, the content box follows live, `Draw` paints the new box on the next frame, `:size()` reads it, and `Resized` fires once on release.
 
 ```lua
-win:resizable(true)
-win:on("Resized", function(resize_event)
+clock_window:resizable(true)
+clock_window:on("Resized", function(resize_event)
   hafen.log():write(("now %dx%d"):format(resize_event:w(), resize_event:h()))
 end)
 ```
 
-The grip sits in the bottom-right corner of the content area, about 25 design pixels along each edge, and a
-control of yours standing there takes the press first — leave that corner to the canvas. `:resizable(false)`
-takes the grip away, and `:resizable()` reads `true` while it is on. A bare widget has no frame to draw a grip
-on and refuses, naming [`:resizable(h)`](native.md#letting-the-user-resize-it-unprotected), the handle of
-your own that sizes any surface; the floor, the level and [`:remember`](native.md#remembering-where-the-user-put-it-unprotected)
-answer the same for both.
-
-`MouseMove` is the one key that also fires for a pointer **outside** the box — the client hands a move to
-every widget, which is how a control un-hovers when the pointer leaves it — so its `ev:x(), ev:y()` can be
-negative or past `:size()`. Test the coordinate where that matters.
-
-A bare `:widget()` has no chrome, and a [control](controls/README.md) has none either, so the rule reads the
-same on all three. One of **the client's** widgets speaks its own coordinates, which for one of its windows
-means the outer box, caption included.
+| Rule | Detail |
+|---|---|
+| Where the grip is | The bottom-right corner of the content area, about 25 design pixels along each edge. A control of yours standing there takes the press first: leave that corner to the canvas. |
+| Read and undo | `:resizable()` reads `true` while the grip is on; `:resizable(false)` removes it. |
+| A bare widget | Has no frame to draw a grip on and refuses, naming [`:resizable(h)`](native.md#letting-the-user-resize-it-unprotected), the handle of your own that sizes any surface. The floor (one design pixel each way), the size level and [`:remember`](native.md#remembering-where-the-user-put-it-unprotected) answer the same for both. |
 
 ### A surface never paints half-configured
 
-A bare `:window()` is in the layer's tree the instant it is built — its `:parent()`, its `:children()` and
-`w:match(selector)` inside it all answer at once — but it **draws nothing until the tick after the statement
-that built it**. So a caption, a size and a place you set across several lines are all in place before the
-first pixel, whatever falls between them, and there is no "commit" verb to forget.
+A surface is in the layer's tree the instant it is built — `:parent()`, `:children()` and `widget:match(selector)` answer at once — and draws nothing until the tick after the statement that built it. A caption, a size and a place set across several lines are all in place before the first pixel; there is no commit verb.
 
-Two things follow. A surface you build and destroy in the same breath never appears at all. And
-`:parent(w)` is a *building* verb: it answers while the surface is still being built and refuses once it is
-on screen, where the way to move a widget is `:position(x, y)`.
+| Rule | Detail |
+|---|---|
+| Build and destroy in one statement | The surface never appears. |
+| `:parent(w)` is a building verb | It answers while the surface is pending and refuses once it is on screen, naming `:position(x, y)`. |
+| A parent that has left the tree | The build stops: nothing is placed, the rest of the chain runs inert, and the handle answers `:exists()` false. An icon handed to you by a subscription may be destroyed on the client's step before your call runs, and no `:exists()` of yours sits inside that instant. |
+| A value that is not a Widget | Raises, naming what a Widget is. |
 
 ```lua
-local hud = hafen.session():current():ui():match("@GameUI")   -- the HUD is just another widget
+local hud = hafen.session():current():ui():match("@GameUI")      -- the HUD is a widget like any other
 local panel = hafen.ui():widget():parent(hud):size(120, 40)
-```
 
-**A parent that has left the tree abandons the surface.** The widget you name may be gone by the moment you
-name it: an item icon handed to you by a subscription is destroyed on the client's own step, and a stockpile
-that swallows an inventory destroys a screenful of them at once — so between the event and your call the
-parent can close, and no `:exists()` of yours sits inside the same instant to catch it. The build therefore
-**stops**. Nothing is placed, the rest of the chain runs inert, and the handle you get back answers
-`:exists()` false — the surface was never in the layer, so there is nothing left over to find or release:
-
-```lua
 hafen.session():current():ui():on("item", "Added", function(icon)
   local badge = hafen.ui():widget():parent(icon):size(12, 12)
   if not badge:exists() then return end          -- the icon closed: nothing was built
-  badge:on("Draw", function(event) event:g():frect(0, 0, 12, 12) end)
+  badge:on("Draw", function(draw_event) draw_event:g():frect(0, 0, 12, 12) end)
 end)
 ```
 
-A value that is **not** a Widget is the other fault, and it raises: that one is a spelling mistake, and the
-refusal names what a Widget is and where to get the one you meant.
-
 ### `Drop` makes a widget a drop target
 
-`:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
-`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local [design pixels](pixels.md) and `ev:thing()` a neutral
-descriptor, `{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon
-with [`g:resource`](drawing.md), persist it with [`hafen.store`](../store/README.md), put it on the bar with
-[`slot:res(name)`](../actionbar.md#write-protected), which takes it for every kind of action the menu holds.
-It is absent only while the action's resource is still loading, so a descriptor with `kind` alone is an
-action dropped a beat too early, never a kind of action. Firing the dropped action is not part of it.
+`:on("Drop", fn)` opts the widget into the client's drag gesture. Dragging a menu-grid action onto it fires `fn(event)`:
 
-An entry an addon [added to the menu](../menugrid.md#write-unprotected) carries its own
-`addon/<the addon's id>/<the id>` identity instead, which is stable across a relog and is what
-[`s:menugrid():get(res)`](../menugrid.md) resolves. It is not a client resource, so `g:resource` has
-nothing to draw for it: read the entry and ask it what it looks like.
+| `event` verb | Value |
+|---|---|
+| `:x()`, `:y()` | Widget-local design pixels. |
+| `:thing()` | `{ kind = "pagina", res = "<resource name>" }`. `res` is absent only while the action's resource is still loading. |
+| `:preventDefault()` | Consumes the drop. |
 
-## See also
+`res` is a plain resource name: draw its icon with [`g:resource`](drawing.md), persist it with [`hafen.store`](../store/README.md), put it on the bar with [`slot:res(name)`](../actionbar.md#write-protected). An entry an addon [added to the menu](../menugrid.md#write-unprotected) carries `addon/<addon id>/<id>` instead, stable across relogs and what [`s:menugrid():get(res)`](../menugrid.md) resolves; `g:resource` has nothing to draw for it, so read the entry's own look. Firing the dropped action is not part of `Drop`.
 
-- [drawing](drawing.md) — what `g` can do, and why text is nearly free to redraw
-- [widget](widget.md) — the object both builders return, and what you can do to it afterwards
-- [overlays](overlay.md) — painting over the screen, or over one widget, without owning either
-- [`hafen.font`](../font.md) — the handle `:font(h)` takes
-- [style](style/README.md) — restyling the client's surfaces rather than drawing your own
-- [`hafen.virtual`](../virtual/README.md) — the same idea in the 3D world
+---
+
+## See Also
+
+- [Drawing](drawing.md) — what `g` draws, and the raster cache behind text.
+- [Widget](widget.md) — the object both builders return.
+- [Overlays](overlay.md) — painting over the screen or over one widget without owning either.
+- [`hafen.font`](../font.md) — the handle `:font(h)` takes.
+- [Style](style/README.md) — restyling the client's surfaces.
+- [`hafen.virtual`](../virtual/README.md) — surfaces standing in the 3D world.

@@ -84,7 +84,7 @@ one — so `.r` answers there too, and `sheet:load` takes the document back exac
 of one value is what makes a value you read impossible to pass back into a write without guessing which of
 them you meant.
 
-> **The draw context is the exception.** [`g:color(r, g, b, a)`](ui/drawing.md#draw) takes loose components
+> **The draw context is the exception.** [`g:color(r, g, b, a)`](ui/drawing.md#draw-methods) takes loose components
 > as well, because loose numbers are the language of every verb on `g` — `g:line(x1, y1, x2, y2)`,
 > `g:frect(x, y, w, h)`. It takes the table too, so `g:color(kin:color())` draws that colour.
 

@@ -1,162 +1,127 @@
-# hafen.ui: row-source controls
+# hafen.ui: Row-Source Controls
 
-A **row-source control** takes its content from `:rows(t)` — a plain Lua array — rather than a caption or
-a picture, and is dressed by the [stylesheet](style/README.md) like any other [control](controls/README.md). A
-listbox keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick and
-holds nothing, a grid draws its own cells instead of building rows at all, and a table lays them out in named
-columns. A listbox, a dropdown and a menu take the same string-or-`{icon=,text=}` row shape below; a
-[grid](#grid)'s rows are whatever your own `Cell` handler reads, and a [table](#table)'s whatever its own
-`:columns(t)` reads.
+A row-source control takes its content from `:rows(t)`, a plain Lua array: a listbox keeps every row on screen, a dropdown keeps one closed until clicked, a menu fires on a pick and holds nothing, a grid paints its own cells, and a table lays rows out in named columns.
 
 ```lua
-local box = hafen.ui():listbox():size(200, 160):rows{"Wood", "Stone", "Clay"}
-box:on("Changed", function(row) hafen.log():write("picked " .. row) end)
+local material_list = hafen.ui():listbox():size(200, 160):rows{"Wood", "Stone", "Clay"}
+material_list:on("Changed", function(row) hafen.log():write("picked " .. row) end)
+material_list:value("Stone")
 ```
+
+---
 
 ## Builders
 
-| Verb | Returns | The control |
-|---|---|---|
-| `hafen.ui():listbox()` | [Widget](widget.md) | a scrolling list of rows |
-| `hafen.ui():dropdown()` | [Widget](widget.md) | one row, closed until clicked |
-| `hafen.ui():menu()` | [Widget](widget.md) | a row of actions that fires and holds nothing |
-| `hafen.ui():grid()` | [Widget](widget.md) | a laid-out grid of cells you draw yourself |
-| `hafen.ui():table()` | [Widget](widget.md) | rows laid out in named columns |
+| Method | Returns | Permission | The control |
+|---|---|---|---|
+| `hafen.ui():listbox()` | [`Widget`](widget.md) | Unprotected | A scrolling list of rows. |
+| `hafen.ui():dropdown()` | `Widget` | Unprotected | One row, closed until clicked. |
+| `hafen.ui():menu()` | `Widget` | Unprotected | A list of actions that fires and holds nothing. |
+| `hafen.ui():grid()` | `Widget` | Unprotected | A wrapping grid of cells you paint. |
+| `hafen.ui():table()` | `Widget` | Unprotected | Rows laid out in named columns. |
 
-Built bare and configured by chained setters, [the same shape](controls/README.md#builders) every other
-control has — the arming rule included. None of it is protected, the same as any other control.
+Built bare and configured by chained setters, [the same shape](controls/README.md#builders) every control has, the arming rule included. A listbox, dropdown and menu take the row shape below; a grid's rows are whatever its `Cell` handler reads, and a table's whatever its `:columns(t)` reads.
 
 ## Rows (listbox, dropdown, menu)
 
-Every row is a string, or a `{icon =, text =}` table — the client's own art beside a label — and a table
-may mix both freely, one shape per element:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `control:rows(t)` | `self` | Unprotected | The row source: an array whose every element is a string or an `{icon =, text =}` table, mixed freely. Replaces the whole set and clears the selection (listbox, dropdown) or the contents (menu). `:rows{}` is an empty control, not an error. |
+| `control:rows()` | `table` | Unprotected | The table last given. |
 
 ```lua
-box:rows{ "Alpha", { icon = hafen.asset():get("bucket.png"), text = "Bucket" }, "Gamma" }
+material_list:rows{ "Alpha", { icon = hafen.asset():get("bucket.png"), text = "Bucket" }, "Gamma" }
 ```
 
-`icon` is a [face](controls/interactive.md#a-caption-or-a-picture) — an asset handle or a client resource
-name. Writing `:rows(t)` again replaces the whole set and clears the selection (a listbox or a dropdown), or
-its contents (a menu); an empty `:rows{}` is a control with nothing in it, not an error.
-
-**The array has no holes in it**, and `:rows(t)` says so rather than guessing: every row from `1` up to the
-last one you set is read, so a `nil` in the middle raises naming which index it is. It is almost always a
-row that was meant to be there — a build loop that skipped an element and left the gap behind.
-
-**And it takes at most 4096 rows**, refused naming the number. Every row is resolved and every icon
-*loaded* before the call returns, so a list of a hundred thousand is not a long list, it is a stalled
-client. A list that long is a filter that has not been applied yet.
+| Rule | Detail |
+|---|---|
+| `icon` | A [face](controls/interactive.md#a-caption-or-a-picture): an asset handle or a client resource name. |
+| No holes | Every row from `1` to the last is read; a `nil` in the middle raises naming its index. |
+| At most 4096 rows | Refused naming the number. Every row and every icon is resolved before the call returns, so a list of a hundred thousand rows is a stalled client, and a list that long is a filter not yet applied. |
 
 ## Listbox
 
-`:value()`/`:value(v)` is the selected row — the **exact** Lua value `:rows(t)` was given, so it can be
-compared with `==` or handed straight back to `:value(v)`. Writing a value that is not one of the current
-rows is refused, naming the rows that are.
-
-```lua
-box:value()                --> nil, until a row is picked
-box:value("Stone")         --> selects it; refused if "Stone" is not one of the current rows
-```
-
-`Changed` fires when the user picks a different row, carrying it — a programmatic `:value(v)` never
-re-enters it, so driving the selection from a script and reacting to the user changing it never loop into
-each other.
-
-`:rowHeight(n)` sets the height of a row, in [design pixels](pixels.md), defaulting to the client's own label
-height — which reads back as the same number at every interface scale, like every other size here. Like a
-[button's face](controls/interactive.md#a-caption-or-a-picture), it is chosen while the control is being
-built: it refuses once the listbox is on screen.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `listbox:value()` | `any \| nil` | Unprotected | The selected row: the exact Lua value `:rows(t)` was given, so it compares with `==`; `nil` until a row is picked. |
+| `listbox:value(row)` | `self` | Unprotected | Selects that row, scrolling to it; a value not among the current rows is refused, naming the rows that are. |
+| `listbox:rowHeight(n)` | `self` | Unprotected | The height of a row in [design pixels](pixels.md); defaults to the client's own label height. Building-only: refused once the listbox is on screen. |
+| `listbox:rowHeight()` | `number` | Unprotected | The row height. |
+| `listbox:on("Changed", fn)` | `Sub` | Unprotected | `fn(row)` when the user picks a different row. A `:value(v)` of yours never re-enters it. |
 
 ## Dropdown
 
-`hafen.ui():dropdown()` answers the same `:value()`/`:value(v)`/`Changed` as a listbox — the picked row,
-round-tripped the same way — but stays closed until the user clicks it open, and shows only the current pick
-the rest of the time.
+Answers the same `:value()`, `:value(row)`, `:rowHeight(n)` and `Changed` as a listbox, stays closed until the user clicks it open, and shows only the current pick the rest of the time.
 
 ```lua
-local kind = hafen.ui():dropdown():size(120, 20):rows{"All", "Seeds", "Tools"}:value("All")
-kind:on("Changed", function(pick) hafen.log():write("filter: " .. pick) end)
+local kind_filter = hafen.ui():dropdown():size(120, 20):rows{"All", "Seeds", "Tools"}:value("All")
+kind_filter:on("Changed", function(pick) hafen.log():write("filter: " .. pick) end)
 ```
-
-`:rowHeight(n)` behaves exactly as it does on a listbox.
 
 ## Menu
 
-`hafen.ui():menu()` fires and holds nothing: it answers no `:value()` at all — reading it is always `nil` —
-and a pick is `Selected`, not `Changed`, a different key for a control with no value to report a change
-against.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `menu:value()` | `nil` | Unprotected | A menu holds nothing. |
+| `menu:rowHeight(n)` | `self` | Unprotected | As a listbox's. |
+| `menu:on("Selected", fn)` | `Sub` | Unprotected | `fn(row)` on a pick. `Selected`, not `Changed`: there is no value to report a change against. |
 
 ```lua
-local menu = hafen.ui():menu():size(120, 90):rows{"Rename", "Delete", "Move"}
-menu:on("Selected", function(row) hafen.log():write("picked " .. row) end)
+local actions = hafen.ui():menu():size(120, 90):rows{"Rename", "Delete", "Move"}
+actions:on("Selected", function(row) hafen.log():write("picked " .. row) end)
 ```
-
-`:rowHeight(n)` behaves exactly as it does on a listbox.
 
 ## Grid
 
-`hafen.ui():grid()` is the one row-source control that does not build a row widget per item — it lays cells
-out in a wrapping grid and answers `Cell` to PAINT each one, so `:rows(t)` here is an array of whatever
-your own cells need, not the string-or-`{icon=,text=}` shape above:
+The one row-source control that builds no row widget: it lays cells out in a wrapping grid and answers `Cell` to paint each, so `:rows(t)` is an array of whatever your cells need.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `grid:rows(t)` | `self` | Unprotected | An array of any Lua values, one per cell; `:rows{}` draws nothing. |
+| `grid:cellSize(w, h)` | `self` | Unprotected | The cell box in design pixels; defaults to the client's inventory-slot size, `32x32`. Building-only. |
+| `grid:cellSize()` | `{w=, h=}` | Unprotected | The cell box. |
+| `grid:value()` | `nil` | Unprotected | A grid holds nothing and fires no `Changed`. |
+| `grid:on("Cell", fn)` | `Sub` | Unprotected | `fn(event)` to paint one cell: `event:g()` the [`g` wrapper](drawing.md) with `(0, 0)` the cell's top-left, `event:w()`/`event:h()` the cell box, `event:item()` the row for that cell. A handler that errors costs that cell alone, that frame and after. |
 
 ```lua
-local items = {}
-for index, resource in ipairs(ownedResources) do items[index] = {icon = resource} end
+local icons = {}
+for index, resource in ipairs(owned_resources) do icons[index] = {icon = resource} end
 
-local grid = hafen.ui():grid():size(200, 200):cell(48, 48):rows(items)
-grid:on("Cell", function(event)
+local icon_grid = hafen.ui():grid():size(200, 200):cellSize(48, 48):rows(icons)
+icon_grid:on("Cell", function(event)
   event:g():image(event:item().icon, 0, 0, event:w(), event:h())
 end)
 ```
 
-`Cell`'s `ev` answers `:g()` — the same [`g` wrapper](drawing.md) a surface's `Draw` does — `:w()`/`:h()`
-the cell's box, drawn at `(0,0)`, its own top-left, and `:item()` the row `:rows(t)` gave for that cell. A
-handler that errors costs only that cell's line; the rest of the grid still draws, that frame and every one
-after it.
-
-`:cellSize(w, h)` is the cell box, in [design pixels](pixels.md), defaulting to the client's own
-inventory-slot size — `32×32`, the same box at every interface scale; like a
-[listbox's row height](#listbox), it is chosen while the control is being built and refuses once the grid
-is on screen. A grid answers no `:value()` and no
-`Changed` — it holds nothing, the same as a [menu](#menu) — and an empty `:rows{}` draws nothing rather than
-erroring.
-
 ## Table
 
-`hafen.ui():table()` lays rows out in named columns, so — like a [grid](#grid)'s — its rows are not the
-string-or-`{icon=,text=}` shape above, but whatever each column's own accessor reads:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `table:columns(t)` | `self` | Unprotected | One descriptor per column: `title` heads it, `width` is its box in design pixels (a number), `of(row)` is called once per row and returns that cell's text (a string: `tostring` a number yourself). Writing again replaces the set and re-reads every row. Building-only. |
+| `table:columns()` | `table` | Unprotected | The descriptors last given. |
+| `table:rows(t)` | `self` | Unprotected | An array of any Lua values, one per row, read by each column's `of`; `:rows{}` is an empty table. |
+| `table:rowHeight(n)` | `self` | Unprotected | As a listbox's. |
+| `table:value()` | `nil` | Unprotected | A table holds nothing and fires no `Changed`. |
 
 ```lua
-hafen.ui():table()
-  :size(300, 200)
+local stock_table = hafen.ui():table():size(300, 200)
   :columns{
     { title = "Name",    width = 160, of = function(row) return row.name end },
-    { title = "Quality", width = 60,  of = function(row) return tostring(row.q) end },
+    { title = "Quality", width = 60,  of = function(row) return tostring(row.quality) end },
   }
   :rows(stock)
 ```
 
-`:columns(t)` names each column: `title` heads it, `width` is its pixel box — a **number**, the same as any
-other [control's numbers](controls/README.md#setters) — and `of(row)` is called once per row to produce that
-cell's text, which must be a **string**: `tostring` a number yourself, the same as `"Quality"` does above.
-Writing `:columns(t)` again replaces the whole set and re-reads every current row against it; like a
-[grid's cell box](#grid), it is chosen while the control is being built and refuses once the table is on
-screen.
-
-`:rowHeight(n)` behaves exactly as it does on a listbox. A table answers no `:value()` and no `Changed` — it
-holds nothing, the same as a [menu](#menu) or a [grid](#grid) — and an empty `:rows{}` is a table with
-nothing in it rather than an error.
-
 ## The client's own row controls
 
-`Changed`, `Selected` and `Cell` answer on a listbox, dropdown, menu or grid the **client** built too, where
-they carry an `ev` that can stop the pick or run it — [editing](edit.md) is that page. It also says which
-widget the key is addressed to when a control keeps its rows in a list of its own.
+`Changed`, `Selected` and `Cell` answer on a listbox, dropdown, menu or grid the client built, with an `event` that can stop the pick or run it — [edit](edit.md), which also says which widget the key is addressed to when a control keeps its rows in an inner list of its own.
 
-## See also
+---
 
-- [edit](edit.md) — the same keys on one of the client's own row controls
-- [controls](controls/README.md) — the direct controls, and the vocabulary this page shares with them
-- [widget](widget.md) — everything a control answers before it adds anything of its own
-- [selectors](selectors.md) — naming a control, yours or the client's
-- [style](style/README.md) — the rules that dress it
+## See Also
+
+- [Edit](edit.md) — the same keys on the client's row controls.
+- [Controls](controls/README.md) — the direct controls and the vocabulary shared with them.
+- [Widget](widget.md) — everything a control answers before it adds its own.
+- [Selectors](selectors.md) — naming a control, yours or the client's.
+- [Style](style/README.md) — the rules that dress it.

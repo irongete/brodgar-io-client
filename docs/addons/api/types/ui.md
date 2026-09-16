@@ -8,7 +8,7 @@ reads are verbs on that object. The model, and what *optional* means on the tabl
 
 ## Widget
 
-From [`w:info()`](../ui/widget.md#read), the snapshot escape hatch for one widget of the client's tree;
+From [`w:info()`](../ui/widget.md#read-methods), the snapshot escape hatch for one widget of the client's tree;
 `nil` once that widget is stale, because there is nothing left to copy. [`s:ui()`](../ui/widget.md) and
 every selector search hand you live `Widget` objects, not this table.
 
@@ -22,7 +22,7 @@ every selector search hand you live `Widget` objects, not this table.
 | `pos` | `{x, y}` | its top-left in its parent, [design pixels](../ui/pixels.md); optional |
 | `size` | `{w, h}` | its box, design pixels; optional |
 | `visible` | bool | whether it and its parents are showing — always present |
-| `enabled` | bool | whether it takes input — its own flag, the live [`w:enabled()`](../ui/widget.md#read); `true` on the client's own — always present |
+| `enabled` | bool | whether it takes input — its own flag, the live [`w:enabled()`](../ui/widget.md#read-methods); `true` on the client's own — always present |
 | `text` | string | the label or content it draws; optional (most widgets carry none) |
 
 The live reads are `w:type()`, `:role()`, `:res()`, `:id()`, `:position()`, `:size()`, `:visible()`,

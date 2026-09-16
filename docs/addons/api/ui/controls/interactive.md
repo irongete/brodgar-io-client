@@ -1,184 +1,140 @@
-# hafen.ui: interactive controls
+# hafen.ui: Interactive Controls
 
-A button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar — the [controls](README.md)
-the user drives. Each is born bare and configured by chained setters, [the same shape](README.md#builders)
-every control has, and dressed by the [stylesheet](../style/README.md) like any other.
+A button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar: the [controls](README.md) the user drives, each built bare, configured by chained setters and dressed by the [stylesheet](../style/README.md).
+
+```lua
+local search_entry = hafen.ui():entry():parent(harvest_window):position(0, 0):size(160):value("")
+search_entry:on("Submitted", function(text) runSearch(text) end)
+
+local ripe_check = hafen.ui():check():parent(harvest_window):position(0, 28):text("Only ripe"):value(true)
+ripe_check:on("Changed", function(checked) hafen.store():var("cfg").ripe = checked end)
+
+local volume = hafen.ui():slider():parent(harvest_window):position(0, 56):size(140, 20):range(0, 100):value(50)
+volume:on("Changed", function(event) if event:final() then save(event:value()) end end)
+```
+
+---
 
 ## A caption or a picture
 
-A button shows text, or it shows pictures, and the setter you use is what decides:
+A button shows text or pictures; the setter decides which.
 
-```lua
-hafen.ui():button():text("Go")                     -- a captioned button
-hafen.ui():button():image(up, down, hover)         -- the same builder, a picture button
-```
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `button:text(caption)` | `self` | Unprotected | A captioned button. Rewritable at any time. |
+| `button:image(up, down [, hover])` | `self` | Unprotected | A picture button: `up` at rest, `down` while held, `hover` under the cursor (defaults to `up`). Building-only. |
+| `button:image()` | `table \| nil` | Unprotected | `{ up =, down =, hover = }` as named; `nil` on a captioned button. |
 
-`up` is what the button shows at rest, `down` while it is held, and `hover` the one under the cursor;
-leave `hover` out and it is the same picture as `up`. Each face is either an
-[image asset](../../asset/README.md) your addon ships, passed as the handle, or a **string naming one of the
-client's own images** — `"gfx/hud/buttons/addu"`, the very art the game's own windows are built from, scaled
-the way the client scales it so a button made of game art matches the buttons beside it; a file of yours is
-drawn at its own pixels instead.
+| Rule | Detail |
+|---|---|
+| A face | An [image asset](../../asset/README.md) handle, drawn at its own pixels, or a string naming a client image (`"gfx/hud/buttons/addu"`), scaled as the client scales it so it matches the buttons beside it. |
+| Building-only | The client draws a captioned and a picture button with two different widgets, so `:image` chooses which widget this is; once on screen it refuses, saying so. |
+| `:type()` | `"Button"` or `"IButton"`; `:role()` is `button` for both, so one selector matches every button you built. |
 
 ```lua
 local up, down = hafen.asset():get("up.png"), hafen.asset():get("down.png")
-local btn = hafen.ui():button():parent(win):position(8, 8):image(up, down)
-btn:on("Pressed", refresh)
+local refresh_button = hafen.ui():button():parent(harvest_window):position(8, 8):image(up, down)
+refresh_button:on("Pressed", refresh)
 ```
-
-> **A face is chosen while the control is being built** — like `:parent(w)`, and unlike every other setter
-> here. The client draws a captioned button and a picture button with two *different* widgets, so choosing
-> pictures chooses which widget this is; once the control is on screen `:image` refuses, saying so. A
-> caption is not a face: `:text(s)` rewrites one at any time.
-
-The bare `:image()` reads the faces back as `{ up =, down =, hover = }`, exactly as you named them, and
-`nil` on a control that shows no picture. `:type()` tells the two buttons apart — `"Button"` and
-`"IButton"` — while `:role()` is `button` for both, so one selector still matches every button you built.
 
 ## Text entry
 
-`hafen.ui():entry()` is a single-line text field. `:value(s)` is the one way to write its content — the
-bare `:text()` still reads it, like on any other text-bearing widget, but `:text(s)` refuses to write it,
-naming `:value(s)` instead.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():entry()` | [`Widget`](../widget.md) | Unprotected | A single-line text field. |
+| `entry:value(text)` | `self` | Unprotected | The one way to write its content. Any string, `"42"` included ([a numeric string is a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number)); a number is refused. Fires neither key. |
+| `entry:value()`, `entry:text()` | `string` | Unprotected | The content. |
+| `entry:text(text)` | — | — | Refused, naming `:value(s)`. |
+| `entry:on("Changed", fn)` | `Sub` | Unprotected | `fn(text)` on every keystroke that changes the text. |
+| `entry:on("Submitted", fn)` | `Sub` | Unprotected | `fn(text)` once, on Enter, with the whole text. |
 
-```lua
-local entry = hafen.ui():entry():size(160, 20):value("gonzalo")
-entry:on("Changed",   function(text) hafen.log():write("now: " .. text) end)
-entry:on("Submitted", function(text) doSearch(text) end)
-
-entry:value()          --> "gonzalo"
-```
-
-`:value(s)` takes any string the field could hold, `"42"` and `"061.8"` among them, because a string that
-scans as a number is
-[still a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number); a
-number itself is what is refused. The same holds for a [radio's](#radio) row labels, which are what
-`:value(v)` names one by.
-
-`Changed` fires on every keystroke that changes the text; `Submitted` fires once, when Enter is pressed,
-carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a keystroke
-goes to the field only, never also to your character, a hotkey, or the chat line.
-
-`Submitted` answers on the client's **own** entries as well, the chat line included, and there it can be
-stopped: cancelling one means the server never hears it. [Editing](../edit.md) is that page.
-
-An entry's **height** is its field art's, which is what `:size(w)` leaves to the control. Install a
-[`textentry`](../style/surfaces.md#textentry) rule whose `bg` is a picture *before* you build the entry and
-that picture is the art, so a themed field and your own are the same height.
+| Rule | Detail |
+|---|---|
+| Focus | While the field has focus a keystroke goes to it only — never to your character, a hotkey or the chat line. |
+| Height | Its field art's, which `:size(w)` leaves to the control. A [`textentry`](../style/surfaces.md#textentry) rule whose `bg` is a picture, installed before the entry is built, is that art. |
+| Client entries | `Submitted` answers on the client's own entries, the chat line included, and there it can be cancelled: the server never hears it — [edit](../edit.md). |
 
 ## Checkbox
 
-`hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `Changed` fires when the user
-changes it:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():check()` | `Widget` | Unprotected | A boolean toggle. |
+| `check:text(caption)` | `self` | Unprotected | Its caption. |
+| `check:value(checked)` | `self` | Unprotected | The tick. |
+| `check:value()` | `boolean` | Unprotected | Whether it is ticked. |
+| `check:image(up, down, hoverUp, hoverDown)` | `self` | Unprotected | Four faces, all required: the two states at rest and each under the cursor, resolved as a button's [face](#a-caption-or-a-picture) is. Building-only. |
+| `check:image()` | `table \| nil` | Unprotected | `{up=, down=, hoverUp=, hoverDown=}`; `nil` on a captioned checkbox. |
+| `check:on("Changed", fn)` | `Sub` | Unprotected | `fn(checked)` when the user changes it. |
 
-```lua
-local check = hafen.ui():check():text("Show grid"):value(true)
-check:on("Changed", function(checked) hafen.store():var("cfg").grid = checked end)
-
-check:value()          --> true
-```
-
-Like a button, it shows text or it shows pictures:
-
-```lua
-hafen.ui():check():image(up, down, hoverUp, hoverDown)
-```
-
-A checkbox carries two persistent states, ticked and not, each with its own hover — more faces than a
-button, not fewer: `up`/`down` are the two states at rest, `hoverUp`/`hoverDown` are each of those under
-the cursor, all required, resolved through the same two doors a button's [face](#a-caption-or-a-picture)
-is. Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
-hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending which you built.
-
-A checkbox with no picture of its own wears the theme's:
-[`checkbox`](../style/surfaces.md#checkbox-scrollbar-and-slider) is the box and `checkbox.mark` the tick. One
-you gave pictures to is dressed by neither — its faces are the ones you named, the way a picture button's
-are.
+`:type()` reads `"CheckBox"` or `"ICheckBox"`. A checkbox with no picture wears the theme's [`checkbox`](../style/surfaces.md#checkbox-scrollbar-and-slider) (the box) and `checkbox.mark` (the tick); one given pictures is dressed by neither.
 
 ## Radio
 
-`hafen.ui():radio()` is a set of buttons where exactly one is checked at a time — one control, not one
-object per button. `:rows{...}` names the choices, `:value(v)` reads and writes which one is checked, and
-`Changed` fires when the user picks a different one:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():radio()` | `Widget` | Unprotected | One control: a set of buttons of which exactly one is checked. |
+| `radio:rows(labels)` | `self` | Unprotected | The choices, laid out in one column below the control's `:position`. Writing again replaces the set and drops the checked row; `:rows{}` is an empty control, not an error. |
+| `radio:value(label)` | `self` | Unprotected | Checks that row; a label not in the current set is refused, naming the rows that are. |
+| `radio:value()` | `string` | Unprotected | The checked row. |
+| `radio:size()` | `{w=, h=}` | Unprotected | The box of the whole stack. |
+| `radio:on("Changed", fn)` | `Sub` | Unprotected | `fn(label)` when the user picks a different row. |
 
 ```lua
-local radio = hafen.ui():radio():rows{"Quality", "Amount", "Name"}:value("Amount")
-radio:on("Changed", function(pick) sortBy(pick) end)
-
-radio:value()          --> "Amount"
+local sort_radio = hafen.ui():radio():rows{"Quality", "Amount", "Name"}:value("Amount")
+sort_radio:on("Changed", function(pick) sortBy(pick) end)
 ```
-
-The rows are laid out in a single column below the control's own `:position`, each one under the last;
-`:size()` reads the box of the whole stack, not one row. Writing `:rows{...}` again replaces the whole set —
-the row that was checked does not carry over, and an empty `:rows{}` is a control with nothing in it rather
-than an error. `:value(v)` naming a row that is not in the current set is refused, naming the rows that are.
 
 ## Slider
 
-`hafen.ui():slider()` is a draggable position within a range. `:range(min, max)` sets the bounds,
-`:value(n)` reads and writes the position within them, and `Changed` fires while the user drags it:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():slider()` | `Widget` | Unprotected | A draggable position within a range. |
+| `slider:range(min, max)` | `self` | Unprotected | The bounds, numbers. Narrowing re-clamps a value outside the new bounds without firing `Changed`. `:range(nil)` is refused naming the missing bound: there is no undo for a control's own bounds. |
+| `slider:range()` | `{min=, max=}` | Unprotected | The bounds. |
+| `slider:value(n)` | `self` | Unprotected | The position; a value outside `:range` clamps to the nearer bound. `"50"` is refused: a value is a number. |
+| `slider:value()` | `number` | Unprotected | The position. |
+| `slider:on("Changed", fn)` | `Sub` | Unprotected | `fn(event)` on every step of the drag: `event:value()` the position, `event:final()` `false` while dragging and `true` once, on release. |
 
 ```lua
-local slider = hafen.ui():slider():size(140, 20):range(0, 100):value(50)
-slider:on("Changed", function(event)
+volume:on("Changed", function(event)
   preview(event:value())
   if event:final() then save(event:value()) end
 end)
 ```
 
-`Changed`'s `ev` says **two** things here — `:value()` and `:final()` — where every other control's says
-one, which is why this is the one `Changed` that hands over an event object rather than a bare value.
-`:final()` is `false` on every step while the thumb is being dragged and `true` exactly once, when the
-mouse is released, which is the moment to act on the value rather than merely preview it.
-
-A `:value(v)` outside `:range` **clamps** to the nearer bound rather than refusing; narrowing `:range(min,
-max)` later re-clamps a value the new bounds no longer cover, silently — that write is not something the
-user did, so it does not fire `Changed`. `:range(nil)` is refused like any other required argument, naming
-the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
-layer. A value and a bound are both [numbers](README.md#setters), so `:value("50")` is refused rather than
-converted — the same rule an [entry](#text-entry) reads the other way round.
-
-The client's own sliders report the same key — one of the options window's volume sliders is a `Changed` you
-can subscribe to — and there it is the one capability key that **cannot** be cancelled, because this control
-writes its value before it says anything: [editing](../edit.md) is where that is written down.
-
-A slider is two [surfaces](../style/surfaces.md#checkbox-scrollbar-and-slider): `slider` is the rail and
-`slider.knob` the thumb, and a rule on one leaves the other the client's own.
+A client slider (an options-window volume slider) reports the same key, and there it is the one capability key that cannot be cancelled: the control writes its value before it reports it — [edit](../edit.md). A slider is two [surfaces](../style/surfaces.md#checkbox-scrollbar-and-slider), `slider` (the rail) and `slider.knob` (the thumb).
 
 ## Scroll
 
-`hafen.ui():scroll()` is a scrolling container: give it a size, and anything `:parent()`'d into it lands in
-the scrolling area, never beside it. A scrollbar appears down its right edge once the content no longer fits
-and disappears once it fits again — a real control in its own right, one of `sp:children()`, answering the
-same `:range()`/`:value(n)`/`Changed` as a bare [scrollbar](#scrollbar). For driving a scroll position
-with nothing to contain, build that bare control instead.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():scroll()` | `Widget` | Unprotected | A scrolling container. Give it `:size(w, h)`; anything `:parent()`'d into it lands in the scrolling area. |
+
+A scrollbar appears down its right edge once the content outgrows the box and disappears when it fits: a control in its own right, one of `scroll_box:children()`, answering `:range()`, `:value(n)` and `Changed` as a bare [scrollbar](#scrollbar) does.
 
 ## Scrollbar
 
-`hafen.ui():scrollbar()` is a bare scroll thumb, for driving something yourself — the same `:range(min,
-max)`/`:value(n)` as a [slider](#slider), minus the `final` flag:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():scrollbar()` | `Widget` | Unprotected | A bare scroll thumb, for driving something yourself. |
+| `scrollbar:range(min, max)`, `scrollbar:value(n)` | as a [slider](#slider)'s | Unprotected | The same bounds and position. |
+| `scrollbar:on("Changed", fn)` | `Sub` | Unprotected | `fn(value)` on every step: no `final` flag, since a bare scrollbar has no separate drag end. |
 
 ```lua
-local scrollbar = hafen.ui():scrollbar():size(14, 160):range(0, #items - visibleRows):value(0)
-scrollbar:on("Changed", function(value) firstRow = value end)
+local row_scrollbar = hafen.ui():scrollbar():size(14, 160):range(0, #items - visible_rows):value(0)
+row_scrollbar:on("Changed", function(value) first_row = value end)
 ```
 
-`Changed` hands over the bare value here, `fn(v)` — a bare scrollbar has no separate "drag ended" moment
-to report, so every step just reports where it is now.
+| Rule | Detail |
+|---|---|
+| A client scrollbar | Reports `Changed` from both of its writes, the thumb drag and the wheel or step buttons, and cannot be cancelled — [edit](../edit.md). Its rail and thumb are `scrollbar` and `scrollbar.knob`. |
+| A list's own scrollbar | Reads its position off the list every frame, so `widget:value(n)` on it is refused rather than reverted. Drive the list: `widget:value(row)` on a listbox scrolls to that row, and the bar follows. |
 
-One of the client's own scrollbars reports the same key, and reports it from **both** of its value writes:
-the thumb drag, and the wheel and step buttons that move it a notch. Like a slider's, it cannot be
-cancelled — see [editing](../edit.md). Its rail and its thumb are `scrollbar` and `scrollbar.knob`, the
-[same split](../style/surfaces.md#checkbox-scrollbar-and-slider) a slider wears.
+---
 
-**But you cannot drive one that belongs to a list.** A scrollbar the client built *for* a listbox reads its
-position back off that list on every frame, so `widget:value(n)` on it would be undone before you saw it —
-and it is refused rather than silently reverted. Drive the list instead: `widget:value(row)` on the list
-itself scrolls it to that row, and the bar follows.
+## See Also
 
-## See also
-
-- [controls](README.md) — the shared model: `:parent`, `:position`, permissions, owned vs borrowed
-- [display](display.md) — the controls with nothing to click
-- [widget](../widget.md) — everything a control answers before it adds anything of its own
-- [style](../style/README.md) — the rules that dress it
+- [Controls](README.md) — the shared model: `:parent`, `:position`, sizing, owned vs borrowed.
+- [Display](display.md) — the controls with nothing to click.
+- [Widget](../widget.md) — everything a control answers before it adds its own.
+- [Style](../style/README.md) — the rules that dress it.

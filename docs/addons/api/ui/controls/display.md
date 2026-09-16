@@ -1,77 +1,64 @@
-# hafen.ui: display controls
+# hafen.ui: Display Controls
 
-A label, a picture, a separator and a progress bar — the four [controls](README.md) with nothing to click.
-Each is born bare and configured by chained setters, [the same shape](README.md#builders) every control has,
-and dressed by the [stylesheet](../style/README.md) like any other.
+A label, a picture, a separator and a progress bar: the [controls](README.md) with nothing to click, each built bare, configured by chained setters and dressed by the [stylesheet](../style/README.md).
+
+```lua
+local stamina_label = hafen.ui():label():text("Stamina"):position(4, 4)
+local stamina_bar = hafen.ui():progress():size(120, 20):position(4, 20):value(0.35)
+hafen.ui():image():source("gfx/hud/chr/farming"):size(24, 24):position(130, 4)
+hafen.ui():separator():size(180, 1):position(0, 44)
+```
+
+---
 
 ## Label
 
-`hafen.ui():label()` is a line of text, dressed by the [stylesheet](../style/README.md) like any other
-control. `:text(s)` is its only content:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():label()` | [`Widget`](../widget.md) | Unprotected | A line of text. |
+| `label:text(caption)` | `self` | Unprotected | Its only content. Writing resizes the label to the rendered text, so `:size()` changes with the caption; a label placed against another widget's edge needs re-positioning after a longer write. |
+| `label:image(...)` | — | — | Refused, naming the [button](interactive.md#a-caption-or-a-picture) and [checkbox](interactive.md#checkbox) builders, which take a picture. |
 
 ```lua
-local label = hafen.ui():label():text("Stamina"):position(4, 4)
-label:text(("%d%%"):format(n))     -- writing new text RESIZES the label to fit it
+stamina_label:text(("%d%%"):format(percent))      -- resizes the label to fit
 ```
-
-The box is exactly the rendered text, so writing a new caption changes `:size()` — a label placed against
-the right edge of something else needs re-positioning after a write that changes its length. A label holds
-text only: `:image(...)` refuses on one, naming the [button](interactive.md#a-caption-or-a-picture) or
-[checkbox](interactive.md#checkbox) builder that takes a picture.
 
 ## Picture
 
-`hafen.ui():image()` is a static picture with no interaction of its own. `:source(h)` gives it its content —
-an [asset](../../asset/README.md) handle or a string naming one of the client's own resources, the same two
-doors a button's [face](interactive.md#a-caption-or-a-picture) resolves:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():image()` | `Widget` | Unprotected | A static picture with no interaction. |
+| `picture:source(h)` | `self` | Unprotected | Its content: an [asset](../../asset/README.md) handle or a string naming a client resource, the two doors a button's [face](interactive.md#a-caption-or-a-picture) resolves. Not building-only: it may replace the picture at any time, on screen or not. |
+| `picture:source()` | `userdata \| string \| nil` | Unprotected | What was named; `nil` before the first write. |
+| `picture:size(w, h)` | `self` | Unprotected | Scales the picture into the box; a later `:source(h)` keeps that box. |
+| `picture:size(nil)` | `self` | Unprotected | Gives the box back to the picture's own. |
+| `picture:size(w)` | — | — | Refused: there is no art to answer for the height. |
 
-```lua
-hafen.ui():image():source(hafen.asset():get("logo.png")):position(0, 0)
-```
-
-Unlike a button's face, the picture is **not** chosen while the control is built: `:source(h)` may replace it
-at any time, on screen or not. The bare `:source()` reads back exactly what was named, and `nil` before the
-first `:source(h)`. A resource name is read when the picture is set: the control shows the resource's current
-`image` layer, a [written](../../resource/writes.md) one included, and keeps it until `:source(h)` is written again.
-
-**The box is the picture's own until you write one.** `:size(w, h)` scales the picture to the box you give
-it — a skill icon the client draws large is a 24-pixel icon on a row with `:size(24, 24)` — and a later
-`:source(h)` keeps that box, where it would otherwise take the new picture's own; `:size(nil)` gives the box
-back to the picture. The one-number `:size(w)` refuses, there being no art to answer for the height. A
-[`picture`](../style/chrome.md#picture) rule that names the control fills the same box by its own `mode`.
-
-[`:picture()`](../selectors.md#the-picture-is-a-different-read) is the other half, and it asks a different
-question: not what you named, but what the control is **showing**. On a client resource the two agree; on an
-asset handle of your own it is `nil`, because the name it answers is a client resource name or nothing.
-
-A picture control is also what the sheet's [`picture`](../style/chrome.md#picture) property dresses, so
-`["@Img"]` reaches yours and every one the client built alike. Yours has a `:source(h)` of its own and does
-not need the rule; a client's does, and that is what the property is for.
+| Rule | Detail |
+|---|---|
+| A resource name | Read when the picture is set: the control shows the resource's current `image` layer, a [written](../../resource/writes.md) one included, until `:source(h)` is written again. |
+| [`:picture()`](../selectors.md#the-picture-is-a-different-read) | Answers what the control is showing, as a client resource name: it agrees with `:source()` on a client resource and reads `nil` on an asset handle of yours. |
+| The `picture` rule | A [`picture`](../style/chrome.md#picture) rule naming the control fills the same box by its own `mode`; `["@Img"]` reaches yours and every client picture alike. Yours has `:source(h)` and needs no rule. |
 
 ## Separator
 
-`hafen.ui():separator()` is a plain horizontal rule, with no setter of its own — `:size(w, h)` is all there
-is to it:
-
-```lua
-hafen.ui():separator():size(180, 1):position(0, 40)
-```
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():separator()` | `Widget` | Unprotected | A horizontal rule with no setter of its own; `:size(w, h)` shapes it. |
 
 ## Progress bar
 
-`hafen.ui():progress()` shows a fraction filled. `:value(v)` writes it, `0..1`, and `:value()` reads it back:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():progress()` | `Widget` | Unprotected | A fill-fraction bar. |
+| `bar:value(fraction)` | `self` | Unprotected | The filled fraction, `0..1`. A value outside is refused, not clamped: a raw percentage passed by mistake fails instead of pinning at full. |
+| `bar:value()` | `number` | Unprotected | The fraction. |
 
-```lua
-local progress = hafen.ui():progress():size(120, 20):value(0.35)
-progress:value()          --> 0.35
-```
+---
 
-A write outside `0..1` is refused rather than clamped — a raw percentage (`0..100`) passed by mistake fails
-loudly instead of pinning silently at full.
+## See Also
 
-## See also
-
-- [controls](README.md) — the shared model: `:parent`, `:position`, permissions, owned vs borrowed
-- [interactive](interactive.md) — the controls that take a click or a drag
-- [widget](../widget.md) — everything a control answers before it adds anything of its own
-- [style](../style/README.md) — the rules that dress it
+- [Controls](README.md) — the shared model: `:parent`, `:position`, sizing, owned vs borrowed.
+- [Interactive](interactive.md) — the controls that take a click or a drag.
+- [Widget](../widget.md) — everything a control answers before it adds its own.
+- [Style](../style/README.md) — the rules that dress it.

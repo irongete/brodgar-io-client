@@ -1,28 +1,10 @@
-# hafen.ui: the chat window, and the kinds of line in it
+# hafen.ui: The Chat Window and Its Kinds of Line
 
-The chat is one [site key](keys.md#site-keys) covering the whole window, and five more that refine it — one
-per **kind** of line. Colour is how this client tells one kind from another, so a `color` on `chat` alone
-paints them all alike; the keys below are how a theme keeps them apart.
-
-| Key | The lines it covers | The colour the client gives them |
-|---|---|---|
-| `chat` | the whole window: every message, the channel tabs, the quick line you type | the stock face, and each kind's own colour below |
-| `chat.system` | the **System** log: what the client tells you rather than what anyone said | white, and a dark red for an error |
-| `chat.mine` | your **own** line, in whichever channel you said it in | a pale blue-lilac |
-| `chat.private` | a private message, **received or sent** | a warm pink in, a cool blue out |
-| `chat.party` | a line in the **Party** channel | the speaker's own party colour, which the server assigns |
-| `chat.urgent` | the **unread** indicator: an unread channel's tab, and the glow on the chat button | blue, orange, then red as urgency rises |
-| `chat.speaker` | the colour a **speaker** is given in a multi-person channel | a hue the client walks, one step per new speaker |
-
-**These words are read as well as painted.** A channel answers the key its lines resolve at as
-[`channel:kind()`](../../chat.md#the-four-kinds) and a line answers its own as
-[`msg:kind()`](../../chat.md#the-kind-a-line-wears) — `chat.mine` being the one key a line wears and no
-channel does — so a rule that colours a kind and an addon that reads one name the same thing rather than
-two vocabularies for one distinction.
+The chat is one [site key](keys.md#site-keys), `chat`, with keys that refine it by kind of line, keys that walk a colour and keys that dress its decoration. Colour is how the client tells one kind from another, so a `color` on `chat` alone paints them all alike.
 
 ```lua
 local sheet = hafen.ui():sheet()
-sheet:rule("chat"):color{180, 190, 200}                     -- everything the four kinds below do not claim
+sheet:rule("chat"):color{180, 190, 200}                     -- everything the kinds below do not claim
 sheet:rule("chat.system"):color{255, 200, 0}
 sheet:rule("chat.private"):color{255, 60, 200}
 sheet:rule("chat.speaker"):color{ palette = {{220, 90, 90}, {90, 200, 120}, {110, 150, 230}} }
@@ -30,114 +12,87 @@ sheet:rule("chat.urgent"):color{ palette = {{0, 200, 0}, {230, 200, 0}, {230, 0,
 sheet:install()
 ```
 
-## Each kind falls back to `chat`
+---
 
-A kind with no rule of its own reads as `chat`, and `chat` with no rule of its own reads as `*` — one
-ladder, and a rule anywhere on it answers for every rung above that says nothing. So `["chat"] = {color =
-…}` still paints the whole window, exactly as it does with no kind named at all, and naming one kind changes
-that kind and nothing else.
+## Keys
 
-It is a **fallback, not a blend**: a key either has a rule or takes the one beneath it whole, which is how
-the site half of the cascade has always worked. Write both properties in the rule that names the kind if you
-want both. Levels *above* the site half — a [tree key](keys.md#tree-keys), a
-[`widget:rule()`](README.md#restyle-one-widget) — do compose per property, and both outrank every key here.
+| Key | The lines it covers | The client's own colour |
+|---|---|---|
+| `chat` | The whole window: every message, the channel tabs, the typed line. | The stock face, and each kind's colour below. |
+| `chat.system` | The System log: what the client tells you. | White; dark red for an error. |
+| `chat.mine` | Your own line, in whichever channel. | A pale blue-lilac. |
+| `chat.private` | A private message, received or sent. | Warm pink in, cool blue out. |
+| `chat.party` | A line in the Party channel. | The speaker's party colour, assigned by the server. |
+| `chat.urgent` | The unread indicator: an unread channel's tab, the glow on the chat button. | Blue, orange, then red as urgency rises. |
+| `chat.speaker` | The colour a speaker is given in a multi-person channel. | A hue the client walks, one step per new speaker. |
 
-> **`$col[…]` markup inside a line wins over every rule on this page.** It is part of the *string* the
-> server sent, not the site's choice of colour, so a line that carries its own colour keeps it whatever a
-> theme says. That is what keeps a server's own emphasis legible under any theme.
+A channel answers the key its lines resolve at as [`channel:kind()`](../../chat.md#the-four-kinds), and a line its own as [`msg:kind()`](../../chat.md#the-kind-a-line-wears) — `chat.mine` being the one key a line wears and no channel does — so a rule that colours a kind and an addon that reads one name the same thing.
+
+### Each kind falls back to `chat`
+
+| Rule | Detail |
+|---|---|
+| One ladder | A kind with no rule reads as `chat`; `chat` with no rule reads as `*`. `["chat"] = {color = …}` paints the whole window; naming one kind changes that kind alone. |
+| A fallback, not a blend | A key has a rule or takes the one beneath it whole, as the site half of the cascade always does: write both properties in the rule naming the kind. A [tree key](keys.md#tree-keys) or [`widget:rule()`](README.md#restyle-one-widget) composes per property and outranks every key here. |
+| `$col[…]` markup wins | Part of the string the server sent, so a line carrying its own colour keeps it under any theme. |
+| `font` | Honoured on every key; a kind without one takes `chat`'s by the same ladder. On the two walked keys it lands on nothing. |
+
+---
 
 ## The two colours the client walks
 
-`chat.speaker` and `chat.urgent` are not one colour each. The first is a colour **per speaker**, so that two
-people talking are two colours; the second is a colour **per urgency level**, so that a channel one message
-behind reads differently from one that is shouting. Flattening either to a single colour destroys the only
-thing it is for, so neither takes a colour: both take the **sequence**, written one of two ways.
+`chat.speaker` is a colour per speaker and `chat.urgent` a colour per urgency level; a single colour would destroy what each is for, so both take a sequence and refuse a colour.
 
 | Written | Is |
 |---|---|
-| `{palette = {{r,g,b}, …}}` | the colours to hand out, in the order written, cycling when they run out |
-| `{generate = {step =, saturation =, brightness =}}` | a walk around the hue circle — the shape the client's own speaker colour has |
+| `{palette = {{r,g,b}, …}}` | The colours to hand out, in order, cycling when they run out. Never empty. |
+| `{generate = {step =, saturation =, brightness =}}` | A walk around the hue circle, the shape the client's own speaker colour has. All three required: `step` in `0 < step <= 1` (the client's own is about `0.414`); `saturation`, `brightness` in `0..1`, carried by every colour minted. |
 
-| Field of `generate` | Value |
+| Rule | Detail |
 |---|---|
-| `step` | how far around the hue circle each answer moves, `0 < step <= 1`. The client's own is about `0.414` |
-| `saturation`, `brightness` | `0..1` each, and every colour the walk mints carries them |
+| Refusals | A colour on either key raises naming the sequence; a sequence on any other key raises naming these two; a value naming both spellings raises. For every answer alike, a palette of one colour. |
+| Read-back | `rule:color()` reads whichever shape was written. |
+| `chat.urgent` | Read one entry per level, rising: the first entry is the quietest unread channel, the last the loudest. A channel with nothing unread keeps the client's resting colour. |
+| A speaker keeps the colour given | Minted the first time someone speaks and remembered, so a sequence re-colours the speakers who talk after it is installed; scrollback keeps what it was drawn with. |
 
-All three fields of a `generate` are required: each decides a different thing about every colour it mints,
-and none has a default worth guessing at. A `palette` is never empty, a `step` is never `0` — it would never
-move off one hue, which is one colour for every speaker — and a value naming both spellings is an error
-rather than one of the two silently winning.
-
-`rule:color()` reads back whichever shape was written, so a read round-trips into a write.
-
-- **A colour on either key is an error**, and it names the sequence. **For every answer alike, say so**: a
-  palette of one colour cycles to that colour every time, which is a sentence rather than an accident.
-- **A sequence on any other key is an error too**, naming the two keys that take one. Nothing else in the
-  client hands out colours one at a time.
-- **`chat.urgent`'s palette is read one entry per level**, rising: the first entry is the quietest unread
-  channel and the last the loudest. A channel with **nothing** unread is not a level and keeps the client's
-  own resting colour, so a rule never reaches it.
-- **A speaker keeps the colour they were given.** The client mints one the first time someone speaks and
-  remembers it, so installing a sequence re-colours the speakers who talk *after* it, and lines already in
-  the scrollback keep what they were drawn with. A line's colour is decided when it arrives.
+---
 
 ## The chat's own decoration
 
-`chat` writes the letters. **`chat.frame` is what the chat paints round them, and `chat.log` the wash it
-lays behind them.** The chat is docked into the HUD rather than framed by a decoration, so
-[`window.frame`](chrome.md) and `window.title` never reach it: these two are the whole of what dresses it,
-and `chat.frame` is `window.frame`'s opposite number.
+`chat` writes the letters; `chat.frame` is what the chat paints round them and `chat.log` the wash behind them. The chat is docked into the HUD, not framed by a decoration, so [`window.frame`](chrome.md) and `window.title` never reach it.
 
 ```lua
-local sheet = hafen.ui():sheet()
-sheet:rule("chat.frame"):bg{ asset = "img/paper.png", mode = "tile" }   -- the field, behind everything
-                    :border{ asset = "img/chatframe.png", slice = {8, 14, 8, 6} }
-sheet:rule("chat.log"):bg{ color = {9, 13, 22, 200} }                   -- ...and the wash behind one channel
+sheet:rule("chat.frame"):bg{ asset = "img/paper.png", mode = "tile" }        -- the field, behind everything
+                        :border{ asset = "img/chatframe.png", slice = {8, 14, 8, 6} }
+sheet:rule("chat.log"):bg{ color = {9, 13, 22, 200} }                        -- the wash behind one channel
 sheet:rule("chat"):color{150, 225, 240}
-sheet:install()
 ```
 
-- **Both are PARTS of `chat`, not kinds of it, so neither cascades.** The five kinds of line fall back to
-  `chat` because a kind of chat line *is* a chat line; a surface is not a line, so these two fall straight
-  back to `*` and a `["chat"]` rule leaves them alone. That is the same division
-  [`checkbox.mark`](keys.md#site-keys) draws against `checkbox`, and it is why the dot alone never decides.
-- **The frame has no bottom edge.** The client's own is two corners, three repeated runs and two pinned
-  ornaments, open at the foot — so a 9-slice for it wants a transparent bottom slice, or the chat grows a
-  bar across the bottom it never had. That shape is also why the catalogue declares the **field** and stays
-  quiet about the frame: no single `border` value restates it.
-- **The field is the very art a window's is.** `chat.frame`'s stock `bg` is `gfx/hud/wnd/lg/bg`, tiled — so
-  the one rule that themes your windows themes the chat's field with it.
-- **`padding` has nothing to move** on either. The chat's box is the size the user dragged it to, and its
-  contents are laid out against that box rather than against a rule.
+| Rule | Detail |
+|---|---|
+| Parts, not kinds | Neither cascades from `chat`: both fall straight back to `*`, as [`checkbox.mark`](keys.md#site-keys) does against `checkbox`. |
+| The frame has no bottom edge | The client's own is two corners, three runs and two pinned ornaments, open at the foot: a 9-slice for it wants a transparent bottom slice. That shape is why the [catalogue](README.md#the-clients-own-look) declares the field and stays quiet about the frame. |
+| The field is a window's field | `chat.frame`'s stock `bg` is `gfx/hud/wnd/lg/bg`, tiled: the rule that themes your windows themes the chat's field. |
+| `padding` | Nothing to move on either: the chat's box is the size the user dragged it to. |
+| Not reached | The channel list's own art and the notification popups the chat throws up while collapsed. |
 
-What neither key reaches: the channel list's own art, and the notification popups the chat throws up while
-it is collapsed. Each is a surface of its own that the client blits rather than fills, and neither has a key
-today.
+---
 
 ## What else is worth knowing
 
-Only the messages currently **visible** re-render, the scrollback re-rendering as you scroll it into view,
-and each message's height is re-measured so the log re-flows correctly under a bigger font. URLs stay
-clickable — a rule keeps the chat's own link parser.
+| Rule | Detail |
+|---|---|
+| Re-rendering | Only the visible messages re-render, the scrollback as it scrolls into view; each message's height is re-measured so the log re-flows under a bigger font. URLs stay clickable. |
+| The typed line | Belongs to `chat`, not [`textentry`](surfaces.md#textentry). |
+| Tab truncation | Measured from the stock font once, so a much wider font can shorten a long channel name slightly early. |
+| Party vs kin colours | A party member's colour is assigned per session and `chat.party` overrides it; a kin group's colour is one you picked, and [`world.nick`](surfaces.md#worldspeech-and-worldnick) paints over it. |
 
-The typed **quick line** belongs to `chat` rather than to [`textentry`](surfaces.md#textentry): it lives in
-the chat window and is built from the chat's own recipe. The channel-tab **truncation width** was measured
-from the stock font once, so a much wider font can shorten a long channel name slightly early.
+---
 
-The **party** colours and the **kin-group** colours are two different things, and only the first is on this
-page. A party member's colour is assigned per session and `chat.party` overrides it like any other stock; a
-kin group's colour is one you picked yourself, and it is [`world.nick`](surfaces.md#worldspeech-and-worldnick)
-that paints over it.
+## See Also
 
-`font` is honoured on every key here, and a kind with no `font` of its own takes `chat`'s, by the same
-ladder its colour takes. The two keys that walk a colour draw no text of their own, so a `font` on either
-lands on nothing — accepted and inert, like every other property a surface has no use for.
-
-## See also
-
-- [keys](keys.md#what-each-key-accepts) — every key in the client, and what each does with each property
-- [text](text.md#color) — the `color` property itself, and what else wins over it
-- [surfaces](surfaces.md) — the other surfaces the client draws text and boxes at
-- [style](README.md) — installing the sheet these keys go in
-- [`session:chat`](../../chat.md) — the same words from the reading side: the channels, their lines, and
-  saying one
+- [Keys](keys.md#what-each-key-accepts) — every key, and what each does with each property.
+- [Text](text.md#color) — the `color` property, and what else wins over it.
+- [Surfaces](surfaces.md) — the other surfaces the client draws at.
+- [Style](README.md) — installing the sheet.
+- [`session:chat`](../../chat.md) — the same words from the reading side.

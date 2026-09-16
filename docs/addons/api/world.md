@@ -167,7 +167,7 @@ same shape, so a round trip composes with nothing in between. Beside them sits t
 snapper — together, the primitives any drag-on-the-ground tool is built from.
 
 **`worldToScreen(p)`** answers a **root** screen point, in [design pixels](ui/pixels.md) — the one space
-[the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`, [`widget:rootPos()`](ui/widget.md#read) and a
+[the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`, [`widget:rootPos()`](ui/widget.md#read-methods) and a
 [HUD overlay's](ui/overlay.md) painter already share. So the pair goes straight into a
 [`g:` verb](ui/drawing.md) or a hit test, at any interface scale. What comes back is not a Position: a pixel
 is not a place in the world, and only the direction that has an answer will type-check.
@@ -202,7 +202,7 @@ w:screenToWorld(w:worldToScreen(p), function(back) end)   -- the round trip, and
 ```
 
 `pt` is `{x = , y = }` in **root [design pixels](ui/pixels.md)** — the shape `worldToScreen` hands back, the
-space [`m:x()`/`m:y()`](ui/mouse.md#read) reports, and the space a grab's `ev:x()`/`ev:y()` carries, so the
+space [`m:x()`/`m:y()`](ui/mouse.md#read-methods) reports, and the space a grab's `ev:x()`/`ev:y()` carries, so the
 cursor feeds this door with no arithmetic in between. During a drag, hand it the coords from
 [the mouse's grab](ui/mouse.md#the-grab) as they arrive and coalesce — issue the next raycast only after the
 previous `fn` fired — so at most one is in flight per frame.

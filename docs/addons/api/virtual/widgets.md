@@ -60,7 +60,7 @@ another `hafen.virtual():widget():add(w, anchor)`, and taking this one back is
 mistyped verb on the panel answers `panel has no verb '…'` and lists what a thing in the world answers; the
 same typo on the widget answers `widget has no verb '…'` and lists what one on the screen does. The split is
 what keeps each answer right: `panel:position()` is a [Position](../position.md), the place the panel is
-standing at, and [`w:position()`](../ui/widget.md#read) is pixels within its parent — one question, asked of
+standing at, and [`w:position()`](../ui/widget.md#read-methods) is pixels within its parent — one question, asked of
 two spaces.
 
 A panel's world size comes from the widget's own [design pixels](../ui/pixels.md), at **a hundred pixels to
@@ -151,7 +151,7 @@ nothing reaches the server.
 ## Focus, popups and tooltips
 
 These need nothing of you, because the surface is a root. A standing text entry takes the keyboard when it is
-clicked and typed text arrives in it; [`w:focused()`](../ui/widget.md#read) answers whether a keystroke would
+clicked and typed text arrives in it; [`w:focused()`](../ui/widget.md#read-methods) answers whether a keystroke would
 reach a widget, on a panel in the world exactly as on the flat UI.
 
 > **A popup opens *inside* the panel, and is therefore clipped by it.** A dropdown's list, a right-click menu

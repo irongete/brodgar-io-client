@@ -1,159 +1,83 @@
-# hafen.ui: watching for a widget, and replacing it
+# hafen.ui: Watching for a Widget, and Replacing It
 
-Two verbs, and they are meant to be used together: `s:ui():on` waits for a part of the client's UI to
-appear, and `widget:replace` stands your own window in its place. Both are unprotected, and both are undone
-when your addon goes away.
+`session:ui():on(selector, event, fn)` waits for a part of the client's UI to appear or go, and `widget:replace(view)` stands a window of yours in place of the native one around a widget. Both are unprotected and undone when your addon goes.
 
 ```lua
-local session = hafen.session():current()                    -- the character on screen
+local session = hafen.session():current()
 local subscription = session:ui():on("window[title=Inventory] inventory", "Added", function(inventory)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
-  view:on("Draw", function(event) event:g():text(inventory:items():count() .. " items", 6, 6) end)
+  view:on("Draw", function(draw_event) draw_event:g():text(inventory:items():count() .. " items", 6, 6) end)
   inventory:replace(view)
 end)
--- later:  sub:off()
+-- later:  subscription:off()
 ```
 
-| Call | Returns | Description |
-|---|---|---|
-| `s:ui():on(selector, event, fn)` | a [subscription](../event/README.md#subscribe) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears in that character's tree |
-| `widget:replace(view)` | the widget, chains | put your own window in place of the native one around it |
+---
 
 ## Watching for a widget
 
-`s:ui():on` names what it waits for with the same [selector](selectors.md) a lookup uses, and hands the
-match back as the same interned [Widget](widget.md), so `==` and a Lua table keyed by it work across both
-events. `event` is one of two strings, and a subscription carries exactly one — subscribe twice to watch
-both:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:ui():on(selector, "Added", fn)` | [`Sub`](../event/README.md#subscribe) | Unprotected | `fn(widget)` when a widget matching the [selector](selectors.md) is up in that character's tree, and once for each already up when you subscribe. |
+| `session:ui():on(selector, "Removed", fn)` | `Sub` | Unprotected | `fn(widget)` when a widget that had matched is destroyed. |
+| `sub:key()`, `sub:off()` | `string`, — | Unprotected | The event it carries; ends it. Ended for you on `:reload` and disable. |
 
-| Event | Fires when |
-|---|---|
-| `"Added"` | a matching widget is **up** in the tree, or was already up when you subscribe |
-| `"Removed"` | a widget that had matched is destroyed |
+One subscription carries one event; subscribe twice to watch both. The widget handed over is the same interned [Widget](widget.md) a lookup gives, so `==` and tables keyed by it work across both events.
 
 ```lua
-s:ui():on("window[title=Cupboard]", "Added", function(widget)
-  hafen.log():write(("cupboard open: %d item(s)"):format(widget:items():count()))
+session:ui():on("window[title=Cupboard]", "Added", function(cupboard)
+  hafen.log():write(("cupboard open: %d item(s)"):format(cupboard:items():count()))
 end)
 ```
 
-What is worth knowing:
+| Rule | Detail |
+|---|---|
+| Runs on the [step](../threading.md) | After the widget arrived or went, holding no character's UI: the callback may build a window, write the widget it holds and reach any other login. |
+| One character's tree | The one `session` names; two characters are two subscriptions. |
+| `Added` covers what is already open | Registering scans that tree once, so a reloaded addon sees an open window, and a subscription on a character nobody is looking at fires for what that character has open. |
+| Search inside the widget you were handed | [`widget:match(sel)`](widget.md#searching-inside-one-widget), not from the root: two cupboards can be open. |
+| What the client builds for itself | The icon per item, the cursor's, a stack's window all announce themselves, so [`item`](selectors.md#roles) is a subscription like any other. |
+| `Added` means up, not parented | A subtree is built before it is hung (a chest's window is filled, then hung); the event waits for the missing ancestor and fires for the whole subtree in tree order. The widget you are handed can be acted on. |
+| Not visibility | A window the client merely hides (the inventory's Tab toggle) never left and fires neither event. |
+| At `Removed`, the widget is a key | It fires when the widget stops being real, not drawn: a closing window lingers readable for its fade-out. Match it against what you kept at `Added`. |
+| Captions | `[title=]` matches a caption landing after the window, and one that becomes the caption you named, a title your addon wrote included; on a chain the caption lands on an ancestor step and the widgets under it are offered again. A match fires once per widget. A `[res=]` candidate is re-checked for a short while after placement, since a resource resolves on its own schedule. |
+| Not a bus event | There is no `WidgetCreated` on [`hafen.event()`](../event/README.md): you say which widget you care about. |
 
-- **The callback runs on the [step](../threading.md)**, after the widget has arrived or gone — not inside
-  the client's own placing of it. So it holds no character's UI: it may build a window, write the widget it
-  was handed, and reach any other login the client has.
-- **The subscription watches one character's tree**, the one `s` names — so watching two characters is two
-  subscriptions, and each callback knows whose window it was handed.
-- **`Added` covers what is already open.** Registering scans that character's live tree once, so an addon
-  reloaded with a window open still sees it, and a subscription made on a character nobody is looking at
-  fires at once for what that character has open. You never have to handle "was it there before me?"
-  yourself.
-- **Search inside the widget you were handed**, with [`w:match(sel)`](widget.md#searching-inside-one-widget),
-  not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
-- **It covers what the client builds for itself**, not only what the server sends: the icon per item a
-  container mints, the one under the cursor, a stack's own window. Every widget announces itself the same
-  way, so the [`item`](selectors.md#roles) role is a subscription like any other.
-- **`Added` means up, not merely parented.** A subtree is routinely built before it is hung — the server
-  fills a chest's window and hangs the window afterwards — and until it is hung, nothing in it is in any
-  tree: `widget:exists()` is false and every verb refuses. So the event waits for the ancestor that was
-  missing, and then fires for the whole subtree at once, in tree order. The widget you are handed is always
-  one you can act on.
-- **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
-  inventory's Tab toggle — never left, so it fires neither.
-- **At `Removed`, treat the widget as a key, not as something to read.** It fires when the widget stops
-  being *real*, which is not when it stops being *drawn*: a window plays a fade-out on close, so it lingers
-  in the tree, readable, for the length of that animation. Match it against what you kept at `Added`, and
-  keep the data you need from there.
-
-**A caption that arrives late fires, and so does one that changes.** `[title=]` matches a window whose
-caption lands after the window itself, and it matches from the moment a window's caption *becomes* the one
-you named — a title your own addon writes included. On a chain the caption lands on an **ancestor** step
-rather than on the widget you asked for, so the widgets under that window are offered again and
-`window[title=Cupboard] inventory` fires for the grid. However it was reached, a match fires **once**: a
-widget already handed to you is never handed over twice. `[res=]` has no such moment, because a resource
-resolves on its own schedule, so a `[res=]` candidate is re-checked for a short while after placement.
-
-What you get back is a `Sub`, like every other `:on` in the API: `sub:key()` is the event it carries and
-`sub:off()` stops it, which is also done for you on reload or disable. These are widget subscriptions
-rather than bus events: there is no `WidgetCreated` on [`hafen.event()`](../event/README.md), because you
-say *which* widget you care about.
+---
 
 ## Replacing a native window (unprotected)
 
-Replacing is a **verb on the widget**. The read has a name of its own, because putting a view in place
-is an *act* and the thing standing there is a *replacement*:
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `widget:replacement()` | `Widget \| nil` | Unprotected | The view standing in for this widget's window. |
+| `widget:replace(view)` | `self` | Unprotected | Hides the native window enclosing `widget` and puts `view`, a window your addon built, in its place. |
+| `widget:replace(nil)` | `self` | Unprotected | Undoes it: the window comes back, the view is destroyed. |
 
-| Call | Does |
+| Rule | Detail |
 |---|---|
-| `w:replacement()` | reads the view standing in for this window, or `nil` |
-| `w:replace(view)` | hides the native window and puts `view` in its place; chains |
-| `w:replace(nil)` | undoes it there and then — the window comes back, the view is destroyed; chains |
+| The enclosing window is hidden | Point at the inventory grid and the whole stock window goes, frame and caption included: a frame around a hole is not a replacement. [`widget:visible(false)`](native.md#hiding-a-native-widget-carries-a-restore) hides exactly what you point at. |
+| Waiting is `session:ui():on` | The example at the top is the whole pattern. |
+| The widget is hidden, not destroyed | Still bound to its server id and filling with items: `inventory:items()`, `inventory:on("ItemAdded", fn)` and every other verb keep answering while your view is up. You draw; the client keeps doing the work. |
+| The toggle comes with the window | Hiding it means you [own its toggle](native.md#hiding-a-native-window-takes-its-toggle): Tab, the menu button or whichever key that window uses opens and closes your view, and the menu tick reads your view's visibility. |
+| The view's fate follows the substitution | The view is destroyed when the replacement ends: `replace(nil)`, `:reload`, disable, or the server destroying the window. Every ending leaves the stock window as the user was seeing it: your view open, the stock window open; nothing on screen, closed. |
+| One window, one view | A different view ends the previous substitution and destroys that view; the same view again is a no-op. |
+| Refused, naming what to do | A view your addon did not create, or a lone control rather than a surface; a widget with no enclosing window; one of your own windows (move, resize or destroy it instead); a window another addon already holds. |
+| A view that has left the tree | Installs nothing: the native window stays, its toggle stays the client's, the call chains and `:replacement()` reads `nil`. Asked before the refusals above. A value that is not a widget raises. |
 
-**It hides the *enclosing* window, not the widget you point at.** That one line is why the verb exists.
-Point it at the inventory **grid** and the whole stock window goes, frame and caption and all, because a
-frame left standing around a hole is not a replacement. This is exactly where it differs from
-[`w:visible(false)`](native.md#hiding-a-native-widget-carries-a-restore), which hides precisely what you
-point at and nothing more. Two operations, two rules; pick by what you want left on screen.
-
-**Waiting is not part of it.** `s:ui():on(sel, "Added", fn)` already waits for anything and already
-fires for what is open, so the whole pattern is the two together — the example at the top of this page is
-the complete shape.
-
-`inv` stays an ordinary [Widget](widget.md) throughout: the widget you replaced is **hidden, not
-destroyed**, so it is still bound to its server id, still filling with items, and `inv:items()`,
-`inv:on("ItemAdded", …)` and every other verb keep answering while your view is up. That is "wrap, don't
-reimplement" — you draw, the client keeps doing the work.
-
-**The client's own toggle comes with the window.** Hiding it means you
-[own it](native.md#hiding-a-native-window-takes-its-toggle), so Tab — or the menu button, or whichever key
-that window uses — opens and closes **your view**, and the menu tick reads your view's visibility rather
-than the hidden window's.
-
-**The view's fate follows the substitution.** When the replacement ends the view is destroyed: by
-`w:replace(nil)`, by `:reload` or disabling your addon, or by the server destroying the window — close a
-replaced chest and your view goes with it. A stand-in that no longer stands for anything is an orphan
-window over a container that is gone, so it is not left behind for you to clean up. Every ending also
-leaves the stock window **as the user was seeing it**: your view was open, so the stock window is open;
-nothing was on screen, so it stays closed.
-
-**One window, one view.** Installing a *different* view ends the previous substitution and destroys that
-view; installing the same one again is a no-op. What is refused outright, each naming what to do instead:
-
-- a **view your addon did not create** — one of the client's own, or another addon's — and a lone control
-  rather than a whole surface: what stands in for a window is a window of yours
-- a widget with **no enclosing window**: there is nothing to stand in for, and no toggle to inherit
-- one of your **own** windows: replacing stands in for the *client's*, so move, resize or destroy yours
-- a window **another addon already holds**: one window, one owner, because the toggle goes with it
-
-**A view that has left the tree installs nothing.** Your view was built on an earlier step and may have
-gone since — its own X, a teardown, a relog — and no `:exists()` of yours sits inside the instant between
-asking and calling. So `w:replace(view)` stops there and chains: the native window is not hidden, its
-toggle stays the client's, nothing is bound, and `w:replacement()` reads `nil`. That question is asked
-before any of the refusals above, because whose a view is, and whether it is a surface at all, are things a
-handle out of the tree can no longer answer. It is the rule every
-[Widget you pass as an argument](widget.md) takes — and a value that is not a widget at all is a spelling
-mistake, so that one still raises.
+---
 
 ## Where replacing ends
 
-What a native window *holds* stays the client's and the server's: which child of it is a price and which is
-a spacer is knowledge your Lua supplies, not something the tree declares, so a view of your own is how you
-present a container differently.
+What a native window holds stays the client's and the server's; a view of your own is how you present a container differently. Restyling a native widget is [the stylesheet](style/README.md); placing one is [`:position(x, y)`/`:size(w, h)`](native.md), also sayable as a [rule](style/geometry.md); changing one part of a window is [editing](edit.md); rearranging what a window puts inside itself is replacing it.
 
-The line between the three verbs on this page and the sheet is worth stating once. **Restyling** a native
-widget — its font and colour, its background, its border, a window's whole chrome — is
-[the stylesheet's](style/README.md) job. **Placing** one is a write,
-[`:position(x, y)`/`:size(w, h)`](native.md), which the sheet can also
-[say as a rule](style/geometry.md). **Changing one part of a window** — its caption, or what one of its
-buttons does — is [editing](edit.md), the page beside this one. **Rearranging what a window puts inside
-itself** is none of those: that is replacing it.
+---
 
-## See also
+## See Also
 
-- [edit](edit.md) — changing one part of a window instead of standing in for the whole of it
-- [native](native.md) — hiding a widget without standing anything in its place
-- [widget](widget.md) — the object both verbs work on
-- [selectors](selectors.md) — naming the window you want to wait for
-- [items](items.md) — reading the container you replaced, while your view is up
-- [custom](custom.md) — building the view you hand to `:replace`
-- [widgets in the world](../virtual/widgets.md) — where the view is drawn, which is the other question
+- [Edit](edit.md) — changing one part of a window instead of standing in for it.
+- [Native](native.md) — hiding a widget without standing anything in its place.
+- [Widget](widget.md) — the object both verbs work on.
+- [Selectors](selectors.md) — naming the window to wait for.
+- [Items](items.md) — reading the container you replaced while your view is up.
+- [Custom](custom.md) — building the view you hand to `:replace`.
+- [Widgets in the world](../virtual/widgets.md) — where the view is drawn.

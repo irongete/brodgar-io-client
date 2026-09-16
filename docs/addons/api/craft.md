@@ -84,7 +84,7 @@ Every read is unprotected, and none of them throws. The wire's "unspecified" cou
 
 **A slot is drawn by an icon, and that icon draws an item.** `spec:res()` is the **displayed** constraint —
 what the recipe accepts. The slot on screen is an [item icon](ui/items.md) like any other, so
-[`widget:item()`](ui/widget.md#read) on it answers the concrete item being painted and `:res()` on *that* is
+[`widget:item()`](ui/widget.md#read-methods) on it answers the concrete item being painted and `:res()` on *that* is
 the concrete resource. Two views of one slot: read the spec for what the recipe requires, the item for what
 is drawn. The quality inputs and the tools have no icon at all — the window prints those as bare pictures,
 so `s:craft()` is the only read for them.
