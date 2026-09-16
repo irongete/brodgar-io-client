@@ -599,6 +599,9 @@ final class WidgetSurface extends Widget {
                 w.parent = null;
             }
             np.add(w, (at == null) ? Coord.z : at);
+            UI dest = (np != null) ? np.ui : u;
+            if((dest != null) && (w.ui != dest))
+                w.reattach(dest);
         }
     }
 
