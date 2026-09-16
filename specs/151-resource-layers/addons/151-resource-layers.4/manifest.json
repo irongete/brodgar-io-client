@@ -1,0 +1,9 @@
+{
+  "name": "151.4 — the .res file write",
+  "id": "151-resource-layers.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 151.4: resource:layers(file) replaces a resource's layers with a .res data asset's, ignoring its version, refusing code, a non-resource file and a non-data asset; a later spec applies over it and a declaration on an unfetched name lands when it loads.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

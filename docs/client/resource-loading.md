@@ -58,8 +58,8 @@ source. That is how a served version wins over the jar's: the jar's copy parses 
 or the server produces the one the session named. It is also why a copy dropped into `HAFEN_RESDIR` is
 taken only when its version equals what the server asks for.
 
-An empty stream is `FileNotFoundException("empty file")` on purpose: custom clients have been seen to
-leave zero-length files in the disk cache under a resource's name, and the tee is what wrote them.
+An empty stream is `FileNotFoundException("empty file")` on purpose: custom clients have been seen to leave
+zero-length files in the disk cache under a resource's name, and the tee is what wrote them.
 
 ## The soft cache
 
@@ -69,8 +69,7 @@ ask — from the disk cache, not the server, when it came from there. `Pool.cach
 entries of this pool and its parent into a fresh set; `Pool.used()` is the subset something has read a
 layer of (`Resource.used`, set by every `layer`/`layers` call and cleared at the end of `load`).
 
-`Resource.indir()` is the object's own `Indir`, minted once; `Pool.load` hands it back for a cache hit,
-and a `Queued` otherwise. `Resource.equals` is name **and** version.
+`Resource.indir()` is the object's own `Indir`, minted once; `Pool.load` hands it back for a cache hit, and a `Queued` otherwise. `Resource.equals` is name **and** version.
 
 ## `Loading` and failure
 
@@ -98,9 +97,9 @@ mutating it. Only after every layer exists does `Layer.init()` run over the list
 layer find another: `Anim.init` binds each frame to the `Image`s sharing its id, `FastMesh.MeshRes.init`
 resolves its vertex buffer and material, `CodeEntry.init` indexes the resource's `Code` layers.
 
-`ltypes` is filled at class-init from every class annotated `@Resource.LayerName` (jglob's
-`Discoverable`), across the whole tree — `TexR.Encoded`, `FastMesh.MeshRes`, `Tileset`, … — so the set
-of known types is the set of loaded classes, not a list anywhere.
+`ltypes` is filled at class-init from every class annotated `@Resource.LayerName` (jglob's `Discoverable`)
+across the whole tree — `TexR.Encoded`, `FastMesh.MeshRes`, `Tileset`, … — so the known types are the
+loaded classes, not a list anywhere.
 
 **Gotchas.** `Resource.layers` is read unsynchronised on the render thread, which is why it is swapped
 and never mutated. `init()` is not idempotent on every type (`MeshRes.init` consumes its temporary
@@ -125,23 +124,24 @@ for a `Coord`, `T_TTOL` for an `Object[]`, and has no `Boolean` case — `nooff`
 ## Re-parsing a live object
 
 `Pool.reload(res)` walks the pool's sources again for a resource the cache already holds and ends in
-`load(msg, keep)`: the same parse, on the same object, so `Resource.indir()` and every `Indir` the
-client holds stay valid and only `layers` is swapped. Two traps it steps around:
+`load(msg, keep)`: the same parse on the same object, so `Resource.indir()` and every `Indir` the client
+holds stay valid and only `layers` is swapped. Two traps it steps around:
 
 - **`Code`/`CodeEntry` are carried over, never re-parsed.** `keep` is the object's current code layers;
-  the stream's own `code`/`codeentry` records are skipped by length. A second parse of them would
-  construct a second `CodeEntry`, whose lazily built `ResClassLoader` would `defineClass` every served
-  class again under a new loader — two `Class` objects with one name, and every `getcode` after it
-  handing out the other one.
+  the stream's own `code`/`codeentry` records are skipped by length. A second parse would construct a
+  second `CodeEntry`, whose lazily built `ResClassLoader` would `defineClass` every served class again
+  under a new loader — two `Class` objects with one name, and `getcode` handing out the other one.
 - **`Pool.handle` versus `reload` on the version rule.** `handle` creates the object with the version
-  the ask named (or `-1`, which takes the stream's); `reload` keeps `Resource.ver`, so `load` refuses
-  any source whose `uint16` differs. A disk-cache file replaced by a newer version since the object
-  loaded makes every source fail `"Wrong res version"`, and `reload` throws the last `LoadException`
-  with the old layer list standing — the caller decides what that means.
+  the ask named (or `-1`, which takes the stream's); `reload` keeps `Resource.ver`, so `load` refuses any
+  source whose `uint16` differs. A disk-cache file replaced by a newer version since the object loaded
+  fails every source `"Wrong res version"`: `reload` throws the last `LoadException`, old layers standing.
 
 `Pool.peek(name)` reads this cache and its parents' without enqueuing; `Resource.newLayer(res, type,
 buf)` is the `ltypes` factory as a static, so a caller outside `haven` builds a layer bound to `res`
-(`Layer` is a non-static inner class) through the same constructor a served one takes.
+(`Layer` is a non-static inner class) through the same constructor a served one takes. `Resource.Virtual`
+(public constructor over a pool, name and version; `add(Layer)` appends) is a resource never loaded, the
+one `DynresWindow` composes on — and a scratch on which foreign layer bytes can be constructed and
+`init()`ed against each other while nothing else holds them.
 
 ## See also
 

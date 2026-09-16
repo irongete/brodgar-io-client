@@ -31,9 +31,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <p>The remote pool is the local one plus everything the server publishes, so a name bundled in the
  * client's jar ({@code sfx/msg}) and a content resource resolve through the same door.
  *
- * <p><b>The writes</b> (151.2) hang off the same handle: {@code :layers():add(spec)} and {@code :remove(key)}
- * register a {@link ResourceWrites} record by name and re-parse a loaded copy at once, {@code :release()}
- * drops this addon's records. A write on a name nobody has fetched fetches nothing — it is a declaration,
+ * <p><b>The writes</b> (151.2, 151.4) hang off the same handle: {@code :layers():add(spec)}, {@code :remove(key)}
+ * and {@code :layers(file)} register a {@link ResourceWrites} record by name and re-parse a loaded copy at
+ * once, {@code :release()} drops this addon's records. A write on a name nobody has fetched fetches nothing — it is a declaration,
  * applied when the resource loads — which is why {@code add} answers {@code nil} then.
  *
  * <p>Interned per addon by name ({@link Addon#resources}, weak values), so {@code get(name) == get(name)}
@@ -183,10 +183,29 @@ public final class LuaResource {
             }
         });
         // layers() — the collection of its layers, one Layer per wire layer; empty until loaded.
+        // layers(file) — a write (151.4): make the resource's layers the file's, a .res data asset. The
+        // file's version is ignored, a type the client does not parse is skipped, code/codeentry refused
+        // by name. Registered by name, applied on every load and at once when held; later specs apply
+        // over it. Hands back the collection.
         m.set("layers", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue self = Args.only(a, 0, "resource:layers");
-                return layerCollection(owner, handle(self, "layers"));
+                LuaValue self = Args.only(a, 1, "resource:layers");
+                LuaResource h = handle(self, "layers");
+                if(Args.passed(a, 2)) {
+                    String verb = "resource:layers(file)";
+                    LuaValue file = a.arg(2);
+                    if(file.isnil())
+                        throw new LuaError(verb + ": file must be a DATA asset holding a .res file"
+                            + " (hafen.asset():get(\"icon.res\")), got nil — resource:layers() with no"
+                            + " argument reads the layers, and does not write them");
+                    String kind = AssetApi.typeOf(file);
+                    if(!"data".equals(kind))
+                        throw new LuaError(verb + ": file must be a DATA asset holding a .res file"
+                            + " (hafen.asset():get(\"icon.res\")), got "
+                            + ((kind == null) ? file.typename() : (kind + " asset")));
+                    ResourceWrites.file(owner, h, ((AssetApi.Data)file.touserdata()).bytes, verb);
+                }
+                return layerCollection(owner, h);
             }
         });
         // release() — give the client's own layers back: every write this addon made on the name is dropped

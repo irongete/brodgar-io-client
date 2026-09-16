@@ -45,6 +45,7 @@ A `Resource` is a live handle. Holding it fetches nothing. **A content read** �
 | `resource:error()` | `string \| nil` | Unprotected | The client's own message for a fetch that failed; `nil` while fetching and once loaded. |
 | `resource:info()` | `table \| nil` | Unprotected | `{name, version, layers}` — `layers` is the array of layer keys in wire order; `nil` until loaded. |
 | `resource:layers()` | `LayerCollection` | Unprotected | The resource's [layers](layers.md), one `Layer` per wire layer; empty until loaded. |
+| `resource:layers(file)` | `LayerCollection` | Unprotected | A [write](writes.md#whole-files): makes the resource's layers the ones in `file`, a `.res` data asset. |
 | `resource:release()` | `Resource` | Unprotected | Drops every [write](writes.md) your addon made on this resource. Chains. |
 
 ### Loading and failure
@@ -66,7 +67,7 @@ A name the server has no resource for fails; the message names the resource and 
 ## See Also
 
 - [Layers](layers.md) — the layer collection, the `Layer` handle, and what `:info()` decodes per type.
-- [Writes](writes.md) — `layers():add(spec)`, `layers():remove(key)`, `resource:release()`.
+- [Writes](writes.md) — `layers():add(spec)`, `layers():remove(key)`, `layers(file)`, `resource:release()`.
 - [`hafen.sound`](../sound.md) — playing a resource's clip.
 - [`hafen.timer`](../timer.md) — polling `:loaded()`.
 - [Conventions](../conventions.md) — collection verbs and filters.

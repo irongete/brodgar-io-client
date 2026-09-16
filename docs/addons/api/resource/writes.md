@@ -1,6 +1,6 @@
 # Resource Layer Writes
 
-A write changes what a resource carries: `resource:layers():add(spec)` puts a layer at an address, `:remove(key)` drops the layers at one, and `resource:release()` gives the client's own layers back. A write lives in memory, applies to every load of the name and, when the client already holds the resource, at once.
+A write changes what a resource carries: `resource:layers():add(spec)` puts a layer at an address, `:remove(key)` drops the layers at one, `resource:layers(file)` replaces them all with a `.res` file's, and `resource:release()` gives the client's own layers back. A write lives in memory, applies to every load of the name and, when the client already holds the resource, at once.
 
 ```lua
 local agility = hafen.resource():get("gfx/hud/chr/agi")
@@ -10,6 +10,9 @@ agility:layers():add({ type = "tooltip", text = "Agility — how fast you swing"
 local chime = hafen.resource():get("sfx/msg")
 chime:layers():add({ type = "audio2", volume = 0.2 })   -- the clip is kept, only its loudness changes
 hafen.sound():get("sfx/msg"):play()                       -- plays the quieter chime
+
+-- A whole .res from the addon's folder: every layer the client would parse is replaced by the file's.
+hafen.resource():get("gfx/terobjs/trees/oak"):layers(hafen.asset():get("oak.res"))
 
 hafen.event():on("Disable", function()
   agility:release()   -- optional: a disable releases every write anyway
@@ -24,6 +27,7 @@ end)
 |---|---|---|---|---|
 | `resource:layers():add(spec)` | `table` | `Layer \| nil` | Unprotected | Replaces every layer at the spec's [address](#addresses) with one built from the spec over the first of them. Hands back the new `Layer`, or `nil` while the resource is not loaded — the write is registered either way. |
 | `resource:layers():remove(key)` | `string \| Layer` | `LayerCollection` | Unprotected | Drops every layer at `key` (a [layer key](layers.md#keys), or a `Layer` for its key). Chains. |
+| `resource:layers(file)` | `data asset` | `LayerCollection` | Unprotected | Makes the resource's layers the ones in `file`, a `.res` [data asset](../asset/handles.md#data-asset) — see [whole files](#whole-files). Hands back the collection. |
 | `resource:release()` | — | `Resource` | Unprotected | Drops every write your addon made on this resource; a loaded copy shows the client's own layers at once. Chains. |
 
 Every write is checked when made and refused naming what is wrong; a write that registers cannot fail when applied.
@@ -53,7 +57,7 @@ Every spec carries `type`. The fields each type takes:
 | `obst` | `id`, `rings` | Both are present. `id` is a string (`""` is the client's default, addressed as `"obst:"`); `rings` is an array of rings, each an array of `{x, y}` points in world units (a tile is 11), at most 255 of each. |
 | `props` | `props` | `props` is present: a [value table](#values), written whole. |
 
-Every other type — `mesh`, `skel`, `mat2`, `tileset2`, … — is refused naming the writable ones: those arrive only inside a whole `.res` file.
+Every other type — `mesh`, `skel`, `mat2`, `tileset2`, … — is refused naming the writable ones: those arrive only inside a [whole `.res` file](#whole-files).
 
 A `remove` key naming `code` or `codeentry` is refused: the client's published code is not a layer your addon writes or removes.
 
@@ -73,9 +77,23 @@ A boolean, a colour, a map or anything else is refused naming those kinds.
 
 ---
 
+## Whole files
+
+`resource:layers(file)` takes a `.res` — a data asset from your addon's folder, `hafen.asset():get("oak.res")` — and makes the resource's layers the file's: **every** layer the resource had is gone, including the ones no spec can write (`mesh`, `skel`, `mat2`, `tileset2`, …) and the resource's own published `code`, and the file's stand in their place. It is the door for those types, and the one write that replaces rather than merges.
+
+- **The file's version is ignored.** The resource keeps the version the server names, and `:version()` reads it still. A file built for any version applies.
+- **A layer type the client does not parse is skipped**, as the client's own loader skips it.
+- **A file carrying a `code` or `codeentry` layer is refused whole**, naming the layer: an addon ships no Java.
+- **The set is checked when made**: every layer is built through the client's own parser and bound to its neighbours before the write registers, so a file whose `mesh` names a `vbuf2` it does not carry is refused naming the layer.
+- An asset that is not a data asset, and a data asset that does not open with the `Haven Resource 1` signature, are refused naming what the verb takes.
+
+A file write is one write among the others: the specs and removals made before it are replaced along with the client's layers, and the ones made after it apply over it — `layers(file)` then `layers():add({ type = "tooltip", text = "…" })` is the file's layers with that tooltip. `resource:release()` drops it with the rest.
+
+---
+
 ## Order and lifetime
 
-- **Writes apply in the order made**, each over the last: a later write at the same address wins, and a `remove` after an `add` drops what the `add` put there.
+- **Writes apply in the order made**, each over the last: a later write at the same address wins, a `remove` after an `add` drops what the `add` put there, and a [file](#whole-files) replaces everything before it.
 - **A write lives in memory.** No file, cache entry or jar is written. It reaches the resource on its next load whatever the source, and a loaded resource at once.
 - **Every addon's writes on a name apply together**, in the order made across addons.
 - **`resource:release()`** drops your addon's writes on that resource; disabling or reloading your addon releases every write it made.

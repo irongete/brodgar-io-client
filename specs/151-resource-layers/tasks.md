@@ -60,7 +60,7 @@ bounded timer (≤ 5 s), never blocks, and ends with `resource:release()` on eve
       `[manual]`: look at the suite window — expect: a solid red square where the Agility icon would be.
       <!-- extra context: src/io/brodgar/addon/Controls.java (sourceTex), docs/addons/api/ui/controls/display.md -->
 
-- [ ] **151.4 — The `.res` file write: `resource:layers(file)`.** `ResFile` reads a data asset by the
+- [x] **151.4 — The `.res` file write: `resource:layers(file)`.** `ResFile` reads a data asset by the
       record grammar (`Haven Resource 1`, `uint16` skipped, `string type, int32 len, bytes`), refuses
       `code`/`codeentry` by name before any constructor runs, skips unknown types, and validates the set
       — construct and `init()` on a scratch `Resource.Virtual` — before registering a `file` record, which

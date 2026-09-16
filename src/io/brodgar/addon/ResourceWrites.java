@@ -17,8 +17,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.luaj.vm2.LuaError;
 
 /**
- * <b>The layer writes</b> (151.2) — every {@code resource:layers():add(spec)} and {@code :remove(key)} an
- * addon has made, as a static registry keyed by resource name, and the one function that applies them.
+ * <b>The layer writes</b> (151.2) — every {@code resource:layers():add(spec)}, {@code :remove(key)} and
+ * {@code resource:layers(file)} (151.4) an addon has made, as a static registry keyed by resource name, and
+ * the one function that applies them.
  *
  * <p><b>One seam, one direction.</b> A write is a {@link Record}: who made it, when (a global sequence), what
  * kind, at which address, with which fields. {@link #apply} folds the records of a name over a freshly
@@ -48,7 +49,7 @@ final class ResourceWrites {
     }
 
     enum Kind {
-        SPEC, REMOVE
+        SPEC, REMOVE, FILE
     }
 
     /** One write: immutable, plain Java. */
@@ -60,16 +61,23 @@ final class ResourceWrites {
         final String type;
         /** The address the record touches: {@code "type"} or {@code "type:id"}. */
         final String address;
-        /** A SPEC's fields as plain values ({@code text}, {@code clip}, {@code volume}, {@code id}); empty for a REMOVE. */
+        /** A SPEC's fields as plain values ({@code text}, {@code clip}, {@code volume}, {@code id}); empty otherwise. */
         final Map<String, Object> fields;
+        /** A FILE's records (151.4), the whole layer list it replaces the resource's with; {@code null} otherwise. */
+        final List<ResFile.Entry> file;
 
         Record(Addon owner, Kind kind, String type, String address, Map<String, Object> fields) {
+            this(owner, kind, type, address, fields, null);
+        }
+
+        Record(Addon owner, Kind kind, String type, String address, Map<String, Object> fields, List<ResFile.Entry> file) {
             this.owner = owner;
             this.seq = SEQ.incrementAndGet();
             this.kind = kind;
             this.type = type;
             this.address = address;
             this.fields = Collections.unmodifiableMap(fields);
+            this.file = file;
         }
     }
 
@@ -147,6 +155,19 @@ final class ResourceWrites {
         live(h, verb);
     }
 
+    /**
+     * {@code resource:layers(file)} (151.4): read {@code bytes} as a {@code .res}, validate the whole set on a
+     * scratch resource, register a FILE record — which replaces every layer, so the specs before it are
+     * moot and the ones after it apply over it — and re-parse the resource if the client holds it.
+     */
+    static void file(Addon owner, LuaResource h, byte[] bytes, String verb) {
+        List<ResFile.Entry> entries = ResFile.read(bytes, verb);
+        Resource res = h.res();
+        ResFile.validate(entries, h.name, (res == null) ? -1 : res.ver, verb);
+        register(h.name, new Record(owner, Kind.FILE, null, "", Collections.<String, Object>emptyMap(), entries));
+        live(h, verb);
+    }
+
     /** {@code resource:release()}: drop the owner's records on the name and re-parse it if held. */
     static void release(Addon owner, LuaResource h, String verb) {
         if(unregister(owner, h.name))
@@ -209,7 +230,7 @@ final class ResourceWrites {
      * Fold the records of {@code res.name} over {@code parsed}, in sequence order. Called from
      * {@code Resource.load} on whatever thread parses, before {@code init()}; never throws. A SPEC replaces
      * every layer at its address with one built over the first of them (or is appended when none is there);
-     * a REMOVE drops every layer at its address.
+     * a REMOVE drops every layer at its address; a FILE replaces the whole list with the file's layers.
      */
     static List<Resource.Layer> apply(Resource res, List<Resource.Layer> parsed) {
         List<Record> recs = records(res.name);
@@ -218,7 +239,9 @@ final class ResourceWrites {
         List<Resource.Layer> out = new ArrayList<Resource.Layer>(parsed);
         for(Record r : recs) {
             try {
-                if(r.kind == Kind.REMOVE) {
+                if(r.kind == Kind.FILE) {
+                    out = ResFile.build(res, r.file);
+                } else if(r.kind == Kind.REMOVE) {
                     List<Resource.Layer> kept = new ArrayList<Resource.Layer>(out.size());
                     for(Resource.Layer l : out) {
                         if(!LayerCodec.at(l, r.address))
@@ -251,8 +274,9 @@ final class ResourceWrites {
                     out = next;
                 }
             } catch(RuntimeException e) {
-                AddonManager.log(r.owner, "layer write on " + res.name + " at \"" + r.address + "\" skipped: "
-                                 + Refusal.reason(e));
+                AddonManager.log(r.owner, ((r.kind == Kind.FILE) ? ("file write on " + res.name)
+                                           : ("layer write on " + res.name + " at \"" + r.address + "\""))
+                                 + " skipped: " + Refusal.reason(e));
             }
         }
         return out;

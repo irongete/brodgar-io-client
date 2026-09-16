@@ -76,7 +76,7 @@ Derived set: `grep -rn -i "resource" docs/addons --include=*.md | grep -i "canno
 
 - `docs/addons/api/conventions.md`, `docs/addons/api/asset/handles.md`, `docs/addons/api/timer.md`, `DOCUMENTATION.md`
 - `docs/addons/api/resource/README.md`, `docs/addons/api/resource/layers.md`, `docs/addons/api/resource/writes.md` — 3, 4 · `docs/client/resource-loading.md` — 3, 4
-- `src/io/brodgar/addon/ResourceApi.java` (`name`), `LuaResource.java` (`res`, `layers`, the `add`/`remove`/`release` verbs), `LuaLayer.java`, `LayerCodec.java` (`type`/`key`/`at`, `snapshot`, `value`; `Spec`, `spec`, `encode`), `ResourceWrites.java` (`Record`, `add`, `apply`, `first`) — 3, 4
+- `src/io/brodgar/addon/ResourceApi.java` (`name`), `LuaResource.java` (`res`, `layers`, the `add`/`remove`/`release` verbs), `LuaLayer.java`, `LayerCodec.java` (`type`/`key`/`at`, `snapshot`, `value`; `Spec`, `spec`, `encode`), `ResourceWrites.java` (`Record`, `add`, `file`, `apply`, `first`), `ResFile.java` (`read`, `validate`, `build`) — 3, 4
 - `docs/addons/api/README.md`, `docs/addons/README.md`, `docs/addons/api/references.md` — 1
 - `docs/addons/api/sound.md` — 2 · `docs/addons/api/ui/controls/display.md` — 3
 - `docs/client/resources.md`, `docs/client/published-code.md`, `docs/client/README.md` — 1, 2, 4
