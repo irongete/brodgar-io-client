@@ -31,6 +31,11 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <p>The remote pool is the local one plus everything the server publishes, so a name bundled in the
  * client's jar ({@code sfx/msg}) and a content resource resolve through the same door.
  *
+ * <p><b>The writes</b> (151.2) hang off the same handle: {@code :layers():add(spec)} and {@code :remove(key)}
+ * register a {@link ResourceWrites} record by name and re-parse a loaded copy at once, {@code :release()}
+ * drops this addon's records. A write on a name nobody has fetched fetches nothing — it is a declaration,
+ * applied when the resource loads — which is why {@code add} answers {@code nil} then.
+ *
  * <p>Interned per addon by name ({@link Addon#resources}, weak values), so {@code get(name) == get(name)}
  * and a handle works as a table key; a handle Lua has dropped takes its entry with it.
  */
@@ -184,6 +189,16 @@ public final class LuaResource {
                 return layerCollection(owner, handle(self, "layers"));
             }
         });
+        // release() — give the client's own layers back: every write this addon made on the name is dropped
+        // and a loaded copy re-read at once. The ending of a hold over what the client owns; hands back the
+        // receiver.
+        m.set("release", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "resource:release");
+                ResourceWrites.release(owner, handle(self, "release"), "resource:release");
+                return self;
+            }
+        });
         return m;
     }
 
@@ -241,6 +256,45 @@ public final class LuaResource {
                         return LuaLayer.of(owner, r, l);
                 }
                 return LuaValue.NIL;
+            }
+
+            // add(spec) — a write (151.2): replace every layer at the spec's address with one built from
+            // the spec over the first of them, on every load of the name and, when the client holds it, at
+            // once. Checked here, on a scratch resource, so a registered write cannot fail when applied.
+            // Hands back the new Layer, or nil while the resource is not loaded — the write is registered
+            // either way and is there when it loads.
+            public boolean creatable() {
+                return true;
+            }
+
+            public String addName() {
+                return "spec";
+            }
+
+            public LuaValue addMember(Varargs a) {
+                String verb = how + ":add";
+                Args.only(a, 1, verb);
+                LayerCodec.Spec spec = LayerCodec.spec(a.arg(2), verb);
+                String address = ResourceWrites.add(owner, h, spec, verb);
+                Resource r = h.res();
+                if(r == null)
+                    return LuaValue.NIL;
+                Resource.Layer l = ResourceWrites.first(r.layers(Resource.Layer.class), address);
+                return (l == null) ? LuaValue.NIL : LuaLayer.of(owner, r, l);
+            }
+
+            // remove(keyOrLayer) — drop every layer at the address, on every load and at once when held.
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                String verb = how + ":remove";
+                LuaLayer l = LuaLayer.resolve(x);
+                String key = (l != null) ? LayerCodec.key(l.layer)
+                    : Args.str(x, verb, "key", "\"<type>\" for every layer of a type, \"<type>:<id>\" for"
+                               + " the ones with that id, or a Layer object").tojstring();
+                ResourceWrites.remove(owner, h, key, verb);
             }
         }, null);
     }

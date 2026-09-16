@@ -6035,6 +6035,21 @@ public final class AddonManager {
         pictures.put(picture, res);
     }
 
+    /**
+     * <b>The layer-write seam</b> (151.2): called from {@code Resource.load} with the freshly parsed layer list
+     * of every resource, before {@code init()}, on whatever thread parses. Hands back the list with every
+     * addon's registered writes on that name folded in ({@link ResourceWrites#apply}); never throws — a
+     * failure here would fail the client's own load of the resource, so the list goes back as parsed.
+     */
+    public static java.util.List<haven.Resource.Layer> onResourceLayers(haven.Resource res, java.util.List<haven.Resource.Layer> layers) {
+        try {
+            return ResourceWrites.apply(res, layers);
+        } catch(Throwable t) {
+            log("layer writes on " + res.name + " not applied: " + Refusal.reason(t));
+            return layers;
+        }
+    }
+
     /** The resource name a picture object was decoded from, or {@code null} for one the client composed. */
     static String pictureName(Object picture) {
         return (picture == null) ? null : pictures.get(picture);

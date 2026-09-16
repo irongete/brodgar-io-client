@@ -107,6 +107,27 @@ and never mutated. `init()` is not idempotent on every type (`MeshRes.init` cons
 index buffer), so a second `init()` over a live list is a corrupted mesh, not a refresh. `Resource.used`
 is set by any `layer()` read, including one made only to inspect.
 
+## Re-parsing a live object
+
+`Pool.reload(res)` walks the pool's sources again for a resource the cache already holds and ends in
+`load(msg, keep)`: the same parse, on the same object, so `Resource.indir()` and every `Indir` the
+client holds stay valid and only `layers` is swapped. Two traps it steps around:
+
+- **`Code`/`CodeEntry` are carried over, never re-parsed.** `keep` is the object's current code layers;
+  the stream's own `code`/`codeentry` records are skipped by length. A second parse of them would
+  construct a second `CodeEntry`, whose lazily built `ResClassLoader` would `defineClass` every served
+  class again under a new loader — two `Class` objects with one name, and every `getcode` after it
+  handing out the other one.
+- **`Pool.handle` versus `reload` on the version rule.** `handle` creates the object with the version
+  the ask named (or `-1`, which takes the stream's); `reload` keeps `Resource.ver`, so `load` refuses
+  any source whose `uint16` differs. A disk-cache file replaced by a newer version since the object
+  loaded makes every source fail `"Wrong res version"`, and `reload` throws the last `LoadException`
+  with the old layer list standing — the caller decides what that means.
+
+`Pool.peek(name)` reads this cache and its parents' without enqueuing; `Resource.newLayer(res, type,
+buf)` is the `ltypes` factory as a static, so a caller outside `haven` builds a layer bound to `res`
+(`Layer` is a non-static inner class) through the same constructor a served one takes.
+
 ## See also
 
 - [resources](resources.md) — what a loaded `.res` carries: reading a layer by class, predicate or id

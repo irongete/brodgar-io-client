@@ -31,6 +31,11 @@ final class ResourceApi {
         Section.mount(hafen, "resource", collection(owner), null);
     }
 
+    /** The teardown step: every layer write this addon made, released (151.2, {@link ResourceWrites#teardown}). */
+    static void teardown(Addon owner) {
+        ResourceWrites.teardown(owner);
+    }
+
     /**
      * The name a call handed in, checked: a string, with no empty segment, no {@code ..} segment and no
      * leading {@code /}. Refuses naming the rule. Shared with the write side, so a declaration by name

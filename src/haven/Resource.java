@@ -703,6 +703,56 @@ public class Resource implements Serializable {
 	public Named load(String name, int ver) {return(load(name, ver, 0));}
 	public Named load(String name) {return(load(name, -1));}
 
+	/* addon: 151.2 -- the cached object under `name` in this pool or its parents, or null. Reads the
+	 * cache without enqueuing anything: an addon's layer write on a name nobody has fetched registers
+	 * and waits for the load. */
+	public Resource peek(String name) {
+	    synchronized(cache) {
+		Resource cur = cache.get(name);
+		if(cur != null)
+		    return(cur);
+	    }
+	    return((parent == null) ? null : parent.peek(name));
+	}
+
+	/* addon: 151.2 -- RE-PARSE a cached object from its own sources, in place: the same walk handle()
+	 * made, ending in res.load(msg, keep) so the addon hook folds the current writes over a fresh list
+	 * and the object's Code/CodeEntry layers are carried over. Called on the pool the object was found
+	 * in (res.pool). Throws the last source's LoadException when no source produces a parsable stream
+	 * of the object's version; the old layer list stands then. */
+	public void reload(Resource res) {
+	    Collection<Layer> keep = new ArrayList<Layer>();
+	    for(Layer l : res.layers) {
+		if((l instanceof Code) || (l instanceof CodeEntry))
+		    keep.add(l);
+	    }
+	    LoadException error = null;
+	    for(ResSource src : sources) {
+		try(InputStream in = src.get(res.name)) {
+		    Message msg = new StreamMessage(in);
+		    if(msg.eom())
+			throw(new FileNotFoundException("empty file"));
+		    res.load(msg, keep);
+		    return;
+		} catch(Throwable t) {
+		    LoadException cur;
+		    if(t instanceof LoadException)
+			cur = (LoadException)t;
+		    else
+			cur = new LoadException(String.format("Load error in resource %s(v%d), from %s", res.name, res.ver, src), t, null);
+		    cur.src = src;
+		    if(error != null) {
+			cur.prev = error;
+			cur.addSuppressed(error);
+		    }
+		    error = cur;
+		}
+	    }
+	    if(error == null)
+		error = new LoadException("no source for " + res.name, res);
+	    throw(error);
+	}
+
 	public Indir<Resource> dynres(long id) {
 	    return(load(String.format("dyn/%x", id), 1));
 	}
@@ -2029,6 +2079,13 @@ public class Resource implements Serializable {
 
     private static final byte[] RESOURCE_SIG = "Haven Resource 1".getBytes(Utils.ascii);
     private void load(Message in) {
+	load(in, null);
+    }
+
+    /* addon: 151.2 -- `keep` is non-null on a RE-PARSE of a live object (Pool.reload): its Code and
+     * CodeEntry layers are carried over and the stream's own are skipped, so the served classes are never
+     * defined a second time under a new ResClassLoader. */
+    private void load(Message in, Collection<Layer> keep) {
 	if(!Arrays.equals(RESOURCE_SIG, in.bytes(RESOURCE_SIG.length)))
 	    throw(new LoadException("Invalid res signature", this));
 	int ver = in.uint16();
@@ -2038,9 +2095,14 @@ public class Resource implements Serializable {
 	else if(ver != this.ver)
 	    throw(new LoadException("Wrong res version (" + ver + " != " + this.ver + ")", this));
 	while(!in.eom()) {
-	    LayerFactory<?> lc = ltypes.get(in.string());
+	    String type = in.string();   // addon: 151.2 -- was inlined in the ltypes lookup
+	    LayerFactory<?> lc = ltypes.get(type);
 	    int len = in.int32();
 	    if(lc == null) {
+		in.skip(len);
+		continue;
+	    }
+	    if((keep != null) && (type.equals("code") || type.equals("codeentry"))) {   // addon: 151.2
 		in.skip(len);
 		continue;
 	    }
@@ -2050,10 +2112,32 @@ public class Resource implements Serializable {
 		layers.add(l);
 	    buf.skip();
 	}
+	if(keep != null)   // addon: 151.2
+	    layers.addAll(keep);
+	// addon: 151.2 -- an addon's layer writes fold over the parsed list here, BEFORE init() binds one
+	// layer to another (Anim to its Images, CodeEntry to its Codes). Never throws; a failing record is
+	// skipped and logged by the addon layer.
+	layers = io.brodgar.addon.AddonManager.onResourceLayers(this, layers);
 	this.layers = layers;
 	for(Layer l : layers)
 	    l.init();
 	used = false;
+    }
+
+    /* addon: 151.2 -- build one layer through the wire factory, bound to `res`: Layer is a non-static inner
+     * class and LayerConstructor.cons is the only door, so a layer an addon writes is the same upstream
+     * object a served one is, constructor side effects included. Throws IllegalArgumentException for a type
+     * ltypes does not know. */
+    public static Layer newLayer(Resource res, String type, Message buf) {
+	LayerFactory<?> lc = ltypes.get(type);
+	if(lc == null)
+	    throw(new IllegalArgumentException("unknown layer type: " + type));
+	return(lc.cons(res, buf));
+    }
+
+    /* addon: 151.2 -- is `type` a layer type this client parses? */
+    public static boolean knownLayer(String type) {
+	return(ltypes.containsKey(type));
     }
 
     private transient Named indir = null;

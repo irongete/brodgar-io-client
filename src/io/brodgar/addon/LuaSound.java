@@ -516,6 +516,7 @@ public final class LuaSound {
         g.loader.defer(new Runnable() {
             public void run() {
                 Audio.CS cs;
+                double gain;
                 try {
                     // audit2 B14 (sn-09): AND THE WAIT IS BOUNDED. A Loading is rethrown so the loader runs
                     // this task again, and `pending` deliberately stands across that -- but a resource that
@@ -532,7 +533,13 @@ public final class LuaSound {
                                          + "s — it is still not resolved, so nothing was played");
                         return;
                     }
-                    cs = Audio.fromres(resid.get());   // Loading → the loader re-runs this task (pending stands)
+                    // 151.2: the clip the resource carries RIGHT NOW, and its own base loudness (the audio2
+                    // layer's `vol`, which the client applies to world sounds and an addon's layer write can
+                    // set): `volume` is the fraction of that, as the page says. Loading → the loader re-runs
+                    // this task (pending stands).
+                    Audio.Clip clip = Audio.resclip(resid.get());
+                    cs = clip.stream();
+                    gain = vol * clip.bvol();
                 } catch(Loading l) {
                     throw(l);
                 } catch(RuntimeException e) {
@@ -546,8 +553,8 @@ public final class LuaSound {
                     AddonManager.log("could not play " + name);
                     return;
                 }
-                if(vol != 1.0)
-                    cs = new Audio.VolAdjust(cs, vol);
+                if(gain != 1.0)
+                    cs = new Audio.VolAdjust(cs, gain);
                 Drained dc = new Drained(cs);
                 synchronized(live) {
                     if(live.gen != gen)                // stopped while we resolved: never blip (pending zeroed)

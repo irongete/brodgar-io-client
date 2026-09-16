@@ -1,6 +1,6 @@
 # hafen.resource: The Client's Resources
 
-A `.res` is the unit of what the client draws, plays and names: an icon, a chime, a tree, an item's name. `hafen.resource()` addresses one by name and reads what it carries as a collection of [layers](layers.md).
+A `.res` is the unit of what the client draws, plays and names: an icon, a chime, a tree, an item's name. `hafen.resource()` addresses one by name, reads what it carries as a collection of [layers](layers.md), and [writes](writes.md) to it.
 
 ```lua
 local resources = hafen.resource()
@@ -35,7 +35,7 @@ A well-formed name is a path: segments split on `/`, none empty, none `..`, none
 
 ## Methods on `Resource`
 
-A `Resource` is a live handle. Holding it fetches nothing. **A content read** — any verb below but `:name()` — makes the client fetch the resource through its own pools if it has not already, and answers what it can until the fetch lands. Nothing blocks.
+A `Resource` is a live handle. Holding it fetches nothing. **A content read** — any verb below but `:name()` and `:release()` — makes the client fetch the resource through its own pools if it has not already, and answers what it can until the fetch lands. Nothing blocks.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
@@ -45,6 +45,7 @@ A `Resource` is a live handle. Holding it fetches nothing. **A content read** �
 | `resource:error()` | `string \| nil` | Unprotected | The client's own message for a fetch that failed; `nil` while fetching and once loaded. |
 | `resource:info()` | `table \| nil` | Unprotected | `{name, version, layers}` — `layers` is the array of layer keys in wire order; `nil` until loaded. |
 | `resource:layers()` | `LayerCollection` | Unprotected | The resource's [layers](layers.md), one `Layer` per wire layer; empty until loaded. |
+| `resource:release()` | `Resource` | Unprotected | Drops every [write](writes.md) your addon made on this resource. Chains. |
 
 ### Loading and failure
 
@@ -65,6 +66,7 @@ A name the server has no resource for fails; the message names the resource and 
 ## See Also
 
 - [Layers](layers.md) — the layer collection, the `Layer` handle, and what `:info()` decodes per type.
+- [Writes](writes.md) — `layers():add(spec)`, `layers():remove(key)`, `resource:release()`.
 - [`hafen.sound`](../sound.md) — playing a resource's clip.
 - [`hafen.timer`](../timer.md) — polling `:loaded()`.
 - [Conventions](../conventions.md) — collection verbs and filters.

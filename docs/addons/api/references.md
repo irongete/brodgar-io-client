@@ -61,4 +61,4 @@ end
 | `Item` | `session:ui():inventory():items()` | Live while item remains in inventory. |
 | `Asset` | `hafen.asset():get(...)` | Persistent while addon remains loaded. |
 | `Resource` | `hafen.resource():get(name)` | Live for the name; a content read fetches it. |
-| `Layer` | `resource:layers():get(key)` | Live while it is one of its resource's layers; `false` on `:exists()` once a load replaced it. |
+| `Layer` | `resource:layers():get(key)` | Live while it is one of its resource's layers; `false` on `:exists()` once a load or a write replaced it. |

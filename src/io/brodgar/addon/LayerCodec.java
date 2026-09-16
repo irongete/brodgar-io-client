@@ -3,12 +3,18 @@ package io.brodgar.addon;
 import haven.Coord;
 import haven.Coord2d;
 import haven.FColor;
+import haven.MessageBuf;
 import haven.Resource;
 import haven.TexR;
 
 import java.awt.Color;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -151,6 +157,172 @@ final class LayerCodec {
             t.set("frames", frames);
         }
         return t;
+    }
+
+    // ---- the write side: a spec, and its wire bytes ------------------------------------------------
+
+    /** The types a spec can write, in the order the refusal names them. */
+    static final String[] WRITABLE = {"image", "tex", "audio2", "tooltip", "pagina", "props", "neg", "obst"};
+
+    /** What each writable type's spec carries besides {@code type}, for the refusal that names them. */
+    private static final Map<String, String> FIELDS = new HashMap<String, String>();
+    static {
+        FIELDS.put("tooltip", "text");
+        FIELDS.put("pagina", "text");
+        FIELDS.put("audio2", "id, clip, volume");
+    }
+
+    /**
+     * A spec table read into plain Java (151.2): the wire type, the address it touches ({@code "type"}, or
+     * {@code "type:id"} when the spec names an id), and its fields as {@code String} / {@code Double} /
+     * {@code byte[]} values a loader thread can read for as long as the addon runs.
+     */
+    static final class Spec {
+        final String type;
+        final String address;
+        final Map<String, Object> fields;
+
+        Spec(String type, String address, Map<String, Object> fields) {
+            this.type = type;
+            this.address = address;
+            this.fields = fields;
+        }
+    }
+
+    /** The type half of a layer key: {@code "audio2:cl"} → {@code "audio2"}. */
+    static String typeOf(String key) {
+        int colon = key.indexOf(':');
+        return (colon < 0) ? key : key.substring(0, colon);
+    }
+
+    /**
+     * Read and check a spec table. Refuses a missing or unknown {@code type} naming the writable types, an
+     * unknown field naming the type's fields, and a field of the wrong kind naming what it takes. Whether
+     * the spec is <i>whole</i> is not decided here — that depends on what stands at the address, and
+     * {@link #encode} decides it against the original.
+     */
+    static Spec spec(LuaValue v, String verb) {
+        if(!v.istable())
+            throw new LuaError(verb + ": spec must be a table — {type = \"tooltip\", text = \"...\"} — got "
+                + v.typename());
+        LuaTable t = v.checktable();
+        LuaValue tv = t.get("type");
+        if(tv.isnil())
+            throw new LuaError(verb + ": spec.type is required — one of " + Arrays.toString(WRITABLE));
+        String type = Args.str(tv, verb, "spec.type", "one of " + Arrays.toString(WRITABLE)).tojstring();
+        if(Arrays.asList(WRITABLE).indexOf(type) < 0)
+            throw new LuaError(verb + ": \"" + type + "\" is not a type a spec writes — the writable types are "
+                + Arrays.toString(WRITABLE) + "; every other type arrives only inside a whole .res file");
+        String allowed = FIELDS.get(type);
+        if(allowed == null)
+            throw new LuaError(verb + ": a " + type + " spec has no encoder in this build");
+        Map<String, Object> fields = new LinkedHashMap<String, Object>();
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            org.luaj.vm2.Varargs n = t.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String field = k.tojstring();
+            LuaValue fv = n.arg(2);
+            if(field.equals("type"))
+                continue;
+            if(!k.isstring() || (("," + allowed.replace(" ", "") + ",").indexOf("," + field + ",") < 0))
+                throw new LuaError(verb + ": a " + type + " spec has no field '" + field + "' — it takes {type, "
+                    + allowed + "}");
+            fields.put(field, field(type, field, fv, verb));
+        }
+        String address = fields.containsKey("id") ? (type + ":" + fields.get("id")) : type;
+        return new Spec(type, address, fields);
+    }
+
+    /** One spec field as its plain value, checked by kind. */
+    private static Object field(String type, String field, LuaValue v, String verb) {
+        String param = "spec." + field;
+        if(field.equals("text"))
+            return Args.str(v, verb, param, "the " + type + "'s text").tojstring();
+        if(field.equals("id"))
+            return Args.str(v, verb, param, "the clip's id, a string (\"cl\")").tojstring();
+        if(field.equals("volume")) {
+            double d = Args.num(v, verb, param, "the clip's base loudness, 0 for silent, 1 for as served").todouble();
+            if(d < 0)
+                throw new LuaError(verb + ": " + param + " must be 0 or more, got " + d);
+            return Double.valueOf(d);
+        }
+        if(field.equals("clip")) {
+            String kind = AssetApi.typeOf(v);
+            if(!"data".equals(kind))
+                throw new LuaError(verb + ": " + param + " must be a DATA asset holding an Ogg Vorbis file"
+                    + " (hafen.asset():get(\"chime.ogg\")), got " + ((kind == null) ? v.typename() : (kind + " asset")));
+            byte[] bytes = ((AssetApi.Data)v.touserdata()).bytes;
+            if((bytes.length < 4) || (bytes[0] != 'O') || (bytes[1] != 'g') || (bytes[2] != 'g') || (bytes[3] != 'S'))
+                throw new LuaError(verb + ": " + param + " is not an Ogg Vorbis file — the client plays Ogg"
+                    + " Vorbis clips only, and this one does not open with the OggS page header");
+            return bytes;
+        }
+        throw new LuaError(verb + ": a " + type + " spec has no field '" + field + "'");
+    }
+
+    /**
+     * The wire bytes of {@code type} built from {@code fields} over {@code original} — the layer standing at
+     * the address, or {@code null} for an empty one. A field left out takes the original's; with no original
+     * it must be present, or the refusal names it. {@code verb} prefixes a refusal, or is {@code null} at
+     * apply time, where a refusal is logged rather than raised.
+     */
+    static byte[] encode(String type, Map<String, Object> fields, Resource.Layer original, String verb) {
+        String at = (verb == null) ? "" : (verb + ": ");
+        if(type.equals("tooltip") || type.equals("pagina")) {
+            String text = (String)fields.get("text");
+            if(text == null) {
+                if(original instanceof Resource.Tooltip)
+                    text = ((Resource.Tooltip)original).t;
+                else if(original instanceof Resource.Pagina)
+                    text = ((Resource.Pagina)original).text;
+            }
+            if(text == null)
+                throw new LuaError(at + "no " + type + " stands at this address, so the spec must be whole:"
+                    + " text is missing");
+            return text.getBytes(StandardCharsets.UTF_8);
+        }
+        if(type.equals("audio2")) {
+            Resource.Audio orig = (original instanceof Resource.Audio) ? (Resource.Audio)original : null;
+            String id = (String)fields.get("id");
+            if((id == null) && (orig != null))
+                id = orig.id;
+            byte[] clip = (byte[])fields.get("clip");
+            if((clip == null) && (orig != null))
+                clip = orig.coded;
+            Double vol = (Double)fields.get("volume");
+            if((vol == null) && (orig != null))
+                vol = Double.valueOf(orig.bvol);
+            if(orig == null) {
+                String missing = (id == null) ? "id" : (clip == null) ? "clip" : null;
+                if(missing != null)
+                    throw new LuaError(at + "no audio2 stands at this address, so the spec must be whole: "
+                        + missing + " is missing");
+            }
+            if(clip == null)
+                throw new LuaError(at + "the audio2 at this address carries no clip bytes to keep: clip is missing");
+            MessageBuf buf = new MessageBuf();
+            buf.adduint8(3);
+            buf.addstring(id);
+            if(orig != null) {
+                for(Map.Entry<String, Object> e : orig.info.entrySet()) {
+                    if(e.getKey().equals("vol"))
+                        continue;
+                    buf.addstring(e.getKey());
+                    buf.addtto(e.getValue());
+                }
+            }
+            if(vol != null) {
+                buf.addstring("vol");
+                buf.addtto(vol);
+            }
+            buf.addstring("");
+            buf.addbytes(clip);
+            return buf.fin();
+        }
+        throw new LuaError(at + "a " + type + " spec has no encoder in this build");
     }
 
     // ---- values ------------------------------------------------------------------------------------

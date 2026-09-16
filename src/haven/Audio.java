@@ -586,6 +586,14 @@ public class Audio {
 	return(resclip(res).stream());
     }
 
+    /* addon: 151.2 -- drop the combined-clip entry for a resource whose audio layers an addon just
+     * replaced, so the next resclip() reads the current ones. */
+    public static void forget(Resource res) {
+	synchronized(resclips) {
+	    resclips.remove(res);
+	}
+    }
+
     public static class Root implements Console.Directory {
 	public final AudioSystem.SinkLine line;
 	public final Mixer mixer = new Mixer(true);

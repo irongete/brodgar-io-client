@@ -30,7 +30,7 @@ end
 
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
-| `:play([volume])` | `[number]` | `self` | Plays the sound clip once. `volume` is a float between `0.0` and `1.0` (default `1.0`). |
+| `:play([volume])` | `[number]` | `self` | Plays the sound clip once. `volume` is a float between `0.0` and `1.0` (default `1.0`), a fraction of the clip's own base loudness. Reads the resource's current `audio2` layer — a [layer write](resource/writes.md) changes what plays. |
 | `:stop()` | None | `self` | Stops all active playback instances of this sound started by your addon. |
 | `:playing()` | None | `boolean` | Returns `true` if this sound is currently playing audio. |
 | `:res()` | None | `string` | The resource identifier string. |

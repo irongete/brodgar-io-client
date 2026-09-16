@@ -27,7 +27,7 @@ bounded timer (≤ 5 s), never blocks, and ends with `resource:release()` on eve
       server lacks reaching `:error()` and reading `:version()` as `nil`.
       `[manual]`: none.
 
-- [ ] **151.2 — Layer writes: `add`, `remove`, `release`, at every load and live.** `ResourceWrites` (the
+- [x] **151.2 — Layer writes: `add`, `remove`, `release`, at every load and live.** `ResourceWrites` (the
       registry, `apply`, the `// addon:` hook line in `Resource.load` before `init()`, `Resource.newLayer`,
       `Pool.peek`/`Pool.reload` with `load(msg, keep)` carrying `Code`/`CodeEntry`, `Audio.forget`,
       `resTexCache` invalidation, the `AddonRegistry` step); `layers():add(spec)` for `tooltip`, `pagina`,

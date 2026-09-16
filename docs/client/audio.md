@@ -10,6 +10,7 @@
 |---|---|
 | The three channels | `ActAudio.Root` holds `aui` (interface blips), `pos` (positional world sound) and `amb` (ambience), each a `RootChannel` over its own `Audio.Mixer`. One `Root` per `UI`, built in the `UI` constructor and reachable as `UI.audio` |
 | Playing a clip | `UI.sfx(Audio.CS)` — it is `audio.aui.add(clip)` and nothing else. The two overloads take an `Audio.Clip` (`clip.stream()`) and a `Resource`. `Audio.fromres(Resource)` is the resource → `CS` conversion |
+| The clip a resource plays | `Audio.resclip(Resource)`: the one `Audio.Clip` (an `audio2` layer) when the resource carries one, else a synthetic `Clip` picking among them at random, **cached per resource in `Audio.resclips`** for the pool's lifetime. `Audio.forget(Resource)` drops that entry after the layer list is swapped. The layer's own `bvol` (`vol` in the `audio2` v3 key block) is applied by `ActAudio.Ambience`/`ClipAmbiance` only — `UI.sfx` and `fromres` play the clip at full gain |
 | The master volume | `Audio.Root.volume()` / `volume(double)`, the number the Audio panel's slider writes |
 | Per-clip volume | Wrap the `CS` in `Audio.VolAdjust(cs, vol)`. Its `vol` and `bal` are **public mutable fields**, so it adjusts a clip that is already playing, and `UI.sfx` takes any `Audio.CS`, so the wrapper goes in transparently |
 | Stopping one | `ActAudio.RootChannel.remove(cs)` → `Mixer.stop`, an **identity match on the very `CS` you added**. Keep the object you passed or you cannot stop it |

@@ -95,7 +95,7 @@ To display a mesh in the 3D world, pass the handle to [`hafen.virtual():model()`
 
 ## Data Asset
 
-Returned for all non-media extensions (`.json`, `.txt`, `.csv`, `.bin`, etc.).
+Returned for all non-media extensions (`.json`, `.txt`, `.csv`, `.bin`, `.ogg`, etc.). An `.ogg` data asset is what [`resource:layers():add`](../resource/writes.md) takes as an `audio2` clip.
 
 | Method | Returns | Description |
 |---|---|---|

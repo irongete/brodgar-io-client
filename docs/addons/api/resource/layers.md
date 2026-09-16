@@ -42,8 +42,10 @@ Several layers can share a key — the clip variants of one `audio2`, the images
 | `:list([filter])` | `string \| function` | `Layer[]` | Unprotected | Every layer, in wire order; a string matches the key as a substring. |
 | `:count([filter])` | `string \| function` | `number` | Unprotected | How many. |
 | `:find(filter)` | `string \| function` | `Layer \| nil` | Unprotected | The first that matches. |
+| `:add(spec)` | `table` | `Layer \| nil` | Unprotected | A [write](writes.md): replaces every layer at the spec's address with one built from the spec. |
+| `:remove(key)` | `string \| Layer` | `LayerCollection` | Unprotected | A [write](writes.md): drops every layer at the address. |
 
-The collection is empty until [`resource:loaded()`](README.md) is `true`.
+The collection is empty until [`resource:loaded()`](README.md) is `true`; a write on a resource that is not loaded registers and applies when it loads.
 
 ---
 
@@ -53,7 +55,7 @@ The collection is empty until [`resource:loaded()`](README.md) is `true`.
 |---|---|---|---|
 | `layer:type()` | `string` | Unprotected | The wire type name. |
 | `layer:id()` | `number \| string \| nil` | Unprotected | The layer's own id; `nil` for a type without one. |
-| `layer:exists()` | `boolean` | Unprotected | `true` while this layer object is one of its resource's. A load that replaces the resource's layers makes every earlier handle `false`. |
+| `layer:exists()` | `boolean` | Unprotected | `true` while this layer object is one of its resource's. A load, or a [write](writes.md), that replaces the resource's layers makes every earlier handle `false`. |
 | `layer:info()` | `table` | Unprotected | The snapshot: `{type, id}` plus the decoded fields below. |
 
 A `Layer` is interned on the layer object: `get("image") == get("image:-1")` when they are the same layer, and the handle works as a table key.
@@ -83,4 +85,5 @@ A key/value block (`meta`, `props`) spells the wire's values as Lua: a number, a
 ## See Also
 
 - [`hafen.resource`](README.md) — addressing a resource and reading its state.
+- [Writes](writes.md) — `add`, `remove` and `release`.
 - [Shapes](../shapes.md) — the `{x, y}`, `{w, h}` and `{x, y, w, h}` tables.

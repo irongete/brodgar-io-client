@@ -352,6 +352,10 @@ public final class AddonRegistry {
         //   every string it displayed reverts to the English the client wrote. Beside the fonts step below,
         //   and for the same reason: both bump the generation every routed site rebuilds on
         new Step("locale", LocaleApi::teardown),
+        // 151.2: give the client its own layers back -- every resource this addon wrote a layer of is re-read
+        //   from its source with this addon's records gone. Beside locale for the same reason: a client-wide
+        //   overlay the addon held over what the client owns
+        new Step("resource layers", ResourceApi::teardown),
         // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget widget:setFont overrides
         //   in one sweep (bumps gen -> stock foundry restored)
         new Step("fonts", FontApi::teardownFonts),

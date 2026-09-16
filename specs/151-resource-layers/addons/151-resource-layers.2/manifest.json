@@ -1,0 +1,9 @@
+{
+  "name": "151.2 — layer writes: add, remove, release",
+  "id": "151-resource-layers.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 151.2: a layer spec written at an address shows at once on a loaded resource and on the load of an unfetched one, a removal drops the address, and release() gives the client's own layers back.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}
