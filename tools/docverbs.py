@@ -79,6 +79,8 @@ RECEIVERS = {
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "pl": "placing",
+    # The client's resources (151). `res:` stays the HTTP result; the pages spell the handle `resource:`.
+    "resource": "resource", "layer": "layer",
     # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue
     # itself, so its verbs are enumerable only by reading LocaleApi, exactly as `s:char()`'s are.
     "locale": None,
@@ -194,6 +196,7 @@ RETURNS = {
     ("channel", "message"): "@collection",
     ("voice", "peer"): "@collection",
     ("fep", "entry"): "@collection",
+    ("resource", "layers"): "@collection",
 }
 
 def bridge_vocabularies():

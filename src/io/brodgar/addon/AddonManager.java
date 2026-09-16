@@ -4830,6 +4830,12 @@ public final class AddonManager {
                       "hafen.sound(name) is now hafen.sound():get(name), and the clips of yours in the air"
                       + " are hafen.sound():sounding(filter)");
 
+        // hafen.resource() (151) — the client's resources by name, the section object IS the collection:
+        // :get(name) mints an interned Resource for any well-formed name and fetches nothing; :list/:count/
+        // :find walk what the pools hold. A content read on the handle (:loaded/:version/:error/:info/
+        // :layers) takes the pool's Indir and catches Loading, so nothing blocks and nothing throws into Lua.
+        ResourceApi.install(hafen, owner);
+
         // hafen.music is DELIBERATELY ABSENT (024.3, maintainer 2026-08-01). haven.Music is the client's MIDI
         // player, driven by exactly one thing — RootWidget's "bgm" server message — and this server never
         // sends it: there is no MIDI content, so the whole subsystem is dead weight and an API over it would

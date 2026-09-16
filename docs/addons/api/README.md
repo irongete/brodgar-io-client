@@ -68,6 +68,7 @@ Before calling API methods, review the core conventions:
 | **[`websocket`](websocket.md)** | Full-duplex WebSocket connections. |
 | **[`sound`](sound.md)** | Playing custom sound effects and audio clips. |
 | **[`asset`](asset/README.md)** | Loading images, textures, and assets shipped in the addon folder. |
+| **[`resource`](resource/README.md)** | The client's own resources by name, and their [layers](resource/layers.md). |
 | **[`virtual`](virtual/README.md)** | Spawning client-side visual ghosts and custom map models. |
 | **[`voice`](voice/README.md)** | Proximity voice chat audio and peer streaming. |
 | **[`steam`](steam.md)** | Steam client integration, player identity, and Steam achievements. |

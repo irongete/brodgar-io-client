@@ -8,11 +8,8 @@ own loader. Every tooltip (`ui/tt/*`), the gilding window (`ui/slot-info`), the 
 panels, most effect sprites and every instrument are code of this kind, and it is what a server widget
 gets whenever its type name contains `/` (`Widget.gettype3`).
 
-Where a resource comes from, in the order `Resource.remote()` asks: `Resource.local()` first — the
-`res/` tree of `builtin-res.jar` (`Resource.JarSource`) plus a development `resdir` — then the
-`res-preload/` tree of `hafen-res.jar`, then the `HashDirCache` under `Config.localdir()/data`, then the
-resource server (`Resource.addurl`, tee'd into that cache). A source holding an older version than the
-one demanded fails with `LoadException` and the next is asked, which is how the server's newer copy wins.
+Where a resource comes from, in what order the sources are asked and how a version decides between
+them is [resource loading](resource-loading.md).
 
 **A local copy under `src/haven/res/`** wins over the served class only when its
 `@haven.FromResource(name, version)` matches the resource actually served; otherwise the loader warns and
@@ -53,4 +50,5 @@ constructors without their `Panel` argument.
 ## See also
 
 - [resources](resources.md) — what a `.res` carries: layers, `obst`/`neg`, and the `OD_RES` delta
+- [resource loading](resource-loading.md) — the pools, the source order and the version rules a served copy wins by
 - [services](services.md) — the adoption row: `get-code` + `@FromResource`, and `Resource.classres`

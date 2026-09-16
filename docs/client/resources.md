@@ -136,5 +136,6 @@ other session's copy has seen its own.
 ## See also
 
 - [published code](published-code.md) — the `code` layer, `@FromResource`, and the ABI served code links against
+- [resource loading](resource-loading.md) — how a name becomes a `Resource`: pools, sources, versions, the soft cache, and the `load`/`init` order
 - [state roots](state.md) — where the rest of a gob's live state lives
 - [boot and the frame loop](boot-and-loop.md) — the `Loading` protocol a resource read can throw into

@@ -1,0 +1,114 @@
+# Resource loading: pools, sources, versions and the soft cache
+
+How a name becomes a `Resource` object: which pool is asked, which sources it walks in what order, the
+two version rules that decide whether a copy is taken, what holds a loaded one and for how long, and the
+`Loading` protocol a read goes through while none of that has happened yet. What a `.res` *carries* once
+it is loaded is [resources](resources.md); the Java one can carry is [published code](published-code.md).
+
+## The two pools
+
+| Pool | Built by | Sources, in the order `Pool.handle` walks them |
+|---|---|---|
+| `Resource.local()` | `Resource.local` (lazily, once) | `JarSource("res")` — the `res/` tree of `builtin-res.jar`; then a `FileSource(resdir)` when `HAFEN_RESDIR` / `haven.resdir` names a directory (a development aid — an error opening it is swallowed) |
+| `Resource.remote()` | `Resource.remote` (lazily, once), **with `local()` as its parent** | `JarSource("res-preload")` — the `res-preload/` tree of `hafen-res.jar`; then `CacheSource(prscache)` — the `HashDirCache` under `Config.localdir()/data`, when `Resource.setcache` has run; then whatever `Resource.addurl` appended, an `HttpSource` for the server's resource URL wrapped in a `TeeSource` that writes each fetched stream into that same cache as `res/<name>` |
+
+`Pool.load(name, ver, prio)` asks **the parent first**: a `Queued` in the child waits on the parent's
+(`Queued.awaiting`, `rdep`), and only when the parent has answered with an error does the child enqueue
+itself and walk its own sources (`Queued.prior`). So the order a name is looked for is *builtin jar →
+resdir → preload jar → disk cache → server*, and the first source to produce a stream that parses is the
+one whose bytes are kept. `Resource.source` names it; every failure before it is chained on the
+`LoadException` (`error.prev`, `addSuppressed`).
+
+**Everything the game names goes through `remote()`.** `Session.pool()` is `Resource.remote()`; the
+`local()` pool is asked directly only by the client's own start-up art (`Resource.loadrimg`,
+`loadtex`, …). A pool has its own `Loader` threads (`nloaders = 2`, daemon `HackThread`s in
+`Resource.loadergroup`, each exiting after ten idle seconds and started again by `ckld`), and a layer's
+constructor runs on one of them — `UI.scale` inside `Image`, `ImageIO.read`, `Font.createFont`.
+
+## Where a wire id becomes a name
+
+The server refers to resources by a per-session integer. `Session.rescache` maps it to a `CachedRes`;
+the name and version arrive in their own message (`RMessage.RMSG_RESID` → `CachedRes.set`, which also
+starts the fetch at a low priority), and `CachedRes.Ref.get()` — the `Indir<Resource>` every `OCache`
+delta and `uimsg` carries — throws `Session.LoadingIndir` until the name is known and then
+`Resource.remote().load(resnm, resver, prio).get()`. `Session` implements `Resource.Resolver`, the
+interface (`getres(id)`) a widget or a message decoder asks; `Resolver.ResourceMap` re-bases one over
+a message's own id table.
+
+## The two version rules
+
+**Asking (`Pool.load`).** With `ver == -1` any version satisfies: a cached object is answered at once
+(`cur.indir()`), a queued fetch is joined. With a version:
+
+| The cache holds | Result |
+|---|---|
+| that version | the cached object |
+| a newer one | `BadVersionException` ("Obsolete version … requested"), thrown **synchronously** into the caller |
+| an older one | a new `Queued` for the newer version; on success it **replaces** the cache entry under that name |
+
+A `Queued` that has already **failed** is retried only by an ask for a *newer* version than it failed
+under, or by an unversioned ask when it failed under a version; an unversioned ask that failed answers
+the same failed `Queued` for the pool's lifetime (`Pool.load`'s `XXX` branch). A name the server has no
+resource for therefore costs one round of every source, once.
+
+**Parsing (`Resource.load(Message)`).** The stream opens with `"Haven Resource 1"` and a `uint16`
+version. When the object was created with `ver == -1` that number becomes `Resource.ver`; otherwise any
+mismatch — higher or lower — is `LoadException("Wrong res version")` and `Pool.handle` asks the next
+source. That is how a served version wins over the jar's: the jar's copy parses and is refused, the cache
+or the server produces the one the session named. It is also why a copy dropped into `HAFEN_RESDIR` is
+taken only when its version equals what the server asks for.
+
+An empty stream is `FileNotFoundException("empty file")` on purpose: custom clients have been seen to
+leave zero-length files in the disk cache under a resource's name, and the tee is what wrote them.
+
+## The soft cache
+
+`Pool.cache` is a `CacheMap` at its default `RefType.SOFT`: a loaded `Resource` stays only while
+something holds it or the heap is not under pressure, and a collected one is fetched again on the next
+ask — from the disk cache, not the server, when it came from there. `Pool.cached()` copies the live
+entries of this pool and its parent into a fresh set; `Pool.used()` is the subset something has read a
+layer of (`Resource.used`, set by every `layer`/`layers` call and cleared at the end of `load`).
+
+`Resource.indir()` is the object's own `Indir`, minted once; `Pool.load` hands it back for a cache hit,
+and a `Queued` otherwise. `Resource.equals` is name **and** version.
+
+## `Loading` and failure
+
+`Queued.get()` throws `Resource.Loading` (a `haven.Loading`) until `done`; `Loading.waitfor` blocks on
+the `Waitable.Queue` for code that may block (`Pool.loadwait`, the client's start-up), and everything
+under the frame loop catches it and retries next tick ([boot and the frame loop](boot-and-loop.md)).
+Once `done`, `get()` is the object or one of two exceptions, kept on the `Queued` for every later ask:
+
+| Exception | When |
+|---|---|
+| `Resource.NoSuchResourceException` | every source threw `FileNotFoundException` (`Queued.found` false) |
+| `Resource.LoadFailedException` | at least one source produced a stream and it failed to parse |
+
+Both are `BadResourceException`s carrying the name and version; `getCause()` is the last source's
+`LoadException`, whose `prev` chain walks back through the earlier ones.
+
+## `load` and `init`: the order layers are built in
+
+`Resource.load(Message)` reads records of `string type, int32 len, bytes`; a type with no
+`LayerFactory` in `ltypes` is **skipped by length**, so an unknown layer never fails a resource. Each
+known one is constructed through `LayerConstructor.cons(res, buf)` — `Layer` is a **non-static inner
+class**, so a layer exists only bound to its resource (`Layer.getres()` is `Resource.this`) — and the
+whole list is then assigned to `Resource.layers` **by reference**, replacing the old list rather than
+mutating it. Only after every layer exists does `Layer.init()` run over the list, which is what lets one
+layer find another: `Anim.init` binds each frame to the `Image`s sharing its id, `FastMesh.MeshRes.init`
+resolves its vertex buffer and material, `CodeEntry.init` indexes the resource's `Code` layers.
+
+`ltypes` is filled at class-init from every class annotated `@Resource.LayerName` (jglob's
+`Discoverable`), across the whole tree — `TexR.Encoded`, `FastMesh.MeshRes`, `Tileset`, … — so the set
+of known types is the set of loaded classes, not a list anywhere.
+
+**Gotchas.** `Resource.layers` is read unsynchronised on the render thread, which is why it is swapped
+and never mutated. `init()` is not idempotent on every type (`MeshRes.init` consumes its temporary
+index buffer), so a second `init()` over a live list is a corrupted mesh, not a refresh. `Resource.used`
+is set by any `layer()` read, including one made only to inspect.
+
+## See also
+
+- [resources](resources.md) — what a loaded `.res` carries: reading a layer by class, predicate or id
+- [published code](published-code.md) — the `code` layer, `@FromResource` adoption, and the ABI served code links against
+- [boot and the frame loop](boot-and-loop.md) — the `Loading` protocol under the frame loop

@@ -1,0 +1,9 @@
+{
+  "name": "151.1 — hafen.resource(): resources and their layers, read",
+  "id": "151-resource-layers.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 151.1: a resource is addressed by name and interned, a content read fetches it, and its layers decode through resource:layers().",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

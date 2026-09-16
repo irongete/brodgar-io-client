@@ -1398,6 +1398,15 @@ public final class Addon {
     final Interned<String, LuaValue> storeTables = Interned.keyed();
 
     /**
+     * This addon's <b>resource handles</b> (151, {@link LuaResource}), interned by resource name — any
+     * well-formed name is a key, which is why the values are weak: a handle Lua has dropped takes its entry
+     * with it. Beside it the <b>layer handles</b> ({@link LuaLayer}), keyed by the layer object itself and weak
+     * on both axes: a layer the pool has let go, or a load has replaced, is not pinned by a handle to it.
+     */
+    final Interned<String, LuaValue> resources = Interned.keyed();
+    final Interned<haven.Resource.Layer, LuaValue> layerObjs = Interned.identity();
+
+    /**
      * The {@code hafen.store()} vars — <b>the CLIENT scope</b>, one Lua table per name the addon has asked
      * {@code :var} for (147: a var exists when {@code var(name)} first names it, and its row is read then).
      * Minted empty in {@link AddonManager#installHafen}; the engine walks it on flush. {@code null} until installed.
