@@ -20,7 +20,7 @@
       `craft`, `fight`, `speed`, `actionbar`, `menugrid`, `flowermenu`, `time`. Criteria 3, 4.
 - [x] **154.4 — Events, timers, storage and the client to the standard**: `event/**`, `timer`, `console`,
       `log`, `locale`, `store/**`, `client/**`. Criteria 3, 4.
-- [ ] **154.5 — Content, network and sessions to the standard**: `asset/**`, `font`, `sound`, `virtual/**`,
+- [x] **154.5 — Content, network and sessions to the standard**: `asset/**`, `font`, `sound`, `virtual/**`,
       `voice/**`, `map/**`, `http`, `websocket`, `json`, `session`. Criteria 3, 4.
 - [ ] **154.6 — The shared pages and the guides to the standard**: `types/**`, `conventions`, `shapes`,
       `references`, `threading`, the top-level pages (`README`, `getting-started`, `manifest`, `panel`,

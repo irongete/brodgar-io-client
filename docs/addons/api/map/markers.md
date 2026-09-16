@@ -1,104 +1,76 @@
-# hafen.map: markers
+# hafen.map: Markers
 
-Read, add and remove markers in the map database — the same markers the map window shows. Two kinds
-exist: **player** markers, your own pins, which carry a name and a colour, and **system** markers, the
-server and quest pins, which carry a name and an icon.
-
-| Call | Returns | Description |
-|---|---|---|
-| `hafen.map():marker():list(filter)` | [`Marker`](#the-marker-object)`[]` | every marker matching the [filter](../conventions.md#the-filter-argument) |
-| `hafen.map():marker():find(filter)` | [`Marker`](#the-marker-object) \| nil | the first match |
-| `hafen.map():marker():count(filter)` | number | how many match |
-| `hafen.map():marker():nearest(filter)` | [`Marker`](#the-marker-object) \| nil | the closest match to the character **on screen**, within that character's segment |
-
-All four answer empty, `0` or `nil` before the map database is ready, and none throws. A string filter
-matches the marker's name; a function filter is called with the Marker itself.
-
-**There is no `:get`, and both doors say so.** A marker's only id is a per-session ref this client
-mints, which is not a key anything could hold on to — so `:find(filter)` is the search, and the
-refusal hands you it whichever way you arrive:
-
-```lua
-hafen.map():marker():get(1)
--- hafen.map():marker() has no verb 'get' — a marker's only id is a per-session ref this client
--- mints, which is not a key anything could hold on to: hafen.map():marker():find(filter) is
--- the search and hafen.map():marker():nearest(filter) the closest one
-```
-
-## The Marker object
-
-| Method | Returns | Description |
-|---|---|---|
-| `marker:name()` | string \| nil | the label the map shows. **Read only** — there is no rename; `marker:name(s)` raises rather than swallowing the string |
-| `marker:type()` | string \| nil | `"player"` or `"system"`; `nil` once the pin is gone, as `:name()` is |
-| `marker:position()` | [Position](../position.md) \| nil | where it is — the form you may **store or send** |
-| `marker:segmentTile()` | `{x, y}` | its segment tile coord — where it really lives in the database |
-| `marker:segment()` | [`Segment`](grids.md#the-segment-object) | the segment it is recorded in |
-| `marker:distance()` | number \| nil | how far the character **on screen** is from it |
-| `marker:icon()` | string \| nil | system markers only: the icon resource name |
-| `marker:exists()` | bool | is it still in the database? |
-| `marker:info()` | [`Marker` snapshot](../types/map.md#marker) | the snapshot escape hatch |
-
-**`marker:position()` is how a marker leaves this client.** A marker's own coordinates are a segment id
-and a tile inside it — client-local, and re-based by a merge, see
-[storing a place](grids.md#storing-a-place) — while a Position anchors on the server's grid id. It names
-the **centre of the tile** the marker sits on, so storing it and reading it back lands on that tile rather
-than beside it. For a marker in your current segment it also answers `:x()`/`:y()`; for one in another
-explored area it keeps its anchor and `:x()` is `nil`, because this session has no coordinate for that
-place at all.
-
-```lua
-local mark = hafen.map():marker():find("Camp")
-if mark then hafen.store():var("cfg").camp = mark:position() end   -- survives the relog
-```
-
-## Write (protected)
-
-| Call | Returns | Description |
-|---|---|---|
-| `hafen.map():marker():add(name, p)` | [`Marker`](#the-marker-object) \| nil | create a **player** marker at a Position; `nil` when the map is not ready |
-| `hafen.map():marker():remove(m)` | the collection | remove a marker; removing one already gone is inert |
-| `marker:color()` / `:color(c)` | [colour](../shapes.md#colours) \| nil / self | player markers only: the pin colour |
-| `marker:onMap()` / `:onMap(on)` | bool \| nil / self | player markers only: also drawn on the main map |
-
-**A pin is kept in the player's own map database**, and disabling, reloading or uninstalling your addon does
-not remove it: it is the player's data from the moment it is added, the same as one they dropped themselves.
-Remove the ones you added, when you want them gone, before you stop.
-
-A pin is created **bare**, with the client's own gold and off the main map, and configured by chaining —
-which is also how you read it back, since arity is the verb:
+Read, add and remove the markers the map window shows: player markers (your own pins, a name and a colour) and system markers (the server's and quest pins, a name and an icon).
 
 ```lua
 local here = hafen.session():current():player():gob():position()
 local pin = hafen.map():marker():add("Camp", here)
 pin:color{0, 200, 0}:onMap(true)
-print(pin:color().g, pin:onMap())                    -- 200  true
+hafen.log():write(pin:color().g .. " " .. tostring(pin:onMap()))     -- 200 true
 ```
 
-A colour you read is one of the two spellings `:color` takes, so `a:color(b:color())` copies one.
-Writing either property on a system marker is refused: those are the server's own pins.
+---
 
-> **All four need the `map.marker` [permission](../../guides/permissions.md).** They reach no server — they
-> edit the player's own on-disk map database — and they are keyed all the same, because `:remove(m)`
-> **permanently deletes a pin** that took real play to place and that nothing can put back. The consent
-> dialog says *"add and delete pins on your map, and recolour them"*. Reading markers needs nothing. Remove
-> only what your addon added.
+## Read
 
-A pin goes into [the client's one map](README.md#one-map-for-the-client), not into the character that
-dropped it: your other characters in that world see it on their own maps, and it stays there when the
-session that added it ends.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.map():marker():list(filter)` | [`Marker`](#the-marker-object)`[]` | Unprotected | Every marker matching the [filter](../conventions.md#the-filter-argument). |
+| `hafen.map():marker():find(filter)` | [`Marker`](#the-marker-object) `\| nil` | Unprotected | The first match. |
+| `hafen.map():marker():count(filter)` | `number` | Unprotected | How many match. |
+| `hafen.map():marker():nearest(filter)` | [`Marker`](#the-marker-object) `\| nil` | Unprotected | The closest match to the character on screen, within that character's segment. |
 
-The [`MarkerChanged`](../event/bus/character.md#roster-quests-markers) event, payload the marker collection,
-fires on any add, remove or edit, including ones the player makes. **One change is one event**, however
-many of your characters share the map: a login claims the database on its own tick and the first to
-claim it carries the announcement. A change made before any login has claimed it — the beat between the
-client opening the map file and a character's first tick — announces nothing, so read
-`hafen.map():marker():list()` once when you start rather than building your picture from the event
-alone.
+| Rule | Detail |
+|---|---|
+| Before the database is ready | Empty, `0` or `nil`; none throws. |
+| `filter` | A string matches the marker's name; a function is called with the Marker. |
+| No `:get` | A marker's only id is a per-session ref this client mints. `hafen.map():marker():get(1)` raises: `hafen.map():marker() has no verb 'get' — a marker's only id is a per-session ref this client mints, which is not a key anything could hold on to: hafen.map():marker():find(filter) is the search and hafen.map():marker():nearest(filter) the closest one`. |
 
-## See also
+## The Marker object
 
-- [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
-- [`Marker`](../types/map.md#marker) — the snapshot `marker:info()` hands back
-- [events](../event/bus/character.md#roster-quests-markers) — `MarkerChanged`
-- [Position](../position.md) — the place type, and rebuilding one from a stored form
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `marker:name()` | `string \| nil` | Unprotected | The label the map shows. Read only: `marker:name(text)` raises. |
+| `marker:type()` | `string \| nil` | Unprotected | `"player"` or `"system"`; `nil` once the pin is gone, as `:name()` is. |
+| `marker:position()` | [Position](../position.md) `\| nil` | Unprotected | Where it is: the form to store or send. |
+| `marker:segmentTile()` | `{x, y}` | Unprotected | Its segment tile coordinate, where it lives in the database. |
+| `marker:segment()` | [`Segment`](grids.md#the-segment-object) | Unprotected | The segment it is recorded in. |
+| `marker:distance()` | `number \| nil` | Unprotected | How far the character on screen is from it. |
+| `marker:icon()` | `string \| nil` | Unprotected | System markers only: the icon resource name. |
+| `marker:exists()` | `boolean` | Unprotected | Whether it is still in the database. |
+| `marker:info()` | [`Marker` snapshot](../types/map.md#marker) | Unprotected | The snapshot. |
+
+| Rule | Detail |
+|---|---|
+| `marker:position()` is how a marker leaves this client | Its own coordinates are a segment id and a tile inside it, client-local and re-based by a merge ([storing a place](grids.md#storing-a-place)); a Position anchors on the server's grid id and names the centre of the marker's tile, so storing and reading back lands on that tile. In your current segment it answers `:x()`/`:y()`; in another explored area it keeps its anchor and `:x()` is `nil`. |
+
+```lua
+local camp = hafen.map():marker():find("Camp")
+if camp then hafen.store():var("cfg").camp = camp:position() end   -- survives the relog
+```
+
+## Write (protected)
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.map():marker():add(name, position)` | [`Marker`](#the-marker-object) `\| nil` | `map.marker` | Create a player marker at a Position; `nil` when the map is not ready. Bare: the client's own gold, off the main map. |
+| `hafen.map():marker():remove(marker)` | the collection | `map.marker` | Remove a marker; one already gone is inert. |
+| `marker:color()` / `marker:color(color)` | [colour](../shapes.md#colours) `\| nil` / the marker | `map.marker` | Player markers only: the pin colour. A colour read is one of the two spellings `:color` takes, so `first:color(second:color())` copies one. |
+| `marker:onMap()` / `marker:onMap(flag)` | `boolean \| nil` / the marker | `map.marker` | Player markers only: also drawn on the main map. |
+
+| Rule | Detail |
+|---|---|
+| Why keyed | These reach no server; they edit the player's on-disk map database, and `:remove(marker)` permanently deletes a pin that took real play to place. The consent dialog says *"add and delete pins on your map, and recolour them"*. Reading needs nothing. Remove only what your addon added. |
+| The player's data | Disabling, reloading or uninstalling your addon removes no pin: it is the player's from the moment it is added. Remove yours before you stop. |
+| System markers | Writing either property is refused: the server's own pins. |
+| One map | A pin goes into [the client's one map](README.md), not the character that dropped it: your other characters in that world see it, and it stays when the session ends. |
+| `MarkerChanged` | [The event](../event/bus/character.md#roster-quests-markers), payload the marker collection, fires on any add, remove or edit, the player's included. One change is one event however many characters share the map: the first login to claim the database on its tick carries the announcement. A change made before any login has claimed it (between the client opening the map file and a character's first tick) announces nothing, so read `hafen.map():marker():list()` once when you start. |
+
+---
+
+## See Also
+
+- [Segments and grids](grids.md) — `segment:markers()`, and why a Position is what you store.
+- [`Marker`](../types/map.md#marker) — the snapshot `marker:info()` hands back.
+- [Events](../event/bus/character.md#roster-quests-markers) — `MarkerChanged`.
+- [Position](../position.md) — the place type, and rebuilding one from a stored form.

@@ -1,79 +1,44 @@
-# hafen.sound: sound effects
+# hafen.sound: Sound Effects
 
-Play a client sound effect by resource name, stop it, and ask what is still sounding. This is the whole
-audio section; the client's own bundled effects, such as `"sfx/msg"` and `"sfx/error"`, resolve
-locally, and any other resource name resolves the way every resource does.
-To set volume levels rather than play anything, see
-[`hafen.client():options():audio()`](client/README.md).
+Play a client sound effect by resource name, stop it, and ask what is still sounding. The client's bundled effects (`"sfx/msg"`, `"sfx/error"`) resolve locally; any other name resolves as every resource does. Volume levels are [`hafen.client():options():audio()`](client/README.md).
 
 ```lua
 hafen.sound():get("sfx/msg"):play()          -- a client-bundled notification blip
 hafen.sound():get("sfx/msg"):play(0.2)       -- the same blip, quietly
 ```
 
-`hafen.sound()` **is** the collection: `:get(name)` hands back a **Sound object** for that resource
-name, and the same name always gives the *same* object, so
-`hafen.sound():get("sfx/msg") == hafen.sound():get("sfx/msg")` and you can stash one or use it as a
-table key. The name is read with its surrounding whitespace trimmed off, so `:get(" sfx/msg ")` is that
-same object and a name of nothing but spaces is refused as the empty name it is. A Sound is just the name, so it has no `:exists()` — a name has no lifetime to go stale. A
-name that does not resolve is simply silent: the client logs a line and Lua never sees an error.
-Resources resolve off the UI thread, so a not-yet-loaded one never throws either.
+---
 
 ## Read
 
-| Method | Returns | Description |
-|---|---|---|
-| `hafen.sound():get(name)` | Sound | the Sound for that resource name |
-| `hafen.sound():sounding(filter)` | collection | your addon's **still-playing** Sounds; empty when there are none. `hafen.sound()` itself does not enumerate — `:get(name)` mints a Sound for any clip, sounding or not, so there is no set of "your sounds" to count |
-| `hafen.sound():sounding():count(filter)` | number | how many are still sounding |
-| `hafen.sound():sounding():find(filter)` | Sound \| nil | the first still-sounding one that matches |
-| `sound:res()` | string | the resource name this Sound addresses |
-| `sound:playing()` | bool | whether a clip of this name is still sounding, or still starting |
-| `sound:info()` | table | a flat snapshot, `{ res, playing }` |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.sound():get(name)` | `Sound` | Unprotected | The Sound for that resource name. |
+| `hafen.sound():sounding(filter)` | collection | Unprotected | Your addon's still-playing Sounds; empty when none. |
+| `hafen.sound():sounding():count(filter)` | `number` | Unprotected | How many are still sounding. |
+| `hafen.sound():sounding():find(filter)` | `Sound \| nil` | Unprotected | The first still-sounding one that matches. |
+| `sound:res()` | `string` | Unprotected | The resource name this Sound addresses. |
+| `sound:playing()` | `boolean` | Unprotected | Whether a clip of this name is still sounding, or still starting. |
+| `sound:info()` | `table` | Unprotected | `{ res, playing }`. |
 
-**The two halves address different sets, on purpose.** `:get(name)` reaches *any* clip the game owns,
-played or not, because sound resources are not enumerable and a Sound simply exists on demand.
-`:sounding()` is *your* clips in the air: the client's own blips share the channel but are not yours to
-enumerate or stop. `hafen.sound()` itself does **not** enumerate — asking it to raises, naming both halves,
-because "every sound you have addressed" is not a set anyone wants. It prunes as you ask, so the count falls back to zero by itself as clips end. A
-string [filter](conventions.md#the-filter-argument) matches the resource name. There is no `:add` —
-playing is `sound:play(volume)` — and no `:remove`, since silencing one is `sound:stop()`.
+| Rule | Detail |
+|---|---|
+| One object per name | `hafen.sound():get("sfx/msg") == hafen.sound():get("sfx/msg")`: stash one, use it as a table key. The name is trimmed, so `:get(" sfx/msg ")` is the same object; a name of only spaces is refused as empty. |
+| A Sound is the name | No `:exists()`: a name has no lifetime. A name that does not resolve is silent: the client logs a line and Lua sees no error. Resources resolve off the UI thread, so a not-yet-loaded one never throws. |
+| Two halves, two sets | `:get(name)` reaches any clip the game owns, since sound resources are not enumerable and a Sound exists on demand. `:sounding()` is your clips in the air; the client's own blips share the channel but are not yours. `hafen.sound()` itself does not enumerate: asking raises naming both halves. It prunes as you ask, so the count falls to zero as clips end. |
+| `filter` | A string [filter](conventions.md#the-filter-argument) matches the resource name. No `:add` (playing is `sound:play(volume)`), no `:remove` (silencing is `sound:stop()`). |
 
 ```lua
 local live = hafen.sound():sounding():list()
-for i = 1, #live do live[i]:stop() end   -- silence everything this addon started
+for index = 1, #live do live[index]:stop() end   -- silence everything this addon started
 ```
 
 ## Play and stop (unprotected)
 
-| Function | Returns | Description |
-|---|---|---|
-| `sound:play(volume)` | **self** | play the clip once; `volume` is `0..1`, default `1`, a fraction of the clip's own base loudness. It reads the resource's current `audio2` layer, so a [layer write](resource/writes.md) changes what plays |
-| `sound:stop()` | **self** | cut every clip of this name **your addon** has in the air |
-
-Playing is client-local and sends nothing to the server, which is why it needs no permission. A
-`volume` that is not a number, or is outside `0..1`, raises an error rather than being clamped.
-
-**Sixty-four clips at once, and that is the limit.** Your addon may have 64 clips sounding or still
-loading; a `:play()` past that raises rather than queueing, and says so. A loop that reaches it is
-playing one sound many times over rather than playing many sounds — `sound:playing()` reads what is
-still in the air, and `sound:stop()` ends it. A clip whose resource never resolves gives up after 30
-seconds and stops counting, so a name the server never answers for cannot leave `:playing()` true
-for ever.
-
-**Your blip is heard whichever character is on screen.** The client silences the characters you are not
-looking at, so that several logged in at once do not play their pings and alerts over the one you are
-watching. Your addon is not one of those characters: it plays a sound because it wants you to hear it,
-so the sound carries whichever character holds the screen, and whichever one your addon happened to be
-watching when it played. Nothing plays before you have logged in at all.
-
-**Volume is an argument of the play, not state on the Sound.** Sounds are shared, so a stored volume
-would leak between unrelated uses of the same clip; every `:play` says how loud that blip is.
-
-`:play()` returns before the clip has actually started, because the resource resolves off the UI
-thread, and `:stop()` accounts for that — `sound:play():stop()` makes no sound at all. `:stop()` also
-cancels a play that has not started yet. Anything you leave playing is silenced when your addon is
-disabled or reloaded: a disabled addon making noise is a bug.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `sound:play(volume)` | the Sound | Unprotected | Play the clip once; `volume` is `0..1`, default `1`, a fraction of the clip's own base loudness. Reads the resource's current `audio2` layer, so a [layer write](resource/writes.md) changes what plays. |
+| `sound:stop()` | the Sound | Unprotected | Cut every clip of this name your addon has in the air, a play not yet started included. |
 
 ```lua
 local bell = hafen.sound():get("sfx/hud/mmap/bell3")
@@ -81,21 +46,23 @@ bell:play(0.6)
 if bell:playing() then bell:stop() end    -- cut it mid-clip
 ```
 
+| Rule | Detail |
+|---|---|
+| No permission | Client-local; nothing is sent. |
+| `volume` | Not a number, or outside `0..1`, raises rather than clamping. An argument of the play, not state on the Sound: Sounds are shared, so a stored volume would leak between uses. |
+| 64 clips at once | Sounding or still loading, per addon; a `:play()` past that raises rather than queueing. A loop that reaches it plays one sound many times over. A clip whose resource never resolves gives up after 30 seconds and stops counting. |
+| Heard whichever character is on screen | The client silences characters you are not looking at; your addon is not one of them, so its sound carries whichever character holds the screen. Nothing plays before you have logged in. |
+| `:play()` returns before the clip starts | The resource resolves off the UI thread; `:stop()` accounts for that, so `sound:play():stop()` makes no sound. |
+| Teardown | Anything left playing is silenced when your addon is disabled or reloaded. |
+
 ## There is no hafen.music
 
-`hafen.music` is **absent**, not stubbed: indexing it reads as plain `nil`. The client carries a
-background-music player, but it is a MIDI player driven by one thing only, a `"bgm"` message from the
-server, and this server never sends one — no resource in the cache carries a MIDI layer, only sound
-effects. An API over it would answer `nil` forever.
+`hafen.music` is absent: indexing it reads `nil`. The client carries a MIDI background-music player driven only by a `"bgm"` message from the server, which this server never sends; no resource in the cache carries a MIDI layer. What you hear as music is an ambient loop published by the world resources around you, on the same mechanism as the crickets, governed by the ambient volume in Options ▸ Game ▸ Audio: a scene node with a lifetime, not a clip handle.
 
-What you hear as "music" in the world is something else: an **ambient loop** published by the world
-resources around you, on the same mechanism as the crickets, and governed by the ambient volume in
-Options ▸ Game ▸ Audio. That is a scene node with a lifetime rather than a clip handle, so it does not fit a
-Sound; exposing it would be its own section rather than a retrofit here.
+---
 
-## See also
+## See Also
 
-- [`hafen.client():options():audio()`](client/README.md) — master, UI, event and ambient volumes
-- [`hafen.asset`](asset/README.md) — the files *your* addon ships, as opposed to engine resources
-- [conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection
-  shape this shares
+- [`hafen.client():options():audio()`](client/README.md) — master, UI, event and ambient volumes.
+- [`hafen.asset`](asset/README.md) — the files your addon ships, as opposed to engine resources.
+- [Conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection shape this shares.

@@ -1,115 +1,68 @@
-# hafen.virtual: a glTF model in the world
+# hafen.virtual: A glTF Model in the World
 
-`hafen.virtual():object():add(asset, anchor)` stands a glTF model **in the 3D world** — the mesh sibling of a
-[sprite](sprites.md) and a [ghost](ghosts.md), on the same client-only world-entity core: a game object with
-no server id, so nothing reaches the server and nothing here is protected.
+`hafen.virtual():object():add(asset, anchor)` stands a glTF model in the 3D world, the mesh sibling of a [sprite](sprites.md) and a [ghost](ghosts.md) on the same client-only core: no server id, nothing reaches the server, nothing protected.
 
 ```lua
-local mdl                                          -- upvalue
+local chair_mesh                                          -- upvalue
 hafen.event():on("Load", function()
-  mdl = hafen.asset():get("props/chair.glb")       -- load once from addons/<me>/props/chair.glb
+  chair_mesh = hafen.asset():get("props/chair.glb")       -- load once from addons/<me>/props/chair.glb
 end)
 
 -- later, in the world:
-local p = hafen.session():current():player():gob():position()
-local o = hafen.virtual():object():add(mdl, p)
-o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
+local position = hafen.session():current():player():gob():position()
+local chair = hafen.virtual():object():add(chair_mesh, position)
+chair:rotate(math.pi / 4):scale(1.5)                      -- face 45 degrees, 1.5 times bigger; chained
 ```
 
-`asset` is a [`hafen.asset`](../asset/README.md) **mesh handle** —
-[handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
-[anchor](README.md#the-anchor-is-an-argument) is a [Position](../position.md) to stand it
-at a point or a [Gob](../gob.md) to make it follow one.
-A new object has scale `1`, full opacity, no tint and is not clickable.
+---
+
+| Rule | Detail |
+|---|---|
+| `asset` | A [`hafen.asset`](../asset/README.md) mesh handle, [handle-only](README.md#the-anchor-is-an-argument): a path string raises. |
+| The anchor | A [Position](../position.md) to stand it at a point or a [Gob](../gob.md) to follow one ([the anchor](README.md#the-anchor-is-an-argument)). |
+| Defaults | Scale `1`, full opacity, no tint, not clickable. |
 
 ## The model
 
-A model is a [`hafen.asset`](../asset/README.md) mesh handle — `hafen.asset():get("props/chair.glb")` — holding a
-glTF 2.0 static model: your own `.glb`, the single-file binary form and the one to prefer, or a `.gltf` with
-its buffers beside it. The parser is pure Java with no native dependencies and decodes **synchronously**, so
-load it from setup code (`Load`, `SessionEnteredWorld`, a command) and never from inside a draw callback.
-The handle answers [`mdl:bounds()`](../asset/handles.md#mesh) with a world-unit box and
-[`mdl:info()`](../asset/handles.md#mesh) with
-what the parser produced.
-
-> **Sizing.** glTF authored units vary wildly — a model may be one unit tall or a hundred. Read
-> `mdl:bounds().extent.z` and pick a `:scale` that stands it the height you want.
-
-**Coordinate system.** glTF is right-handed, +Y up, in metres; the client's world is Z up with a
-tile-based scale. The loader bakes a fixed conversion once, so glTF's up becomes world up and **one glTF
-metre is one tile** at scale `1`. The glTF **origin maps to the object's own point**, so author a model
-with its base at `Y = 0` and it stands on the ground, like a ghost.
+| Rule | Detail |
+|---|---|
+| The handle | `hafen.asset():get("props/chair.glb")`, a glTF 2.0 static model: a `.glb` (single-file binary, the one to prefer) or a `.gltf` with its buffers beside it. Answers [`mesh:bounds()`](../asset/handles.md#mesh) with a world-unit box and [`mesh:info()`](../asset/handles.md#mesh) with what the parser produced. |
+| Synchronous decode | Pure Java, no native dependencies: load from setup code (`Load`, `SessionEnteredWorld`, a command), never inside a draw callback. |
+| Sizing | Authored units vary wildly (one unit tall or a hundred). Read `mesh:bounds().extent.z` and pick a `:scale` for the height you want. |
+| Coordinate system | glTF is right-handed, +Y up, in metres; the world is Z up, tile-scaled. The loader bakes a fixed conversion: glTF up is world up and one glTF metre is one tile at scale `1`. The glTF origin maps to the object's own point: author the base at `Y = 0` and it stands on the ground. |
+| 64 at once, per addon | Every object mills its own geometry when stood (a vertex array and an index buffer per primitive, on the thread that called `:add`), so the count is what is bounded. Past it `:add` raises naming the ceiling; `hafen.virtual():object():remove(object)` frees a place. |
 
 ### The glTF subset
 
-**Supported.** `.glb` and `.gltf`; triangle meshes with positions and indices; multiple nodes, meshes and
-primitives, with node transforms baked in; multiple materials; and, for the colour, a `baseColorTexture`
-multiplied by `baseColorFactor`. The texture's image may be embedded through a buffer view, carried as a
-`data:` URI, or sit beside the model as a PNG or JPG, and it is decoded once into a shared GPU texture.
-Per-material alpha mode is honoured — `OPAQUE`, `MASK` alpha-test and `BLEND` translucency — as is
-`doubleSided` culling.
+| Level | Features |
+|---|---|
+| Supported | `.glb` and `.gltf`; triangle meshes with positions and indices; multiple nodes, meshes and primitives with node transforms baked in; multiple materials; `baseColorTexture` multiplied by `baseColorFactor`, the image embedded through a buffer view, a `data:` URI, or a PNG/JPG beside the model, decoded once into a shared GPU texture; per-material alpha mode (`OPAQUE`, `MASK` alpha-test, `BLEND` translucency); `doubleSided` culling. |
+| Lighting | Per-vertex normals baked (smooth ones computed when the mesh has none) and a light state per material, so a model shades with the world lights: darker indoors and at night, lit from the sun's direction outdoors. Base colour (texture times factor) is the albedo; `emissiveFactor` areas glow in shadow. Reflectance uses the engine's neutral matte defaults, approximating a PBR viewer. The engine does not sRGB-convert model textures. |
+| Not supported yet | `emissiveTexture`, per-texture sampler wrap and filter settings, a non-zero `baseColorTexture.texCoord`, full PBR (metallic, roughness, occlusion maps). |
+| Never | Skins, animation, morph targets, Draco and meshopt compression, sparse accessors. A model using one fails with an error naming the feature. |
 
-**Lighting.** The parser bakes per-vertex normals, computing smooth ones when the mesh has none, and each
-material adds a light state, so a model **shades with the world lights** the way game geometry does rather
-than drawing fullbright: it darkens indoors and at night and catches the sun's direction outdoors. The base
-colour, texture times factor, is the albedo the lights modulate, and `emissiveFactor` areas glow at full
-colour even in shadow. Reflectance uses the engine's neutral defaults, matte and without specular, so the
-result *approximates* a PBR viewer rather than matching one — which is what props need. sRGB needs no
-handling, because the engine does not sRGB-convert model textures.
-
-**Not supported yet.** `emissiveTexture`, per-texture sampler wrap and filter settings, a non-zero
-`baseColorTexture.texCoord`, and full PBR: metallic, roughness and occlusion maps.
-
-**Never.** Skins, animation, morph targets, Draco and meshopt compression, sparse accessors. A model using
-one of these fails with an error that names the feature.
-
-**Malformed.** Every bound the parser works to is read off the document and checked **before** anything is
-allocated against it. An accessor claiming more vertices than the cap is refused before its array is
-reserved, a buffer view naming no buffer is refused instead of read, and a triangle index outside its own
-primitive's vertices is refused instead of followed. The model as a whole is bounded too: `4096`
-primitives, `4000000` vertices, `128 MiB` for any one buffer and `64 MiB` for any one texture image, and
-`64` images. Each refusal names the model file and what is wrong inside it, and each is an ordinary error
-you can `pcall`, so a corrupt or hand-made `.glb` costs you a failed load and nothing else.
-
-**The node graph.** glTF gives a node **at most one parent**, and the loader holds a document to that: one
-that reaches the same node twice is refused naming that node, so a model loads in time proportional to its
-node count. A chain of nodes stays legal however deep it runs. The second visit is refused rather than
-skipped because a node under two parents is an **instance** — the same mesh with a different baked transform —
-so skipping it would drop that geometry from your model without saying so.
-
-**How many you may stand: 64 at once, per addon.** Every object mills its *own* geometry when you stand it
-— a vertex array and an index buffer per primitive, on the thread that called `:add` — so a parsed model
-says nothing about what a second copy of it costs, and the count is the thing that has to be bounded.
-Past the ceiling `:add` raises naming it; `hafen.virtual():object():remove(x)` frees a place.
+| Rule | Detail |
+|---|---|
+| Malformed documents | Every bound is read off the document and checked before anything is allocated: an accessor claiming more vertices than the cap, a buffer view naming no buffer, a triangle index outside its primitive's vertices are each refused. Whole-model bounds: `4096` primitives, `4000000` vertices, `128 MiB` per buffer, `64 MiB` per texture image, `64` images. Each refusal names the model file and what is wrong, as an ordinary error you can `pcall`. |
+| The node graph | A node has at most one parent; a document reaching the same node twice is refused naming it, so a model loads in time proportional to its node count. A node under two parents is an instance (the same mesh with another baked transform), so skipping it would drop geometry silently. A deep chain stays legal. |
 
 ## The object
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
-`:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists` — plus the one verb only an object has.
+The [shared vocabulary](README.md#one-vocabulary-every-kind) plus its own.
 
-| Method | Description |
-|---|---|
-| `o:mesh()` | the addon-relative model path |
-
-An object's **mesh** is read-only: the geometry is milled when the object is placed, so another model is
-another object. `:scale` is a uniform scale on top of the baked size.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `object:mesh()` | `string` | Unprotected | The addon-relative model path. Read-only: the geometry is milled when placed, so another model is another object. `:scale` is uniform on top of the baked size. |
 
 ## Clickability
 
-An object can be made clickable with `o:clickable(true)`, exactly like a
-[clickable sprite](sprites.md#clickability). Its mesh gains a pick surface, and a click on it is detected
-**client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
-the server. Both the per-object `:onClick(fn)` and the owner-scoped
-[`ObjectClicked`](../event/bus/world.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only
-*your* addon.
+`object:clickable(true)` gives the mesh a pick surface, as a [clickable sprite](sprites.md#clickability): a click is detected client-side and consumed before any server click. Both the per-object `:onClick(fn)` and the owner-scoped [`ObjectClicked`](../event/bus/world.md#world-ghosts-and-sprites) event fire; `ObjectClicked` reaches only your addon. An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path handles click-select, drag on the ground and persistence through [`hafen.store`](../store/README.md).
 
-An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path
-handles all three: click-select, drag on the ground, and persistence through
-[`hafen.store`](../store/README.md), which reloads it at the same spot after a relog.
+---
 
-## See also
+## See Also
 
-- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
-- [sprites](sprites.md) — an image in the world, and the anchoring both share
-- [`hafen.asset`](../asset/handles.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
-- [events](../event/bus/world.md#world-ghosts-and-sprites) — `ObjectClicked`
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch.
+- [Sprites](sprites.md) — an image in the world, and the anchoring both share.
+- [`hafen.asset`](../asset/handles.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer.
+- [Events](../event/bus/world.md#world-ghosts-and-sprites) — `ObjectClicked`.
