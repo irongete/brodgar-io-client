@@ -24,6 +24,7 @@ From [`gob:info()`](../gob.md), the snapshot escape hatch for an object in the w
 | `visible` | bool | whether the client draws it; `true` by default |
 | `scale` | number | scale factor; `1` by default |
 | `tint` | [colour](../shapes.md#colours) | color tint; optional |
+| `materials` | string[] | the resource name in force per [material slot](../materials.md), in slot order; absent for an object with none |
 
 ## PartyMember
 

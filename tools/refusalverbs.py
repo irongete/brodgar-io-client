@@ -99,6 +99,7 @@ RECEIVERS.update({
 # overlays share a word with the gob's. Keyed by file; a value of None skips the word there.
 PER_FILE = {
     "LuaStudySlot.java": {"slot": "studyslot"},
+    "LuaMaterialSlot.java": {"slot": "materialslot"},
     "LuaWidgetOverlay.java": {"overlay": "widgetoverlay"},
     "LuaHudOverlay.java": {"overlay": "uioverlay"},
 }
@@ -121,6 +122,7 @@ MEMBER = {
     "channel:message()": "message", "hafen.locale():miss()": "miss", "seg:grid()": "grid",
     "segment:markers()": "marker", "grid:mask()": "mask", "quest:conditions()": "condition",
     "wound:children()": "wound", "session:wound():roots()": "wound", "gob:overlay()": "overlay",
+    "gob:materials()": "materialslot",
     "keybindings:binding()": "binding", "session:char():skill():buyable()": "skill",
 }
 

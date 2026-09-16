@@ -1,6 +1,6 @@
 # Gob Look & Visual Overrides
 
-Modify how a game object is rendered locally on the client (visual scaling, tinting, and visibility toggling). These operations are purely visual, client-side, and **unprotected**.
+Modify how a game object is rendered locally on the client (visual scaling, tinting, visibility toggling, and — on its own page — the [materials](materials.md) it is drawn in). These operations are purely visual, client-side, and **unprotected**.
 
 ## Quick Example
 

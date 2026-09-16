@@ -1,0 +1,9 @@
+{
+  "name": "152.1 — gob:materials(): the slots read",
+  "id": "152-gob-materials.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 152.1: gob:materials() lists the server's variable-material slots, each slot reads its index, wire number and the three resources, and gob:info() carries the names.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

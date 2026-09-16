@@ -429,6 +429,18 @@ public final class LuaGob {
                 return LuaOverlay.collection(owner, h.user, h.id);
             }
         });
+        // materials() — the COLLECTION of the object's variable-material slots (152.1): the server sends one
+        // material resource per slot (lib/vmat) and the client wraps each tagged mesh in it. A view, like
+        // gob:overlay(): derived from the gob on every call through the resource's own attribute, so an object
+        // with none counts 0 and a gone gob lists nothing. A slot reads which resource the server dressed it in
+        // (slot:native()); the read resolves through the login this handle was minted through, like every
+        // reader here.
+        m.set("materials", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaGob h = handle(Args.only(a, 0, "gob:materials"), "materials");
+                return LuaMaterials.collection(owner, h.user, h.id);
+            }
+        });
         // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's three
         // writes, the others being visible(b) and tint(c) below. Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and

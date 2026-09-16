@@ -27,6 +27,7 @@ lookup instead of a search.
 | [controls](ui-controls.md) | `SIWidget`'s rasterise-once cache, `Button`, `IButton`, `ACheckBox`'s value spine, the four plain display controls, `RadioGroup` |
 | [panels and tabs](ui-panels.md) | `Tabs`, which is not a widget, `OptWnd`'s panel model: the caption that follows the panel, the list that is the navigation, and where a re-fit stops — and `PackCont`, the container that stays packed |
 | [lists, text and scrolling](ui-lists.md) | `HSlider`/`Scrollbar`, `TextEntry` and its `ReadLine`, `Scrollport`, and the model-backed family — `SListWidget`/`SListBox`, `SDropBox`, `GridList`, `TableBox` |
+| [gob sprites](gob-sprites.md) | how a resource-drawn object becomes render nodes: `ModSprite` and its `Mod` pipeline, which `GAttrib`s take part and the identity test that rebuilds it, and `lib/vmat`, the served attribute that dresses a model's tagged parts in the server's materials |
 | [state roots](state.md) | where game state lives: `Glob`, `OCache`/`Gob` and the `GAttrib` lifetime, `MCache`, player, inventory and `ItemInfo`, party, time |
 | [networking](network.md) | `Session`/`Connection`, `uimsg` in and `wdgmsg` out, and the full action channel |
 | [the map database](mapfile.md) | the **recorded** map: the one RW lock and its processor thread, `gridinfo`/`segments`, `ZoomGrid`, markers and the `merge` that re-bases them |

@@ -6836,6 +6836,17 @@ public final class AddonManager {
                 java.awt.Color tint = GobTint.value(g);
                 if(tint != null)
                     t.set("tint", color(tint));
+                // 152.1: the resource names in force per variable-material slot, in wire order, and no key
+                // at all for an object with none — a composed body, a tree, one whose lib/vmat has not arrived.
+                int slots = LuaMaterialSlot.count(g);
+                if(slots > 0) {
+                    LuaTable mats = new LuaTable();
+                    for(int wire = 0; wire < slots; wire++) {
+                        String nm = LuaMaterialSlot.inForce(g, wire);
+                        mats.set(wire + 1, LuaValue.valueOf((nm == null) ? "" : nm));
+                    }
+                    t.set("materials", mats);
+                }
             }
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */

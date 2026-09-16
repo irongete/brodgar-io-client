@@ -1267,6 +1267,16 @@ public final class Addon {
     final LuaOverlay.Cache gobOverlayObjs = new LuaOverlay.Cache(this);
 
     /**
+     * This addon's <b>material-slot interning cache</b> ({@code gob:materials():get(n)}, spec
+     * {@code 152-gob-materials}): the weak-valued {@code (login, gob id, wire) → MaterialSlot object} map, its
+     * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobOverlayObjs}
+     * — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this
+     * {@link Addon} on {@code :reload}/disable. Nothing to tear down: the entries are weak and a handle holds
+     * only ids; the slots themselves are the server's attribute on the gob.
+     */
+    final LuaMaterialSlot.Cache materialSlots = new LuaMaterialSlot.Cache(this);
+
+    /**
      * This addon's <b>rendered map images</b> ({@code grid:image(lvl)} / {@code grid:overlayImage(tag)}, task
      * 037.4) — unlike the caches above this one holds an owned RESOURCE, so it is strong, bounded and torn
      * down. Each entry is a {@link haven.TexI} the client's own renderer built on {@link haven.Defer} out of

@@ -20,7 +20,8 @@ Before calling API methods, review the core conventions:
 | **[`player`](player.md)** | Character stats, current action, inventory, movement, and cursor hand. |
 | **[`world`](world.md)** | World entity queries, terrain coordinate conversion, and area interactions. |
 | **[`gob`](gob.md)** | Game Object (Gob) inspection, position, velocity, and visual overlays. |
-| **[`gob/look`](look.md)** | Visual overrides on game objects (model scaling, tinting, and visibility toggling). |
+| **[`gob/look`](look.md)** | Visual overrides on game objects (model scaling, tinting, visibility toggling, and materials). |
+| **[`gob/materials`](materials.md)** | The variable-material slots a game object is drawn in. |
 | **[`gob/overlay`](overlay.md)** | Floating overhead text labels and custom canvas drawings attached to game objects. |
 | **[`position`](position.md)** | Spatial coordinate representation and distance calculations. |
 | **[`map`](map/README.md)** | Minimap and world map tiles, pins, markers, and path overlays. |

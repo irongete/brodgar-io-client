@@ -142,6 +142,9 @@ PER_FILE = {
     "store/tables.md": {"nodes": "table", "decl": "declaration"},
     "store/statements.md": {"prices": "table", "decl": "declaration"},
     "guides/saved-data.md": {"nodes": "table"},
+    # A gob's material slots (152). `slot` is an action-bar slot on the pages that skip it; here it is the
+    # MaterialSlot, whose closedIndex is the one literal in LuaMaterialSlot.java.
+    "materials.md": {"slot": "materialslot"},
 }
 
 def per_file(rel):
@@ -186,6 +189,7 @@ RETURNS = {
     ("segment", "grid"): "@collection",
     ("segment", "markers"): "@collection",
     ("gob", "overlay"): "@collection",
+    ("gob", "materials"): "@collection",
     ("gob", "sessions"): "@collection",
     ("widget", "children"): "@collection",
     ("widget", "items"): "@collection",
