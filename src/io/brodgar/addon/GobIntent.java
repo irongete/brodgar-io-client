@@ -193,6 +193,28 @@ final class GobIntent {
     }
 
     /**
+     * {@code slot:release()} (152.3): {@code owner}'s dressing of slot {@code wire} at {@code id} is forgotten,
+     * so a copy that arrives later draws the server's there. Inert when the slot is not this addon's — another
+     * addon's write on it, if there is one, is that addon's to release.
+     */
+    static synchronized void releaseMaterial(long id, Addon owner, int wire) {
+        Record r = record(owner, id, false);
+        if(r == null)
+            return;
+        if(r.materials.remove(Integer.valueOf(wire)) != null)
+            prune(owner, id, r);
+    }
+
+    /** {@code gob:materials():release()} (152.3): every slot {@code owner} dressed at {@code id} is forgotten. */
+    static synchronized void releaseMaterials(long id, Addon owner) {
+        Record r = record(owner, id, false);
+        if(r == null)
+            return;
+        r.materials.clear();
+        prune(owner, id, r);
+    }
+
+    /**
      * <b>Every object {@code a} is holding hidden</b>, for the teardown sweep that has to put them back in
      * every session that holds a copy. Read before {@link #dropOwner} forgets what this addon wrote, because
      * after it there is nothing left to say which objects those were.
@@ -253,8 +275,9 @@ final class GobIntent {
 
     /**
      * <b>The object left its last session</b> ({@code AddonManager.gobLeft}, the moment {@code GobRemoved}
-     * fires). What was asked for at it goes with it: a felled tree never comes back, and an object that
-     * unloads and streams in again is a new object as far as this API has ever been concerned.
+     * fires). What was asked for at it goes with it &mdash; the size, the colour, the hiding, the overlays and
+     * the materials, the whole {@link Record}: a felled tree never comes back, and an object that unloads and
+     * streams in again is a new object as far as this API has ever been concerned.
      */
     static synchronized List<LuaGobOverlay.Attach> forget(long id) {
         List<LuaGobOverlay.Attach> out = new ArrayList<LuaGobOverlay.Attach>();

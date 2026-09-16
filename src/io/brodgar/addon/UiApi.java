@@ -3020,6 +3020,7 @@ final class UiApi {
                     for(Gob g : allGobs(user)) {
                         GobScale.revert(g, a);
                         GobTint.revert(g, a);    // 135.1: the colour goes in the same walk as the size
+                        GobMaterials.revert(g, a);   // 152.3: ...and every slot it dressed, back to the server's
                     }
                     // 114.3: ...and every object it was holding out of the scene is drawn again. By id and
                     // not by a mark on the copy: an object is drawn or it is not, so the record of who asked

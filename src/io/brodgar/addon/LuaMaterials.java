@@ -3,7 +3,10 @@ package io.brodgar.addon;
 import haven.Gob;
 
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +16,8 @@ import java.util.List;
  * {@code 152-gob-materials}, task 152.1): {@code :list(filter)} reads them all in wire order, {@code :get(n)}
  * addresses one by its 1-based position, {@code :count}/{@code :find} the usual pair. There is no {@code :add}
  * or {@code :remove}: the set is the server's dressing, and what an addon changes is a slot's <i>material</i>.
+ * Its one verb of its own is {@code :release()} (152.3): every slot this addon dressed on the object, back to
+ * the server's — the whole-object spelling of {@code slot:release()}.
  *
  * <p>It is a <b>view</b>, {@link LuaOverlay#collection}'s shape: derived from the gob on every call through
  * the adopted {@code lib/vmat} attribute ({@link LuaMaterialSlot#served}) and holding nothing between them,
@@ -83,6 +88,25 @@ final class LuaMaterials {
             public String keyName() {
                 return "n";
             }
-        }, null);
+        }, extra(owner, gobId));
+    }
+
+    /** The collection's own verbs, beside the conventions' ones {@link LuaCollection} mounts. */
+    private static LuaTable extra(final Addon owner, final long gobId) {
+        LuaTable m = new LuaTable();
+        // release() — every slot THIS addon dressed on the object goes back to the server's material: dropped
+        // on every live copy and in GobIntent, so a copy that arrives later draws the server's too. Other
+        // addons' slots stay theirs. A no-op that still chains when nothing on the object is yours, and on a
+        // gob that is gone.
+        m.set("release", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, NAME + ":release");
+                for(Gob g : AddonManager.gobCopies(gobId))
+                    GobMaterials.revert(g, owner);
+                GobIntent.releaseMaterials(gobId, owner);
+                return self;
+            }
+        });
+        return m;
     }
 }

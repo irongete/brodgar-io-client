@@ -43,7 +43,7 @@
       `material(name, 1.5)` names a whole number. `[manual]`: look at the object — expect: slot 1's
       part drawn in the second material, the rest unchanged.
 
-- [ ] **152.3 — The endings: `release`, teardown, and the object's own end.** Add `slot:release()`
+- [x] **152.3 — The endings: `release`, teardown, and the object's own end.** Add `slot:release()`
       and `gob:materials():release()` (both drop entries by owner on every copy and in `GobIntent`,
       chain, no-op when nothing is yours), `GobMaterials.revert(g, addon)` in
       `UiApi.teardownGobScales`' per-gob loop, and the drop in `GobIntent.forget`. The `Disable`/reload

@@ -35,13 +35,14 @@ import java.util.Map;
  * takes and {@code :list()[n]} holds; {@code :wire()} is the server's own number — the {@code vm} tag on the
  * mesh, {@code index - 1} — under the name every wire-side number in this API carries ({@link LuaSlot}).
  *
- * <p><b>Three resource reads, one write.</b> {@code :native()} is the material the server dressed the slot
+ * <p><b>Three resource reads, one write, one ending.</b> {@code :native()} is the material the server dressed the slot
  * in, {@code :material()} the one in force — yours once written, else the server's — and {@code :drawn()} the
  * one the model is drawn with right now on the copy this handle reads through, which follows a write on the
  * frame the client holds the resource. Each hands back the interned {@link LuaResource} for the name, so
  * {@code slot:material() == slot:native()} compares handles. {@code :material(name[, id])} is the write
  * (152.2): a {@link GobMaterials} entry on every live copy of the object and in {@link GobIntent}, the
- * footing {@code gob:tint} stands on.
+ * footing {@code gob:tint} stands on. {@code :release()} is the ending (152.3): the entry goes from both, and
+ * with it {@code :material()} reads the server's again.
  */
 public final class LuaMaterialSlot {
     /** The login this handle was minted through — the copy every read resolves in. */
@@ -273,6 +274,22 @@ public final class LuaMaterialSlot {
                 for(Gob g : AddonManager.gobCopies(h.gob))
                     GobMaterials.apply(g, h.wire, e);
                 GobIntent.material(h.gob, owner, h.wire, e);
+                return self;
+            }
+        });
+        // release() — hand the slot back to the SERVER'S material (152.3): the ending of a hold over what the
+        // client owns, so it is the word every such ending carries. Drops this addon's write on every live copy
+        // and in GobIntent, so a copy that arrives later draws the server's too; :material() reads native()
+        // again at once, :drawn() follows on the rebuild. A no-op that still chains when nothing on the slot
+        // is yours — never written, released already, or another addon's write (theirs to release, as it
+        // was theirs to make). A gob that is gone takes it and does nothing with it.
+        m.set("release", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "slot:release");
+                LuaMaterialSlot h = handle(self, "release");
+                for(Gob g : AddonManager.gobCopies(h.gob))
+                    GobMaterials.release(g, owner, h.wire);
+                GobIntent.releaseMaterial(h.gob, owner, h.wire);
                 return self;
             }
         });

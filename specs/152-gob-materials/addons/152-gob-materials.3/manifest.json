@@ -1,0 +1,9 @@
+{
+  "name": "152.3 — the endings: slot:release(), gob:materials():release(), teardown",
+  "id": "152-gob-materials.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 152.3: slot:release() and gob:materials():release() hand a dressed slot back to the server's material at once and on screen, both chain and are no-ops on an untouched slot, and a :reload releases what the suite leaves dressed.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

@@ -21,7 +21,9 @@ import java.util.Map;
  * {@code 152-gob-materials}, task 152.2). A {@link GAttrib} that is also a {@link ModSprite.Mod}, so the
  * sprite of the gob it sits on collects it with no registration beyond {@code Gob.setattr}
  * ({@code docs/client/gob-sprites.md}). {@link GobTint}'s footing otherwise: client-local, purely visual,
- * every live copy of the object, last write wins per slot, ends with the loaded object.
+ * every live copy of the object, last write wins per slot, ends with the loaded object — and, per owner,
+ * with {@code slot:release()} and {@code gob:materials():release()} ({@link #release}, {@link #revert}), and
+ * with the addon itself at teardown.
  *
  * <p><b>An attribute of its own, never the server's.</b> It is keyed on this class, not on
  * {@code VarMats.class}: the server re-sends its {@code lib/vmat} attribute as a fresh {@code AttrMats} under
@@ -146,8 +148,10 @@ public final class GobMaterials extends GAttrib implements ModSprite.Mod {
             if(mid < 0)
                 continue;
             Entry e = entries.get(mid);
-            if(e == null)
+            if(e == null) {                            // nobody's, or released: the server's wrap is what is drawn
+                out.remove(mid);
                 continue;
+            }
             Material.ResMaterial m = e.resolve();     // Loading propagates: the sprite retries next tick
             if(m == null) {                            // the client's verdict: the server's wrap stays
                 out.remove(mid);
@@ -203,5 +207,63 @@ public final class GobMaterials extends GAttrib implements ModSprite.Mod {
             g.setattr(new GobMaterials(g, next, (prev == null) ? NOTHING : prev.drawn));
             g.updated();
         }
+    }
+
+    // ---- the endings ------------------------------------------------------------------------------
+
+    /**
+     * Hand slot {@code wire} of {@code g} back to the server's material, if {@code a} is who dressed it
+     * ({@code slot:release()}, 152.3), and answer whether anything changed. A slot nobody wrote, or one
+     * another addon wrote, is left alone: the write is per owner, so the ending is too.
+     */
+    static boolean release(Gob g, Addon a, int wire) {
+        if(g == null)
+            return false;
+        synchronized(g) {
+            GobMaterials prev = on(g);
+            Entry e = (prev == null) ? null : prev.entries.get(wire);
+            if((e == null) || (e.owner != a))
+                return false;
+            Map<Integer, Entry> next = new HashMap<Integer, Entry>(prev.entries);
+            next.remove(wire);
+            replace(g, prev, next);
+            return true;
+        }
+    }
+
+    /**
+     * Drop every slot {@code a} dressed on {@code g} ({@code gob:materials():release()}, and the teardown
+     * sweep's per-gob half, {@link UiApi#teardownGobScales}, in the same loop as the size and the colour),
+     * and answer whether anything was dropped. Other addons' slots stay dressed.
+     */
+    static boolean revert(Gob g, Addon a) {
+        if(g == null)
+            return false;
+        synchronized(g) {
+            GobMaterials prev = on(g);
+            if(prev == null)
+                return false;
+            Map<Integer, Entry> next = new HashMap<Integer, Entry>(prev.entries);
+            for(Iterator<Entry> it = next.values().iterator(); it.hasNext();) {
+                if(it.next().owner == a)
+                    it.remove();
+            }
+            if(next.size() == prev.entries.size())
+                return false;
+            replace(g, prev, next);
+            return true;
+        }
+    }
+
+    /**
+     * The ending's half of {@link #apply}: a new instance with the surviving entries, so the sprite rebuilds,
+     * and the drawn record carried over, because the released wraps stay on screen until it does — the rebuild's
+     * {@link #operate} takes a released wire out of the record as it finds the server's wrap back on its part,
+     * which is what keeps {@code slot:drawn()} true to the frame. An instance left with no entries stays: it
+     * is still the record of what is drawn until then, and after that one no-op {@code operate} per rebuild.
+     */
+    private static void replace(Gob g, GobMaterials prev, Map<Integer, Entry> next) {
+        g.setattr(new GobMaterials(g, next, prev.drawn));
+        g.updated();
     }
 }
