@@ -1,138 +1,82 @@
-# Placing: the ghost on the cursor
+# Placing: The Ghost on the Cursor
 
-A **Placing** is the translucent building on your cursor between the moment the server hands you one and the
-click that puts it down. Reach for it to know **what** you are about to place, **where** it currently sits and
-**which ground it will take** — before any of that is committed. You address it through the
-[world](world.md) of the character whose cursor you mean, and nothing here writes or reaches the server.
+A Placing is the translucent building on a character's cursor between the server handing it over and the click that puts it down: what is about to be placed, where it sits now and which ground it will take, read through the [world](world.md) of the character whose cursor you mean. Nothing here writes or reaches the server.
 
 ```lua
-local s = hafen.session():current()
-local pl = s and s:world():placing()                  -- nil when nothing is on the cursor
-if pl then
-  hafen.log():write("placing " .. (pl:name() or "not resolved yet"))
-  local box
-  for _, ring in ipairs(pl:hitbox() or {}) do
-    if box then box:piece():add(ring)                 -- every further ring, into the one shape
-    else box = hafen.virtual():patch():add(ring, pl:position()):tint{60, 140, 255, 70} end
+local session = hafen.session():current()
+local placing = session and session:world():placing()          -- nil when nothing is on the cursor
+if placing then
+  hafen.log():write("placing " .. (placing:name() or "not resolved yet"))
+  local footprint_patch
+  for _, ring in ipairs(placing:hitbox() or {}) do
+    if footprint_patch then footprint_patch:piece():add(ring)   -- every further ring, into the one shape
+    else footprint_patch = hafen.virtual():patch():add(ring, placing:position()):tint{60, 140, 255, 70} end
   end
 end
 ```
 
-## What it is, and what it is not
-
-The ghost is the **client's own**, not one of the game's objects. It is in no object cache, it carries no
-server id and it was never sent to anybody: it is a preview the client draws while you aim. So it is not in
-[`s:world():gob()`](world.md#objects), no filter reaches it, and it fires no
-[`GobAdded`](event/bus/world.md#world) — the only door is this verb.
-
-That is also why it is not a [Gob](gob.md) and does not answer like one. Half of a Gob's vocabulary would be
-a lie on a ghost: it has no health, no state bytes, no kin standing in it, nothing to click and none of the
-game's own overlays. A verb it has not got raises naming `placing` and listing what it does answer.
-
-**Reading it grants nothing.** Committing the placement is
-[`s:world():place(p, angle)`](world.md#write-protected), which is protected under `world.place`. Looking at
-what is already on your own cursor is not, any more than looking at the screen is.
-
-## Whose cursor it is
-
-Every character has its own view, and the server hands a placement to one of them, so **what is on a cursor
-is a fact about that character**. This reads the session you ask it of, drawn or not:
-
-```lua
-hafen.session():current():world():placing()            -- what the character on screen is placing
-hafen.session():get("alt"):world():placing()           -- what that one is
-```
-
-Only the drawn character's ghost is **on screen**, though: the client draws one view at a time, so another
-login's ghost is real, readable and invisible. Placing *with* a character is the drawn one's own business,
-and [`place`](world.md#write-protected) refuses any other.
+---
 
 ## Read
 
-| Method | Returns | Description |
-|---|---|---|
-| `s:world():placing()` | Placing \| nil | the ghost on that character's cursor; `nil` when it is placing nothing |
-| `pl:name()` | string \| nil | the resource being placed, spelled as [`gob:name()`](gob.md) spells it |
-| `pl:position()` | [Position](position.md) \| nil | where the ghost is right now |
-| `pl:facing()` | number \| nil | its angle in radians, which the mouse wheel turns |
-| `pl:hitbox()` | Position`[][]` \| nil | [the ground it will stand on](#the-footprint) |
-| `pl:exists()` | boolean | whether that character is placing anything at all |
-| `pl:info()` | table \| nil | the snapshot: `{ name = string?, position = {gridId, x, y}?, facing = number, exists = true }` |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:world():placing()` | `Placing \| nil` | Unprotected | The ghost on that character's cursor; `nil` when it is placing nothing. |
+| `placing:name()` | `string \| nil` | Unprotected | The resource being placed, spelled as [`gob:name()`](gob.md) spells it. |
+| `placing:position()` | [Position](position.md) `\| nil` | Unprotected | Where the ghost is now. |
+| `placing:facing()` | `number \| nil` | Unprotected | Its angle in radians, which the mouse wheel turns. |
+| `placing:hitbox()` | `Position[][] \| nil` | Unprotected | [The ground it will stand on](#the-footprint). |
+| `placing:exists()` | `boolean` | Unprotected | Whether that character is placing anything. |
+| `placing:info()` | `table \| nil` | Unprotected | The snapshot: `{ name = string?, position = {gridId, x, y}?, facing = number, exists = true }`. |
 
-`nil` from any of the reads means one of two things, and `:exists()` is what tells them apart: **nothing is
-on the cursor**, or **the resource has not resolved yet**. The second is a real moment here rather than a
-corner case — the server names the thing before the client has loaded it, so a ghost that exists can still
-answer `nil` for its name, its footprint and its place for a frame or two. Come back next frame; nothing
-about it is an error.
-
-`pl:info()` is the [one snapshot](conventions.md#objects-and-the-snapshot-hatch) this object carries, and its
-`position` is the durable `{gridId, x, y}` table a [Position](position.md) answers with. Two of its keys are
-**optional**, for the two absences above: `name` while the resource is still resolving, and `position`
-wherever the ghost stands on ground that character cannot name a durable place on. `exists` is `true`
-whenever there is a snapshot at all, because a snapshot of nothing is `nil`.
-
-The snapshot has **no `hitbox`** key, for the reason [`gob:info()`](gob.md) has none: a snapshot holds
-numbers and strings rather than objects, and a footprint rebuilt on every call would be paid by every read
-that only wanted a name.
-
-## It names the cursor, not one placement
-
-There is one Placing per addon per character — `s:world():placing() == s:world():placing()` — and it
-re-resolves on every verb. So a handle you keep goes on answering about **whatever is on that cursor now**:
-put a cabin down, start a barrel, and the same handle reads the barrel. Ask `:name()` when you need to know
-which, rather than trusting a handle to have stayed on one thing.
+| Rule | Detail |
+|---|---|
+| The client's own, not a game object | In no object cache, no server id, never sent: a preview drawn while you aim. Not in [`session:world():gob()`](world.md#objects), reached by no filter, fires no [`GobAdded`](event/bus/world.md#world). This verb is the only door. |
+| Not a Gob | No health, state bytes, kin, click or game overlays. A verb it lacks raises naming `placing` and listing what it answers. |
+| Reading grants nothing | Committing is [`session:world():place(position, angle)`](world.md#write-protected), protected under `world.place`. |
+| Whose cursor | The server hands a placement to one character, so the read answers for the session asked, drawn or not: `hafen.session():get("alt"):world():placing()` is that character's ghost, real, readable and invisible, since the client draws one view at a time. [`place`](world.md#write-protected) refuses any session but the drawn one. |
+| `nil` from a read | Nothing on the cursor, or the resource has not resolved yet; `:exists()` tells them apart. The server names the thing before the client has loaded it, so an existing ghost can answer `nil` for name, footprint and place for a frame or two. Read again next frame. |
+| `:info()` | The [one snapshot](conventions.md#objects-and-the-snapshot-hatch) this object carries; `position` is the durable `{gridId, x, y}` table a [Position](position.md) answers with. `name` is absent while the resource resolves, `position` absent where the ghost stands on ground that character cannot name a durable place on. `exists` is `true` whenever there is a snapshot; a snapshot of nothing is `nil`. No `hitbox` key, for the reason [`gob:info()`](gob.md) has none. |
+| One Placing per addon per character | `session:world():placing() == session:world():placing()`, re-resolved on every verb: a kept handle answers about whatever is on that cursor now (put a cabin down, start a barrel, the handle reads the barrel). Ask `:name()` to know which. |
 
 ```lua
-local pl = hafen.session():current():world():placing()
-local was = pl and pl:name()
+local placing = hafen.session():current():world():placing()
+local first_name = placing and placing:name()
 -- ...frames later...
-if pl and pl:exists() and (pl:name() ~= was) then
+if placing and placing:exists() and (placing:name() ~= first_name) then
   hafen.log():write("something else is on the cursor now")
 end
 ```
 
 ## The footprint
 
-`pl:hitbox()` answers in exactly the shape, units and orientation [`gob:hitbox()`](gob.md#the-ground-it-stands-on)
-does: an array of rings, each an array of [Positions](position.md), turned by the ghost's own facing and
-placed where it currently sits. A ring therefore goes into
-[`hafen.virtual():patch()`](virtual/patches.md) unchanged, the same as a real object's — and a footprint of
-several rings is **one** patch of that many [pieces](virtual/pieces.md), which is one handle to move and one
-shape to look at.
+`placing:hitbox()` answers in the shape, units and orientation of [`gob:hitbox()`](gob.md#the-ground-it-stands-on): an array of rings, each an array of [Positions](position.md), turned by the ghost's facing and placed where it sits.
 
-It is the resource's own footprint — what the finished thing will occupy — and **not** its `build` box, the
-clearance the client checks before it will let you put one down. Those are two different questions, and this
-verb answers the one `gob:hitbox()` has always answered, so **a ghost and the object it becomes wear the same
-shape**.
-
-`nil` where a real object's is `nil`: a resource carrying no footprint at all, and a resource that has not
-resolved.
-
-**The ghost moves, and a patch laid on it does not follow by itself.** A patch takes a
-[Position or a Gob](virtual/README.md#the-anchor-is-an-argument) as its anchor, and a ghost is neither, so its
-box is laid at a **place** and moved from your own code — `patch:position(p)` where the cursor went,
-`patch:rotate(a)` where the wheel turned it. Read the cursor on
-[`Update`](event/bus/lifecycle.md), which is the beat it moves on:
+| Rule | Detail |
+|---|---|
+| Into a patch unchanged | A ring goes into [`hafen.virtual():patch()`](virtual/patches.md) as a real object's does; a footprint of several rings is one patch of that many [pieces](virtual/pieces.md): one handle to move, one shape. |
+| The resource's footprint | What the finished thing will occupy, not its `build` box (the clearance the client checks before letting you place). A ghost and the object it becomes wear the same shape. |
+| `nil` | A resource carrying no footprint, and a resource that has not resolved. |
+| The ghost moves; a patch does not follow | A patch anchors to a [Position or a Gob](virtual/README.md#the-anchor-is-an-argument), and a ghost is neither: move it from your own code, `patch:position(position)` where the cursor went, `patch:rotate(angle)` where the wheel turned it, on [`Update`](event/bus/lifecycle.md), the beat the cursor moves on. |
+| Write only what changed | Turning a patch re-carves ground already laid; moving one re-cuts the tiles under it, the one operation that collection is not free at. A cursor sitting still should cost nothing. |
 
 ```lua
 hafen.event():on("Update", function()
-  local s = hafen.session():current()
-  local pl = s and s:world():placing()
-  if pl then
-    local at = pl:position()
-    -- move the patch you laid to `at`, and turn it by pl:facing()
+  local session = hafen.session():current()
+  local placing = session and session:world():placing()
+  if placing then
+    local cursor_position = placing:position()
+    -- move the patch you laid to cursor_position, and turn it by placing:facing()
   end
 end)
 ```
 
-Write only what changed. Turning a patch re-carves ground already laid, but **moving** one re-cuts the tiles
-under it, which is the one thing that collection is not free at — and a cursor sitting still should cost
-nothing.
+---
 
-## See also
+## See Also
 
-- [`session:world`](world.md) — the address this read goes through, and `place`, which commits one
-- [Gob](gob.md) — the game's own objects, and the footprint verb this one mirrors
-- [patches](virtual/patches.md) — the collection a ring goes into unchanged
-- [Position](position.md) — what `:position()` hands back, and what a ring is made of
-- [lifecycle events](event/bus/lifecycle.md) — `Update`, the beat a cursor moves on
+- [`session:world`](world.md) — the address this read goes through, and `place`, which commits one.
+- [Gob](gob.md) — the game's own objects, and the footprint verb this one mirrors.
+- [Patches](virtual/patches.md) — the collection a ring goes into unchanged.
+- [Position](position.md) — what `:position()` hands back, and what a ring is made of.
+- [Lifecycle events](event/bus/lifecycle.md) — `Update`, the beat a cursor moves on.

@@ -1,117 +1,81 @@
-# session:craft: crafting
+# session:craft: Crafting
 
-Read the recipe one character has open, and press its Craft button. You reach it through the
-[session](session.md) whose character you mean. This namespace is a view of one window, not of everything a
-character can make: there is nothing to read while that character has no recipe open.
+The recipe one character has open, and its Craft button, reached through the [session](session.md) of the character you mean. A view of one window, not of everything a character can make: nothing to read while no recipe is open.
 
 ```lua
-local s = hafen.session():current()                      -- the character on screen
-if s:craft():exists() then
-  hafen.log():write("recipe: " .. s:craft():recipe())
-  for _, spec in ipairs(s:craft():inputs():list()) do
+local session = hafen.session():current()                      -- the character on screen
+if session:craft():exists() then
+  hafen.log():write("recipe: " .. session:craft():recipe())
+  for _, spec in ipairs(session:craft():inputs():list()) do
     hafen.log():write("  needs " .. (spec:name() or spec:res()) .. " x" .. spec:count())
   end
 end
 ```
 
-## The section is the recipe
+---
 
-`s:craft()` **is** the open recipe, not a wrapper around it — the same shape
-[`s:buff()`](buff.md) is the bar, [`s:kin()`](kin.md) is the roster and
-[`s:flowermenu()`](flowermenu.md) is the open menu. Every read asks the window again rather than
-holding it, which is what you want here: the server builds a fresh window for each recipe, so opening a
-different one does not *change* this recipe, it ends it.
-
-With nothing open, `:exists()` is `false`, `:recipe()` is `nil` and the four list reads are empty. That
-is also what a session the client no longer holds answers, so one guard covers both.
-
-## A window is open on the character that opened it
-
-A recipe window belongs to the character it was opened on, and it stays open while you look at someone else.
-So this reads and crafts on a character you are not watching, which is what a crafting addon across your
-logins is built out of:
-
-```lua
-local alt = hafen.session():get("alt")                   -- the recipe that character has open
-if alt:craft():exists() then
-  hafen.log():write("the alt is making " .. alt:craft():recipe())
-end
-```
+| Rule | Detail |
+|---|---|
+| The section is the recipe | `session:craft()` is the open recipe, as [`session:buff()`](buff.md) is the bar and [`session:flowermenu()`](flowermenu.md) the open menu. Every read asks the window again: the server builds a fresh window per recipe, so opening a different one ends this recipe rather than changing it. |
+| Nothing open | `:exists()` is `false`, `:recipe()` is `nil`, the slot collections are empty. A session the client no longer holds answers the same, so one guard covers both. |
+| The character that opened it | A recipe window belongs to the character it was opened on and stays open while you look at another: `hafen.session():get("alt"):craft():recipe()` reads, and `make` crafts, on a character you are not watching. |
 
 ## Read
 
-| Method | Returns | Description |
-|---|---|---|
-| `s:craft():recipe()` | string \| nil | the recipe's name, as the server titled the window |
-| `s:craft():inputs()` | a collection of [specs](#a-spec) | the ingredient slots, in window order |
-| `s:craft():outputs()` | a collection of [specs](#a-spec) | the product slots |
-| `s:craft():qualityInputs()` | a collection of [specs](#a-spec) | the ingredients whose quality carries into the product |
-| `s:craft():tools()` | a collection of [specs](#a-spec) | the tools you must have with you |
-| `s:craft():exists()` | boolean | whether a recipe is open at all — always answers, drawn or not |
-| `s:craft():info()` | [`Craft`](types/ui.md#craft-and-craftspec) \| nil | a plain-table **snapshot** |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:craft():recipe()` | `string \| nil` | Unprotected | The recipe's name, as the server titled the window. |
+| `session:craft():inputs()` | collection of [specs](#a-spec) | Unprotected | The ingredient slots, in window order. |
+| `session:craft():outputs()` | collection of [specs](#a-spec) | Unprotected | The product slots. |
+| `session:craft():qualityInputs()` | collection of [specs](#a-spec) | Unprotected | The ingredients whose quality carries into the product. |
+| `session:craft():tools()` | collection of [specs](#a-spec) | Unprotected | The tools you must have with you. |
+| `session:craft():exists()` | `boolean` | Unprotected | Whether a recipe is open; always answers, drawn or not. |
+| `session:craft():info()` | [`Craft`](types/ui.md#craft-and-craftspec) `\| nil` | Unprotected | A plain-table snapshot, the slot lists copied out as tables. |
 
-The four slot reads are **collections** of [spec objects](#a-spec): `:list(filter)` is the array,
-`:find(needle)` the first that matches and `:count(filter)` how many, and each is empty rather than `nil`
-when nothing is open. Each is a
-[view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) minted per call, so
-`:inputs() ~= :inputs()`; there is nothing to compare here anyway, since a spec holds what it was minted
-from rather than re-resolving. A slot has no key, so there is no `:get` — the server rebuilds a recipe's
-slots wholesale, so `:list()[n]` takes a position and `:find(needle)` searches the name and the resource.
-
-`s:craft():info()` is the other shape: a plain-table [`Craft`](types/ui.md#craft-and-craftspec) with the
-same four lists copied out as tables, for logging and serialising.
+| Rule | Detail |
+|---|---|
+| The slot collections | `:list(filter)` is the array, `:find(needle)` the first match on name or resource, `:count(filter)` how many; each empty rather than `nil` when nothing is open. A [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) minted per call, so `:inputs() ~= :inputs()`. |
+| No `:get` | A slot has no key: the server rebuilds a recipe's slots wholesale. `:list()[n]` takes a position. |
+| No `CraftChanged` | A recipe changes only when the player opens one. Watch for the window with [`session:ui():on`](ui/replace.md): `session:ui():on("window", "Added", fn)`. |
 
 ## A spec
 
-One slot of the open recipe — an ingredient, a product, a quality input or a tool. One type covers the
-four: an ingredient and a product carry a count and an optional flag, a quality input and a tool carry
-neither and answer `nil` for both.
+One slot of the open recipe: an ingredient, a product, a quality input or a tool. One type covers them: an ingredient and a product carry a count and an optional flag, a quality input and a tool answer `nil` for both.
 
-A spec **holds what it was minted from** rather than re-resolving, which is the one object here that
-does. A recipe's slots are data the server rebuilds whole on every update, so there is no key to address
-one by and nothing to track: read the recipe again rather than holding a slot across one.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `spec:res()` | `string \| nil` | Unprotected | The displayed resource: the constraint category where the recipe accepts one (any board), else the concrete item; `nil` while loading. |
+| `spec:name()` | `string \| nil` | Unprotected | Its display name, from the resource's tooltip; `nil` while loading. |
+| `spec:count()` | `number \| nil` | Unprotected | How many are required or produced; `nil` on a quality input and a tool. |
+| `spec:optional()` | `boolean \| nil` | Unprotected | Whether it is an optional ingredient or a chance byproduct; `nil` on a quality input and a tool. |
+| `spec:info()` | [`CraftSpec`](types/ui.md#craft-and-craftspec) | Unprotected | A plain-table snapshot. |
 
-| Method | Returns | Description |
-|---|---|---|
-| `spec:res()` | string \| nil | the **displayed** resource — the constraint category where the recipe accepts one, such as any board, else the concrete item; `nil` while it is loading |
-| `spec:name()` | string \| nil | its display name, from the resource's own tooltip; `nil` while that is loading |
-| `spec:count()` | number \| nil | how many are required or produced; `nil` on a quality input and a tool, which carry no count |
-| `spec:optional()` | boolean \| nil | whether it is an optional ingredient or a chance byproduct; `nil` on a quality input and a tool |
-| `spec:info()` | [`CraftSpec`](types/ui.md#craft-and-craftspec) | a plain-table **snapshot** |
-
-Every read is unprotected, and none of them throws. The wire's "unspecified" count is `-1` and
-`spec:count()` answers `1` for it, which is what it means; the snapshot keeps the server's own number.
-
-**A slot is drawn by an icon, and that icon draws an item.** `spec:res()` is the **displayed** constraint —
-what the recipe accepts. The slot on screen is an [item icon](ui/items.md) like any other, so
-[`widget:item()`](ui/widget.md#read-methods) on it answers the concrete item being painted and `:res()` on *that* is
-the concrete resource. Two views of one slot: read the spec for what the recipe requires, the item for what
-is drawn. The quality inputs and the tools have no icon at all — the window prints those as bare pictures,
-so `s:craft()` is the only read for them.
-
-There is no `CraftChanged` event, because a recipe changes only when the player opens one. To notice
-that, watch for the window with [`s:ui():on`](ui/replace.md): `s:ui():on("window", "Added", fn)`.
+| Rule | Detail |
+|---|---|
+| Holds what it was minted from | The one object here that does not re-resolve: a recipe's slots are data the server rebuilds whole, with no key to track. Read the recipe again rather than holding a slot across an update. |
+| Never throws | Every read is unprotected. |
+| The unspecified count | The wire's `-1`; `spec:count()` answers `1` for it, the snapshot keeps the server's number. |
+| The slot's icon draws an item | `spec:res()` is what the recipe accepts. The slot on screen is an [item icon](ui/items.md), so [`widget:item()`](ui/widget.md#read-methods) on it answers the concrete item painted and `:res()` on that is the concrete resource. Quality inputs and tools have no icon (bare pictures), so `session:craft()` is the only read for them. |
 
 ## Write (protected)
 
-The client sends only shapes a player could compose, and what the server does with more than that is
-the server's.
+The client sends only shapes a player could compose.
 
-| Method | Key | Description |
-|---|---|---|
-| `s:craft():make(all)` | `craft.make` | craft the open recipe once; with `all = true`, press Craft All |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:craft():make(all)` | the section | `craft.make` | Craft the open recipe once; with `all = true`, press Craft All. |
 
-It presses the recipe's own button, so it **consumes the ingredients** exactly as a click would — on the
-character whose window it is, watched or not. Called from an addon that did not declare the `craft.make` key
-it raises an error naming that key, and it also refuses when no recipe is open. It returns the section, so
-writes chain. See [the permission model](conventions.md#the-permission-model).
+| Rule | Detail |
+|---|---|
+| Presses the recipe's own button | Consumes the ingredients as a click would, on the character whose window it is, watched or not. |
+| Refusals | An addon that did not declare `craft.make` raises naming the key ([the permission model](conventions.md#the-permission-model)); no recipe open refuses. |
+| One key, every character | `craft.make` presses the button on any of your logins ([a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target)). |
 
-One key covers every character: `craft.make` lets you press the Craft button on any of your logins — see
-[a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target).
+---
 
-## See also
+## See Also
 
-- [session](session.md) — the address every read here goes through
-- [`Craft` and `CraftSpec`](types/ui.md#craft-and-craftspec) — the snapshot shapes
-- [items](ui/items.md#write-protected) — moving the ingredients into the window
-- [`session:menugrid`](menugrid.md) — how a recipe window gets opened in the first place
+- [Session](session.md) — the address every read here goes through.
+- [`Craft` and `CraftSpec`](types/ui.md#craft-and-craftspec) — the snapshot shapes.
+- [Items](ui/items.md#write-protected) — moving the ingredients into the window.
+- [`session:menugrid`](menugrid.md) — how a recipe window gets opened.

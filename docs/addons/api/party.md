@@ -1,107 +1,63 @@
-# session:party: the party roster
+# session:party: The Party Roster
 
-Read the party one character is in. You reach it through the [session](session.md) whose character you
-mean, and `s:party()` **is** that character's roster: the members come back in party sequence order, and
-each one hands back its live [Gob](gob.md).
+The party one character is in, read through its [session](session.md); `session:party()` is that character's roster, in party sequence order, each member handing back its live [Gob](gob.md).
 
 ```lua
-local s = hafen.session():current()                     -- the character on screen
-for _, m in ipairs(s and s:party():list() or {}) do
-  hafen.log():write(m:gob():name() .. ((s:party():leader() == m) and " (leader)" or ""))
+local session = hafen.session():current()                     -- the character on screen
+for _, member in ipairs(session and session:party():list() or {}) do
+  hafen.log():write(member:gob():name() .. ((session:party():leader() == member) and " (leader)" or ""))
 end
 ```
 
-## Whose party it is
-
-A party belongs to the character that is in it. Two of your characters in one party are two rosters, not
-one seen twice: each holds the colours and the positions the server sent *that* login, so a member is read
-through the character whose party it is.
-
-```lua
-hafen.session():current():party():count()       -- the party of the character on screen
-hafen.session():get("alt"):party():leader()     -- that character's, while you watch someone else
-```
-
-`s:party()` is the same object every call, minted once for that session. A character in no party has an
-empty roster, and so does a session the client no longer holds — neither raises.
+---
 
 ## Read
 
-| Call | Returns | Description |
-|---|---|---|
-| `s:party():list(filter)` | `PartyMember[]` | every member, in party sequence order |
-| `s:party():count(filter)` | number | how many match |
-| `s:party():find(filter)` | `PartyMember` \| nil | the first that matches |
-| `s:party():get(gobId)` | `PartyMember` \| nil | one member, by gob id |
-| `s:party():leader()` | `PartyMember` \| nil | the member leading the party |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:party():list(filter)` | `PartyMember[]` | Unprotected | Every member, in party sequence order. |
+| `session:party():count(filter)` | `number` | Unprotected | How many match. |
+| `session:party():find(filter)` | `PartyMember \| nil` | Unprotected | The first that matches. |
+| `session:party():get(gob_id)` | `PartyMember \| nil` | Unprotected | One member, by gob id. |
+| `session:party():leader()` | `PartyMember \| nil` | Unprotected | The member leading the party. |
 
-Outside a party `:list()` is an empty array, `:count()` is `0`, and `:leader()` and `:get(id)` are `nil`;
-so is `:get(id)` for an id that is not in that party. Nothing here throws and nothing is protected. There
-is no write side: joining and leaving a party is a menu action, reachable through
-[`session:menugrid`](menugrid.md#use-protected).
-
-**The party has no event.** Nothing on [the bus](event/bus/README.md) fires for a member joining, leaving,
-moving or being made leader, so a roster an addon tracks is one it polls — on a
-[timer](timer.md), or on the frame you already read. The other roster does have one:
-[`KinChanged`](event/bus/character.md#roster-quests-markers) is [`session:kin`](kin.md), not this.
-
-The [filter](conventions.md#the-filter-argument) has to be a function here. A string is refused, because
-a party member has nothing to match it against — see below.
+| Rule | Detail |
+|---|---|
+| Whose party | Two of your characters in one party are two rosters: each holds the colours and positions the server sent that login. `hafen.session():get("alt"):party():leader()` answers for that character. |
+| One object | `session:party()` is the same object every call, minted once per session. A character in no party and a session the client no longer holds both answer an empty roster. |
+| Outside a party | `:list()` is empty, `:count()` is `0`, `:leader()` and `:get(id)` are `nil`; so is `:get(id)` for an id not in the party. Nothing throws; nothing is protected. |
+| No write side | Joining and leaving is a menu action through [`session:menugrid`](menugrid.md#use-protected). |
+| No event | Nothing on [the bus](event/bus/README.md) fires for a member joining, leaving, moving or being made leader: poll on a [timer](timer.md) or on the frame you already read. [`KinChanged`](event/bus/character.md#roster-quests-markers) belongs to [`session:kin`](kin.md). |
+| `filter` | Must be a function. A string is refused: a member has no name to match it against. |
 
 ## A member
 
-| Method | Returns | Description |
-|---|---|---|
-| `member:id()` | number | the member's gob id — always answers |
-| `member:gob()` | [Gob](gob.md) | the member's live object, in that character's view — never `nil` |
-| `member:position()` | [Position](position.md) \| nil | where they are |
-| `member:color()` | [colour](shapes.md#colours) \| nil | the party colour drawn for them — `nil` only once they are out of the party |
-| — | — | whether they lead is `s:party():leader() == member`: the members are interned, so the comparison is exact and there is no per-member flag |
-| `member:exists()` | boolean | whether they are still in the party — always answers |
-| `member:info()` | [`PartyMember`](types/world.md#partymember) \| nil | a plain-table **snapshot** |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `member:id()` | `number` | Unprotected | The member's gob id; always answers. |
+| `member:gob()` | [Gob](gob.md) | Unprotected | The member's live object in that character's view; never `nil`. |
+| `member:position()` | [Position](position.md) `\| nil` | Unprotected | Where they are. |
+| `member:color()` | [colour](shapes.md#colours) `\| nil` | Unprotected | The party colour drawn for them; `nil` only once they are out of the party. |
+| `member:exists()` | `boolean` | Unprotected | Whether they are still in the party; always answers. |
+| `member:info()` | [`PartyMember`](types/world.md#partymember) `\| nil` | Unprotected | A plain-table snapshot. |
 
-> A party member has **no name**: the client is never sent one. A member is an id, a position, a colour
-> and the leader flag. The name over their head belongs to the creature, so it is `member:gob():name()`.
+| Rule | Detail |
+|---|---|
+| No name | The client is never sent one: a member is an id, a position, a colour and the leader flag. The name over their head is the creature's, `member:gob():name()`. That is why `:get` takes a gob id and a string filter is refused. |
+| Leader | `session:party():leader() == member`; the members are interned, so the comparison is exact and there is no per-member flag. |
+| `member:color()` | Always answers for a member in the party: the client starts a joiner black and paints them when the server names a colour, so black is "not coloured yet". `nil` is a stashed member who has left, which `member:exists()` asks directly. |
+| The way back | [`gob:party()`](gob.md#read): the member standing at a gob in the party of the character that read it, or `nil`. |
+| `member:gob()` is never `nil` | Like [`session:world():gob():get(id)`](gob.md): a member whose object that character's world does not hold answers a Gob whose `:exists()` is `false`. "Can that character see them" is `member:gob():exists()`. |
+| The Gob answers in the login asked through | `member:gob():exists()` is that character's own line of sight; `member:gob():position()` is where they stand in that character's frame. Another of your characters is a separate reading through its own `session:party()`. |
+| `member:position()` vs `member:gob():position()` | The member's own position is live while in view and last-known once they walk out, so it answers where the gob has stopped existing; `nil` only for a member the server has never placed. A Position like any other: `:durable()` where explored, savable, offsettable. |
+| Live means interpolated | `member:position()` is the point the client draws them at this frame: the one read in the API that moves between server updates, where [`gob:position()`](gob.md#read) stands at the last place the server named. Read the member for a smooth line, the gob for the authoritative one. |
+| Identity | Interned on character and gob id: `:list()[1] == :get(<that id>)` and `seen[member] = true` work; one id through two sessions is two members. A stashed member goes `:exists() == false` on leaving and comes back to life on rejoining, since the id is what it holds. |
 
-`member:color()` always answers for a member who is in the party: the client starts a joiner **black** and
-paints them the moment the server names a colour, so black is "not coloured yet" and there is no `nil` to
-guard. The `nil` is the other question — a member you stashed and who has since left, which
-`member:exists()` asks directly.
+---
 
-That is also why `:get` takes a gob id and a string filter is refused: a name is the one thing the roster
-cannot match on, and matching nothing quietly would be worse than saying so.
+## See Also
 
-[`gob:party()`](gob.md#read) is the way back: the member standing at a gob, in the party of the character
-that read it, or `nil`. The kin pair went both ways and this one did not.
-
-`member:gob()` is never `nil`, exactly like [`s:world():gob():get(id)`](gob.md) — a member whose object
-that character's world does not currently hold answers a Gob whose `:exists()` is `false`. So the way to
-ask whether that character can see someone is `member:gob():exists()`, not a `nil` test.
-
-The Gob **answers in the login you asked through** — the character whose party this is — so
-`member:gob():exists()` is that character's own line of sight, and `member:gob():position()` is where they
-stand in that character's frame. Another of your characters looking at the same person is a separate
-reading, reached through its own `s:party()`.
-
-`member:position()` and `member:gob():position()` are **not** the same read. The member's own position is
-the live one while they are in view and the **last-known** one once they walk out of it, so it keeps
-answering where the gob has stopped existing; it is `nil` only for a member the server has never placed. It
-is a Position like any other, so `:durable()` is true wherever that ground is explored, and you can save
-it, offset it and measure with it.
-
-And "live" means **interpolated**: `member:position()` is the point the client is drawing them at this
-frame, so it is the one read in this API that moves between server updates, where
-[`gob:position()`](gob.md#read) stands still at the last place the server named. Read the member for a
-smooth line and the gob for the authoritative one.
-
-A member is interned on the character and the gob id, so `:list()[1] == :get(<that id>)` and
-`seen[member] = true` work, while one id reached through two sessions gives you two members — which is
-right, because each answers with what its own login was told. A stashed member goes `:exists() == false`
-when they leave the party and comes back to life if they rejoin, because the id is what it holds.
-
-## See also
-
-- [Gob](gob.md) — what `member:gob()` hands back, and every read on it
-- [`PartyMember`](types/world.md#partymember) — the snapshot shape `member:info()` returns
-- [`session:kin`](kin.md) — the other roster, the one that does carry names
-- [`session:fight`](fight.md) — combat, whose target resolves its gob the same way
+- [Gob](gob.md) — what `member:gob()` hands back, and every read on it.
+- [`PartyMember`](types/world.md#partymember) — the snapshot shape `member:info()` returns.
+- [`session:kin`](kin.md) — the other roster, the one that carries names.
+- [`session:fight`](fight.md) — combat, whose target resolves its gob the same way.

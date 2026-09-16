@@ -1,184 +1,98 @@
-# session:kin: the kin roster
+# session:kin: The Kin Roster
 
-Read and manage one character's Kin window, its buddy list. You reach it through the
-[session](session.md) whose character you mean, and `s:kin()` **is** that character's roster.
+One character's Kin window (its buddy list), read and managed through its [session](session.md); `session:kin()` is that character's roster.
 
 ```lua
-local s = hafen.session():current()                      -- the character on screen
-for _, k in ipairs(s and s:kin():list() or {}) do        -- :list() is the array
-  hafen.log():write(k:name() .. " [" .. k:group() .. "]" .. (k:online() and " online" or ""))
+local session = hafen.session():current()                      -- the character on screen
+for _, kin in ipairs(session and session:kin():list() or {}) do
+  hafen.log():write(kin:name() .. " [" .. kin:group() .. "]" .. (kin:online() and " online" or ""))
 end
-s:kin():get("Bob"):group(3):rename("Bobby")              -- protected, chainable
+session:kin():get("Bob"):group(3):rename("Bobby")              -- protected, chainable
 ```
 
-| Call | Returns |
+---
+
+| Rule | Detail |
 |---|---|
-| `s:kin():get(id)` | the `Kin` with that buddy id — always an object, even for an id that character does not have |
-| `s:kin():get(name)` | the `Kin` with that exact, case-insensitive name, else `nil` |
-| `s:kin():list(filter)` | the **roster** — an array of `Kin` objects in Kin-window sort order |
-
-## Whose roster it is
-
-Every character carries its own kin list, and the server numbers each one on its own: buddy id 7 on two
-characters is two different people. So the read says which character it is about, and it answers for one
-you are not looking at exactly as it answers for the drawn one:
-
-```lua
-hafen.session():current():kin():count()          -- the roster of the character on screen
-hafen.session():get("alt"):kin():find("Bob")     -- that character's, while you watch someone else
-```
-
-`s:kin()` is the same object every call, minted once for that session, so a panel reading it every frame
-allocates nothing. A session the client no longer holds answers an empty roster rather than raising.
-
-Kin objects are **interned per addon** on the character *and* the id, so `s:kin():get(7) == s:kin():get(7)`,
-`s:kin():list()[1] == s:kin():get(<that id>)`, and `seen[k] = true` works as a table key — while the same
-number reached through two sessions gives you two objects, because it names two people. A `Kin` carries
-the character and the buddy id and re-reads the roster on every call, so a stashed one tracks renames,
-regroups and online flips — see [snapshots vs handles](conventions.md#snapshots-vs-handles).
-
-> **The array is a snapshot, the objects are live.** `:list()` builds the array at call time, so a kin
-> added afterwards is not in it — call it again. Every `Kin` inside it stays current for as long as you
-> hold it.
-
-Before that character is in the world, and briefly after a reload, it has no Kin window: the roster is
-empty and a name lookup answers `nil`, while `:get(id)` still hands back an object whose `:exists()` is
-`false`.
+| Whose roster | Every character carries its own list and the server numbers each on its own: buddy id 7 on two characters is two people. `hafen.session():get("alt"):kin():find("Bob")` answers for that character, drawn or not. |
+| One object | `session:kin()` is the same object every call, minted once per session, so a panel reading it every frame allocates nothing. A session the client no longer holds answers an empty roster. |
+| Interned per addon | On character and id: `session:kin():get(7) == session:kin():get(7)`, `session:kin():list()[1] == session:kin():get(<that id>)`, `seen[kin] = true` works; the same number through two sessions is two objects. A `Kin` re-reads the roster on every call, so a stashed one tracks renames, regroups and online flips ([snapshots vs handles](conventions.md#snapshots-vs-handles)). |
+| The array is a snapshot, the objects are live | `:list()` builds the array at call time; a kin added afterwards is not in it. Every `Kin` inside stays current while held. |
+| No Kin window yet | Before the character is in the world, and briefly after a reload, the roster is empty and a name lookup answers `nil`; `:get(id)` hands back an object whose `:exists()` is `false`. |
 
 ## Read
 
-The first three are called on the collection, the rest on a `Kin`.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:kin():get(id)` | `Kin` | Unprotected | The kin with that buddy id; always an object, even for an id that character does not have. |
+| `session:kin():get(name)` | `Kin \| nil` | Unprotected | The kin with that exact, case-insensitive name. |
+| `session:kin():list(filter)` | `Kin[]` | Unprotected | The roster in Kin-window sort order; a function filter receives a `Kin`, a string matches the name. |
+| `session:kin():count(filter)` | `number` | Unprotected | How many match, without building the array. |
+| `session:kin():find(filter)` | `Kin \| nil` | Unprotected | The first that matches the ordinary [filter](conventions.md#the-filter-argument): a partial name is `session:kin():find("Bo")`. |
+| `kin:id()` | `number` | Unprotected | The buddy id; answers even for a forgotten kin. |
+| `kin:name()` | `string \| nil` | Unprotected | The nickname shown in the Kin window. |
+| `kin:group()` | `number \| nil` | Unprotected | The kin's group, `0..254`. |
+| `kin:color()` | [colour](shapes.md#colours) `\| nil` | Unprotected | The group's palette colour; `nil` for a group of 8 or more. |
+| `kin:online()` | `boolean \| nil` | Unprotected | Whether the kin is online. |
+| `kin:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The list row that draws them; `nil` when the Kin window is closed or the row is scrolled out of view. |
+| `kin:exists()` | `boolean` | Unprotected | Whether this id is still on that character's roster. |
+| `kin:gob()` | [`Gob`](gob.md) `\| nil` | Unprotected | The kin's gob in the world, their body when loaded. |
+| `kin:info()` | [`KinEntry`](types/world.md#kinentry) `\| nil` | Unprotected | A plain-table snapshot, for logging and serialising. |
 
-| Method | Returns | Description |
-|---|---|---|
-| `s:kin():list(filter)` | `Kin[]` | the roster matching the [filter](conventions.md#the-filter-argument) — a function filter receives a `Kin`, a string matches the name |
-| `s:kin():count(filter)` | number | how many match, without building the array |
-| `s:kin():find(filter)` | `Kin` \| nil | the first that matches |
-| `kin:id()` | number | the buddy id — answers even for a forgotten kin |
-| `kin:name()` | string \| nil | the nickname shown in the Kin window |
-| `kin:group()` | number \| nil | the kin's group, `0..254` |
-| `kin:color()` | [colour](shapes.md#colours) \| nil | the group's palette colour; `nil` for a group of 8 or more |
-| `kin:online()` | boolean \| nil | whether the kin is online |
-| `kin:widget()` | [Widget](ui/widget.md) \| nil | **the list row that draws them**, or `nil` when the Kin window is closed or that row is scrolled out of view |
-| `kin:exists()` | boolean | whether this id is still on that character's roster |
-| `kin:gob()` | [`Gob`](gob.md) \| nil | the kin's gob in the world, their body if it is loaded |
-| `kin:info()` | [`KinEntry`](types/world.md#kinentry) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
-
-Every reader answers `nil` once the kin is off the roster, except `:id()` and `:exists()`. No reader
-throws, and none is protected.
-
-**`:get` addresses, `:find` searches.** A **number** is a buddy id and always hands back an object, so an
-id you read out of a saved file can be held before that character's roster streams in — `:exists()` is
-the liveness test. A **string** is an exact, case-insensitive name and answers `nil` when nobody on that
-roster carries it. `:find` takes the ordinary [filter](conventions.md#the-filter-argument) instead, so a
-*partial* name is `s:kin():find("Bo")`.
-
-Subscribe to [`KinChanged`](event/bus/character.md#roster-quests-markers) to react to a kin being added,
-removed, renamed, regrouped, or flipping online.
+| Rule | Detail |
+|---|---|
+| Off the roster | Every reader answers `nil` except `:id()` and `:exists()`. No reader throws; none is protected. |
+| `:get` addresses, `:find` searches | A number is a buddy id and always hands back an object, so an id from a saved file can be held before the roster streams in; `:exists()` is the liveness test. A string is an exact, case-insensitive name and answers `nil` when nobody carries it. |
+| Event | [`KinChanged`](event/bus/character.md#roster-quests-markers): a kin added, removed, renamed, regrouped or flipping online. |
 
 ### The row is where the walk ends
 
-`kin:widget()` is the crossing back from a roster entry to the widget tree, and it goes **one way**. The row
-it hands you reads, styles and draws like any other [Widget](ui/widget.md) — but `:parent()` on it answers
-`nil`, and so it does on anything under it: the Kin window is not walkable from inside.
-
-That is not a rule about rows. The window holds **your character's hearth secret** in an ordinary text
-entry two branches along, filled by the server itself, and the whole reach was a walk up from a row and back
-down. The same rule covers it from the other side: a field the client hides what you type into answers `nil`
-to `widget:text()`, `widget:value()` and `widget:info()`, wherever you reached it from. Style the row, read
-it, put an overlay on it; there is nothing above it to address.
+`kin:widget()` crosses from a roster entry to the widget tree one way: the row reads, styles and draws like any [Widget](ui/widget.md), and `:parent()` on it and on anything under it answers `nil`. The Kin window holds your character's hearth secret in an ordinary text entry two branches along, filled by the server, so the window is not walkable from inside; a field the client hides what you type into answers `nil` to `widget:text()`, `widget:value()` and `widget:info()` wherever you reached it from.
 
 ### Kin and gob
 
-A kin standing in front of a character is both a roster entry and a [game object](gob.md), and you can go
-either way between them.
-
 ```lua
-local s = hafen.session():current()
-local k = s:kin():get("Bob")
-local g = k and k:gob()
-if g then
-  hafen.log():write(string.format("Bob is %.1f away", g:distance()))
-  hafen.log():write(tostring(g:kin() == k))                      -- true: the same interned Kin
+local session = hafen.session():current()
+local kin = session:kin():get("Bob")
+local kin_gob = kin and kin:gob()
+if kin_gob then
+  hafen.log():write(string.format("Bob is %.1f away", kin_gob:distance()))
+  hafen.log():write(tostring(kin_gob:kin() == kin))                      -- true: the same interned Kin
 end
 ```
 
-The link is **server-side** — the game marks a kinned player's gob with their buddy id — so neither
-direction guesses from a name. `gob:kin()` is a single attribute read, and the `Kin` it hands back is that
-gob's own character's, since the mark is a number in that character's roster. `kin:gob()` scans the
-objects that character has loaded, which is fine on demand but not something to run for every kin on every
-frame.
-
-A kin marks more than one gob: their **hearth fire** carries the mark too, which is how it shows their
-name in their kin colour. So `gob:kin()` answers on it as well, and an offline kin whose hearth fire is in
-view still has a `kin:gob()`. `kin:gob()` prefers their body whenever it is loaded, so it answers "where
-is this kin" rather than whichever gob the object cache listed first. To get every gob marked as theirs,
-filter that character's world by the inverse:
-
-```lua
-local mine = s:world():gob():list(function(g) return g:kin() == k end)
-```
-
-> **`nil` is ambiguous, both ways.** `kin:gob()` is `nil` for a kin who is offline, out of that
-> character's view, or whose gob has not streamed in — you cannot tell which. `gob:kin()` is `nil` for a
-> gob that is not one of that character's kin *and* for one that is not a player at all.
+| Rule | Detail |
+|---|---|
+| Server-side link | The game marks a kinned player's gob with their buddy id, so neither direction guesses from a name. `gob:kin()` is a single attribute read, answering that gob's own character's `Kin`. `kin:gob()` scans the objects that character has loaded: fine on demand, not for every kin every frame. |
+| The hearth fire carries the mark | `gob:kin()` answers on it too, and an offline kin whose hearth fire is in view has a `kin:gob()`. `kin:gob()` prefers their body when loaded. Every gob marked as theirs is `session:world():gob():list(function(gob) return gob:kin() == kin end)`. |
+| `nil` is ambiguous both ways | `kin:gob()` is `nil` for a kin offline, out of view or not yet streamed in. `gob:kin()` is `nil` for a gob not on that character's roster and for one that is not a player. |
 
 ## Write (protected)
 
-The client sends only shapes a player could compose, and what the server does with more than that is
-the server's.
+The client sends only shapes a player could compose. Every verb on a `Kin` returns that `Kin`, so they chain.
 
-**Every one of these is kept by the server**: disabling, reloading or uninstalling your addon does not
-undo a rename, a regroup or an ended kinship, and neither does the session ending. There is nothing to
-give back, so put one behind a choice the player made rather than behind a load.
-
-Every verb on a `Kin` returns that `Kin`, so they chain. `s:kin():add(secret)` is the one that does not:
-it returns **nothing**, because there is no `Kin` to hand back yet — the server decides whether the secret
-names anyone and the roster changes a beat later, as a `KinChanged`. A `local k = s:kin():add(...)` is
-therefore `nil`, which is where the mistake shows. Each verb needs its own
-permission key declared in your manifest — or the group `kin.*`, which covers all five — and called from
-an addon that did not declare it, each raises an error naming that key; see
-[the permission model](conventions.md#the-permission-model).
-
-| Method | Key | Description |
+| Method | Permission | Description |
 |---|---|---|
-| `s:kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes. It returns **nothing**: the server decides whether that secret names anyone, so there is no `Kin` yet — watch `KinChanged` for the roster |
-| `kin:rename(name)` | `kin.rename` | set the kin's nickname: one typed line, 1 to 64 characters, no newline or tab |
-| `kin:group(group)` | `kin.group` | move the kin to group `0..254` — the write half of `kin:group()` |
-| `kin:endKin()` | `kin.end` | end the kinship; the kin stays *memorized* in the list. Raises on an entry that is already un-kinned |
-| `kin:forget()` | `kin.forget` | drop a memorized, un-kinned kin from the list entirely. Raises while the kinship is still live |
+| `session:kin():add(secret)` | `kin.add` | Add a kin by the other player's hearth secret, the string the "Add kin" field takes. Returns nothing: the server decides whether the secret names anyone, and the roster changes a beat later as a `KinChanged`; `local kin = session:kin():add(secret)` is `nil`. |
+| `kin:rename(name)` | `kin.rename` | Set the nickname: one typed line, 1 to 64 characters, no newline or tab. |
+| `kin:group(group)` | `kin.group` | Move the kin to group `0..254`; the write half of `kin:group()`. |
+| `kin:endKin()` | `kin.end` | End the kinship; the kin stays memorized in the list. Raises on an entry already un-kinned. |
+| `kin:forget()` | `kin.forget` | Drop a memorized, un-kinned kin from the list. Raises while the kinship is live. |
 
-**A key covers every character.** These act on whichever character you addressed, drawn or not, and the
-key you declared is the whole of what they need — one grant, not one per login. That is the rule for the
-whole [protected tier](../guides/permissions.md), and it is most visible here, because a kin list is the
-first thing an alt has of its own.
+| Rule | Detail |
+|---|---|
+| Permission | Each key [declared](../guides/permissions.md) in your manifest, or the group `kin.*`; an undeclared key raises naming it ([the permission model](conventions.md#the-permission-model)). A key covers every character you address, drawn or not: one grant, not one per login. |
+| Kept by the server | Disabling, reloading or uninstalling your addon undoes none of these, and neither does the session ending. Put one behind a choice the player made, not behind a load. |
+| Groups go to 254, colours stop at 8 | The server accepts `0..254`; the client's palette holds eight colours. A group of 8 or more has no colour: `kin:color()` is `nil`, `kin:info()` carries no `color`, the client draws the kin in the ungrouped colour in the window and over their gob. `kin:group()` answers the true number. The window's colour row selects `0..7`, so a group past the palette is one only an addon sets, cleared by picking a colour. |
+| Removing is two steps | `kin:endKin()` ends the kinship (memorized, still listed), then `kin:forget()` drops the entry. The client message is the same for both and the server picks the stage from the entry's state, so each verb refuses the other's step: called on the wrong stage it raises naming the other, which also tells you the stage. |
+| No add-by-name | Kinning needs a shared hearth secret, or the right-click "Add as kin" petal: [`session:world():click(gob, 3)`](world.md#write-protected) then [`session:flowermenu():select`](flowermenu.md#write-protected). |
 
-**Groups go to 254, colours stop at 8.** The server accepts `0..254` and the write validates that range,
-but the client's palette holds eight colours. A group of 8 or more therefore has no colour of its own:
-`kin:color()` is `nil`, `kin:info()` carries no `color`, and the client draws that kin in the ungrouped
-colour — in the Kin window and over their gob alike. `kin:group()` still answers the true number, and it is
-the only thing that tells two groups above the palette apart. The Kin window's own colour row selects `0..7`
-and nothing above it, so a group past the palette is one only an addon sets, and the user clears it by
-picking a colour.
+---
 
-**Removing is two steps, and each verb does only its own.** The game drops a kin in two stages:
-`kin:endKin()` ends the kinship, after which the kin is memorized but still listed, then `kin:forget()`
-drops the memorized entry. To fully remove an active kin, call both, in that order.
+## See Also
 
-Each refuses the other's step, and that is what makes the two keys mean two different things. The message
-the client sends is the **same** for both — one act, and the server picks the stage from the entry's own
-state — so a verb that took either stage would let `kin.end` forget an entry and `kin.forget` end a
-kinship. Call one on the wrong stage and it raises naming the other, which is also how you find out which
-stage an entry is at.
-
-There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
-which is [`s:world():click(gob, 3)`](world.md#write-protected) followed by
-[`s:flowermenu():select`](flowermenu.md#write-protected).
-
-## See also
-
-- [Gob](gob.md) — the object side of `kin:gob()`
-- [permissions](../guides/permissions.md) — the keys these writes share, and what a key covers
-- [`KinEntry`](types/world.md#kinentry) — the snapshot shape `:info()` returns
-- [`session:party`](party.md) — the other roster, which carries no names
-- [events](event/bus/character.md#roster-quests-markers) — `KinChanged`
+- [Gob](gob.md) — the object side of `kin:gob()`.
+- [Permissions](../guides/permissions.md) — the keys these writes share, and what a key covers.
+- [`KinEntry`](types/world.md#kinentry) — the snapshot shape `:info()` returns.
+- [`session:party`](party.md) — the other roster, which carries no names.
+- [Events](event/bus/character.md#roster-quests-markers) — `KinChanged`.

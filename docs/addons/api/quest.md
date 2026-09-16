@@ -1,107 +1,96 @@
-# session:quest: the quest log
+# session:quest: The Quest Log
 
-Read one character's quest log. You reach it through the [session](session.md) whose character you mean,
-and `s:quest()` **is** that character's log: one collection over both tabs, the Current one and the
-Completed one. Read-only — there is no way to accept, abandon or complete a quest from an addon.
+One character's quest log, read through its [session](session.md); `session:quest()` is that character's log, one collection over the Current and Completed tabs. Read-only: no addon accepts, abandons or completes a quest.
 
 ```lua
-local s = hafen.session():current()                    -- the character on screen
-for _, q in ipairs(s and s:quest():list(function(q) return q:status() == "pending" end) or {}) do
-  hafen.log():write(q:title())
+local session = hafen.session():current()                    -- the character on screen
+local pending = session and session:quest():list(function(quest) return quest:status() == "pending" end) or {}
+for _, quest in ipairs(pending) do
+  hafen.log():write(quest:title())
 end
 ```
 
-## Whose log it is
-
-A quest id counts inside one character's own log, so the same number on two characters is two different
-quests. The read says which character it is about:
-
-```lua
-hafen.session():current():quest():count()      -- the quests of the character on screen
-hafen.session():get("alt"):quest():count()     -- that character's, while you watch someone else
-```
-
-`s:quest()` is the same object every call, minted once for that session. A session the client no longer
-holds answers an empty array rather than raising.
+---
 
 ## Read
 
-| Call | Returns | Description |
-|---|---|---|
-| `s:quest():list(filter)` | `Quest[]` | every quest, Current tab first |
-| `s:quest():count(filter)` | number | how many match |
-| `s:quest():find(filter)` | `Quest` \| nil | the first that matches |
-| `s:quest():get(id)` | `Quest` \| nil | one quest, by its server id |
-| `s:quest():selected()` | `Quest` \| nil | the quest open in that character's log |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:quest():list(filter)` | `Quest[]` | Unprotected | Every quest, Current tab first. |
+| `session:quest():count(filter)` | `number` | Unprotected | How many match. |
+| `session:quest():find(filter)` | `Quest \| nil` | Unprotected | The first that matches. |
+| `session:quest():get(id)` | `Quest \| nil` | Unprotected | One quest, by its server id. |
+| `session:quest():selected()` | `Quest \| nil` | Unprotected | The quest open in that character's log; `nil` when nothing is open. |
 
-Before the log has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array, `:count()` is `0`
-and `:selected()` is `nil`. `:selected()` is also `nil` whenever nothing is open. Nothing
-here throws and nothing is protected.
-
-The [filter](conventions.md#the-filter-argument) matches a quest's title or its resource name, and a
-predicate receives the Quest object.
+| Rule | Detail |
+|---|---|
+| Whose log | A quest id counts inside one character's log: the same number on two characters is two quests. `hafen.session():get("alt"):quest():count()` answers for that character. |
+| One object | `session:quest()` is the same object every call, minted once per session. A session the client no longer holds answers an empty array. |
+| Before the log has built | A beat after `SessionEnteredWorld`, `:list()` is empty, `:count()` is `0`, `:selected()` is `nil`. Nothing throws; nothing is protected. |
+| `filter` | The [filter](conventions.md#the-filter-argument) matches a quest's title or resource name; a predicate receives the Quest. |
 
 ## A quest
 
-| Method | Returns | Description |
-|---|---|---|
-| `q:id()` | number | the server's quest id — always answers |
-| `q:title()` | string \| nil | the quest's name |
-| `q:res()` | string \| nil | its resource name |
-| `q:status()` | string \| nil | `"pending"`, `"done"`, `"failed"` or `"disabled"`; `nil` once the server has dropped the quest, and for a status this client has no word for |
-| `q:modified()` | number \| nil | the server's change stamp; higher is more recent |
-| — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
-| `q:conditions()` | collection | its objectives — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), minted per call, with the identity on the objectives in it — see below |
-| `q:exists()` | boolean | whether it is still in the log — always answers |
-| `q:info()` | [`Quest`](types/character.md#quest-and-condition) \| nil | a plain-table **snapshot** |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `quest:id()` | `number` | Unprotected | The server's quest id; always answers. |
+| `quest:title()` | `string \| nil` | Unprotected | The quest's name. |
+| `quest:res()` | `string \| nil` | Unprotected | Its resource name. |
+| `quest:status()` | `string \| nil` | Unprotected | `"pending"`, `"done"`, `"failed"` or `"disabled"`; `nil` once the server has dropped the quest, and for a status this client has no word for. |
+| `quest:modified()` | `number \| nil` | Unprotected | The server's change stamp; higher is more recent. |
+| `quest:conditions()` | collection | Unprotected | Its objectives: a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) minted per call, with the identity on the objectives in it. |
+| `quest:exists()` | `boolean` | Unprotected | Whether it is still in the log; always answers. |
+| `quest:info()` | [`Quest`](types/character.md#quest-and-condition) `\| nil` | Unprotected | A plain-table snapshot. |
 
-A quest is interned on its session and its id, so `s:quest():list()[1] == s:quest():get(<that id>)` and
-`seen[q] = true` work, while the same id on two characters is two objects. That is
-also what makes a stashed quest worth holding: the log rewrites a quest **in place** as it advances and
-moves it between the two tabs, so `q:status()` changes from `"pending"` to `"done"` under the handle you
-already have. A quest the server drops goes `:exists() == false` and every other read answers `nil`.
+| Rule | Detail |
+|---|---|
+| Selected | `session:quest():selected() == quest`; the quests are interned, so the comparison is exact and there is no per-member flag. |
+| Identity | Interned on session and id: `session:quest():list()[1] == session:quest():get(<that id>)` and `seen[quest] = true` work; the same id on two characters is two objects. |
+| A stashed quest tracks | The log rewrites a quest in place as it advances and moves it between tabs: `quest:status()` changes from `"pending"` to `"done"` under the handle you hold. A quest the server drops goes `:exists() == false` and every other read answers `nil`. |
 
 ## Objectives
 
-> `q:conditions()` is **empty on every quest but the selected one**. The client is sent the
-> objectives of the quest that character has open in the log and of no other, so opening a different quest is
-> what fills them in. `s:quest():selected() == q` is how you tell the two cases apart.
+> `quest:conditions()` is empty on every quest but the selected one. The client is sent the objectives of the quest the character has open and no other; opening a different quest fills them in. `session:quest():selected() == quest` tells the two cases apart.
 
-| Method | Returns | Description |
-|---|---|---|
-| `c:description()` | string \| nil | what the objective asks for |
-| `c:status()` | string \| nil | `"pending"`, `"done"` or `"failed"`; `nil` once the quest it belongs to is deselected |
-| `c:tooltip()` | string \| nil | the line its tooltip states, when the content publishes one — `c:description()` is the objective itself |
-| `c:quest()` | `Quest` | the quest it belongs to — never `nil` |
-| `c:exists()` | boolean | whether it is still an objective of the open quest |
-| `c:info()` | [`Condition`](types/character.md#quest-and-condition) \| nil | a plain-table **snapshot** |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `condition:description()` | `string \| nil` | Unprotected | What the objective asks for. |
+| `condition:status()` | `string \| nil` | Unprotected | `"pending"`, `"done"` or `"failed"`; `nil` once its quest is deselected. |
+| `condition:tooltip()` | `string \| nil` | Unprotected | The line its tooltip states, when the content publishes one. |
+| `condition:quest()` | `Quest` | Unprotected | The quest it belongs to; never `nil`. |
+| `condition:exists()` | `boolean` | Unprotected | Whether it is still an objective of the open quest. |
+| `condition:info()` | [`Condition`](types/character.md#quest-and-condition) `\| nil` | Unprotected | A plain-table snapshot. |
 
-An objective is interned on its quest **and its own description**, which is what the client itself
-matches on when it carries an objective across a resend — so `c:status()` flips under a stashed handle,
-which is the whole reason to reach past the quest. Deselecting the quest ends the objectives:
-`c:exists()` goes false, and comes back true when that quest is opened again.
+| Rule | Detail |
+|---|---|
+| Identity | Interned on its quest and its own description, what the client matches on across a resend, so `condition:status()` flips under a stashed handle. |
+| Deselecting ends the objectives | `condition:exists()` goes false, and comes back true when that quest is opened again. |
 
 ```lua
-local s = hafen.session():current()
-local q = s and s:quest():selected()
-if q then
-  for _, c in ipairs(q:conditions():list()) do
-    hafen.log():write(" - [" .. c:status() .. "] " .. (c:description() or ""))
+local session = hafen.session():current()
+local quest = session and session:quest():selected()
+if quest then
+  for _, condition in ipairs(quest:conditions():list()) do
+    hafen.log():write(" - [" .. condition:status() .. "] " .. (condition:description() or ""))
   end
 end
 ```
 
 ## Events
 
-Subscribe to [`QuestAdded`](event/bus/character.md#roster-quests-markers), a new active quest, and
-[`QuestCompleted`](event/bus/character.md#roster-quests-markers) and
-[`QuestFailed`](event/bus/character.md#roster-quests-markers) — the outcome picks the key, so neither handler
-needs a status check. Each carries the Quest itself, so a handler reads it with the verbs above and can hold
-it afterwards.
+| Event | Payload | Fires |
+|---|---|---|
+| [`QuestAdded`](event/bus/character.md#roster-quests-markers) | `Quest` | A new active quest. |
+| [`QuestCompleted`](event/bus/character.md#roster-quests-markers) | `Quest` | A quest completed. |
+| [`QuestFailed`](event/bus/character.md#roster-quests-markers) | `Quest` | A quest failed. |
 
-## See also
+The outcome picks the key, so neither handler needs a status check; each carries the Quest itself, readable with the verbs above and holdable afterwards.
 
-- [`Quest` and `Condition`](types/character.md#quest-and-condition) — the snapshot shapes
-- [`hafen.map():marker()`](map/markers.md) — the map pins a quest puts down
-- [`session:char`](char.md) — credos, whose own quest carries an id you can look up here
-- [events](event/bus/character.md#roster-quests-markers) — `QuestAdded`, `QuestCompleted` and `QuestFailed`
+---
+
+## See Also
+
+- [`Quest` and `Condition`](types/character.md#quest-and-condition) — the snapshot shapes.
+- [`hafen.map():marker()`](map/markers.md) — the map pins a quest puts down.
+- [`session:char`](char.md) — credos, whose own quest carries an id you can look up here.
+- [Events](event/bus/character.md#roster-quests-markers) — `QuestAdded`, `QuestCompleted`, `QuestFailed`.

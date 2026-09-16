@@ -1,179 +1,114 @@
-# session:player: one of your characters
+# session:player: One of Your Characters
 
-`s:player()` is the **Player object** for the character one of your [sessions](session.md) is playing. Its
-main job is being the anchor for that character's own [Gob](gob.md).
+`session:player()` is the Player object for the character one of your [sessions](session.md) is playing: the anchor for that character's own [Gob](gob.md), the walk order, and the cursor it carries an item on.
 
 ```lua
-local s = hafen.session():current()       -- the character on screen
-local me = s and s:player():gob()         -- nil until that character's HUD is up
-local p = me and me:position()
-if p then hafen.log():write("standing on grid " .. p:info().gridId) end
+local session = hafen.session():current()       -- the character on screen
+local my_gob = session and session:player():gob()   -- nil until that character's HUD is up
+local position = my_gob and my_gob:position()
+if position then hafen.log():write("standing on grid " .. position:info().gridId) end
 ```
 
-Player deliberately forwards **nothing** from the Gob: position, health, movement and facing are read
-on `s:player():gob()`, so there is exactly one way to reach each of them. What lives on Player is
-only what has no per-gob equivalent.
+---
 
-## Which character
-
-`s:player()` answers for the session you name and no other, so an addon watching two characters says which
-one it means. `hafen.session():current():player()` is the one on screen and
-`hafen.session():get("alt"):player()` is another; both hand back the same object every call, so a per-frame
-read allocates nothing.
-
-**The character it is playing is [`s:character()`](session.md#read)**, on the Session — one account plays one
-character at a time, and the Session is what names the account. There is no `:name()` here: that would be a
-second spelling of one fact whose only difference was which door you came through.
-
-Every read below answers for the session named, and so does the walk — `move` reaches a character nobody
-is looking at. What does not is what belongs to the **screen**, and each of those says so where it is
-described: [`hand:use`](#the-hand) is a gesture with the pointer.
-
-**Projecting a place onto the screen is [`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world)**,
-not a verb here. It is a conversion between that character's world and the screen rather than anything about
-the player, and it lives beside its inverse.
+| Rule | Detail |
+|---|---|
+| Nothing forwarded from the Gob | Position, health, movement and facing are read on `session:player():gob()`: one way to reach each. Player holds only what has no per-gob equivalent. |
+| Which character | `session:player()` answers for the session you name and no other; `hafen.session():current():player()` is the one on screen, `hafen.session():get("alt"):player()` another. The same object every call, so a per-frame read allocates nothing. |
+| The character's name | [`session:character()`](session.md#read), on the Session: one account plays one character at a time. There is no `:name()` here. |
+| What belongs to the screen | Every read and the walk answer for the session named. [`hand:use`](#the-hand) is a gesture with the pointer and is the drawn character's. Projecting a place onto the screen is [`session:world():worldToScreen(position)`](world.md#the-screen-and-the-world). |
+| The HUD bars | Hp, stamina and energy are a HUD slot the server fills: [`session:meter`](meter.md). |
 
 ## Read
 
-| Method | Returns | Description |
-|---|---|---|
-| `s:player():gob()` | [Gob](gob.md) \| nil | that character's own game object; `nil` before that character's HUD is up |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:player():gob()` | [Gob](gob.md) `\| nil` | Unprotected | That character's own game object; `nil` before that character's HUD is up. |
 
-The HUD is up a beat **before** the world is, and the read answers over that beat: the client mints the
-Gob on the id the HUD carries rather than waiting for the object cache, so from the moment `s:char()`
-answers you hold a Gob whose `:exists()` is `false` and whose `:position()` is `nil`. That is the reference
-model everywhere else on this API — ask `:exists()`, not `nil`.
-
-`s:player():gob()` is the same object as `s:world():gob():get(<that character's id>)` — so
-`gob == s:player():gob()` is how you tell "is this that character?" from any other gob read through the same
-session, with no id comparison. It is not protected.
-
-> There is no `exists()` and no `id()` on Player: `s:player():gob()`, `nil` or not, and `gob:id()`
-> answer both questions.
-
-The hp, stamina and energy bars are not here. They are a HUD slot the server fills rather than
-per-player state, so they live in [`session:meter`](meter.md).
+| Rule | Detail |
+|---|---|
+| The beat before the world | The HUD is up before the world is, and the client mints the Gob on the id the HUD carries: from the moment `session:character()` answers you hold a Gob whose `:exists()` is `false` and whose `:position()` is `nil`. Ask `:exists()`, not `nil`. |
+| Identity | `session:player():gob()` is the same object as `session:world():gob():get(<that character's id>)`, so `gob == session:player():gob()` tells "is this that character" with no id comparison. |
+| No `exists()` or `id()` on Player | `session:player():gob()`, `nil` or not, and `gob:id()` answer both. |
 
 ## Write (protected)
 
-The client sends only shapes a player could compose, and what the server does with more than that is
-the server's.
+The client sends only shapes a player could compose.
 
-### `s:player():move(p)`
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:player():move(position)` | the Player | `player.move` | Walk that character to a [Position](position.md): the click a left-click on that ground sends. |
+| `session:player():hand():use(target, mods)` | the Hand | `player.hand.use` | Apply what the character carries to `target` ([The Hand](#the-hand)). |
 
-Walk that character to a [Position](position.md) — the click a left-click on that patch of
-ground sends, so an **off-screen destination is fine**. Returns the Player, so a move chains. It needs the
-`player.move` [permission key](../guides/permissions.md) declared in your manifest; without it the call
-raises an error naming that key, before anything is sent.
-
-**It reaches the session you named, drawn or not.** This is the one write on the whole API that does:
+### `session:player():move(position)`
 
 ```lua
 -- send everyone else to where the character on screen is standing
-local cur = hafen.session():current()
-local here = cur:player():gob():position()
-for _, s in ipairs(hafen.session():list()) do
-  if s ~= cur then s:player():move(here) end
+local current_session = hafen.session():current()
+local here = current_session:player():gob():position()
+for _, session in ipairs(hafen.session():list()) do
+  if session ~= current_session then session:player():move(here) end
 end
 ```
 
-`p` is required. Anything that is not a Position raises, a plain `{x, y}` table and a
-[widget's pixel position](ui/widget.md) included: a place in the world and a point on the screen are
-different kinds of thing, and the verb refuses the wrong one rather than walking a character somewhere else.
-A Position **that** character cannot locate raises too, naming it — the destination is worked out against
-the map of the character you addressed, so the same place may be perfectly reachable for another of them.
-Before that session is in the world there is no map view, and it raises saying so. Nothing is sent in any of
-those cases.
+| Rule | Detail |
+|---|---|
+| Reaches the session named, drawn or not | The one write on the API that does; an off-screen destination is fine. |
+| Permission | `player.move` [declared](../guides/permissions.md) in your manifest; without it the call raises naming the key before anything is sent. |
+| `position` | Required. Anything that is not a Position raises, a plain `{x, y}` table and a [widget's pixel position](ui/widget.md) included. A Position that character cannot locate raises naming it: the destination is worked out against the addressed character's map, so another of them may reach it. Before that session is in the world it raises. Nothing is sent in any of those cases. |
+| Your action handlers | An order to [`hafen.session():current()`](session.md) leaves by the door a real click does, so a `hafen.event():action():on("click", fn)` handler ([action streams](event/streams.md)) intercepts, rewrites or cancels it. An order to any other session bypasses that chain: a handler would read a destination named in another session's frame. |
+| No `gob:move()` | The server accepts a walk command for the character's own body only. [`gob:moving()`](gob.md#read) is a property of any gob, not an order. |
 
-> **Walking is the whole of what a character you are not looking at will take.** Everything else a click can
-> mean — [clicking an object](world.md#write-protected), [placing](world.md#write-protected) what is on the
-> pointer, an area select, [applying a held item](#the-hand) — belongs to the character on screen and raises
-> naming `hafen.session():current()` for any other. That line is the client's own: an order carries a
-> destination and never a target.
-
-**Your own [action handlers](event/streams.md) see the order to the character on screen, and not the
-others.** An order to [`hafen.session():current()`](session.md) leaves by the same door a real click does, so
-a `hafen.event():action():on("click", fn)` handler intercepts it, rewrites it or cancels it exactly as it
-would a click of your own. An order to any other session bypasses that chain: it belongs to the character
-being drawn and knows nothing about the one being walked, so a handler reading the destination would be
-reading a place named in another session's frame. Order the drawn character if you want your own hooks to
-run.
-
-There is no `gob:move()` beside it. The server accepts a walk command for that character's **own** body
-only, so there is nothing a general Gob could do with the verb; [`gob:moving()`](gob.md#read) is the other
-direction, a property of any gob rather than an order to one.
+> **Walking is the whole of what a character you are not looking at will take.** [Clicking an object](world.md#write-protected), [placing](world.md#write-protected), an area select and [applying a held item](#the-hand) belong to the character on screen and raise naming `hafen.session():current()` for any other. An order carries a destination and never a target.
 
 ## The Hand
 
-`s:player():hand()` is **that character's cursor**: the Hand it is carrying something on, and **`nil`
-whenever it is not. That `nil` is the point** — `if h then h:use(x) end` is the guard, and there is no state
-in which you are holding nothing and a held-item action still means something.
-
-The cursor is per character: one you are not looking at can perfectly well be carrying something, and
-tabbing to it is picking that up. Reading is therefore addressed like everything else here; `use` **sends**,
-so it is the drawn character's.
+`session:player():hand()` is that character's cursor while it carries something, and `nil` whenever it does not: `if hand then hand:use(target) end` is the guard.
 
 ```lua
-local s = hafen.session():current()
-local h = s:player():hand()
-if h then
-  hafen.log():write("carrying " .. (h:item():name() or h:item():res() or "?"))
-  h:use(s:world():gob():nearest("terobjs/plants"))     -- apply it to that plant
+local session = hafen.session():current()
+local hand = session:player():hand()
+if hand then
+  hafen.log():write("carrying " .. (hand:item():name() or hand:item():res() or "?"))
+  hand:use(session:world():gob():nearest("terobjs/plants"))     -- apply it to that plant
 end
 ```
 
-| Call | Returns | Description |
-|---|---|---|
-| `s:player():hand()` | Hand \| nil | that character's cursor while something is on it, `nil` while it is empty |
-| `hand:item()` | [`Item`](ui/items.md#the-item-object) \| nil | what it is carrying |
-| `hand:info()` | table | a plain-table **snapshot**: `{ item = <that Item's own shape> }`, and `item` absent on an emptied cursor |
-| `hand:use(target, mods)` | the Hand | **protected**, `player.hand.use` — apply what it is carrying to `target` |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:player():hand()` | `Hand \| nil` | Unprotected | That character's cursor while something is on it; `nil` while empty. |
+| `hand:item()` | [`Item`](ui/items.md#the-item-object) `\| nil` | Unprotected | What it is carrying. |
+| `hand:info()` | `table` | Unprotected | A snapshot `{ item = <that Item's own shape> }`; `item` absent on an emptied cursor. |
+| `hand:use(target, mods)` | the Hand | `player.hand.use` | Apply what it is carrying to `target`. |
 
-`hand:use` is the one nested key in the catalogue: `player.hand.use` grants it exactly, and so does the
-group `player.*` — which grants `player.move` with it. Declare `player.hand.*` for the held-item gesture
-alone.
-
-The reads are not protected and none of them throws. `s:player():hand()` hands back the same object every
-call for as long as you keep the Player, so `==` works and there is nothing to release; it is the *cursor*
-rather than a snapshot of it, so one you kept across a drop answers `nil` from `:item()` instead of naming
-what it was carrying. Read it again rather than holding one.
-
-**Taking an item does not carry your handle onto the cursor.** The client destroys the container's item
-and builds a new one in the hand, so the [`Item`](ui/items.md#the-item-object) you held goes stale and
-`hand:item()` is a different object. Read the hand for what is on the cursor.
-
-### `s:player():hand():use(target, mods)`
-
-Apply what that character is carrying **to** something. `target` dispatches by type, and the three types are
-the three the client itself has:
-
-| `target` | What it does |
+| Rule | Detail |
 |---|---|
-| an [`Item`](ui/items.md#the-item-object) | apply it onto that item, wherever the item is |
-| a [Position](position.md) | apply it to the ground there |
-| a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it; the message names the object by its id, and carries the **server's** last point for it rather than the client's guess at where a walking one has got to |
+| Per character | A character you are not looking at can be carrying something; reading is addressed like everything here, `use` sends and is the drawn character's. |
+| The permission key | The one nested key in the catalogue: `player.hand.use` grants it exactly, `player.*` grants it with `player.move`, `player.hand.*` grants the held-item gesture alone. |
+| The reads | Unprotected, never throw. `session:player():hand()` is the same object every call while you keep the Player, so `==` works and there is nothing to release. It is the cursor, not a snapshot: one kept across a drop answers `nil` from `:item()`. Read it again rather than holding one. |
+| Taking an item | The client destroys the container's item and builds a new one in the hand: the [`Item`](ui/items.md#the-item-object) you held goes stale and `hand:item()` is a different object. |
 
-`mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together — and
-optional is not unchecked, so anything that is not a
-[whole, finite number](conventions.md#a-number-is-finite-and-an-index-is-whole) raises naming the verb and
-the parameter, and one that merely scans as a number is
-[still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). It
-returns the Hand, so a run of uses chains.
+### `session:player():hand():use(target, mods)`
 
-> **`use()` with no target raises**, naming the three types, and it is not how you activate what you are
-> holding. Every held-item action targets something; activating is
-> [`s:player():hand():item():use()`](ui/items.md#write-protected).
+| `target` | Effect |
+|---|---|
+| An [`Item`](ui/items.md#the-item-object) | Apply onto that item, wherever it is. |
+| A [Position](position.md) | Apply to the ground there. |
+| A [Gob](gob.md) | Apply to that object (the waterskin onto the plant, not the dirt beside it). The message names the object by id and carries the server's last point for it, not the client's guess at where a walking one has got to. |
 
-It raises with an empty cursor, with no map view, for a session that is not on screen, and for a target that
-has gone — an item that was moved, used or consumed, or a gob that left view. Nothing is sent in any of those
-cases.
+| Rule | Detail |
+|---|---|
+| `mods` | Optional, default `0`: Shift = 1, Ctrl = 2, Alt = 4, added together. Anything that is not a [whole, finite number](conventions.md#a-number-is-finite-and-an-index-is-whole) raises naming the verb and the parameter; a numeric string is [still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). |
+| No target | Raises naming the three types. Activating what you hold is [`session:player():hand():item():use()`](ui/items.md#write-protected). |
+| Refusals | An empty cursor, no map view, a session not on screen, a target that has gone (an item moved, used or consumed; a gob that left view). Nothing is sent in any of those cases. |
 
-## See also
+---
 
-- [`hafen.session`](session.md) — the address this hangs off, and the character it is playing
-- [Gob](gob.md) — everything positional about that character
-- [items](ui/items.md) — the Item the hand carries, and the verbs on one in a container
-- [`session:meter`](meter.md) — the HUD bars
-- [`session:char`](char.md) — attributes, skills and food
-- [`session:world`](world.md#the-screen-and-the-world) — `worldToScreen` and `screenToWorld`, the two
-  directions of one conversion
+## See Also
+
+- [`hafen.session`](session.md) — the address this hangs off, and the character it is playing.
+- [Gob](gob.md) — everything positional about that character.
+- [Items](ui/items.md) — the Item the hand carries, and the verbs on one in a container.
+- [`session:meter`](meter.md) — the HUD bars.
+- [`session:char`](char.md) — attributes, skills and food.
+- [`session:world`](world.md#the-screen-and-the-world) — `worldToScreen` and `screenToWorld`.

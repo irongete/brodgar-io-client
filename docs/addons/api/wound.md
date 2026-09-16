@@ -1,94 +1,68 @@
-# session:wound: wounds
+# session:wound: Wounds
 
-Read one character's wounds, the Health and Wounds tab. You reach it through the [session](session.md)
-whose character you mean, and `s:wound()` **is** that character's wound list. Read-only — healing is an
-item or a menu action, not something this namespace does.
+One character's wounds, the Health and Wounds tab, read through its [session](session.md); `session:wound()` is that character's wound list. Read-only: healing is an item or a menu action.
 
 ```lua
-local s = hafen.session():current()                    -- the character on screen
-if s and s:wound():find("Infection") then hafen.log():write("infected!") end
+local session = hafen.session():current()                    -- the character on screen
+if session and session:wound():find("Infection") then hafen.log():write("infected!") end
 
-for _, w in ipairs(s and s:wound():list() or {}) do
-  hafen.log():write(("  "):rep(w:depth()) .. (w:name() or w:res()) .. "  " .. (w:label() or ""))
+for _, wound in ipairs(session and session:wound():list() or {}) do
+  hafen.log():write(("  "):rep(wound:depth()) .. (wound:name() or wound:res()) .. "  " .. (wound:label() or ""))
 end
 ```
 
-Wounds form a **tree**: a complication hangs off the wound that caused it. `:list()` returns them flat
-and in tree order, with `w:depth()` as the indent depth, so the loop above prints the shape.
-
-## Whose wounds they are
-
-A wound is on one body, and its id counts within that character's own list. So the read says which
-character it is about:
-
-```lua
-hafen.session():current():wound():count()      -- the wounds of the character on screen
-hafen.session():get("alt"):wound():count()     -- that character's, while you watch someone else
-```
-
-`s:wound()` is the same object every call, minted once for that session. A session the client no longer
-holds answers an empty array rather than raising.
+---
 
 ## Read
 
-| Call | Returns | Description |
-|---|---|---|
-| `s:wound():list(filter)` | `Wound[]` | every wound, in tree order |
-| `s:wound():count(filter)` | number | how many match |
-| `s:wound():find(needle)` | `Wound` \| nil | the first whose name or resource contains it |
-| `s:wound():get(id)` | `Wound` \| nil | one wound, by its id |
-| `s:wound():roots()` | collection | the wounds nothing complicates — [the top of the tree](#a-wound) |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:wound():list(filter)` | `Wound[]` | Unprotected | Every wound, flat, in tree order. |
+| `session:wound():count(filter)` | `number` | Unprotected | How many match. |
+| `session:wound():find(needle)` | `Wound \| nil` | Unprotected | The first whose name or resource contains it. |
+| `session:wound():get(id)` | `Wound \| nil` | Unprotected | One wound, by its id. |
+| `session:wound():roots()` | collection | Unprotected | The wounds nothing complicates: [the top of the tree](#a-wound). |
 
-Before the tab has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array and `:find()` is
-`nil`. Nothing here throws and nothing is protected.
-
-`:find` is the presence test: it answers `nil` on a miss, so `if s:wound():find("Infection") then`
-reads exactly as it looks, and what it hands back on a hit is the wound itself.
+| Rule | Detail |
+|---|---|
+| A tree | A complication hangs off the wound that caused it. `:list()` is flat in tree order with `wound:depth()` as the indent, so the loop above prints the shape. |
+| Whose wounds | A wound is on one body and its id counts within that character's list: `hafen.session():get("alt"):wound():count()` answers for that character. |
+| One object | `session:wound()` is the same object every call, minted once per session. A session the client no longer holds answers an empty array. |
+| Before the tab has built | A beat after `SessionEnteredWorld`, `:list()` is empty and `:find()` is `nil`. Nothing throws; nothing is protected. |
+| `:find` as presence test | `nil` on a miss, the wound itself on a hit: `if session:wound():find("Infection") then`. |
 
 ## A wound
 
-| Method | Returns | Description |
-|---|---|---|
-| `w:id()` | number | the wound's id — always answers |
-| `w:name()` | string \| nil | its display name |
-| `w:res()` | string \| nil | its resource name |
-| `w:severity()` | number \| nil | the magnitude beside it, as a number |
-| `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
-| `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
-| `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf — a [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), like `:roots()` |
-| `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
-| `w:exists()` | boolean | whether it is still on the character — always answers |
-| `w:info()` | [`Wound`](types/character.md#wound) \| nil | a plain-table **snapshot** |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `wound:id()` | `number` | Unprotected | The wound's id; always answers. |
+| `wound:name()` | `string \| nil` | Unprotected | Its display name. |
+| `wound:res()` | `string \| nil` | Unprotected | Its resource name. |
+| `wound:severity()` | `number \| nil` | Unprotected | The magnitude beside it, as a number. |
+| `wound:label()` | `string \| nil` | Unprotected | That magnitude spelled as the client paints it. |
+| `wound:parent()` | `Wound \| nil` | Unprotected | The wound this one complicates; `nil` at a root. |
+| `wound:children()` | collection | Unprotected | The wounds that complicate this one; empty at a leaf. A [view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many), like `:roots()`. |
+| `wound:depth()` | `number \| nil` | Unprotected | How deep the tree draws it; `0` at a root. |
+| `wound:exists()` | `boolean` | Unprotected | Whether it is still on the character; always answers. |
+| `wound:info()` | [`Wound`](types/character.md#wound) `\| nil` | Unprotected | A plain-table snapshot. |
 
-> **A wound's magnitude has two reads.** `w:label()` is the string the client paints beside the wound and
-> `w:severity()` is that string read as a number. The content chooses the string, so nothing guarantees
-> it is one: where it is not, `:label()` answers it and `:severity()` is `nil`. Neither is any
-> [unit](shapes.md#units) of the client's, and both arrive a beat after the wound itself.
-
-A wound is interned on its session and its id, so `s:wound():list()[1] == s:wound():get(<that id>)` and
-`seen[w] = true` work, while the same id on two characters is two objects. The client
-rewrites a wound **in place** as it worsens, so a stashed handle is the right way to watch one; healing
-takes it off the list, which is what `:exists()` reads.
-
-**The tree walks both ways.** `s:wound():roots()` is the wounds nothing complicates — the top of the list
-as the window draws it — and `w:children()` is what hangs under one, so "this wound and everything under
-it" is a recursion rather than a scan of the whole list per wound. A complication whose parent has healed
-out from under it is a root, which is how the window draws it too. Both are
-[collections](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many); a wound is still
-addressed by id on the whole list, `s:wound():get(id)`, wherever it hangs.
-
-`w:parent()` is the tree link resolved for you — the wound above this one, rather than an id you have to
-look up. It is `nil` at a root, which is where `:depth()` is `0`.
+| Rule | Detail |
+|---|---|
+| Two reads of the magnitude | `wound:label()` is the string the client paints; `wound:severity()` is that string read as a number. The content chooses the string, so where it is not a number `:label()` answers and `:severity()` is `nil`. Neither is a client [unit](shapes.md#units); both arrive a beat after the wound. |
+| Identity | Interned on session and id: `session:wound():list()[1] == session:wound():get(<that id>)` and `seen[wound] = true` work; the same id on two characters is two objects. |
+| Watching one | The client rewrites a wound in place as it worsens, so a stashed handle tracks it; healing takes it off the list, which `:exists()` reads. |
+| The tree walks both ways | `session:wound():roots()` is the top of the list as the window draws it; `wound:children()` is what hangs under one, so "this wound and everything under it" is a recursion, not a scan per wound. A complication whose parent healed out from under it is a root, as the window draws it. A wound is still addressed by id on the whole list wherever it hangs. |
+| `wound:parent()` | The wound above this one, resolved; `nil` at a root, where `:depth()` is `0`. |
 
 ## Events
 
-Subscribe to [`WoundChanged`](event/bus/character.md#character-and-status) to react to a wound being added,
-healed or worsening. Its payload is the new list of Wound objects — the same ones `:list()` hands out, so you
-can compare them with `==` against what you kept last time.
+[`WoundChanged`](event/bus/character.md#character-and-status) fires when a wound is added, healed or worsens. Its payload is the new list of Wound objects, the same ones `:list()` hands out, so `==` against what you kept last time works.
 
-## See also
+---
 
-- [`Wound`](types/character.md#wound) — the snapshot shape `w:info()` returns
-- [`session:char`](char.md) — the rest of the character sheet
-- [`session:meter`](meter.md) — the HUD bars a wound pulls down
-- [events](event/bus/character.md#character-and-status) — `WoundChanged`
+## See Also
+
+- [`Wound`](types/character.md#wound) — the snapshot shape `wound:info()` returns.
+- [`session:char`](char.md) — the rest of the character sheet.
+- [`session:meter`](meter.md) — the HUD bars a wound pulls down.
+- [Events](event/bus/character.md#character-and-status) — `WoundChanged`.

@@ -15,7 +15,7 @@
       *Its verification*: `tools/docverbs.py` and `tools/refusalverbs.py` exit 0; every relative link and
       anchor in `docs/addons/**` resolves; every ```lua block that parsed before parses after.
 - [x] **154.2 — `api/ui/**`, `guides/custom-ui.md`, `guides/theming.md` to the standard.** Criteria 3, 4.
-- [ ] **154.3 — The world and the character to the standard**: `world`, `gob`, `look`, `overlay`,
+- [x] **154.3 — The world and the character to the standard**: `world`, `gob`, `look`, `overlay`,
       `placing`, `position`, `player`, `char`, `study`, `buff`, `meter`, `wound`, `quest`, `kin`, `party`,
       `craft`, `fight`, `speed`, `actionbar`, `menugrid`, `flowermenu`, `time`. Criteria 3, 4.
 - [ ] **154.4 — Events, timers, storage and the client to the standard**: `event/**`, `timer`, `console`,
