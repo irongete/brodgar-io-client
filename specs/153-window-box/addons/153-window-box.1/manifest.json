@@ -1,0 +1,9 @@
+{
+  "name": "153.1 — a window's box, the grip and the cancelable close",
+  "id": "153-window-box.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 153.1: widget:size() reads the content box, chrome() carries frame and content, resizable(true) arms the client's grip, a remembered box reaches the canvas, Close cancels.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

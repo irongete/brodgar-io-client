@@ -68,7 +68,7 @@ import static io.brodgar.addon.AddonManager.*;
  *
  * <p><b>The remembered placements are addressed the same way, and are the client's rows</b>
  * ({@code widget:remember(name)}, 062; 092.8, A-088; 150). A placement is filed under the scope of <b>the
- * tree the widget stands in</b>: a session's own window ({@code s:ui():find("@ChatUI")}) under that
+ * tree the widget stands in</b>: a session's own window ({@code s:ui():match("@ChatUI")}) under that
  * character's key, and a window the addon built itself under the <b>client</b> scope — the layer is the
  * addon's and outlives every character, so its windows belong to nobody in particular. Until 092 there was
  * one set for the client, holding whoever was on screen, which wrote a background character's window into
@@ -894,7 +894,7 @@ final class StoreApi {
      * question the old code never asked.
      *
      * <ul>
-     *   <li><b>A widget standing in a session's own tree</b> — {@code s:ui():find("@ChatUI")}, the case
+     *   <li><b>A widget standing in a session's own tree</b> — {@code s:ui():match("@ChatUI")}, the case
      *       {@code native.md} documents — is filed under <b>that character's</b> key. Where the user
      *       dragged that character's chat window is a fact about that character.</li>
      *   <li><b>A widget the addon built itself</b> stands in the layer, which belongs to no session and

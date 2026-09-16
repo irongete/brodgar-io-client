@@ -484,7 +484,7 @@ public final class Addon {
      * widget standing in that session's own tree, and {@code ""} for one standing in the addon's layer.
      *
      * <p><b>Which is the whole of A-087's fix.</b> A single set keyed by the character on SCREEN is the wrong
-     * address: a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
+     * address: a widget of a background session's own tree ({@code s:ui():match("@ChatUI")}, the case
      * {@code native.md} documents) would have where the user dragged it written into another character's
      * folder and read back out of it, silently and in both directions. Every saved variable beside it is
      * addressed by the session it belongs to, and so is this one.

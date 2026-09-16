@@ -31,4 +31,6 @@ All layout and visibility methods on widgets are **unprotected**:
 | `:size()` | None | `{w, h}` | Reads current dimensions in design pixels. |
 | `:visible(is_visible)` | `boolean` | `self` | Toggles whether the widget is drawn on screen. |
 | `:visible()` | None | `boolean` | Returns current visibility state. |
-| `:remember(key)` | `string` | `self` | Automatically remembers and restores the user's dragged position across game sessions under `key`. |
+| `:remember(name)` | `string` | `self` | Saves under `name` where the widget stands and, on a window of yours that is not packed or on a widget whose size you set, its content box; puts both back at once and on every later session of the same character. `nil` forgets the record. |
+| `:resizable(handle)` | `Widget \| nil` | `self` | The widget of yours the user drags to resize this one; `nil` drops it. On a window of your own, `true` switches on the client's corner grip instead. |
+| `:draggable(handle)` | `Widget \| nil` | `self` | The widget of yours the user drags to move this one; `nil` drops it. |

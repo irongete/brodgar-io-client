@@ -33,9 +33,11 @@ end
 | `:owned()` | `boolean` | `true` if this widget was created by your addon. |
 | `:exists()` | `boolean` | `true` if this widget is currently attached to the UI tree. |
 | `:parent()` | `Widget \| nil` | The enclosing parent widget (`nil` if root). |
-| `:children()` | `WidgetCollection` | Array of child widgets in layout order. |
+| `:children()` | `WidgetCollection` | The child widgets in tree order, as a collection (`:list()`, `:count()`, `:find()`); empty for a leaf. |
 | `:position()` | `{x, y}` | Position within parent in design pixels. |
-| `:size()` | `{w, h}` | Outer bounding box dimensions in design pixels. |
+| `:size()` | `{w, h}` | The box `:size(w, h)` writes, in design pixels: a window's content area, any other widget's whole box. |
+| `:chrome()` | `table \| nil` | On a window wearing the client's decoration: `frame` (`{w, h}`, the outer box), `content` (`{x, y, w, h}`, the content area inside it), and `caption`, `plate`, `sizer`, `close` once each ornament has drawn. `nil` elsewhere. |
+| `:rootPos()` | `{x, y}` | The widget's top-left in root design pixels; with `:chrome().frame` it boxes a whole window. |
 | `:visible()` | `boolean` | Visibility state. |
 | `:enabled()` | `boolean` | Input enabled state. |
 | `:text()` | `string \| nil` | Text content (on labels, buttons, windows, text entries). |
@@ -49,7 +51,7 @@ end
 | Method | Parameters | Returns | Description |
 |---|---|---|---|
 | `:position(x, y)` | `number, number` | `self` | Repositions the widget within its parent. |
-| `:size(w, h)` | `number, number` | `self` | Resizes the widget. |
+| `:size(w, h)` | `number, number` | `self` | Resizes the widget; on a window, its content area, with the frame refitted around it. |
 | `:visible(is_visible)` | `boolean` | `self` | Shows or hides the widget. |
 | `:enabled(is_enabled)` | `boolean` | `self` | Enables or disables input interaction. |
 | `:text(new_text)` | `string` | `self` | Updates the text label (on owned controls or editable client widgets). |

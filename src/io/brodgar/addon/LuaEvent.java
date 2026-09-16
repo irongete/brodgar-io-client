@@ -102,6 +102,22 @@ public final class LuaEvent {
          */
         GESTURE("gesture", "a gesture event"),
         /**
+         * {@code w:on("Resized", fn)} — the user finished resizing a widget, by a handle
+         * {@code widget:resizable(h)} armed or by the client's own corner grip ({@code widget:resizable(true)},
+         * 153.1). Two things to say, {@code :w()}/{@code :h()}: the box it landed at — the numbers
+         * {@code widget:size()} reads in that same frame, a window's CONTENT box like every other size in the
+         * API. Its own shape rather than {@link #GESTURE}'s, because a size is not a place and reading one as
+         * {@code ev:x()} was the one payload in the API named for the wrong thing. Uncancelable.
+         */
+        RESIZED("resized", "a resized event"),
+        /**
+         * {@code w:on("Close", fn)} — the chrome's close button on a window of yours (153.1): nothing to say
+         * but the one moment that cancels. {@code ev:preventDefault()} keeps the window standing (hide it with
+         * {@code widget:visible(false)} if that is what the X should mean); left alone, the window is destroyed
+         * when the handlers return.
+         */
+        CLOSE("close", "a close event"),
+        /**
          * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} — 038.3's payload, objectified
          * (041.7): three things to say, so an {@code ev} rather than the plain {@code {gob, key, native}} table
          * it was before this feature reached it.
@@ -300,7 +316,7 @@ public final class LuaEvent {
     }
 
     /** GRAB_MOVE/GRAB_UP (041.5): no message/widget/args/cancel — the pointer, the live modifiers, and (UP
-     * only) which button ended the drag. Not cancelable, like DRAW/CELL/TICK. */
+     * only) which button ended the drag. Not cancelable, like DRAW/CELL/RESIZED. */
     private LuaEvent(Addon owner, Shape shape, int x, int y, int mods, Integer button) {
         this(owner, shape, null, null, null, null, null, null, x, y, button, null, null, null, false, mods);
     }
@@ -462,6 +478,20 @@ public final class LuaEvent {
     }
 
     /**
+     * The {@code ev} for one {@code Resized} fire (153.1): the box the widget landed at, in the client's own
+     * device pixels like {@link #gesture}, converted on the way out. {@code w}/{@code h} ride the {@code x}/{@code y}
+     * fields — they are the same two ints, read through {@link #px()}/{@link #py()}.
+     */
+    static LuaValue resized(Addon owner, int w, int h) {
+        return of(new LuaEvent(owner, Shape.RESIZED, (Subs.Cancel)null, (String)null, w, h, null, null));
+    }
+
+    /** The {@code ev} for one {@code Close} fire (153.1): the cancel, and nothing else. */
+    static LuaValue close(Addon owner, Subs.Cancel c) {
+        return of(new LuaEvent(owner, Shape.CLOSE, c, 0, 0, null, null, false));
+    }
+
+    /**
      * The {@code ev} for one {@code GobOverlayAdded}/{@code GobOverlayRemoved} fire (038.3's payload,
      * objectified 041.7) — {@code owner} is the one addon this event is being minted for (per-addon interning,
      * D-045), same as {@link AddonManager#fireGobOverlay} already required of its table.
@@ -604,6 +634,10 @@ public final class LuaEvent {
             grabUp(m);
         } else if(shape == Shape.GESTURE) {
             gesture(m);
+        } else if(shape == Shape.RESIZED) {
+            resized(m);
+        } else if(shape == Shape.CLOSE) {
+            preventDefault(m, Shape.CLOSE);
         } else if(shape == Shape.OVERLAY) {
             overlay(m);
         } else if(shape == Shape.SDT) {
@@ -944,9 +978,9 @@ public final class LuaEvent {
     }
 
     /**
-     * {@code w:on("Dragged", fn)} / {@code w:on("Resized", fn)} (062): where the widget landed, or the box it
-     * landed at, and nothing else. No modifiers — a drop is a place, and which keys were held while it happened
-     * is a question about the pointer ({@code hafen.ui():mouse()}) rather than about the widget that moved.
+     * {@code w:on("Dragged", fn)} (062): where the widget landed, and nothing else. No modifiers — a drop is a
+     * place, and which keys were held while it happened is a question about the pointer
+     * ({@code hafen.ui():mouse()}) rather than about the widget that moved.
      */
     private static void gesture(LuaTable m) {
         m.set("x", new VarArgFunction() {
@@ -957,6 +991,20 @@ public final class LuaEvent {
         m.set("y", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return LuaValue.valueOf(self(a.arg1(), Shape.GESTURE, "y").py());
+            }
+        });
+    }
+
+    /** {@code w:on("Resized", fn)} (153.1): the box the widget landed at, as {@code widget:size()} reads it. */
+    private static void resized(LuaTable m) {
+        m.set("w", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.RESIZED, "w").px());
+            }
+        });
+        m.set("h", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.RESIZED, "h").py());
             }
         });
     }

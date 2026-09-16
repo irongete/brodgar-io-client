@@ -554,8 +554,8 @@ final class Gesture extends Widget {
      * pixels, like every other coordinate {@link LuaEvent} carries, and converts once on the way out
      * ({@code LuaEvent.px()}).
      *
-     * <p>A resize reports the widget's OUTER box, since that is what {@code widget:size()} reads — not the
-     * content size the gesture drove, which is the same asymmetry the verb itself has on a window.
+     * <p>A resize reports the box {@code widget:size()} reads — a window's CONTENT box (153.1), the very value
+     * the gesture drove — as {@code ev:w()}/{@code ev:h()}, a shape of its own ({@link LuaEvent.Shape#RESIZED}).
      *
      * <p>Gated on {@code hasSub} like every other emitter, and fired from here and nowhere else — which is why
      * an addon's own {@code widget:position(x, y)} does not fire it: {@link Layout#apply} has no path to
@@ -568,14 +568,15 @@ final class Gesture extends Widget {
             return;
         for(int i = 0, n = moves.size(); i < n; i++) {
             Move m = moves.get(i);
-            Coord at = (m.mode == Mode.DRAG) ? m.target.c : m.target.sz;
+            Coord at = (m.mode == Mode.DRAG) ? m.target.c : LuaWidget.sizeArg(m.target);
             if(at == null)
                 continue;
             for(int j = 0, o = m.owners.size(); j < o; j++) {
                 Addon a = m.owners.get(j);
                 WidgetSubs ws = a.widgetSubsOrNull(m.target);
                 if((ws != null) && ws.subs.has(m.mode.key))
-                    ws.subs.fire(m.mode.key, LuaEvent.gesture(a, at.x, at.y));
+                    ws.subs.fire(m.mode.key, (m.mode == Mode.DRAG) ? LuaEvent.gesture(a, at.x, at.y)
+                                                                    : LuaEvent.resized(a, at.x, at.y));
             }
         }
     }

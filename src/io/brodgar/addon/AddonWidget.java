@@ -360,14 +360,34 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
 
     /**
      * The chrome close button ({@code widget:on("Close", fn)}). Wired once by the builder, but read here, so a
-     * handler installed after the window was built still runs — nothing to say, uncancelable.
+     * handler installed after the window was built still runs. Nothing to say but the one moment that cancels
+     * (153.1): {@code ev:preventDefault()} keeps the window standing, and the answer is whether any handler
+     * said so — the builder's close action destroys the window only on {@code false}.
      */
-    void closed() {
+    boolean closed() {
+        if(dead)
+            return false;
+        WidgetSubs s = owner.widgetSubsOrNull(rootw());
+        if((s == null) || !s.subs.has("Close"))
+            return false;
+        Subs.Cancel c = new Subs.Cancel();
+        boolean kept = s.subs.fire("Close", c, LuaEvent.close(owner, c));
+        c.finish();
+        return kept;
+    }
+
+    /**
+     * The client's own corner grip released this window ({@code widget:resizable(true)}, 153.1): {@code Resized}
+     * with the content box, exactly what a {@code widget:resizable(h)} gesture reports ({@link Gesture}).
+     */
+    void resized() {
         if(dead)
             return;
         WidgetSubs s = owner.widgetSubsOrNull(rootw());
-        if(s != null)
-            s.subs.fire("Close");
+        if((s == null) || !s.subs.has("Resized"))
+            return;
+        Coord box = LuaWidget.sizeArg(rootw());
+        s.subs.fire("Resized", LuaEvent.resized(owner, box.x, box.y));
     }
 
     // ---------------------------------------------------------------- drop target (D-038)

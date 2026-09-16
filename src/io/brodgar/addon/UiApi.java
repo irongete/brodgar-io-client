@@ -448,7 +448,7 @@ final class UiApi {
         //   :on(key, fn)     -- 041.3/041.4: THE ONE address for everything a widget can say, and what the three
         //                       chained subscribe-setters became (:onItemAdded / :onItemRemoved / :onDestroy are
         //                       GONE): input on any widget, a control's own notifications, a surface's
-        //                       Draw/Tick/Drop/Close, a container's ItemAdded/ItemRemoved — an item add is a
+        //                       Draw/Update/Drop/Close, a container's ItemAdded/ItemRemoved — an item add is a
         //                       widget create rather than a uimsg, so both of those ride the placement/removal
         //                       seams — and Removed on any widget at all. Hands back a Sub, ended with
         //                       sub:off(). The key set is WIDGET-SPECIFIC and :events() is what answers it; an
@@ -553,9 +553,9 @@ final class UiApi {
         });
         // :window() / :widget() — YOUR OWN surface, built BARE and configured by chained setters (039.6, §2.5).
         // The thirteen keys of the old opts table are verbs on the Widget the builder hands back, each with a
-        // matching bare read: :title(s) :parent(w) :position(x,y) :size(w,h) :font(h) and the eight callbacks
-        // :onDraw :onTick :onClick :onMouseUp :onMouseMove :onWheel :onDrop :onClose. Lua has no keyword
-        // arguments — f{…} is only sugar for f({…}) — so the config table was never a style choice, and chaining
+        // matching bare read: :title(s) :parent(w) :position(x,y) :size(w,h) :font(h), and the eight callbacks
+        // are keys of widget:on(key, fn) (Draw, Update, MouseDown, MouseUp, MouseMove, Wheel, Drop, Close). Lua
+        // has no keyword arguments — f{…} is only sugar for f({…}) — so the config table was never a style choice, and chaining
         // is the one other spelling of named arguments the language has.
         //   The constructor itself takes NOTHING. A window is born with the client's own defaults (200x140 at
         // 100,100, no caption) and, crucially, IS NOT IN THE TREE: it is added on the next tick (armPending),
@@ -1223,6 +1223,39 @@ final class UiApi {
                         content.repack();
                 }
 
+                // 153.1: THE CANVAS IS THE CONTENT AREA, whoever resized the chrome. Window.resize sizes the
+                // frame and its content area and tells the children nothing (Widget.presize is empty), so
+                // until now only widget:size(w, h) and widget:pack() -- the two sites that resized the canvas
+                // by hand -- left a Draw with the right ev:w()/ev:h(). A size rule, a remembered box, a
+                // widget:resizable(h) gesture and the client's own grip all come through here, and now the
+                // canvas follows every one of them. Skipped while the canvas is not yet a child (the
+                // superclass constructor resizes before it is added) and when it already fits; the pack
+                // path resizes it to this very box a moment later and finds nothing to do.
+                public void resize(Coord sz) {
+                    super.resize(sz);
+                    if((content.parent == this) && !csz().equals(content.sz))
+                        content.resize(csz());
+                }
+
+                // 153.1: THE CORNER GRIP IS THE USER'S HAND, AND THE LAYER HEARS IT -- widget:resizable(true)
+                // hands this window the client's own sizer (DefaultDeco.dragsize), whose grab drives resize()
+                // above and reports here. While the drag runs the box is floored at one design pixel each
+                // way, the rule the Lua gesture already keeps, and a size level standing on this window (a
+                // remembered box, an earlier gesture) follows the hand (LuaWidget.chromeResized), as the
+                // title-bar drag's position level does. On release the landing is remembered and "Resized"
+                // fires with the content box, exactly as a widget:resizable(h) gesture reports it.
+                public void resizedByHand(boolean done) {
+                    Coord box = csz();
+                    Coord floor = Px.in(Coord.of(1, 1));
+                    if((box.x < floor.x) || (box.y < floor.y))
+                        resize(Coord.of(Math.max(box.x, floor.x), Math.max(box.y, floor.y)));
+                    LuaWidget.chromeResized(owner, this);
+                    if(done) {
+                        LuaWidget.rememberLanded(owner, this, false);
+                        content.resized();
+                    }
+                }
+
                 // 144.3: THE TITLE-BAR DRAG IS THE USER'S HAND, AND THE LAYER HEARS IT. Window.mousemove moves
                 // `c` while its own grab stands and tells nobody; a `c` that changed across one mousemove is
                 // that drag and nothing else (the verbs and the fold move a window from the step, never from
@@ -1254,8 +1287,9 @@ final class UiApi {
             };
             win.add(content, Coord.z);
             content.root(win);
-            win.reqclose(() -> {                      // the chrome close button: fire :onClose(), then destroy
-                content.closed();                     //   read from the slot, so a handler set later is the one that runs
+            win.reqclose(() -> {                      // the chrome close button: fire "Close", then destroy...
+                if(content.closed())                  //   ...unless a handler cancelled it (153.1): the window stands,
+                    return;                           //   and what the X means is the handler's to say
                 LuaWidget.rememberCapture(owner);     // 144.3: where a remembered window stood, read while it still stands
                 content.kill();
                 dropPending(content);

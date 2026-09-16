@@ -433,8 +433,10 @@ public class Window extends Widget {
 	}
 
 	public void mousemove(MouseMoveEvent ev) {
-	    if(szdrag != null)
+	    if(szdrag != null) {
 		((Window)parent).resize(ev.c.add(szdragc));
+		((Window)parent).resizedByHand(false);   // addon: the grip moved -- see Window.resizedByHand
+	    }
 	    super.mousemove(ev);
 	}
 
@@ -442,6 +444,7 @@ public class Window extends Widget {
 	    if((ev.b == 1) && (szdrag != null)) {
 		szdrag.remove();
 		szdrag = null;
+		((Window)parent).resizedByHand(true);    // addon: ...and was released
 		return(true);
 	    }
 	    return(super.mouseup(ev));
@@ -534,6 +537,14 @@ public class Window extends Widget {
     public void resize(Coord sz) {
 	resize2(sz);
 	io.brodgar.addon.AddonManager.onWidgetResized(this);   // addon: geometry seam, reused (042.10)
+    }
+
+    /* addon: THE CORNER GRIP IS THE USER'S HAND (153.1). DefaultDeco drives resize() from its own grab and tells
+     * nobody, so a window an addon built could not follow it -- its canvas, its size level, its remembered box
+     * and its "Resized" key all sat where they were. Called after every resize the grip makes (done=false) and
+     * once when it is released (done=true); the stock window does nothing with it, and the addon's window
+     * (io.brodgar.addon.UiApi) overrides it. */
+    public void resizedByHand(boolean done) {
     }
 
     public void uimsg(String msg, Object... args) {

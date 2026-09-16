@@ -348,7 +348,7 @@ public final class LuaWidget {
 
         // session() — W2: the Session whose TREE this widget stands in, or nil for one in the addon layer,
         // which belongs to no character. The model's headline is that the session is the address, and a
-        // widget is looked up THROUGH a session (s:ui():find(sel)) -- but until 094 it could not say which
+        // widget is looked up THROUGH a session (s:ui():match(sel)) -- but until 094 it could not say which
         // one it came back from, so `eventstack` mapped every session's root and walked up to 64 parents per
         // message, with a bounded memo in front of it because "a per-message walk is a per-message loop".
         m.set("session", new OneArgFunction() {
@@ -623,6 +623,7 @@ public final class LuaWidget {
                         } else {                                   //   and Anchor.resolve is where it converts
                             w.move(Px.in(to));                     // your own widget: no layer, no cascade...
                             Column.childChanged(w);                // 139.4: ...and the packed surface it stands in follows
+                            levelFollows(owner, w, true);          // 153.1: ...and a remembered place follows the write
                         }
                     }
                     // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
@@ -637,9 +638,11 @@ public final class LuaWidget {
         });
         // size() / size(w) / size(w, h) / size(nil) — FOUR arities now, and the same DESIGN PIXELS :position
         // speaks (058.1). The write resizes the CONTENT and repacks the chrome around it (so a window's frame
-        // follows), which is why what :size() reads back on a window is the outer box and not the pair you
-        // passed; the undo restores that outer box exactly (LuaWidget.sizeArg — and it restores the DEVICE value
-        // it recorded, so the stock box never round-trips through design and back).
+        // follows), and THE READ ANSWERS THAT SAME BOX (153.1, LuaWidget.sizeArg): on a window it is the content
+        // area, the pair you passed, the box a size rule and a remembered place name and the one a resize gesture
+        // drives -- so w:size(w:size().w, w:size().h) is a no-op, which the outer box it used to read made false
+        // by the width of the frame. The frame's own box is widget:chrome().frame. The undo restores the recorded
+        // DEVICE value, so the stock box never round-trips through design and back.
         //
         // :size(w) — ONE NUMBER — IS THE HEIGHT THE ART GIVES IT (058.4), and it is the arity this whole feature
         // exists for. A control's height is a fact of the client's own pictures: a Button is exactly `hs` tall
@@ -652,7 +655,7 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
                 if(a.narg() < 2)
-                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : whTable(Px.out(w.sz));
+                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : whTable(Px.out(sizeArg(w)));
                 if(a.narg() < 3) {
                     if(a.arg(2).isnil()) {                // w:size(nil) — undo OUR resize, back to the stock value
                         if(w != null) {
@@ -732,6 +735,7 @@ public final class LuaWidget {
                             content.widget().resize(dev);
                             if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
+                            levelFollows(owner, w, false); // 153.1: a remembered box follows the write
                         }
                     }
                     if(content == null)                   // 112.6: below the block — see :position above
@@ -816,12 +820,27 @@ public final class LuaWidget {
         // There is no refusal for the target as its own handle here: a Window's caption drags it and nothing in
         // the client's chrome resizes it from the whole frame, so `win:resizable(win)` says something new. Where
         // the client's own corner sizer IS live, the two gestures both run and the last one to write wins.
+        //
+        // resizable(true) / resizable(false) — 153.1: THE CLIENT'S OWN GRIP, on a window this addon built. The
+        // corner the client sizes its map window from (Window.DefaultDeco.dragsize) is the corner every user
+        // already knows, it is drawn by the frame itself -- a theme's `sizer` rule dresses it -- and it needs no
+        // widget of yours; `true` switches it on and `false` off. It is a fact about the CHROME, so a bare
+        // hafen.ui():widget() has none to switch and refuses naming the handle form, and a window the CLIENT
+        // built keeps its own: its frame is not this addon's to re-arm, and widget:resizable(h) reaches it.
+        // What the grip drives is the content box, exactly as a handle of yours does (UiApi's window follows it
+        // through Window.resizedByHand), so "Resized", widget:remember and a size level all answer the same.
+        // The read hands back what was written: `true` while the client's grip is on, else the handle armed,
+        // else nil; `false` reads nil, like a dropped handle.
         m.set("resizable", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {        // :resizable() → narg 1 · (nil)/(h) → narg 2
+            public Varargs invoke(Varargs a) {        // :resizable() → narg 1 · (nil)/(h)/(b) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "resizable"));
                 if(!Args.passed(a, 2)) {
-                    Widget h = (w == null) ? null : Gesture.handleOf(owner, w, Gesture.Mode.SIZE);
+                    if(w == null)
+                        return LuaValue.NIL;
+                    if(ownGrip(w))
+                        return LuaValue.TRUE;
+                    Widget h = Gesture.handleOf(owner, w, Gesture.Mode.SIZE);
                     return (h == null) ? LuaValue.NIL : of(owner, h);
                 }
                 LuaValue v = a.arg(2);
@@ -830,10 +849,24 @@ public final class LuaWidget {
                         Gesture.drop(owner, w, Gesture.Mode.SIZE);
                     return self;
                 }
+                if(v.isboolean()) {                   // w:resizable(true|false) — the client's own grip
+                    if(w == null)                     // a stale widget: the 029.2 chaining no-op
+                        return self;
+                    Window.DefaultDeco dd = ownDeco(owner, w);
+                    if(dd == null)
+                        throw new LuaError("widget:resizable(" + v.tojstring() + ") switches the client's own"
+                            + " corner grip, which only a WINDOW this addon built has (hafen.ui():window()) —"
+                            + " " + ((ownedContent(owner, w) == null) ? "this one is the client's, and" : "this is a "
+                            + typeName(w) + ", so") + " widget:resizable(h) is the way to size it: a widget of"
+                            + " yours the user presses");
+                    synchronized(monitor(w)) { dd.dragsize(v.toboolean()); }
+                    return self;
+                }
                 LuaWidget hh = resolve(v);
                 if(hh == null)
                     throw new LuaError("widget:resizable(h) expects a Widget — the handle the user presses to"
-                        + " resize this one. widget:resizable() reads it, widget:resizable(nil) drops it");
+                        + " resize this one — or true/false for the client's own corner grip on a window of"
+                        + " yours. widget:resizable() reads it, widget:resizable(nil) drops the handle");
                 Widget hw = live(hh);
                 if(hw == null)                        // 125.2: a dead HANDLE, exactly as :draggable takes one
                     return self;                      // — nothing armed, widget:resizable() reads nil, chains
@@ -999,10 +1032,10 @@ public final class LuaWidget {
         });
         // on(key, fn) — THE ONE address for everything a widget can say: input on ANY widget, found or built
         // (041.3, over Widget.listen/deafen rather than the three magic hafen.hook():input tokens), plus the
-        // REST of the widget vocabulary (041.4) — a control's own notifications, a surface's Draw/Tick/Drop/
+        // REST of the widget vocabulary (041.4) — a control's own notifications, a surface's Draw/Update/Drop/
         // Close, a container's ItemAdded/ItemRemoved, and Removed on any widget at all. The vocabulary is
         // WIDGET-SPECIFIC and computed fresh each call (widgetKeys, below): a Button answers Pressed and the
-        // universal five, a Label only the five, a surface adds Draw/Tick/Drop/Close, a non-control adds
+        // universal five, a Label only the five, a surface adds Draw/Update/Drop/Close, a non-control adds
         // ItemAdded/ItemRemoved. An unknown key throws naming what THIS widget does answer, at the line that
         // wrote it rather than one line later (D-125). preventDefault() is on the ev this hands
         // the handler where a key cancels, never a return value (spec R3) — arity is NOT the verb here, because
@@ -1279,8 +1312,8 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // Draw/Tick/Drop/Close and ItemAdded/ItemRemoved/Removed are GONE as chained-setter verbs (041.4): they
-        // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Tick/Drop/Close
+        // Draw/Update/Drop/Close and ItemAdded/ItemRemoved/Removed are GONE as chained-setter verbs (041.4): they
+        // answer through the one door every other key does now, widget:on(key, fn) above — Draw/Update/Drop/Close
         // on an owned surface, ItemAdded/ItemRemoved/Removed on any widget. See AddonWidget (the first three)
         // and WidgetSubs (the tree-key three, event-driven off placement/removal since 042.7).
         // items() — 029.3: the items THIS WIDGET DRAWS, as an array of Item OBJECTS. A RELATION on the widget
@@ -1723,7 +1756,7 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // find(selector) / all(selector) — 049.2: THE SAME SEARCH the section does, from THIS widget instead of the
+        // match(selector) / matchAll(selector) — 049.2: THE SAME SEARCH the section does, from THIS widget instead of the
         // root. The scope decides which widgets are CANDIDATES (this one and everything under it); the selector is
         // still matched against the whole tree, so an ancestor step may name a widget ABOVE the scope — exactly
         // what element.querySelector does in CSS. Inside an :on(sel, "Added", fn) callback this is the only
@@ -1784,6 +1817,10 @@ public final class LuaWidget {
         // each present only once that ornament has been drawn. nil for anything that is not a window, and for a
         // window that built a decoration of its own. It answers where the ornament WENT, which a rule cannot: a
         // window with no rule reads the client's own numbers, and the plate's box is the client's either way.
+        //   153.1: AND THE TWO BOXES THE FRAME MAKES, always present: `frame` = {w=,h=}, the outer box the
+        // chrome draws, and `content` = {x=,y=,w=,h=}, the area inside it where the children stand and the box
+        // widget:size() reads -- so widget:rootPos() plus chrome().frame is the outline of the whole window,
+        // which is what an inspector draws, and rootPos plus content.x/y is where its children's coordinates start.
         m.set("chrome", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return chromeTable(live(handle(self, "chrome")));
@@ -2815,12 +2852,19 @@ public final class LuaWidget {
             // back at the stock place however often the user dragged it. Where an owned widget stands is this
             // addon's own by construction, so its place is read from `c` whenever it is remembered. The size
             // half keeps its gate: a packed window's box is what its rows measure, not a size the user chose.
-            boolean own = ownedContent(a, w) != null;
-            if((rec == null) && !own)
+            Owned own = ownedContent(a, w);
+            if((rec == null) && (own == null))
                 continue;                             // nothing of ours is standing on it: nothing to record
-            boolean placed = own || (rec.wantPos != null);
+            boolean placed = (own != null) || (rec.wantPos != null);
             Coord pos = (!placed || (w.c == null)) ? null : Px.out(w.c);
-            Coord size = ((rec == null) || (rec.wantSize == null) || (w.sz == null)) ? null : Px.out(sizeArg(w));
+            // 153.1: an OWNED window's box is its own by construction too -- widget:size(w, h) writes it outright
+            // and names no level, and so does the client's grip -- so it is read from the box whenever it is
+            // remembered, the one gate being a PACKED surface, whose box is what its rows measure rather than
+            // a size anyone chose. A borrowed widget keeps the level gate: a box this addon never named is
+            // not this addon's to pin.
+            boolean sized = (own != null) ? !((own instanceof AddonWidget) && ((AddonWidget)own).packed)
+                                          : ((rec != null) && (rec.wantSize != null));
+            Coord size = (!sized || (w.sz == null)) ? null : Px.out(sizeArg(w));
             StoreApi.land(a, w, e.getKey(), pos, size);
         }
     }
@@ -2839,12 +2883,67 @@ public final class LuaWidget {
         if((owner == null) || (w == null) || (w.c == null))
             return;
         synchronized(monitor(w)) {
-            Moved rec = findMoved(owner, w);
-            if((rec == null) || (rec.wantPos == null))
+            levelFollows(owner, w, true);
+        }
+    }
+
+    /**
+     * <b>The chrome of a window this addon built was resized by the client's own grip</b> (153.1, from
+     * {@link haven.Window#resizedByHand} through {@link UiApi}'s window): the size twin of
+     * {@link #chromeDragged}, for the same reason — a level standing on the window would put the old box back
+     * on the next fold.
+     */
+    static void chromeResized(Addon owner, Widget w) {
+        if((owner == null) || (w == null) || (w.sz == null))
+            return;
+        synchronized(monitor(w)) {
+            levelFollows(owner, w, false);
+        }
+    }
+
+    /**
+     * A hand-named level standing on an OWNED widget follows what was just written to the widget outright
+     * (153.1): {@code widget:position(x, y)} and {@code widget:size(w, h)} on one of the addon's own move and
+     * size it with no level, and the two chrome gestures do the same — so a level that {@link #rememberApply}
+     * put there, naming where the widget WAS, is re-pointed at where it is, rather than left to snap it back
+     * on the next {@link Layout#apply}. No level is minted where none stands. Caller holds {@code w}'s monitor.
+     */
+    private static void levelFollows(Addon owner, Widget w, boolean pos) {
+        Moved rec = findMoved(owner, w);
+        if(rec == null)
+            return;
+        if(pos) {
+            if((rec.wantPos == null) || (w.c == null))
                 return;
             rec.wantPos = Layout.Anchor.at(Px.out(w.c));
             rec.posSeq = Layout.nextSeq();
+        } else {
+            if((rec.wantSize == null) || (w.sz == null))
+                return;
+            rec.wantSize = Px.out(sizeArg(w));
+            rec.sizeSeq = Layout.nextSeq();
         }
+    }
+
+    /** Is the client's own corner grip switched on for {@code w} — a window wearing the stock deco with {@code dragsize} set? */
+    private static boolean ownGrip(Widget w) {
+        if(!(w instanceof Window))
+            return false;
+        Window.Deco d;
+        synchronized(monitor(w)) { d = ((Window)w).deco; }
+        return (d instanceof Window.DefaultDeco) && ((Window.DefaultDeco)d).dragsize;
+    }
+
+    /**
+     * The stock decoration of a window THIS addon built, or {@code null}: a bare surface has no chrome, a
+     * borrowed window's is the client's own, and a decoration a resource built is not the stock one.
+     */
+    private static Window.DefaultDeco ownDeco(Addon owner, Widget w) {
+        if(!(w instanceof Window) || (ownedContent(owner, w) == null))
+            return null;
+        Window.Deco d;
+        synchronized(monitor(w)) { d = ((Window)w).deco; }
+        return (d instanceof Window.DefaultDeco) ? (Window.DefaultDeco)d : null;
     }
 
     /** Is this widget still hanging under its own tree's root? (A raw {@link Widget}, so not {@link #live}.) */
@@ -3728,7 +3827,7 @@ public final class LuaWidget {
         if(w.c != null)
             t.set("pos", xyTable(Px.out(w.c)));      // the same design pixels :position()/:size() answer (058.1)
         if(w.sz != null)
-            t.set("size", whTable(Px.out(w.sz)));
+            t.set("size", whTable(Px.out(sizeArg(w))));                  // 153.1: the box widget:size() reads
         t.set("visible", LuaValue.valueOf(w.visible()));
         Owned en = Owned.of(w);                    // 139.3: the own flag, as :enabled() reads it; true on the client's own
         t.set("enabled", LuaValue.valueOf((en == null) || en.enabled()));
@@ -3873,6 +3972,9 @@ public final class LuaWidget {
             return LuaValue.NIL;              // a window that built a decoration of its own: not ours to read
         Window.DefaultDeco dd = (Window.DefaultDeco)d;
         LuaTable t = new LuaTable();
+        t.set("frame", whTable(Px.out(wnd.sz)));                       // 153.1: the outer box...
+        haven.Area ca = wnd.ca();
+        t.set("content", boxTable(ca.ul, ca.sz()));                    //   ...and the content area inside it
         if(dd.cap != null)
             t.set("caption", xyTable(Px.out(dd.capc())));
         if((dd.plsz.x > 0) && (dd.plsz.y > 0)) {
