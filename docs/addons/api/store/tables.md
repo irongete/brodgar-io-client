@@ -1,9 +1,6 @@
-# hafen.store: tables
+# hafen.store: Tables
 
-A **table** you declare is your addon's record: columns, a key and indexes in your [file](README.md), whose
-rows go in and come out **typed** by the declaration. Reach for it where a [var](vars.md) would
-grow — map nodes, prices seen, a log of what happened — and look rows up by key or by clause. Every verb
-here is **unprotected**.
+A table you declare is your addon's record: columns, a key and indexes in your [file](README.md), whose rows go in and come out typed by the declaration. For what a [var](vars.md) would grow into (map nodes, prices seen, a log), looked up by key or by clause. Unprotected.
 
 ```lua
 local nodes = hafen.store():table("nodes")
@@ -12,55 +9,47 @@ local nodes = hafen.store():table("nodes")
   :key("grid", "x", "y")
   :index("kind")
   :create()
-
 nodes:put{ grid = "g1", x = 1, y = 2, kind = "fir", seen = true, flags = { a = 1 } }
 local row = nodes:get("g1", 1, 2)                 -- row.seen == true, row.flags.a == 1
-for _, r in ipairs(nodes:list("WHERE kind = ? ORDER BY x", "fir")) do
-  -- your code here
+for _, fir in ipairs(nodes:list("WHERE kind = ? ORDER BY x", "fir")) do
+  hafen.log():write(fir.grid .. " " .. fir.x .. "," .. fir.y)
 end
 ```
 
+---
+
 ## Declare it
 
-`hafen.store():table(name)` is a bare **declaration**. You configure it with the setters below and dispatch it
-with `:create()`, the one call that touches the file, which answers the **Table**. Every setter is legal
-until then and none after, and each is refused naming what is allowed.
+`hafen.store():table(name)` is a bare declaration, configured with the setters and dispatched with `:create()`, the one call that touches the file. Every setter is legal until then and none after; each is refused naming what is allowed.
 
-| Verb | Does | Refused when |
-|---|---|---|
-| `hafen.store():table(name)` | a bare declaration of the table `name` | the name is not letters, digits and underscores starting with a letter or an underscore, or takes the `hafen_` prefix (the client's `hafen_vars`) or `sqlite_`; the file is [unavailable](README.md#when-the-file-cannot-be-opened) |
-| `decl:column(name, type)` | one column, of a [type](#the-types) below | the name breaks the rule above, the column is declared already, or the type is not one of the five |
-| `decl:key(col, ...)` | the columns that identify a row, in the order `:get` and `:remove` take them | a key is declared already, a column is not declared, is named twice or is `json` |
-| `decl:index(col, ...)` | one index over declared columns, `<table>_<cols>` in the file | a column is not declared or named twice; the same columns are indexed already |
-| `decl:create()` | the dispatch: the table is in the file, and the interned Table is answered | there is no key; the table is in the file with another key |
+| Method | Returns | Permission | Description | Refused when |
+|---|---|---|---|---|
+| `hafen.store():table(name)` | declaration | Unprotected | A bare declaration of the table `name`. | The name is not letters, digits and underscores starting with a letter or underscore, or takes the `hafen_` prefix (the client's `hafen_vars`) or `sqlite_`; the file is [unavailable](README.md#when-the-file-cannot-be-opened). |
+| `declaration:column(name, type)` | declaration | Unprotected | One column, of a [type](#the-types) below. | The name breaks the rule above, the column is declared already, or the type is not one of the types. |
+| `declaration:key(column, ...)` | declaration | Unprotected | The columns that identify a row, in the order `:get` and `:remove` take them. | A key is declared already; a column is not declared, named twice or is `json`. |
+| `declaration:index(column, ...)` | declaration | Unprotected | One index over declared columns, `<table>_<cols>` in the file. | A column is not declared or named twice; the same columns are indexed already. |
+| `declaration:create()` | the Table | Unprotected | The dispatch: the table is in the file, and the interned Table is answered. | There is no key; the table is in the file with another key. |
 
-A table has one key, and it is what `:put` upserts by: two rows with one key are one row. Any setter after
-`:create()` is refused naming the Table it answered; another declaration comes from `hafen.store():table`.
+A table has one key, and `:put` upserts by it: two rows with one key are one row. A setter after `:create()` is refused naming the Table; another declaration comes from `hafen.store():table`.
 
 ### The types
 
 | Word | In the file | Takes | Answers |
 |---|---|---|---|
-| `text` | `TEXT` | a string | a string |
-| `integer` | `INTEGER` | a whole number, exact to 2^53 | a number |
-| `real` | `REAL` | a number | a number |
-| `boolean` | `INTEGER` | `true` or `false` | `true` or `false` |
-| `json` | `TEXT` | a table a [var](vars.md#what-survives) can hold | the table that was put; a Position inside it comes back a Position |
+| `text` | `TEXT` | A string. | A string. |
+| `integer` | `INTEGER` | A whole number, exact to 2^53. | A number. |
+| `real` | `REAL` | A number. | A number. |
+| `boolean` | `INTEGER` | `true` or `false`. | `true` or `false`. |
+| `json` | `TEXT` | A table a [var](vars.md#what-survives) can hold. | The table that was put; a Position inside comes back a Position. |
 
-**The Lua types live in your declaration alone.** The file holds an `INTEGER` where you said `boolean` and a
-`TEXT` where you said `json`, and says nothing about which column is which — so the declaration is what
-reads them back, and it is re-read every load because your code declares it every load. A row `:put` writes
-is typed on the way in — a string in an `integer` column is refused naming the column and its type — and
-typed on the way out. A column no declaration names any more comes back as the file holds it: the number, the
-string, the `1` a boolean once was.
+The Lua types live in your declaration alone: the file holds an `INTEGER` where you said `boolean` and says nothing about which column is which, so the declaration reads them back, re-read every load because your code declares it every load. A `:put` is typed on the way in (a string in an `integer` column is refused naming the column and its type) and on the way out. A column no declaration names any more comes back as the file holds it.
 
 ### Evolution
 
-`:create()` over a table already in the file brings the file up to the declaration: a column the file lacks
-is added, an index it lacks is made, and a column nobody declares any more is left alone — it is data, and a
-row still carries it. What does not change in place is the **key**: a declaration whose key differs from the
-file's is refused naming both, because the key is what identifies a row. Declare the key the file has, or a
-table under another name.
+| Rule | Detail |
+|---|---|
+| `:create()` over a table in the file | Brings the file up to the declaration: a column the file lacks is added, an index it lacks is made, a column nobody declares any more is left alone (a row still carries it). |
+| The key does not change in place | A declaration whose key differs from the file's is refused naming both. Declare the key the file has, or a table under another name. |
 
 ```lua
 -- the same declaration with one more column: the file gains it; an older row reads it as absent
@@ -72,75 +61,55 @@ nodes:put{ grid = "g1", x = 1, y = 3, kind = "fir", quality = 31 }
 
 ## The Table
 
-The object `:create()` answers, **interned per addon by name** — `"Nodes"` and `"nodes"` are one table in the
-file and so one Table here — so two `:create()`s of one name are `==`, and the later declaration is the one
-both read with. It is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many)
-whose members are rows and whose filter is a **clause**: `#nodes`, `nodes[1]` and `ipairs(nodes)` are
-refused naming `:list`, which is the array.
-
-A **row** is a plain table keyed by column name, exactly as you would write it: `NULL` is an absent key, a
-`boolean` column is `true` or `false`, a `json` column is its table. A column a clause joins in, or one the
-declaration does not name, comes as the file holds it.
-
-The Table's one [snapshot](../conventions.md#snapshots-vs-handles) is `nodes:info()`: the live declaration as
-a plain table, `{name, columns, key, indexes}` — `columns` an array of `{name, type}` in declaration order,
-`type` the word the declaration wrote (`boolean`, not the file's `INTEGER`), `key` and each entry of
-`indexes` an array of column names. It is a copy, built on every call: assigning into it changes nothing,
-and after a second `:create()` of the name it reads the later declaration.
+| Rule | Detail |
+|---|---|
+| Interned per addon by name | `"Nodes"` and `"nodes"` are one table in the file and one Table here: two `:create()`s of one name are `==`, and the later declaration is the one both read with. |
+| A collection whose filter is a clause | `#nodes`, `nodes[1]` and `ipairs(nodes)` are refused naming `:list` ([collections](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many)). |
+| A row | A plain table keyed by column name: `NULL` is an absent key, a `boolean` column is `true` or `false`, a `json` column is its table. A column a clause joins in, or one the declaration does not name, comes as the file holds it. |
+| The one snapshot | `nodes:info()`: `{name, columns, key, indexes}`, `columns` an array of `{name, type}` in declaration order with the declared word (`boolean`, not `INTEGER`), `key` and each entry of `indexes` an array of column names. A copy built every call; after a second `:create()` it reads the later declaration. |
 
 ## Read
 
-| Verb | Answers |
-|---|---|
-| `nodes:get(k, ...)` | the row with that key, or `nil` |
-| `nodes:list(clause, ...)` | every row the clause keeps, as a plain array — empty rather than `nil` |
-| `nodes:count(clause, ...)` | how many rows the clause keeps, counted by the file |
-| `nodes:find(clause, ...)` | the first row the clause keeps, or `nil` |
-| `nodes:info()` | the declaration as a plain table, `{name, columns, key, indexes}` — a copy, every call |
-
-`:get` takes the key's values in `:key` order, as many as the key has columns, none `nil`; a wrong count is
-refused naming the key. `:list` and `:find` read at most the [row cap](README.md#the-two-caps), and raise
-naming `LIMIT` past it; `:count` reads nothing.
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `nodes:get(key, ...)` | `table \| nil` | Unprotected | The row with that key. Takes the key's values in `:key` order, as many as the key has columns, none `nil`; a wrong count is refused naming the key. |
+| `nodes:list(clause, ...)` | `table[]` | Unprotected | Every row the clause keeps; empty rather than `nil`. Reads at most the [row cap](README.md#the-two-caps), raising naming `LIMIT` past it. |
+| `nodes:count(clause, ...)` | `number` | Unprotected | How many rows the clause keeps, counted by the file; reads nothing. |
+| `nodes:find(clause, ...)` | `table \| nil` | Unprotected | The first row the clause keeps; under the row cap as `:list`. |
+| `nodes:info()` | `table` | Unprotected | The declaration as a plain table, `{name, columns, key, indexes}`, a copy every call. |
 
 ### The clause
 
-The clause is **SQL**: what follows `FROM <table>` — `"WHERE kind = ? ORDER BY x"`, `"LIMIT 10"`,
-`"WHERE x > ? AND y > ?"` — with one value bound to each `?` after it,
-[as a statement binds](statements.md#binding). Left out, it keeps everything. A function is refused naming
-SQL: there is no predicate form, because a `GROUP BY` or the nearest twenty rows has no spelling in one, and
-two spellings for one question is what this API does not have. An aggregate or a join is a
-[statement](statements.md). What a [statement](statements.md#what-is-refused) is refused, a clause is refused
-too, naming the verb it was handed to: a `;` with anything after it (one statement per call), a `hafen_` name
-(the client's table) and `load_extension` (the sandbox).
+The clause is SQL, what follows `FROM <table>` (`"WHERE kind = ? ORDER BY x"`, `"LIMIT 10"`, `"WHERE x > ? AND y > ?"`), with one value bound to each `?` after it [as a statement binds](statements.md#binding). Left out, it keeps everything.
 
 ```lua
 local near = nodes:list("WHERE grid = ? AND abs(x - ?) <= 2 ORDER BY y", "g1", 1)
-local firs = nodes:count("WHERE kind = ?", "fir")
+local fir_count = nodes:count("WHERE kind = ?", "fir")
 ```
+
+| Rule | Detail |
+|---|---|
+| No predicate form | A function is refused naming SQL: a `GROUP BY` or the nearest twenty rows has no spelling in one. An aggregate or a join is a [statement](statements.md). |
+| Refused as a statement is | Naming the verb it was handed to: a `;` with anything after it, a `hafen_` name, `load_extension` ([what is refused](statements.md#what-is-refused)). |
 
 ## Write (unprotected)
 
-| Verb | Answers |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `nodes:put(row)` | `table` | Unprotected | Upsert by key; answers the row as the file now holds it, read back through the declaration (`put{ seen = true }` answers `seen == true`). |
+| `nodes:remove(key, ...)` | the Table | Unprotected | Remove the row with that key, whether or not it was there. |
+
+| Rule | Detail |
 |---|---|
-| `nodes:put(row)` | the row as the file now holds it |
-| `nodes:remove(k, ...)` | the Table, whether or not the row was there |
+| `put` replaces whole | A row whose key is in the file replaces that row; a column the row leaves out is `NULL` in the file, an absent key on the way back. Changing one column of a row you are not holding is an `UPDATE` through [`:exec`](statements.md). |
+| `put` refuses | A key of the row naming no column (naming the columns there are); a value not of its column's type (naming the column and the type); a key column missing (naming the key); a key of the row that is not a string. |
+| Names compared two ways | Against the file a column name is case-insensitive (SQLite folds identifiers); against a row it is exact (Lua tables are), so a row keyed `Kind` does not name the column `kind`. |
 
-### `nodes:put(row)`
+---
 
-Upserts by key: a row whose key is in the file replaces that row **whole**, and a column the row leaves out
-is `NULL` in the file — an absent key on the way back. Changing one column of a row you are not holding is
-an `UPDATE` through [`:exec`](statements.md). Refused, naming the nearest thing, when a key of the row names
-no column (naming the columns there are), a value is not of its column's type (naming the column and the
-type), a key column is missing (naming the key), or a key of the row is not a string. What it answers is
-the stored row read back through the declaration, so `put{ seen = true }` answers `seen == true`.
+## See Also
 
-Names are compared two ways, and each is the rule of the side it faces: against the file a column name is
-case-insensitive, because SQLite folds identifiers; against a row it is exact, because Lua tables are, so a
-row keyed `Kind` does not name the column `kind`.
-
-## See also
-
-- [the file](README.md) — the two caps, the sandbox, and when a row is on disk
-- [statements](statements.md) — the aggregate, the join and the bulk write a Table's verbs do not say
-- [vars](vars.md) — the shape for settings, and what a `json` column may hold
-- [conventions](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection grammar
+- [The file](README.md) — the two caps, the sandbox, and when a row is on disk.
+- [Statements](statements.md) — the aggregate, the join and the bulk write a Table's verbs do not say.
+- [Vars](vars.md) — the shape for settings, and what a `json` column may hold.
+- [Conventions](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection grammar.

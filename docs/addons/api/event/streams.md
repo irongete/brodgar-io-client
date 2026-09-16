@@ -1,247 +1,149 @@
-# hafen.event: the message streams
+# hafen.event: The Message Streams
 
-The client's own widgets talk to the server in **messages**, and these two doors put your addon in the
-middle of that conversation: one for a message on its way out, one for an update on its way in. Reach for
-them to stop, rewrite or re-issue something a widget is about to send, or to swallow an update before the
-widget applies it.
-
-> **The one thing here that reaches the server.** `ev:resend()` and `ev:send(t)` issue a message in place
-> of the one the widget was about to send. Everything else on this page observes, or cancels the client's
-> own behaviour.
-
-**Both key sets are open**, unlike [the bus catalogue](bus/README.md): a message name is protocol the server
-can introduce, not a catalogue the client owns, so any string is accepted. One string is reserved: `*` is
-[the whole stream](#the-whole-stream), every message on it.
-
-## Intercepting an outbound action
-
-> **`ev:resend()` and `ev:send(t)` need the `widget.send`
-> [permission](../../guides/permissions.md)**, the same key
-> [`widget:send`](../ui/widget.md#send-a-message-protected) needs: they put a message on the same wire, and
-> `ev:send(t)` carries arguments of your choosing. `ev:preventDefault()` needs nothing — cancelling reaches
-> no one.
->
-> **The key that is read is the key of the addon whose handler is running.** An `ev` is an ordinary Lua
-> value, so it can be put in a shared table and picked up by another addon — and the verb it calls there is
-> measured against *that* addon's manifest. Handing an event on hands no permission with it, and the same is
-> true of a [`Widget`](../ui/widget.md), a [`Session`](../session.md) or anything else that crosses.
-
-`hafen.event():action():on(msg, fn)` fires when a widget is about to send an action `msg` to the server,
-with the arguments **fully resolved** — for a move `"click"`, that is the destination world coordinate,
-which does not exist yet at input time. This is the door for stopping or rewriting something *before* it
-reaches the server, which an event on [the bus](bus/README.md) would arrive too late to do.
-
-| `ev` on `action` | Description |
-|---|---|
-| `ev:msg()` | the message name |
-| `ev:widget()` | the [Widget](../ui/widget.md) sending it |
-| `ev:gob()` | the [game object](../gob.md) a map click landed on, or `nil` for ground — see [below](#the-object-a-click-landed-on) |
-| `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries; a coordinate is `{x=, y=}` |
-| `ev:position(i)` | argument `i` as a [Position](../position.md); throws when that argument is not a coordinate |
-| `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
-| `ev:preventDefault()` | cancel the send |
-| `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
-| `ev:send(t)` | send a new argument table, a [Position](../position.md) where a coordinate goes; implies `preventDefault` |
-
-**Both are for the handler you are in.** `ev:resend()` and `ev:send(t)` imply `preventDefault`, and a
-cancel is only worth anything while the client is still waiting for the answer — so an `ev` you stashed
-in a table and reach for later raises rather than cancelling a send that has already gone. They raise
-too when the widget the message came from has left the tree, which is a message addressed to a widget
-the client no longer draws. Hold the [widget](../ui/widget.md) and use `widget:send(msg, ...)` when you
-mean to send outside the moment.
-
-A coordinate argument is in one of two spaces and nothing in its shape says which: a `click` carries the
-press point at 1 and the destination in the world at 2, both `{x=, y=}`. Name the space at the index you
-mean, and each verb throws naming the other on an index holding anything else. `ev:args()` stays raw,
-because `resend` and `send` round-trip through it to the server.
-
-**`click` is not the map's alone.** A message name is protocol, and several widgets send that one — a
-portrait, an item box, a party member's tile — carrying arguments of their own, at other indices and
-often not coordinates at all. Check `ev:widget()` before reading an index, as the example below does; a
-handler that assumes the map reads argument 2 of a message that never had one.
-
-Writing one back takes those two spaces just as seriously. **A Position is accepted wherever a coordinate
-argument goes**, and the client encodes the wire form for you, so rewriting a destination needs no
-arithmetic; a `{x=, y=}` table in the same list is still taken verbatim, because a table is as likely to
-be a screen pixel as a place and only a Position says which. A place this session cannot locate throws
-rather than sending a number that would walk you somewhere else.
+The client's widgets talk to the server in messages, and these two doors put your addon in the middle: `hafen.event():action()` for a message on its way out, `hafen.event():message()` for an update on its way in. Stop, rewrite or re-issue what a widget is about to send; swallow an update before the widget applies it.
 
 ```lua
 -- snap every walk to the centre of the tile you clicked:
-hafen.event():action():on("click", function(ev)
-  if ev:widget():type() ~= "MapView" then return end
-  local a = ev:args()
-  a[2] = hafen.session():current():world():snapPlace(ev:position(2))
-  ev:send(a)
+hafen.event():action():on("click", function(event)
+  if event:widget():type() ~= "MapView" then return end
+  local arguments = event:args()
+  arguments[2] = hafen.session():current():world():snapPlace(event:position(2))
+  event:send(arguments)
 end)
 ```
 
-`resend` and `send` bypass every `action` handler, so re-issuing an action cannot loop — the "intercept my
-move, do something, then move" pattern:
+---
+
+| Rule | Detail |
+|---|---|
+| What reaches the server | `event:resend()` and `event:send(table)` issue a message in place of the one the widget was about to send. Everything else observes, or cancels the client's own behaviour. |
+| Open key sets | Unlike [the bus catalogue](bus/README.md), any string is accepted: a message name is protocol the server can introduce. `*` is reserved for [the whole stream](#the-whole-stream). |
+| Two handlers on one name | Both run; either calling `preventDefault` cancels. |
+
+## Intercepting an outbound action
+
+`hafen.event():action():on(msg, fn)` fires when a widget is about to send action `msg`, with the arguments fully resolved (for a move `"click"`, the destination world coordinate, which does not exist at input time): the door for stopping or rewriting before the server hears, where a bus event arrives too late.
+
+> **`event:resend()` and `event:send(table)` need the `widget.send` [permission](../../guides/permissions.md)**, the key [`widget:send`](../ui/widget.md#send-a-message-protected) needs: they put a message on the same wire, and `send` carries arguments of your choosing. `event:preventDefault()` needs nothing. The key read is the key of the addon whose handler is running: an `event` handed to another addon through a shared table is measured against that addon's manifest, as a [`Widget`](../ui/widget.md) or a [`Session`](../session.md) is.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `event:msg()` | `string` | Unprotected | The message name. |
+| `event:widget()` | [Widget](../ui/widget.md) | Unprotected | The widget sending it; a live handle, so `:type()` reads the class and `:parent()` navigates. |
+| `event:gob()` | [Gob](../gob.md) `\| nil` | Unprotected | The game object a map click landed on; `nil` for ground ([below](#the-object-a-click-landed-on)). |
+| `event:args()` | `table` | Unprotected | A 1-based array snapshot of the raw protocol arguments, in wire units; a coordinate is `{x=, y=}`. |
+| `event:position(i)` | [Position](../position.md) | Unprotected | Argument `i` as a Position; throws when that argument is not a coordinate. |
+| `event:pixel(i)` | `{x=, y=}` | Unprotected | Argument `i` as design pixels in the sending widget's own space; throws when not a coordinate. |
+| `event:preventDefault()` | — | Unprotected | Cancel the send. |
+| `event:resend()` | — | `widget.send` | Re-send the original arguments verbatim; implies `preventDefault`. |
+| `event:send(table)` | — | `widget.send` | Send a new argument table, a Position where a coordinate goes; implies `preventDefault`. |
+
+| Rule | Detail |
+|---|---|
+| For the handler you are in | A cancel is worth something only while the client waits for the answer: an `event` stashed and used later raises, as does one whose widget has left the tree. Hold the [widget](../ui/widget.md) and use `widget:send(msg, ...)` outside the moment. |
+| Two coordinate spaces | A `click` carries the press point at 1 and the world destination at 2, both `{x=, y=}`; nothing in the shape says which. Name the space at the index you mean; each verb throws naming the other on an index holding anything else. `event:args()` stays raw because `resend` and `send` round-trip through it. |
+| `click` is not the map's alone | A portrait, an item box, a party member's tile send it too, with other arguments at other indices. Check `event:widget()` before reading an index. |
+| Writing a coordinate back | A Position is accepted wherever a coordinate goes and the client encodes the wire form; a `{x=, y=}` table is taken verbatim, since only a Position says which space it is. A place this session cannot locate throws rather than walking you somewhere else. |
+| No loop | `resend` and `send` bypass every `action` handler, so re-issuing an action cannot recurse: intercept, act, `event:resend()`. |
+| Common names | `click`, `itemact`, `drop`, `place`, `sel`, `act`, `use`, `take`, `transfer`. |
 
 ```lua
-hafen.event():action():on("click", function(ev)
+hafen.event():action():on("click", function(event)
   equipBoots()
-  ev:resend()
+  event:resend()
 end)
 ```
-
-`ev:widget()` is a live handle, so `ev:widget():type()` reads the class and `ev:widget():parent()`
-navigates from it. It is one verb on both streams — the widget is the same object either way, and the
-direction is already said by the stream you subscribed on. Common `msg` names: `click` · `itemact` ·
-`drop` · `place` · `sel` · `act` · `use` · `take` · `transfer`. An `action` key is **not** in
-[the closed set](bus/README.md): any string is accepted, because a message name is protocol the server can
-introduce, and refusing an unknown one would refuse a legitimate one tomorrow — and `*` reaches
-[all of them at once](#the-whole-stream). Two handlers on one `msg` both run; either one calling
-`preventDefault` cancels the send.
 
 ### The object a click landed on
 
-`ev:gob()` is the [Gob](../gob.md) a `click` from the `MapView` resolved to, and `nil` for a click on
-ground — or for any action that is not a map click.
+`event:gob()` is the [Gob](../gob.md) a `click` from the `MapView` resolved to; `nil` for ground and for any action that is not a map click.
 
 ```lua
-hafen.event():action():on("click", function(ev)
-  local g = ev:gob()
-  if g then hafen.log():write("clicked " .. (g:name() or "?")) end
+hafen.event():action():on("click", function(event)
+  local gob = event:gob()
+  if gob then hafen.log():write("clicked " .. (gob:name() or "?")) end
 end)
 ```
 
-**The id is in `ev:args()` too, and that is the copy not to read.** The wire carries a clicked gob's id as
-a sign-truncated 32-bit number while an id arrives from the server as an unsigned one, so comparing
-`args[6]` against `gob:id()` is right for every id below 2^31 and wrong for every id above it — a bug that
-works until the day it does not. The client knows the object it picked, so it hands the object over.
+The id is in `event:args()` too, and that copy is not to be read: the wire carries it as a sign-truncated 32-bit number while the server's ids are unsigned, so comparing `args[6]` against `gob:id()` is wrong for every id above 2^31.
 
 ## Filtering an inbound update
 
-`hafen.event():message():on(msg, fn)` is the inbound mirror: it fires when a server update `msg` is about
-to be applied to a widget.
+`hafen.event():message():on(msg, fn)` fires when a server update `msg` is about to be applied to a widget.
 
-| `ev` on `message` | Description |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `event:msg()` | `string` | Unprotected | The message name. |
+| `event:widget()` | [Widget](../ui/widget.md) | Unprotected | The widget about to receive it. |
+| `event:args()` | `table` | Unprotected | A 1-based array snapshot of the raw protocol arguments, in wire units. |
+| `event:position(i)` | [Position](../position.md) | Unprotected | Argument `i` as a Position, as on `action`. |
+| `event:pixel(i)` | `{x=, y=}` | Unprotected | Argument `i` as design pixels in the receiving widget's own space. |
+| `event:preventDefault()` | — | Unprotected | Swallow the update, so the widget never applies it. |
+| `event:rewrite(table)` | — | Unprotected | Apply the update with new arguments, a Position included, as on `action`. |
+
+| Rule | Detail |
 |---|---|
-| `ev:msg()` | the message name |
-| `ev:widget()` | the [Widget](../ui/widget.md) about to receive it |
-| `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries |
-| `ev:position(i)` | argument `i` as a [Position](../position.md), as on `action` above |
-| `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the receiving widget's own space |
-| `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
-| `ev:rewrite(t)` | apply the update with new arguments, a [Position](../position.md) included, as on `action` above |
-
-`preventDefault` wins over `rewrite` if both are called. **One update carries one rewrite**, whoever made
-it: the last `ev:rewrite(t)` before the widget applies the update is the one applied, so two addons
-rewriting the same update do not compose and neither is told. `preventDefault` needs no such rule — one
-addon swallowing the update swallows it for everybody. Common `msg` names: `set` · `add` · `del`.
+| `preventDefault` wins over `rewrite` | When both are called. |
+| One update carries one rewrite | The last `event:rewrite(table)` before the widget applies the update is applied; two addons rewriting one update do not compose and neither is told. One addon swallowing swallows for everybody. |
+| Common names | `set`, `add`, `del`. |
 
 ```lua
 -- freeze the HUD meter bars by swallowing their updates:
-hafen.event():message():on("set", function(ev)
-  if frozen and ev:widget():type() == "IMeter" then ev:preventDefault() end
+hafen.event():message():on("set", function(event)
+  if frozen and event:widget():type() == "IMeter" then event:preventDefault() end
 end)
 ```
-
-Like `action`, a `message` key is open: any string is accepted, because an update's name is protocol
-just as an action's is — and `*` reaches [every one of them at once](#the-whole-stream).
 
 ## The whole stream
 
-`*` is the key both streams reserve for **every message on this stream**, and it is the one subscription
-you cannot write by hand: the key set is open because a name is protocol the server can introduce, so the
-list of names is unknowable and enumerating it is exactly what that openness exists to avoid. The key
-collides with nothing, because a message name is an identifier and no message is called `*`.
+`*` is the key both streams reserve for every message on the stream: the one subscription you cannot write by hand, since the list of names is the server's to grow. No message is called `*`.
+
+| Rule | Detail |
+|---|---|
+| The `event` is whole | `event:msg()` says which message fired; every other verb behaves as under a named key. |
+| A name and `*` together | Both handlers run for that name, the named one first, over one `event`; a `preventDefault` from either cancels once. `subscription:off()` on the wildcard leaves a named one firing. A wildcard is your addon's own: an addon holding only `click` is never called for another name. |
+| Cost | Your handler runs on every message where a named key runs it on one. Keep the body short and read [threading](../threading.md) before making one wait. An addon that named its key pays nothing for another's wildcard. |
 
 ### Every message, on the way out
 
-`hafen.event():action():on("*", fn)` fires for every message the client sends, whatever its name. Reach
-for it when you cannot name what you are after in advance — a live log of the client's traffic, a filter
-list that fills itself from what actually arrives, an audit of what a window sends before you have read a
-line of it.
-
 ```lua
--- every action the client sends, as it goes out:
-hafen.event():action():on("*", function(ev)
-  hafen.log():write(ev:widget():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+hafen.event():action():on("*", function(event)
+  hafen.log():write(event:widget():type() .. " -> " .. event:msg() .. " (" .. #event:args() .. " args)")
 end)
 ```
 
-The `ev` is the one a named key is handed, whole: `ev:msg()` says which message fired, and `ev:widget()`,
-`ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()`, `ev:resend()` and `ev:send(t)` behave
-exactly as they do above.
+| Not reported | Detail |
+|---|---|
+| A send from inside an `action` handler into the character whose message it is | The stream is not re-entered while dispatching that character's traffic, which stops a handler recursing; the send reaches the server unreported, your own wildcard included. The guard is one character's: a send into another login's widget is reported on that login's stream. `event:resend()` and `event:send(table)` bypass the stream for the same reason. |
+| A send from outside a character's UI | An outbound handler runs inside the tree the message leaves, which is every player action and every widget send; a send from anywhere else passes through unreported. |
 
-Hold a name **and** `*`, and both handlers run for that name, **the named one first**, over **one** `ev`:
-the specific claim on a message sees it before the ambient one, and a `preventDefault` from either cancels
-the send once. `sub:off()` on the wildcard ends that subscription alone, leaving a named one on the same
-stream firing. A wildcard is your addon's own: an addon holding only `click` is never called for another
-name, whatever anyone else subscribed to.
-
-> **A wildcard costs you the whole stream.** Your handler runs on every message the client sends, where a
-> named key runs it on one — so keep the body short, and read
-> [threading](../threading.md) before you make one wait on anything. An addon that named its
-> key pays nothing for someone else's wildcard.
-
-Two sends the `action` stream does not report, and a wildcard is where you would notice:
-
-- **A message sent from inside an `action` handler, into the character whose message it is.** The
-  stream is not re-entered while it is dispatching *that* character's traffic, which is what stops a
-  handler recursing on its own — so that send reaches the server without being reported to anyone, your
-  own wildcard included. The guard is one character's and not the client's: a handler that sends into
-  **another** login's widget is reported on that login's stream like any other send, your own handlers
-  included. `ev:resend()` and `ev:send(t)` bypass the stream for the same reason.
-- **A send made from outside a character's UI.** An outbound handler runs where the sending code is,
-  inside the tree the message is leaving — which is every player action and every message a widget sends
-  while the client is running. A send from anywhere else passes straight through, unreported.
-
-Because an outbound handler is inside a tree while an inbound one is not, the two answer differently when
-your Lua is already busy on another thread: the inbound one waits its turn, and the outbound one is
-skipped rather than made to wait, on the terms [threading](../threading.md) states.
+An outbound handler is inside a tree while an inbound one is not, so when your Lua is busy on another thread the inbound one waits its turn and the outbound one is skipped, on the terms [threading](../threading.md) states.
 
 ### Every update, on the way in
 
-`hafen.event():message():on("*", fn)` is the inbound mirror: it fires for every update the server sends,
-whatever its name and whichever widget it is aimed at. This is the one to reach for first, because the
-name you want is usually a window of watching away — make the thing happen on screen, read what arrived,
-then subscribe to it by name.
+The one to reach for first: make the thing happen on screen, read what arrived, then subscribe by name.
 
 ```lua
--- every update the server sends, before the widget applies it:
-hafen.event():message():on("*", function(ev)
-  hafen.log():write(ev:widget():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+hafen.event():message():on("*", function(event)
+  hafen.log():write(event:widget():type() .. " <- " .. event:msg() .. " (" .. #event:args() .. " args)")
 end)
 ```
 
-The `ev` is the one a named key is handed, whole: `ev:msg()` says which update fired, and `ev:widget()`,
-`ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()` and `ev:rewrite(t)` behave exactly as
-they do above. Holding a name **and** `*` behaves here as it does on the way out: both handlers run for
-that name, the named one first, over one `ev`, and `sub:off()` on the wildcard leaves a named
-subscription on the same stream firing.
+> **`event:preventDefault()` on an inbound wildcard stops the client.** A wildcard swallows every update, so the widget tree stops hearing from the server, and the client's change detection reads applied updates, so [the bus](bus/README.md) goes quiet with it. Swallow inside an `if` on `event:msg()`, never at the top of the handler.
 
-> **`ev:preventDefault()` on an inbound wildcard stops the client.** A named key swallows one update; a
-> wildcard swallows **every** update, so the widget tree stops hearing from the server altogether — and
-> the client's own change detection reads the updates that were applied, so [the bus](bus/README.md) goes
-> quiet with it. Swallow inside an `if` on `ev:msg()`, never at the top of the handler.
+| Rule | Detail |
+|---|---|
+| Where it runs | Where the update arrived, before the widget applies it, which makes `preventDefault` and `rewrite` possible and means the handler cannot be deferred. It holds no character's UI, so it may build a window and write any tree: the one row of [threading](../threading.md)'s table that is neither the step nor inside a tree. |
+| No guarding needed | The client lets one entry into your Lua at a time, so this handler and the step's `Update` never run together. |
+| Order is not promised | The two are moments the client puts in no sequence: anything that must happen in order belongs in one place. |
+| Time | Time spent here is time the client is not spending elsewhere, on every update for a wildcard. The [CPU budget](../../runtime.md#budgets-and-the-watchdog) disables an addon that sustains an overrun. Read a field, count something, append to a table you drain on a [timer](../timer.md); do the work from the step. |
 
-An inbound handler runs where the update arrived, before the widget applies it — that is what makes
-`ev:preventDefault()` and `ev:rewrite(t)` possible, and it is why the handler cannot be deferred. It holds
-no character's UI, so it may build a window and write any tree, and it is the one row of
-[threading](../threading.md)'s table that is neither the step nor inside a tree.
+---
 
-Being off the step costs you no guarding: the client lets one entry into your Lua at a time, so this
-handler and the step's own `Update` never run together and a table one of them writes is never read
-half-written by the other. What it does cost is **order**: the two are moments the client puts in no
-sequence, so anything that has to happen in a fixed order belongs in one place. It also costs time — the
-time this handler spends is time the client is not spending elsewhere, and a wildcard spends it on every
-update the server sends rather than on one name. What stands between a slow handler and a visible stutter
-is the [CPU budget](../../runtime.md#budgets-and-the-watchdog), which disables an addon that sustains the
-overrun rather than letting the client stutter on. So keep the body to reading a field and recording what
-you saw, and do the work from the step.
+## See Also
 
-> **Keep an inbound wildcard's body short.** Read a field, count something, append to a table you drain
-> on a [timer](../timer.md) — and read [threading](../threading.md) before you make one wait
-> on anything at all.
-
-## See also
-
-- [`hafen.event()`](README.md) — subscribing, and the handle that ends one
-- [the catalogue](bus/README.md) — the closed set of client-wide facts, for what a message is not
-- [the Widget object](../ui/widget.md) — what `ev:widget()` hands you
-- [Position](../position.md) — the place type both streams take and answer with
-- [threading](../threading.md) — where each of these two handlers runs, and what it may reach
+- [`hafen.event()`](README.md) — subscribing, and the handle that ends one.
+- [The catalogue](bus/README.md) — the closed set of client-wide facts, for what a message is not.
+- [The Widget object](../ui/widget.md) — what `event:widget()` hands you.
+- [Position](../position.md) — the place type both streams take and answer with.
+- [Threading](../threading.md) — where each handler runs, and what it may reach.

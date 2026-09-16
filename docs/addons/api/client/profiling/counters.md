@@ -1,302 +1,187 @@
-# hafen.client: the counters
+# hafen.client: The Counters
 
-`memory()`, `net()`, `loader()`, `render()`, `surfaces()`, `entities()`, `session()` and `textcache()` are
-**pull-only**: they read counters the client keeps anyway, so they answer with [profiling](README.md) off and
-cost nothing while you are not asking. The first four are the numbers the client's own stats HUD formats, and
-always agree with it field by field.
+`memory()`, `net()`, `loader()`, `render()`, `surfaces()`, `entities()`, `session()` and `textcache()` are pull-only: they read counters the client keeps anyway, so they answer with [profiling](README.md) off and cost nothing while you are not asking. The first four are the numbers the client's own stats HUD formats, field by field.
 
-Nothing here is sampled over time — each call is the value right now. The exceptions are the running
-tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and `session()`'s
-ground and click counters are cumulative since the client started, and `textcache()`'s hit, miss
-and eviction totals since the addon loaded. `session()`'s `live`, `states` and `addonsLive` are not
-among them: they count what exists right now, like `surfaces()`'s `live`.
+```lua
+local render = hafen.client():profiling():render()
+if render.drawSlots then
+  hafen.log():write(string.format("%d slots, %d batches, %.1f MB textures",
+                          render.drawSlots, render.batches, render.vram.textures.bytes / 1048576))
+end
+```
 
-**An absent key means "not measured", never zero.**
+---
+
+| Rule | Detail |
+|---|---|
+| The value right now | Nothing here is sampled over time, except the running tallies, each marked cumulative below: `surfaces()`'s uploads and frames, `entities()`'s passes and `session()`'s ground and click counters since the client started; `textcache()`'s hits, misses and evictions since the addon loaded. A cumulative counter means something as a delta between two reads. |
+| An absent key means "not measured", never zero | Everywhere on this surface. |
+| Read-only in the strict sense | Each group takes no argument, and passing one raises: `profiling:net(1)` is a refusal. The one argument on the surface is `profiling:history(n)`, a whole number; a negative one raises, and more frames than the ring holds answers all of them. |
 
 ## `memory()`
 
-**Sizes are in bytes**; this is the one place the surface is not in milliseconds.
+Sizes are in bytes, the one place the surface is not in milliseconds.
 
 | Key | Description |
 |---|---|
-| `heapUsed` / `heapFree` / `heapTotal` / `heapMax` | the JVM heap, as the runtime reports it |
-| `allocPerFrame` | the client's own smoothed per-frame allocation estimate |
-| `gcCount` / `gcMs` | collections and time spent collecting, **cumulative since client start** |
-
-`gcCount` and `gcMs` only mean something as a **delta between two reads**: take one, wait, take another.
-`allocPerFrame` is the estimate behind the HUD's memory line, and the client only advances it while that
-HUD is drawn, so the key is **absent** until it has been computed at least once. Measuring it every frame
-instead would put a heap read on the frame loop whether profiling is armed or not.
+| `heapUsed` / `heapFree` / `heapTotal` / `heapMax` | The JVM heap, as the runtime reports it. |
+| `allocPerFrame` | The client's smoothed per-frame allocation estimate, the figure behind the HUD's memory line. Advanced only while that HUD is drawn, so absent until computed at least once. |
+| `gcCount` / `gcMs` | Collections and time spent collecting, cumulative since client start: a delta between two reads. |
 
 ## `net()`
 
-Empty while there is no connection, such as on the login screen. `rtt` and `rttVar` are in milliseconds.
-
-**These are the character on screen's**, as `loader()` and `render()` below are. A connection is per login,
-so a handler running for a background character reads the drawn character's traffic rather than its own;
-hand that character the screen with [`hafen.session():current(s)`](../../session.md) to read it.
+Empty while there is no connection (the login screen). `rtt` and `rttVar` are milliseconds.
 
 | Key | Description |
 |---|---|
-| `packetsTx` / `packetsRx` / `bytesTx` / `bytesRx` | the traffic counters, cumulative for the session |
-| `resentTx` / `resentRx` | packets re-sent or received twice |
-| `reorderedRx` | packets that arrived out of order |
-| `rtt` / `rttVar` | smoothed round-trip time and its deviation |
+| `packetsTx` / `packetsRx` / `bytesTx` / `bytesRx` | The traffic counters, cumulative for the session. |
+| `resentTx` / `resentRx` | Packets re-sent or received twice. |
+| `reorderedRx` | Packets that arrived out of order. |
+| `rtt` / `rttVar` | Smoothed round-trip time and its deviation. |
 
-These are written on the connection worker, so a read may be one packet behind. That is by design:
-exactness here would mean locking a path nothing needs to be exact on.
+| Rule | Detail |
+|---|---|
+| The character on screen's | As `loader()` and `render()` are: a connection is per login, so a handler for a background character reads the drawn character's traffic. Hand that character the screen with [`hafen.session():current(session)`](../../session.md) to read its own. |
+| One packet behind | Written on the connection worker; exactness would lock a path nothing needs exact. |
 
 ## `loader()`
 
 | Key | Description |
 |---|---|
-| `queued` / `loading` / `busy` / `poolSize` | the UI resource loader |
-| `defer` | the shared background pool: `{queued=, busy=, poolSize=}` |
-| `resQueue` / `resLoaded` | resource fetch queue depth, and resources resolved so far |
-
-The four loader numbers are taken under one lock, so they are mutually consistent: a queue that just
-emptied never shows up as idle with the work still in flight.
+| `queued` / `loading` / `busy` / `poolSize` | The UI resource loader; taken under one lock, so mutually consistent. |
+| `defer` | The shared background pool: `{queued=, busy=, poolSize=}`. |
+| `resQueue` / `resLoaded` | Resource fetch queue depth, and resources resolved so far. |
 
 ## `render()`
 
-Describes the **3D scene**, so everything but `stateSlots`, `gobsHeld` and the two overlay counters is
-absent before the world is up.
+The 3D scene: everything but `stateSlots`, `gobsHeld` and the two overlay counters is absent before the world is up. Written on the render side, so one frame stale.
 
 | Key | Description |
 |---|---|
-| `drawSlots` | draw slots this frame — as close to "draw calls" as the render tree gets |
-| `uniqueInstances` / `batches` / `instances` | the batching split: un-instanced slots, instanced batches, instances in them |
-| `invalid` / `bypass` | slots pending revalidation, and slots that cannot be instanced at all |
-| `treeLeaves` / `treeNodes` | scene-tree size |
-| `programs` | shader programs the GL environment holds |
-| `vram` | per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}` |
-| `stateSlots` | render-state slots in use, process-wide rather than per scene |
-| `gobsHeld` | game objects kept out of the scene until their `GobAdded` fired, **cumulative since client start** |
-| `overlayMeshes` / `overlayOutlines` | ground-overlay pieces laid over the terrain, and the outlines over those, **cumulative since client start** |
-| `recallGridsHeld` | grids of [remembered ground](../README.md#remembered-ground) the client is holding right now |
-| `recallGridsRead` | grids of it read back off the record, **cumulative since the world came up** |
-| `recallCutsDrawn` / `recallCutsWanted` | pieces of remembered ground in the scene right now, and how many the client wanted there |
+| `drawSlots` | Draw slots this frame, the render tree's nearest thing to draw calls. |
+| `uniqueInstances` / `batches` / `instances` | The batching split: un-instanced slots, instanced batches, instances in them. |
+| `invalid` / `bypass` | Slots pending revalidation, and slots that cannot be instanced. |
+| `treeLeaves` / `treeNodes` | Scene-tree size. |
+| `programs` | Shader programs the GL environment holds; absent on any other backend. |
+| `vram` | Per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}`; absent without a GL environment. |
+| `stateSlots` | Render-state slots in use, process-wide. |
+| `gobsHeld` | Game objects kept out of the scene until their `GobAdded` fired, cumulative since client start. |
+| `overlayMeshes` / `overlayOutlines` | Ground-overlay pieces laid over the terrain, and the outlines over those, cumulative since client start. |
+| `recallGridsHeld` | Grids of [remembered ground](../README.md#client) held right now. |
+| `recallGridsRead` | Grids of it read back off the record, cumulative since the world came up. |
+| `recallCutsDrawn` / `recallCutsWanted` | Pieces of remembered ground in the scene right now, and how many the client wanted there. |
 
-`programs` and `vram` need a GL environment and are absent on any other backend. The counters are written
-on the render side and may be one frame stale.
-
-`gobsHeld` counts the other way round from the rest of this table: it is the addon layer's own tally, not the
-scene's, so it answers on the login screen too. It climbs each time the client holds an object back so that
-[`GobAdded`](../../event/bus/world.md#before-the-first-drawn-frame) runs before that object's first drawn
-frame, and it stays at zero for as long as no addon subscribes to that event. Like `gcCount` it means
-something as a **delta between two reads**: take one, walk into ground you have not seen this session, take
-another.
-
-`overlayMeshes` and `overlayOutlines` are counted the same way, outside the scene, and what they count is
-terrain work. The client cuts the ground into squares, and every ground overlay — a
-[patch](../../virtual/patches.md) you lay, a claim or a province the client draws — is laid a second time
-over each cut its shape reaches: once as the sheet, and again as the outline round it where the overlay has
-one. So laying a patch moves `overlayMeshes` by the cuts its own [pieces](../../virtual/pieces.md) reach and no others, and leaves
-`overlayOutlines` where it was, because a patch's own
-[edge](../../virtual/patches.md#the-border) is carved into the sheet the cut already draws rather than laid
-as a second mesh over it — so wearing one, widening it or taking it off moves neither counter either.
-Taking a patch up moves neither: nothing is built to stop drawing something. Read as a **delta between two reads**, that is what makes the
-cost of a patch a number rather than a feeling — lay one with fifty already on the ground and it moves by
-what one costs.
-
-The four `recall` keys are the [remembered ground](../README.md#remembered-ground)'s, and they are the whole
-of what that reach costs. Three of them are **gauges** — what is held, drawn and wanted at this instant, so
-each falls back as you pan away and rises as you pan in. `recallGridsRead` is the odd one and it is
-**cumulative**: it climbs while the record is being read back and stops the moment it has caught up with the
-camera, so like `gcCount` it means something as a **delta between two reads**. Cuts drawn reaching cuts
-wanted is the feature's own claim as a number: while the two differ there is ground the client means to draw
-and has not finished building.
-
-Reading them costs nothing and needs nothing armed, but they describe the **scene**, so all four are absent
-until the world is up. Once it is, a `0` is a count and not an absent key: with the setting off, or with
-every other camera, nothing is drawn and nothing is wanted, and both of those gauges fall to zero and stay
-there. Grids held is the one that does not, and on purpose — ground already read back is **kept** for the
-camera that comes back to it, so that gauge falls only when the client's own budget drops a grid.
-
-```lua
-local r = hafen.client():profiling():render()
-hafen.log():write(string.format("%d overlay pieces laid, %d of them outlines",
-                        r.overlayMeshes, r.overlayOutlines))
-if r.drawSlots then
-  hafen.log():write(string.format("%d slots, %d batches, %.1f MB textures",
-                          r.drawSlots, r.batches, r.vram.textures.bytes / 1048576))
-end
-```
+| Rule | Detail |
+|---|---|
+| `gobsHeld` | The addon layer's tally, not the scene's, so it answers on the login screen. Climbs each time the client holds an object back so [`GobAdded`](../../event/bus/world.md#before-the-first-drawn-frame) runs before its first drawn frame; zero while no addon subscribes. Read as a delta: take one, walk into ground unseen this session, take another. |
+| `overlayMeshes`, `overlayOutlines` | Terrain work, counted outside the scene. The client cuts the ground into squares, and every ground overlay (a [patch](../../virtual/patches.md) you lay, a claim, a province) is laid over each cut its shape reaches, once as the sheet and again as the outline where it has one. Laying a patch moves `overlayMeshes` by the cuts its [pieces](../../virtual/pieces.md) reach and leaves `overlayOutlines` alone, since a patch's [edge](../../virtual/patches.md#the-border) is carved into the sheet; wearing, widening or taking one up moves neither. Read as a delta: lay one with fifty on the ground and it moves by what one costs. |
+| The `recall` keys | Three gauges (held, drawn, wanted at this instant) and one cumulative (`recallGridsRead`, climbing while the record is read back until it catches up with the camera). Cuts drawn reaching cuts wanted is the feature's claim as a number. Absent until the world is up; then `0` is a count: with the setting off or another camera, drawn and wanted fall to zero. Grids held falls only when the client's budget drops a grid, since ground read back is kept for a camera that returns. |
 
 ## `surfaces()`
 
-The [widgets standing in the 3D world](../../virtual/widgets.md), and what drawing them costs. It counts every
-addon's, not only your own — a panel is a texture and a widget subtree wherever it came from.
+The [widgets standing in the 3D world](../../virtual/widgets.md), every addon's, and what drawing them costs.
 
 | Key | Description |
 |---|---|
-| `live` | how many surfaces exist right now, across every addon |
-| `culled` | how many of those are being skipped this instant, because nothing is looking at them |
-| `uploads` | offscreen passes actually issued, **cumulative since client start** |
-| `frames` | frames those passes were offered, **cumulative since client start** |
+| `live` | Surfaces that exist right now, across every addon. |
+| `culled` | How many of those are skipped this instant, because nothing is looking at them. |
+| `uploads` | Offscreen passes issued, cumulative since client start. |
+| `frames` | Frames those passes were offered, cumulative since client start. |
 
-`live` and `culled` are instantaneous counts, never totals. A surface is culled when the camera is pointing
-elsewhere, when the entity is hidden, or when the game object it stands on has left the scene — and being
-culled is not being gone: the collection still holds it, its `Update` still fires, and it draws again the
-first frame it is looked at.
-
-`uploads` and `frames` mean something as a **delta between two reads**: take one, wait, take another. That
-pair is the whole cost claim. A panel nothing changes holds `uploads` still while `frames` climbs; a panel
-painted by a `widget:on("Draw", …)` handler moves them together, because a Lua function of anything can only
-be known by running it.
-
-`live` going back to zero is also the **leak check**: `:reload`, or disabling every addon, ends each
-standing entity through the same body `:remove` uses, freeing the texture rather than forgetting about it.
+| Rule | Detail |
+|---|---|
+| Culled is not gone | A surface is culled when the camera points elsewhere, the entity is hidden, or its game object left the scene; the collection still holds it, its `Update` fires, and it draws again when looked at. |
+| The cost claim | `uploads` and `frames` as a delta: a panel nothing changes holds `uploads` still while `frames` climbs; a panel painted by a `widget:on("Draw", …)` handler moves them together, since a Lua function of anything is known only by running it. |
+| The leak check | `live` returning to zero on `:reload` or disabling every addon: each standing entity ends through the body `:remove` uses, freeing the texture. |
 
 ```lua
-local a = hafen.client():profiling():surfaces()
+local before = hafen.client():profiling():surfaces()
 hafen.timer():after(2, function()
-  local b = hafen.client():profiling():surfaces()
+  local after = hafen.client():profiling():surfaces()
   hafen.log():write(string.format("%d standing (%d culled), %d uploads over %d frames",
-                          b.live, b.culled, b.uploads - a.uploads, b.frames - a.frames))
+                          after.live, after.culled, after.uploads - before.uploads, after.frames - before.frames))
 end)
 ```
 
 ## `entities()`
 
-The client-only things you have [standing at a point in the world](../../virtual/README.md) — a ghost, a
-sprite, a model or a panel — and what keeping them there costs. One standing on a game object is not counted:
-its place is that object's, so there is nothing to work out for it.
+The client-only things [standing at a point in the world](../../virtual/README.md) (a ghost, a sprite, a model, a panel) and what keeping them there costs. One standing on a game object is not counted: its place is that object's.
 
 | Key | Description |
 |---|---|
-| `placed` | how many are standing at a point right now, across every addon |
-| `waiting` | how many of those hold a place this session cannot locate |
-| `passes` | times the client has worked out where they all are, **cumulative since client start** |
+| `placed` | How many stand at a point right now, across every addon. |
+| `waiting` | How many of those hold a place this session cannot locate. |
+| `passes` | Times the client has worked out where they all are, cumulative since client start. |
 
-`placed` and `waiting` are instantaneous counts, never totals. A thing is **waiting** when the place it
-holds is real but has no coordinate here — ground recorded in another part of the world; while you are
-underground, every place above at once; and, for the moment after the server re-bases you, every place off
-the ground you are streaming, until this session's [base](../../position.md) is proved again. It is not lost
-and it is not an error: it exists, it answers every verb, it reports the place it was given, and it stands
-itself up the moment that ground resolves.
-
-`passes` is the running tally, and it is what makes the cost claim checkable: where those things are gets
-worked out when the world moves under them and at no other time, so `passes` climbs by a handful while you
-walk and holds still while you stand. Two reads a few seconds apart, with nothing happening in between,
-return the same number.
-
-```lua
-local e = hafen.client():profiling():entities()
-hafen.log():write(string.format("%d standing, %d waiting for their ground", e.placed, e.waiting))
-```
+| Rule | Detail |
+|---|---|
+| Waiting | The place is real but has no coordinate here: ground recorded in another part of the world; every place above while underground; every place off the streamed ground for the moment after a re-base, until this session's [base](../../position.md) is proved. It answers every verb, reports the place it was given, and stands up when that ground resolves. |
+| `passes` | Climbs by a handful while you walk and holds still while you stand: where those things are is worked out when the world moves under them and at no other time. |
 
 ## `session()`
 
-How many accounts the client is holding logged in, and what it answered for them. The client can keep
-several sessions open at once (`:session add`) and draws exactly one of them; the rest are live, ticking
-and answering the server with no view of their own, and their ground is merged into the scene you are
-looking at.
+How many accounts the client holds logged in, and what it answered for them. The client keeps several sessions open (`:session add`) and draws one; the rest tick and answer the server with no view of their own, their ground merged into the scene you see.
 
 | Key | Description |
 |---|---|
-| `live` | how many sessions the client holds right now, **the one on screen included** |
-| `states` | how many of those hold client-side state of their own, which is **every one of them** |
-| `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
-| `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
-| `placedRebuiltOffTick` | times a click was resolved before the client had said where the sessions stand, **cumulative since client start** |
-| `addonsLive` | how many addons are running right now |
-| `engineReloads` | times the client rebuilt the addon layer without being asked |
+| `live` | Sessions the client holds right now, the one on screen included: `1` with one account in the world, `0` on the login screen. |
+| `states` | How many of those hold client-side state of their own, which is every one of them. |
+| `groundAnswered` | Times another session supplied the ground height under the camera, cumulative since client start. |
+| `groundMissed` | Times none of them had that ground, so the camera kept its last height, cumulative since client start. |
+| `placedRebuiltOffTick` | Times a click was resolved before the client had said where the sessions stand, cumulative since client start. |
+| `addonsLive` | How many addons are running right now. |
+| `engineReloads` | Times the client rebuilt the addon layer without being asked. |
 
-`live` is an **instantaneous count, never a total**: it goes up when a session joins and down when one
-ends, and the character you are looking at is one of them — with one account in the world it reads `1`,
-and on the login screen, with nobody logged in, `0`. There is no separate reading for the drawn session,
-because there is nothing separate about it: the client holds sessions and draws one of them.
-
-`states` is the same instantaneous count seen from the other side, and it is worth reading for one reason:
-**it equals `live`**. The client keeps a set of caches for each session it holds — the widgets your
-selectors have matched, the objects it has seen, the slots your addon is holding on that character's action
-bar — and those are made when a session first needs them and dropped when that session ends. A number above
-`live` means a session that has gone is still being remembered; a number below it means one has joined and
-not yet needed anything, which is true for the moment between logging an account in and its world coming up.
-
-The ground pair climbs only while a free camera is looking at ground the drawn session has never loaded —
-panned over another character's surroundings, which is the one place the drawn session's own terrain cannot
-answer. Anywhere else neither moves, so like `surfaces()` they mean something as a **delta between two
-reads**: take one, pan the camera, take another.
-
-`addonsLive` and `engineReloads` are the addon layer's own pair, and they are in this group because what
-they say is about the layer's relationship to your characters. `addonsLive` is what the last load produced,
-counted right now — and its whole claim is that **it does not move when you switch character**: your addon
-is loaded once for the client and stays loaded, so tabbing between two accounts leaves this number where it
-was. `engineReloads` counts the rebuilds nobody asked for, and the only value it can hold is **zero**: a
-`:reload` you typed is a reload you asked for and does not count, and nothing else rebuilds the layer.
-Anything above zero is an addon being torn down and reloaded behind your back, which is every Lua value it
-held going missing with no event to tell it.
-
-`placedRebuiltOffTick` is not a rate to watch, and the only value it is meant to hold is **zero**. Where each
-session stands is worked out once a frame and read everywhere else, and a click on the ground is resolved
-off the frame's own thread, a frame or so after the button went down — so this counts the clicks that got
-there before the frame had said anything. Each one is a click on another session's merged ground answered in
-the drawn session's coordinates rather than that session's, which puts the destination as far from the
-cursor as the two characters are from each other. Any number above zero is the whole finding.
-
-**A zero here is a count, not an absent key.** The client counts from the frame it starts, so `0` on the
-ground pair means the query has not run — over your own ground it never does. With `live == 1`
-`groundMissed` is the only one of the two that can climb: the session that would be asked is the one already
-looking.
-
-**Every counter group is read-only in the strict sense** — each takes no argument, and passing one raises
-rather than being ignored, so `p:net(1)` is a refusal rather than a read that quietly discards what you
-meant. The one that does take an argument is `p:history(n)`, which says how many frames back to read: a
-whole number, and a negative one raises rather than answering an empty table. Asking for more frames
-than the ring holds is how you ask for all of them, and answers with all of them.
+| Rule | Detail |
+|---|---|
+| `states` equals `live` | The client keeps a set of caches per session (the widgets your selectors matched, the objects seen, the slots your addon holds on that character's bar), made when first needed and dropped when the session ends. Above `live` is a gone session still remembered; below it is one joined and not yet needing anything, true between logging in and the world coming up. |
+| The ground pair | Climbs only while a free camera looks at ground the drawn session never loaded (another character's surroundings). `0` means the query has not run; with `live == 1` only `groundMissed` can climb. Read as a delta: pan the camera between reads. |
+| `addonsLive`, `engineReloads` | The addon layer's pair. `addonsLive` does not move when you switch character: your addon is loaded once for the client. `engineReloads` counts rebuilds nobody asked for (a `:reload` you typed does not count), and its only meant value is zero; anything above is an addon torn down and reloaded behind your back, every Lua value it held gone with no event. |
+| `placedRebuiltOffTick` | Only meant to hold zero. Where each session stands is worked out once a frame; a ground click is resolved off the frame's thread a frame or so after the button went down, and this counts clicks that got there first. Each is a click on another session's merged ground answered in the drawn session's coordinates, putting the destination as far off as the two characters are apart. |
 
 ```lua
-local a = hafen.client():profiling():session()
+local before = hafen.client():profiling():session()
 hafen.timer():after(5, function()
-  local b = hafen.client():profiling():session()
+  local after = hafen.client():profiling():session()
   hafen.log():write(string.format("%d sessions (%d holding state), %d addons",
-                          b.live, b.states, b.addonsLive))
+                          after.live, after.states, after.addonsLive))
   hafen.log():write(string.format("%d answers, %d misses over 5 s; %d early, %d unasked reloads",
-                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
-                          b.placedRebuiltOffTick, b.engineReloads))
+                          after.groundAnswered - before.groundAnswered, after.groundMissed - before.groundMissed,
+                          after.placedRebuiltOffTick, after.engineReloads))
 end)
 ```
 
 ## `textcache()`
 
-The rendered-text cache that [`g:text` and `g:atext`](../../ui/drawing.md#text-is-cached-across-frames)
-draw through. The cache is **per addon**, so the top level is **your own**; `total` sums every Lua owner.
+The rendered-text cache [`graphics:text` and `graphics:atext`](../../ui/drawing.md#text-is-cached-across-frames) draw through. Per addon: the top level is your own, `total` sums every Lua owner.
 
 | Key | Description |
 |---|---|
-| `entries` / `bytes` | cached strings held right now, and the GL texture bytes they occupy |
-| `hits` / `misses` / `evictions` | lookups served from the cache, rasterised, or dropped to stay within the caps |
-| `hitRate` | `hits / (hits + misses)`, `0.0`..`1.0` — **absent** until something has been looked up |
-| `maxEntries` / `maxBytes` | the two caps the cache is bounded by; an entry count says nothing without its ceiling |
-| `maxEntryBytes` | the size past which **one** raster is drawn and dropped rather than kept — see [text is cached across frames](../../ui/drawing.md#text-is-cached-across-frames) |
-| `total` | the same five figures summed over every Lua owner, plus `owners`, how many were summed |
+| `entries` / `bytes` | Cached strings held right now, and the GL texture bytes they occupy. |
+| `hits` / `misses` / `evictions` | Lookups served from the cache, rasterised, or dropped to stay within the caps; cumulative since the addon loaded. |
+| `hitRate` | `hits / (hits + misses)`, `0.0`..`1.0`; absent until something has been looked up. |
+| `maxEntries` / `maxBytes` | The two caps the cache is bounded by. |
+| `maxEntryBytes` | The size past which one raster is drawn and dropped rather than kept ([text is cached across frames](../../ui/drawing.md#text-is-cached-across-frames)). |
+| `total` | The same figures summed over every Lua owner, plus `owners`, how many were summed. |
 
-`hits`, `misses` and `evictions` are **cumulative since the addon loaded**: a `:reload` builds a fresh cache
-and a fresh count, and [`reset()`](README.md) deliberately does not touch them.  `entries` and `bytes` are
-the live state.
-
-**How to read a miss.** A miss is not a fault: it is a string that had never been drawn in that font, and it
-costs exactly what every text draw cost before the cache existed. A line whose text changes every frame
-misses every frame and always will — that is the
-[budgeting rule](../../ui/drawing.md#text-is-cached-across-frames). Likewise a permanently full,
-permanently evicting cache is not a problem: `evictions` climbing while `hitRate` stays high means the
-volatile strings are aging out and the static ones are being reused.
-
-`total` is also the **leak check**: disable every addon, or `:reload`, and `total.bytes` goes to nearly
-zero, because teardown drops each cache and disposes its textures.
+| Rule | Detail |
+|---|---|
+| Cumulative since the addon loaded | A `:reload` builds a fresh cache and count; [`reset()`](README.md) does not touch them. `entries` and `bytes` are live state. |
+| A miss is not a fault | A string never drawn in that font, costing what every text draw cost before the cache. A line whose text changes every frame misses every frame ([the budgeting rule](../../ui/drawing.md#text-is-cached-across-frames)). A full, evicting cache with a high `hitRate` is the volatile strings aging out and the static ones reused. |
+| The leak check | Disable every addon, or `:reload`, and `total.bytes` goes to nearly zero: teardown drops each cache and disposes its textures. |
 
 ```lua
-local c = hafen.client():profiling():textcache()
+local cache = hafen.client():profiling():textcache()
 hafen.log():write(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evictions)",
-                        c.entries, c.bytes / 1048576, (c.hitRate or 0) * 100, c.evictions))
+                        cache.entries, cache.bytes / 1048576, (cache.hitRate or 0) * 100, cache.evictions))
 ```
 
-## See also
+---
 
-- [profiling](README.md) — the handle, `frame()`, `history()` and what the switch changes
-- [attribution](attribution.md) — the armed-only half: who spent the frame
-- [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` describes
-- [widgets in the world](../../virtual/widgets.md) — what `surfaces()` counts, and when one stops drawing
-- [things in the world](../../virtual/README.md) — what `entities()` counts, and what a place that waits is
+## See Also
+
+- [Profiling](README.md) — the handle, `frame()`, `history()` and what the switch changes.
+- [Attribution](attribution.md) — the armed-only half: who spent the frame.
+- [Drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` describes.
+- [Widgets in the world](../../virtual/widgets.md) — what `surfaces()` counts, and when one stops drawing.
+- [Things in the world](../../virtual/README.md) — what `entities()` counts, and what a place that waits is.

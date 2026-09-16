@@ -1,51 +1,40 @@
-# hafen.locale: what the client says
+# hafen.locale: What the Client Says
 
-One **catalogue** per addon says what this client **displays**. An entry is keyed on the text the client
-would otherwise have drawn and on the **surface** it is drawn at, so a button caption and a chat line
-reading the same word are two different entries. Reach for it to ship a translation: a file and a dozen
-lines of Lua. `hafen.locale()` is **unprotected** — it writes client-local, and releasing it undoes it.
+One catalogue per addon says what this client displays: an entry is keyed on the text the client would have drawn and on the surface it is drawn at, so a translation is a file and a dozen lines of Lua. Unprotected: it writes client-local, and releasing it undoes it.
 
 ```lua
-local doc = hafen.json():parse(hafen.asset():get("es.json"):text())
-hafen.locale():load(doc):install()
+local document = hafen.json():parse(hafen.asset():get("es.json"):text())
+hafen.locale():load(document):install()
 
-for _, m in ipairs(hafen.locale():miss():list()) do    -- ...and this is your next file
-  hafen.log():write(m:surface() .. "  " .. m:text())
+for _, miss in ipairs(hafen.locale():miss():list()) do    -- ...and this is your next file
+  hafen.log():write(miss:surface() .. "  " .. miss:text())
 end
 ```
 
+---
+
 ## The catalogue (unprotected)
 
-| Call | Returns | Description |
-|---|---|---|
-| `hafen.locale()` | the catalogue | your addon's one catalogue, the same object every time |
-| `locale:load(doc)` | self | replace what it says, **whole** — the [document](#the-document) is below |
-| `locale:install()` | self | make it what the client displays, and start a fresh [miss](#what-missed) round |
-| `locale:release()` | self | give the client its own words back |
-| `locale:info()` | table | `{installed = …, entries = …, patterns = …, surfaces = {…}, misses = …}`, where `surfaces` is the surface keys the loaded document names, in the order it names them |
-| `locale:miss()` | collection | the strings that reached a surface with no entry — [below](#what-missed) |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.locale()` | the catalogue | Unprotected | Your addon's one catalogue, the same object every time. |
+| `locale:load(document)` | self | Unprotected | Replace what it says, whole ([the document](#the-document)). |
+| `locale:install()` | self | Unprotected | Make it what the client displays, and start a fresh [miss](#what-missed) round. |
+| `locale:release()` | self | Unprotected | Give the client its own words back. |
+| `locale:info()` | `table` | Unprotected | `{installed = …, entries = …, patterns = …, surfaces = {…}, misses = …}`; `surfaces` is the surface keys the loaded document names, in its order. |
+| `locale:miss()` | collection | Unprotected | The strings that reached a surface with no entry ([below](#what-missed)). |
 
-**An addon owns exactly one catalogue**, so the document is the thing you keep and `:install()` is the
-moment it becomes what the client says. Installing again replaces it whole: a string it no longer names is
-drawn in English again on the spot.
-
-**An edit to an installed catalogue applies at once.** `:load(doc)` on one that is in force is what the
-client says from that line on. There is no re-apply verb, because there is nothing to re-apply: a catalogue
-is either in force, in which case what it says is what you read on screen, or it is not.
-
-The change is **live** — text already on screen re-renders — and the catalogue is **owned**: your addon's
-`:reload` or disable drops it, so the client's own English is always one step away. `:install()` before any
-`:load(doc)` raises, naming the door; `:release()` on one that was not installed does nothing, because a
-removal that already happened is not an error.
-
-**Two addons' catalogues stack.** The last one installed wins, **per entry**: a string it does not name
-falls through to the catalogue beneath it rather than to English, and releasing it hands those strings back
-the same way.
+| Rule | Detail |
+|---|---|
+| One catalogue per addon | The document is what you keep; `:install()` makes it what the client says. Installing again replaces it whole: a string no longer named is drawn in English again on the spot. |
+| An edit applies at once | `:load(document)` on an installed catalogue is what the client says from that line on; there is no re-apply verb. |
+| Live and owned | Text already on screen re-renders. Your addon's `:reload` or disable drops the catalogue. |
+| Refusals | `:install()` before any `:load(document)` raises naming the door; `:release()` on one not installed does nothing. |
+| Two addons stack | The last installed wins per entry: a string it does not name falls through to the catalogue beneath, not to English, and releasing hands those strings back the same way. |
 
 ## The document
 
-`:load(doc)` takes a whole catalogue at once, as a table. `text` is the strings it names exactly, keyed
-first by the **surface** and then by the string the client would have drawn:
+`:load(document)` takes a whole catalogue as a table carrying `text` and `pattern` and nothing else; another key raises naming both. `text` is keyed first by surface, then by the string the client would have drawn. Nothing in it is a handle or Lua, so a translation is a JSON file parsed with `hafen.json():parse`.
 
 ```lua
 hafen.locale():load{
@@ -57,90 +46,46 @@ hafen.locale():load{
 }:install()
 ```
 
-Nothing in it is a handle and nothing in it is Lua, so a translation is a JSON file your addon ships and one
-command — which is what `hafen.json():parse` in the block at the top is doing.
-
-A document carries `text` and `pattern`, and nothing else. Anything else in it is a typo, and a typo that
-quietly did nothing is the worst answer available, so it raises naming both. `pattern` is the half that
-reaches a string the client composed as it drew it, and it is
-[below](#patterns-the-strings-the-client-composed).
-
 ## The surfaces a catalogue names
 
-A key is one of the surfaces below, or `"*"`. The surface's own key is looked up first and `"*"` only after
-it has missed, so naming a surface exactly is always the stronger statement.
+A key is one of the surfaces below or `"*"`; the surface's own key is looked up first, `"*"` after it has missed.
 
-| Key | What it names |
+| Key | Names |
 |---|---|
-| `*` | every surface below, consulted after the named key has missed |
-| `default` | the fallback every unnamed text surface draws under, a plain label among them |
-| `label` | a label built with a face of its own |
-| `button` | button captions |
-| `window.title` | window captions |
-| `heading` | the section headings inside a window |
-| `tooltip` | every tooltip, and **every row inside one** — see [below](#a-tooltip-is-many-rows) |
-| `menu` | the flower menu and the context menus |
-| `chat` | chat text, with `chat.system`, `chat.mine`, `chat.private` and `chat.party` for its kinds |
-| `world.nick` | the floating names above characters |
-| `world.speech` | speech bubbles |
+| `*` | Every surface below, consulted after the named key has missed. |
+| `default` | The fallback every unnamed text surface draws under, a plain label among them. |
+| `label` | A label built with a face of its own. |
+| `button` | Button captions. |
+| `window.title` | Window captions. |
+| `heading` | The section headings inside a window. |
+| `tooltip` | Every tooltip, and every row inside one ([below](#a-tooltip-is-many-rows)). |
+| `menu` | The flower menu and the context menus. |
+| `chat` | Chat text, with `chat.system`, `chat.mine`, `chat.private` and `chat.party` for its kinds. |
+| `world.nick` | The floating names above characters. |
+| `world.speech` | Speech bubbles. |
 
-A key naming a surface that draws no text — a window's frame, a panel, a checkbox, a rail, one of the HUD's
-plates — raises, listing the ones that do. So does `textentry`, and for a reason of its own: **what the user
-types is theirs.** No catalogue matches an entry field, an entry under `"*"` included, so a word being typed
-into a search box is never rewritten as it is typed.
-
-**Free text has no exact key.** A chat body, a kin name, an item's quality — anything the server or the
-player generated — is a different string every time, so no entry under `text` can name it. A
-[pattern](#patterns-the-strings-the-client-composed) is what reaches a string like that, by naming the
-shape around the part that varies. It is also why a catalogue keys on `button` and `menu` rather than
-reaching for `"*"` first: a pattern written wide enough to catch a line the client composed will catch
-a line the player typed as well.
-
-**A key is the string as the surface composed it.** A catalogue is asked once, at the render, with whatever
-the site had assembled by then — so a line in the System log is one string with the name of the addon that
-wrote it in front, a long description tip is its title and its body as one document, and a window
-caption is the caption alone. Read what a surface actually offered off [`locale:miss()`](#what-missed)
-rather than guessing at it: that is the string an entry goes under, spelt exactly as an entry has to spell
-it.
-
-**A keyboard shortcut is composed *around* what you answered.** The key a tip shows is the one the user
-bound, so a key composed of it would change under a rebind; instead the catalogue is asked about the
-caption alone — `Inventory`, `Craft` — and the shortcut is painted on your word after. A widget's tip
-writes `(key)` after it; a rich one writes `Keyboard shortcut: key` under it, and those words are a key of
-their own; the [action menu](menugrid.md) highlights the bound letter inside your word, or writes `[key]`
-after a word that has no such letter.
-
-**A chat line is keyed at the kind it is**, not at the channel it landed in: a System notice is
-`chat.system`, your own line is `chat.mine`, and `chat` names the ones that have no kind of their own. The
-key a line reached is what `locale:miss()` hands back, so the four kinds never have to be told apart by
-hand.
+| Rule | Detail |
+|---|---|
+| A surface that draws no text | A window's frame, a panel, a checkbox, a rail, a HUD plate: raises, listing the ones that do. |
+| `textentry` raises | What the user types is theirs: no catalogue matches an entry field, `"*"` included. |
+| Free text has no exact key | A chat body, a kin name, an item's quality is a different string every time: a [pattern](#patterns-the-strings-the-client-composed) names the shape around the varying part. Key on `button` and `menu` rather than `"*"` first: a pattern wide enough to catch a composed line catches a typed one too. |
+| A key is the string as the surface composed it | Asked once at the render with what the site had assembled: a System line is one string with the writing addon's name in front, a long description tip is title and body as one document, a window caption is the caption alone. Read the exact string off [`locale:miss()`](#what-missed). |
+| A shortcut is composed around your word | The catalogue is asked about the caption alone (`Inventory`, `Craft`) and the shortcut painted after: a widget's tip writes `(key)`, a rich one `Keyboard shortcut: key` under it (a key of its own), the [action menu](menugrid.md) highlights the bound letter inside your word or writes `[key]` after one with no such letter. |
+| A chat line is keyed at its kind | A System notice is `chat.system`, your own line `chat.mine`, `chat` the ones with no kind. `locale:miss()` hands back the key a line reached. |
 
 ### A tooltip is many rows
 
-An item tooltip is not one string. Its name, its quality, its wear, its gilding and each of its bonuses
-are **separate rows**, composed one under another, and each one reaches `tooltip` as a key of its own. So
-an entry names one row and leaves the rest of the tip alone — which is what you want, since most of those
-rows carry a number the player's own item put there.
-
-Most of them are also drawn by **code that ships inside the resource**, not by the client. That changes
-nothing you write: a catalogue lands beneath every foundry, so a row a resource composed with a font of
-its own is keyed and answered exactly like a button caption. It does mean the wording is the
-*resource author's*, not the client's, so read the row off [`locale:miss()`](#what-missed) rather than
-typing what you think it says.
+An item tooltip's name, quality, wear, gilding and each bonus are separate rows, each reaching `tooltip` as a key of its own: an entry names one row and leaves the rest alone. Most rows are drawn by code shipped inside the resource, keyed and answered like a button caption, with the resource author's wording: read the row off [`locale:miss()`](#what-missed).
 
 ## Patterns: the strings the client composed
 
-Most of what the client draws is a literal, and an exact key names it. Some of it is not — a row carrying a
-number, a line carrying a name, a caption carrying a count. That string is a different string every time, so
-no key can name it, and a **pattern** names its shape instead.
+A row carrying a number, a line carrying a name, a caption carrying a count is a different string every time; a pattern names its shape. `pattern` is an ordered list whose members carry three properties and no others.
 
-`pattern` is an **ordered list**, and each member carries three properties and no others:
-
-| Property | What it is |
+| Property | Detail |
 |---|---|
-| `surface` | the key it is written under: one of [the surfaces above](#the-surfaces-a-catalogue-names), or `*` |
-| `match` | a regular expression, which has to match the **whole** string the client would have drawn |
-| `text` | what to draw instead, with `%1$s` where the first capture group goes |
+| `surface` | The key it is written under: one of [the surfaces above](#the-surfaces-a-catalogue-names), or `*`. |
+| `match` | A regular expression that has to match the whole string the client would have drawn. |
+| `text` | What to draw instead, with `%1$s` where the first capture group goes. |
 
 ```lua
 hafen.locale():load{
@@ -151,117 +96,74 @@ hafen.locale():load{
 }:install()
 ```
 
-A capture group is written `( )`, and an argument names the group it takes **by its number** — so `%2$s` is
-the second group wherever it stands in the display string, which is what lets a translation put the parts in
-the order its own language wants them. An argument is the only thing that is not a literal: every other
-per-cent sign is drawn as one, so `"%1$s% de calidad"` ends in a per-cent sign and not in an argument.
-
-**The order is the whole reason this half is a list.** Two patterns can describe one string, and the one
-written **first** is the one that answers. A JSON object has no order to say that in, so a `pattern` written
-as an object raises rather than picking one of the two for you.
-
-**Every exact key is consulted first** — the surface's own, then `*` — and a pattern is reached only by a
-string that no key names at all. So an exact entry is always the stronger statement, and a pattern added to a
-catalogue never changes a line it had already named. A string a pattern answered is not a
-[miss](#what-missed), exactly as a keyed one is not.
-
-A pattern is checked whole at `:load(doc)`, so a document carrying a bad one leaves your catalogue exactly as
-it was:
-
-| What raises | What the refusal says |
+| Rule | Detail |
 |---|---|
-| a `match` that does not compile | which construction failed and where, so an unclosed `(` names its index |
-| `pattern` written as an object | that the list's order is what resolves two patterns describing one string |
-| an argument past the last group | the number it asked for, and how many groups the `match` has |
-| an unknown property in a member | that a pattern carries `surface`, `match` and `text` |
-| a missing `surface`, `match` or `text` | which one is missing, and what it is for |
-| a `surface` that draws no text, or `textentry` | the same two things [an exact key is told](#the-surfaces-a-catalogue-names) |
+| Groups by number | `( )` is a capture group; `%2$s` is the second group wherever it stands, so a translation reorders parts. Every other per-cent sign is a literal: `"%1$s% de calidad"` ends in a per-cent sign. |
+| Order resolves | The pattern written first answers when two describe one string. A `pattern` written as a JSON object raises, since an object has no order. |
+| Exact keys first | The surface's own key, then `*`; a pattern is reached only by a string no key names. A string a pattern answered is not a [miss](#what-missed). |
+| Checked whole at `:load` | A document carrying a bad pattern leaves the catalogue as it was. |
+
+| Raises | The refusal names |
+|---|---|
+| A `match` that does not compile | Which construction failed and where, so an unclosed `(` names its index. |
+| `pattern` written as an object | That the list's order is what resolves two patterns describing one string. |
+| An argument past the last group | The number asked for, and how many groups the `match` has. |
+| An unknown property in a member | That a pattern carries `surface`, `match` and `text`. |
+| A missing `surface`, `match` or `text` | Which one is missing, and what it is for. |
+| A `surface` that draws no text, or `textentry` | What [an exact key is told](#the-surfaces-a-catalogue-names). |
 
 ## What missed
 
-`locale:miss()` is the
-[collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of the strings that
-reached a routed surface while your catalogue was installed and that **your** catalogue named nothing for.
-Each member is a miss:
+`locale:miss()` is the [collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of the strings that reached a routed surface while your catalogue was installed and that your catalogue named nothing for.
 
-| Call | Returns | Description |
-|---|---|---|
-| `miss:surface()` | string | the surface key it reached, which is the key an entry for it goes under |
-| `miss:text()` | string | the string the client asked about, in the client's own English — the **source** for a surface that draws marked-up text |
-| `miss:info()` | table | `{surface = …, text = …}` |
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `miss:surface()` | `string` | Unprotected | The surface key it reached, the key an entry goes under. |
+| `miss:text()` | `string` | Unprotected | The string the client asked about, in the client's English; the marked-up source for a surface that draws marked-up text. |
+| `miss:info()` | `table` | Unprotected | `{surface = …, text = …}`. |
 
-Nothing records until `:install()`, entries or none — installing an empty catalogue and reading this back
-is how the first file gets written. Each `:install()` starts a fresh round, and the set holds `512`
-pairs, after which it stops growing.
-
-**A miss carries the string the client asked about, which is what an entry for it has to spell.** For a
-surface whose text is marked up — the chat, and both flavours of tooltip — that is the marked-up source
-and not the words as they were drawn, because a run of one is a fragment nothing could be keyed on. So
-paste `miss:text()` into your document as it came out, markup and all, rather than retyping what you
-read on screen.
+| Rule | Detail |
+|---|---|
+| Records from `:install()` | Entries or none: installing an empty catalogue and reading this back is how the first file gets written. Each `:install()` starts a fresh round; the set holds `512` pairs, then stops growing. |
+| Paste `miss:text()` as it came | For the chat and both tooltip flavours it is the marked-up source, not the drawn words. |
+| Your catalogue's gaps | Another addon's gaps are never yours; a string yours matched is not in the set. With two installed the [stack](#the-catalogue-unprotected) is walked from the top and stops at the first catalogue that answers, so a string one above yours named reaches you neither as a translation nor as a miss. Read misses with yours alone installed for the whole of a surface. |
+| The client's strings only | What an addon draws (its own window caption, a `graphics:text`, a listbox row, its button's tip, a label from Lua) is translated but never recorded. What the client composes for an addon is the client's: a `hafen.log():write` line in System is keyed at `chat.system`; an [action](menugrid.md) of yours on the menu, your addon's name on the AddOns page and a hotkey's label on the keybindings page miss like any caption there. |
 
 ```lua
 hafen.locale():load({}):install()             -- names nothing, records everything
 
-hafen.console():on("dump", function()           -- open the windows you want, then type :dump
-  local out = {}
-  for _, m in ipairs(hafen.locale():miss():list()) do
-    out[m:surface()] = out[m:surface()] or {}
-    out[m:surface()][m:text()] = m:text()     -- English to English, ready to edit
+hafen.console():on("dump", function()         -- open the windows you want, then type :dump
+  local missed = {}
+  for _, miss in ipairs(hafen.locale():miss():list()) do
+    missed[miss:surface()] = missed[miss:surface()] or {}
+    missed[miss:surface()][miss:text()] = miss:text()     -- English to English, ready to edit
   end
-  hafen.log():write(hafen.json():encode({ text = out }))
+  hafen.log():write(hafen.json():encode({ text = missed }))
 end)
 ```
 
-A miss is what **your** catalogue did not answer, so another addon's gaps are never reported as yours, and a
-string yours matched is not in the set at all. With two catalogues installed it is narrower still: the
-[stack](#the-catalogue-unprotected) is walked from the top and stops at the first catalogue that answers,
-so a string one above yours named reaches you neither as a translation nor as a miss. Read your misses
-with yours alone installed if what you want is the whole of what a surface says.
-
-**A miss is the client's string.** What an addon draws — the caption of a window of its own, a `g:text`, a
-row of its listbox, the tip on its button, a label it wrote from its Lua — reaches the surface like
-anything else and is translated like anything else, but it is never recorded: those are the addon's own
-words, yours included, and what a miss is read back for is the client's file. So a translator's own window
-never fills its own list, and another addon's live readout does not either. What the client composes and
-draws *for* an addon is still the client's: a line `hafen.log():write` posted to the System channel is
-keyed at `chat.system` like every line there, and an [action](menugrid.md) of yours on the menu, your
-addon's name on the AddOns page or a hotkey's label on the keybindings page miss like any caption of that
-page.
-
 ## The model is not translated
 
-A catalogue lands at the **render**, which is the last thing that happens to a string before it becomes
-pixels — and nowhere above it. So while yours is installed:
+A catalogue lands at the render, the last thing that happens to a string before pixels, and nowhere above it.
 
-- `w:text()`, `w:title()` and a `[title=]` or `[text=]` [selector](ui/selectors.md) all answer the client's
-  own English, and `w:text(s)` round-trips;
-- an [action's](menugrid.md) name and a [petal's](flowermenu.md) are the client's own words too, so
-  `select(label)` and the [event](event/bus/README.md) that names a petal go on matching what you wrote before
-  you had a catalogue;
-- what a **tooltip row** says answers the same way, even though an entry under `tooltip` is what changed it
-  on screen: [`item:name()`](ui/items.md#the-item-object) and `item:info().name`, the rows
-  [`contents:text()`](ui/contents.md) prints, [`buff:name()`](buff.md#read),
-  [`wound:name()`](wound.md#a-wound) and the slot names [`item:slots()`](ui/items.md#the-item-object)
-  answers with;
-- so does [`gob:speech()`](gob.md#read), while the bubble over that character reads your words;
-- an addon that reads a caption and one that translates it never disagree.
+| Read | While your catalogue is installed |
+|---|---|
+| `widget:text()`, `widget:title()`, a `[title=]` or `[text=]` [selector](ui/selectors.md) | The client's own English; `widget:text(text)` round-trips. |
+| An [action's](menugrid.md) name, a [petal's](flowermenu.md) | The client's words: `select(label)` and the [event](event/bus/README.md) naming a petal go on matching what you wrote before a catalogue. |
+| A tooltip row | The same, though an entry under `tooltip` changed it on screen: [`item:name()`](ui/items.md#the-item-object), `item:info().name`, the rows [`contents:text()`](ui/contents.md) prints, [`buff:name()`](buff.md#read), [`wound:name()`](wound.md#a-wound), the slot names [`item:slots()`](ui/items.md#the-item-object) answers. |
+| [`gob:speech()`](gob.md#read) | English, while the bubble reads your words. |
 
-That is the whole of what this section changes: what you **see**, and nothing else. It also means no addon
-can observe your translation from Lua — `locale:miss()` is the one thing that reads back, which is why it
-exists.
+| Rule | Detail |
+|---|---|
+| Only what you see changes | An addon that reads a caption and one that translates it never disagree; no addon observes your translation from Lua. `locale:miss()` is the one read-back. |
+| The one exception | A name the item's own resource code handed the client already rendered, as a picture: no English underneath to answer with. The limit [`widget:text()`](ui/widget.md) has on a button built from a picture. |
+| Nothing travels to the server | The model is English by construction; there is no inverse lookup. |
 
-> The one place a read can still come back in your words is a name the **item's own resource code** handed
-> the client already rendered, rather than as a string: there is no English left underneath it to answer
-> with, so the picture is the whole of what that row is. It is rare, and it is the same limit
-> [`w:text()`](ui/widget.md) has on a button built from a picture.
+---
 
-There is no inverse lookup and nothing here travels to the server: the model is English by construction, so
-what the server hears is the English the client would have sent.
+## See Also
 
-## See also
-
-- [`hafen.ui`: the stylesheet](ui/style/README.md) — what a surface is drawn with, keyed the same way
-- [`hafen.json`](json.md) — parsing the file a catalogue is shipped as
-- [`hafen.asset`](asset/README.md) — reading a file your addon ships
-- [conventions](conventions.md) — collections, snapshots and the grammar every verb here follows
+- [`hafen.ui`: the stylesheet](ui/style/README.md) — what a surface is drawn with, keyed the same way.
+- [`hafen.json`](json.md) — parsing the file a catalogue is shipped as.
+- [`hafen.asset`](asset/README.md) — reading a file your addon ships.
+- [Conventions](conventions.md) — collections, snapshots and the grammar every verb here follows.

@@ -1,117 +1,61 @@
-# hafen.event: your addon and the sessions
+# hafen.event: Your Addon and the Sessions
 
-Your addon being loaded, ticked and disabled, and a character connecting, reaching the world, taking the
-screen and ending. These are the keys you subscribe to before there is anything to read — the ones that
-tell you when the rest of the API has something in it. Everything here is part of
-[the catalogue](README.md), so `hafen.event():on(key, fn)` is the door.
-
-## Lifecycle
-
-Your addon's own three, and each is about the addon rather than about a character.
-
-| Event | Payload | Fires |
-|---|---|---|
-| `Load` | — | once for the client, when the addon is loaded, before any character exists |
-| `Update` | `dt` (number) | every frame; `dt` is seconds since the last frame |
-| `Disable` | — | once for the client, when the addon is disabled or reloaded, or the client closes |
-
-`Load` and `Disable` fire **once each for the client**, whatever happens to the characters underneath —
-one addon, one Lua state, however many sessions are logged in. Keep `Update` handlers cheap: they run on
-the [step](../../threading.md) on every frame, once per frame, and not once per session.
-
-## Sessions
-
-A character logging in, reaching the world, taking the screen and ending are four different moments, and
-each is a session's rather than your addon's. The payload is that [`Session`](../../session.md) — the
-address every read your handler goes on to make is named by, and the one thing that says which character
-the moment was about.
-
-| Event | Payload | Fires |
-|---|---|---|
-| `SessionAdded` | [`Session`](../../session.md) | a session connects, before it has a character or a world |
-| `SessionEnteredWorld` | [`Session`](../../session.md) | ...and its HUD is up, so that character can be read |
-| `SessionSelected` | [`Session`](../../session.md) | the screen changed to this session |
-| `SessionRemoved` | [`Session`](../../session.md) | this session ended, however it ended |
+Your addon being loaded, ticked and disabled, and a character connecting, reaching the world, taking the screen and ending: the keys that say when the rest of the API has something in it. Part of [the catalogue](README.md); `hafen.event():on(key, fn)` is the door.
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function(s)
-  hafen.log():write(s:user() .. " is playing " .. (s:character() or "nobody yet"))
+hafen.event():on("SessionEnteredWorld", function(session)
+  hafen.log():write(session:user() .. " is playing " .. (session:character() or "nobody yet"))
 end)
 ```
 
-**A `SessionRemoved` names a session that is already gone.** `s:user()` answers there — the account name
-is the whole of a `Session`, so there is nothing left to resolve — while `s:exists()` is `false` and
-everything else about that login reads `nil`. That is what makes the payload usable as the key you drop
-your own tables by, on the one event where the login it names has already gone.
+---
 
-`SessionEnteredWorld` fires once the HUD exists — the [action menu](../../menugrid.md) included, so the
-entries your addon adds go in from there — but much character-sheet data streams in for a few seconds
-afterwards, see [missing data returns nil](../../conventions.md#missing-data-returns-nil). It is also the
-point from which that session's [own vars](../../store/vars.md) read back, on screen or not: a
-character reaching the world behind another has its rows from its own announcement, so a handler reads
-them through the `Session` it was handed. Tabbing there brings nothing more, because each session keeps
-its own tables; what a screen change writes is
-[the placements the user made](../../store/vars.md#where-a-widget-sits-is-saved-for-you), and those
-belong to the tree they stand in rather than to the screen.
+## Lifecycle
 
-**The wait for the action menu is bounded at five seconds.** A session whose menu never arrives is
-announced anyway, with a console line saying so, and `s:menugrid():add(id)` refuses in that handler
-because the menu it would add to is not up. Nothing announces the menu's later arrival, so an addon
-whose entries matter that much re-tries on a [timer](../../timer.md).
+Your addon's own keys, each about the addon rather than a character.
 
-**The four are not one queue.** `SessionEnteredWorld` is delivered from that character's own step, and
-the other three from your addon's. What that buys is the ordering the event exists for: that session's
-[own vars](../../store/vars.md) and its held action-bar slots are readable before your handler
-runs, because the same step put them there a line earlier. What it does not buy is a place in
-the queue the other three share — so read each of the four for what it says about its own payload, and
-never as a report of where another has got to.
+| Event | Payload | Fires |
+|---|---|---|
+| `Load` | — | Once for the client, when the addon is loaded, before any character exists. |
+| `Update` | `dt` (`number`) | Every frame; `dt` is seconds since the last frame. |
+| `Disable` | — | Once for the client, when the addon is disabled or reloaded, or the client closes. |
 
-**A session the client cannot name announces nothing.** The account name is a session's whole identity
-here, so a login the client holds no name for fires neither `SessionAdded` nor `SessionRemoved`, and one
-that ends between reaching the world and being named is logged rather than announced. Nothing is
-recovered afterwards: [`hafen.session():list()`](../../session.md) is what says who is up.
+| Rule | Detail |
+|---|---|
+| Once for the client | One addon, one Lua state, however many sessions are logged in. |
+| `Update` cost | Runs on the [step](../../threading.md) once per frame, not once per session. Keep it cheap. |
 
-**Taking the screen is not entering the world.** Going between two characters already in the world
-fires `SessionSelected` and nothing else, once per change — whether the player tabbed or an addon
-wrote the screen with [`hafen.session():current(s)`](../../session.md#write-unprotected) — and only on a
-change, so naming the session already drawn fires nothing at all. Ending the session **on screen** hands
-the screen to another one, so that session's `SessionRemoved` comes first and a `SessionSelected` for
-the one taking over follows it. Going to the login screen selects nothing, so it fires nothing — whether it
-is where dropping your last session left you, where
-[`hafen.session():current(nil)`](../../session.md#hafensessioncurrentnil) put you with every login still
-running, or a login the player performed there. This family's payload **is** a session, and none was
-picked; [`hafen.session():current()`](../../session.md), which reads `nil` there, is what answers instead.
+## Sessions
 
-**Nor is entering the world being looked at.** A session that reaches the world while another holds the
-screen fires `SessionEnteredWorld` there and then, without ever having been drawn — these four are about
-sessions, and only `SessionSelected` is about the screen. So a handler runs for a character you are not
-looking at, and it reads that character through the `Session` it was handed rather than through
-[`hafen.session():current()`](../../session.md), which is whoever holds the screen at that moment and need
-not be the one the event was about.
+Four moments of a session, each handing that [`Session`](../../session.md): the address every read your handler goes on to make is named by.
 
-**A session is the account, and one account plays one character at a time.** Picking another character on
-the same account keeps that session alive — the server hands it a new world rather than ending it — so
-`SessionEnteredWorld` fires a second time for the same `Session`, with no `SessionRemoved` between. Key
-your own tables by `s:user()` if what you are tracking is the account, and rebuild whatever was that
-character's on every `SessionEnteredWorld` for it.
+| Event | Payload | Fires |
+|---|---|---|
+| `SessionAdded` | [`Session`](../../session.md) | A session connects, before it has a character or a world. |
+| `SessionEnteredWorld` | [`Session`](../../session.md) | Its HUD is up, so that character can be read. |
+| `SessionSelected` | [`Session`](../../session.md) | The screen changed to this session. |
+| `SessionRemoved` | [`Session`](../../session.md) | This session ended, however it ended. |
 
-**These report changes, not the state.** They fire for what happens after you subscribe, so an addon
-loaded while three characters are up hears about none of the three, and
-[`hafen.session():list()`](../../session.md) is the read for what is already there. A `:reload` is where
-that stops being the whole rule: it rebuilds every addon, so it announces `SessionEnteredWorld` for every
-session that is in the world, the one **on screen** first and each exactly once. Which character the
-player typed it in front of is not a property of a session, so an addon that holds something per login is
-told about all of them and has none to catch up on.
+| Rule | Detail |
+|---|---|
+| `SessionRemoved` names a session already gone | `session:user()` answers (the account name is the whole of a `Session`); `session:exists()` is `false` and everything else reads `nil`. The payload is the key to drop your own tables by. |
+| What `SessionEnteredWorld` guarantees | The HUD exists, the [action menu](../../menugrid.md) included, so your entries go in from there. Much character-sheet data streams in for a few seconds after ([missing data returns nil](../../conventions.md#missing-data-returns-nil)). That session's [own vars](../../store/vars.md) read back from this point, on screen or not; tabbing there brings nothing more, since each session keeps its own tables, and what a screen change writes is [the placements the user made](../../store/vars.md#where-a-widget-sits-is-saved-for-you). |
+| The action-menu wait is bounded at five seconds | A session whose menu never arrives is announced anyway with a console line, and `session:menugrid():add(id)` refuses in that handler. Nothing announces the menu's later arrival; re-try on a [timer](../../timer.md). |
+| Not one queue | `SessionEnteredWorld` is delivered from that character's own step, the other three from your addon's. That session's own vars and held action-bar slots are readable before your handler runs, because the same step put them there. Read each event for what it says about its own payload, never as a report of where another has got to. |
+| A session the client cannot name announces nothing | The account name is the identity: a login the client holds no name for fires neither `SessionAdded` nor `SessionRemoved`; one that ends between reaching the world and being named is logged, not announced. [`hafen.session():list()`](../../session.md) says who is up. |
+| Taking the screen is not entering the world | Going between two characters in the world fires `SessionSelected` once per change, whether the player tabbed or an addon wrote [`hafen.session():current(session)`](../../session.md#write-unprotected); naming the session already drawn fires nothing. Ending the session on screen fires its `SessionRemoved` first, then `SessionSelected` for the one taking over. Going to the login screen fires nothing (after dropping your last session, after [`hafen.session():current(nil)`](../../session.md#hafensessioncurrentnil), or a login performed there); [`hafen.session():current()`](../../session.md) reads `nil` there. |
+| Entering the world is not being looked at | A session reaching the world while another holds the screen fires `SessionEnteredWorld` there and then. Read that character through the `Session` handed to you, not through `hafen.session():current()`. |
+| One account, one character at a time | Picking another character on the same account keeps the session alive: `SessionEnteredWorld` fires again for the same `Session` with no `SessionRemoved` between. Key tables by `session:user()` for the account; rebuild what was the character's on every `SessionEnteredWorld`. |
+| Changes, not state | An addon loaded while three characters are up hears about none of them; [`hafen.session():list()`](../../session.md) reads what is already there. A `:reload` rebuilds every addon and announces `SessionEnteredWorld` for every session in the world, the one on screen first, each once. |
 
-> **Your state survives a character switch.** Nothing of yours is torn down or rebuilt when the screen
-> moves, so a widget handle, a Gob or an [item](../../ui/items.md) you kept from one character is still in
-> your table under the next one — and still belongs to the character it came from. `SessionRemoved` is
-> where you drop what belonged to that session, and its payload is the key to drop it by.
+> **Your state survives a character switch.** Nothing of yours is torn down when the screen moves: a widget handle, a Gob or an [item](../../ui/items.md) kept from one character is still in your table under the next, and still belongs to the character it came from. Drop what belonged to a session at `SessionRemoved`, by its payload.
 
-## See also
+---
 
-- [the catalogue](README.md) — the other families, and whose character an event was
-- [`hafen.session`](../../session.md) — the payload these four hand you, and the collection of the rest
-- [when your code runs](../../../runtime.md) — the whole life of an addon, of which these are the moments
-- [saved data](../../store/vars.md) — what is read back at `SessionEnteredWorld`, and when it is written
-- [events and timers](../../../guides/events-and-timers.md) — the guide that puts a handler to work
+## See Also
+
+- [The catalogue](README.md) — the other families, and whose character an event was.
+- [`hafen.session`](../../session.md) — the payload the session events hand you, and the collection of the rest.
+- [When your code runs](../../../runtime.md) — the life of an addon, of which these are the moments.
+- [Saved data](../../store/vars.md) — what is read back at `SessionEnteredWorld`, and when it is written.
+- [Events and timers](../../../guides/events-and-timers.md) — the guide that puts a handler to work.

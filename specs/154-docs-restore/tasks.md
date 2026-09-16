@@ -18,7 +18,7 @@
 - [x] **154.3 — The world and the character to the standard**: `world`, `gob`, `look`, `overlay`,
       `placing`, `position`, `player`, `char`, `study`, `buff`, `meter`, `wound`, `quest`, `kin`, `party`,
       `craft`, `fight`, `speed`, `actionbar`, `menugrid`, `flowermenu`, `time`. Criteria 3, 4.
-- [ ] **154.4 — Events, timers, storage and the client to the standard**: `event/**`, `timer`, `console`,
+- [x] **154.4 — Events, timers, storage and the client to the standard**: `event/**`, `timer`, `console`,
       `log`, `locale`, `store/**`, `client/**`. Criteria 3, 4.
 - [ ] **154.5 — Content, network and sessions to the standard**: `asset/**`, `font`, `sound`, `virtual/**`,
       `voice/**`, `map/**`, `http`, `websocket`, `json`, `session`. Criteria 3, 4.

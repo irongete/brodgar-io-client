@@ -223,7 +223,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 | the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |
 | the pointer the client would have drawn | [`m:cursor(nil)`](ui/mouse.md) |
 | everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |
-| `NULL` | a value bound to a `?` of a [statement](store/statements.md) or of a store table's [clause](store/tables.md#the-clause); a column a [`:put` row](store/tables.md#nodesputrow) leaves out |
+| `NULL` | a value bound to a `?` of a [statement](store/statements.md) or of a store table's [clause](store/tables.md#the-clause); a column a [`:put` row](store/tables.md#write-unprotected) leaves out |
 
 The bridge separates the two cases by counting arguments, and it is exact for a value you pass
 directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing key raises. One gap
