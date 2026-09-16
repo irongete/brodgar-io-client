@@ -51,7 +51,7 @@ These methods modify the local visual rendering of the object without altering s
 | `:visible(is_visible)` | `boolean` | `self` | Toggles local visibility of the 3D model. Hidden objects cannot be clicked. See [Look](look.md). |
 | `:tint(color_array)` | `{r, g, b, [a]}` | `self` | Applies a color tint overlay to the model. See [Look](look.md). |
 | `:overlay()` | None | `OverlayCollection` | Subsystem for adding markers or rings around this object. See [Overlays](overlay.md). |
-| `:materials()` | None | `MaterialSlotCollection` | The variable-material slots the object is drawn in, one `MaterialSlot` per slot the server sent. See [Materials](materials.md). |
+| `:materials()` | None | `MaterialSlotCollection` | The variable-material slots the object is drawn in, one `MaterialSlot` per slot the server sent; a slot reads its material and takes another by name. See [Materials](materials.md). |
 
 ---
 

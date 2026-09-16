@@ -9,7 +9,7 @@
 | What | Where |
 |---|---|
 | Who builds it | `ResDrawable`'s constructor: `Sprite.create(owner, res, sdt)` — the resource's own `Sprite.Factory` (its `code` layer, `Resource.getcode`) first, then `Sprite.factories` in order, else a bare `Sprite`. `ModSprite.fact` is the `@Resource.PublishedCode.Builtin(name = "mod")` factory and answers for any resource with a `FastMesh.MeshRes` or a `RenderLink.Res` layer |
-| The gob it belongs to | `ModSprite.gob` = `owner.fcontext(Gob.class, false)`; `null` for an owner that is no gob (a `RenderLink`'s sub-sprite, an item icon), and then the attribute half below is off |
+| The gob it belongs to | `ModSprite.gob` = `owner.fcontext(Gob.class, false)`, resolved through the owner's context chain: a render-linked sub-sprite's owner is `ModSprite.RenderLinks`, whose `context` falls through to the main sprite's owner, so it finds the **same gob**; `null` for an owner with no gob in its chain (an item icon), and then the attribute half below is off |
 | What it draws | `ModSprite.parts`, a `RenderTree.Node[]` rebuilt by `update()` and re-added to every slot in `ModSprite.slots` through `RUtils.readd` (the previous parts restored on a `Loading`) |
 | The per-part record | `ModSprite.Part`: `obj` (the node — a `FastMesh.ResourceMesh` for a mesh layer, whose `info.rdat` is the layer's key/value tags), `wraps` (a `LinkedList<NodeWrap>`, the first applied **innermost**), `state` (`Pipe.Op`s composed once), `dynstate` (per-frame suppliers, a `RUtils.StateTickNode`), `info` (metadata). `Part.make()` composes them in that order |
 | A material on a part | `Material implements Pipe.Op` (so a `NodeWrap`): `apply(Pipe)` puts its `states` and `dynstates`; `apply(RenderTree.Node)` wraps the node in the dynamic states unlocked and then the static ones **locked** — each a `Pipe.Op.Wrapping`, whose `added(slot)` does `slot.ostate(op)` and, when `locked`, `slot.lockstate()`. A `MeshRes` carries its own `Material.Res` as `mat`, and `ModSprite.Meshes.operate` adds each mesh as `new Part(mr.m, mr.mat.get())` — the material is the part's first wrap |
@@ -29,7 +29,7 @@
 
 | What | Where |
 |---|---|
-| The trigger | `ModSprite.tick(dt)` compares `gob.updateseq` against its own `lastupd` and calls `attrupdate()` when they differ. `Gob.updated()` (package-private) bumps `updateseq`; `OCache.GobInfo.apply` calls it once after every batch of deltas and once on removal, `MapView.Plob.move` when the placement ghost moves |
+| The trigger | `ModSprite.tick(dt)` compares `gob.updateseq` against its own `lastupd` and calls `attrupdate()` when they differ. `Gob.updated()` bumps `updateseq`; `OCache.GobInfo.apply` calls it once after every batch of deltas and once on removal, `MapView.Plob.move` when the placement ghost moves |
 | The test | `attrupdate()` re-collects `getomods()` and calls `update()` **only when `Arrays.equals` over the `Mod[]` fails — an identity comparison per element**. A `GAttrib` mutated in place is the same instance and rebuilds nothing; a new instance under the same key is a different array and rebuilds everything. `Gob.setattr` replaces the instance and `dispose()`s the old one, which is what a re-sent server attribute does |
 | What is retried | `tick` catches **`Loading` only**, leaving `lastupd` behind so the next tick tries again, and `attrupdate` restores the previous `omods` on it. Anything else `operate` throws leaves `tick` — into `Gob.ctick`'s caller on the UI thread |
 | `update(Message)` | the `Sprite.CUpd` half: `decdata` (each `imods`/`ResData.mods` entry gets a chance to consume the state bytes, else `flags = decflags(sdt)`, the bit mask `Meshes`/`RenderLinks`/`Animation`/`Poser` gate their layers by `id`) then `update()` |
@@ -51,6 +51,25 @@ whatever material the server names for slot `n`, so one cupboard resource is eve
 
 ## Gotchas
 
+- **Identity, not equality, triggers the re-render.** `attrupdate` compares the `Mod[]` it collected against
+  the last one with `Arrays.equals`, and `GAttrib` has no `equals`, so the test is `==` per element: a `Mod`
+  attribute whose fields change in place is the same instance, the arrays match, and `update()` never runs —
+  the parts keep the wraps the old state built. A change that must draw goes in as a **new instance** under
+  the same key (`Gob.setattr` replaces; `AttrMats.parse` mints one per delta for this reason), followed by
+  `Gob.updated()` so the sequence moves.
+- **One gob, several `ModSprite`s, one set of mods.** A `RenderLink.Res` layer makes the main sprite build a
+  sub-sprite per link (`RenderLinks.operate` → `Sprite.create` on the linked resource), and each sub-sprite is a
+  `ModSprite` of its own whose `gob` resolves to the same `Gob` — so every `Mod` attribute on the gob is collected
+  by every one of them and its `operate` runs once **per sprite** per rebuild, each call seeing only that
+  sprite's `Cons.parts`. A barter stand is the stand, its sign and a few one-mesh links, all wearing the one
+  `AttrMats`. A mod that records anything from `operate` merges per part, never replaces: the last sprite to
+  run is the one with the fewest parts.
+- **Only `Loading` is retried, and it retries the whole rebuild.** `tick` catches `Loading` alone: a `Mod`
+  whose `operate` needs a resource still in flight throws it, `lastupd` stays behind, the previous parts stay
+  on screen and every mod runs again next tick — so a slow fetch in one mod holds back every other mod's
+  change until it lands. Anything else `operate` throws (a `Resource.BadResourceException` from a fetch that
+  failed, a `NoSuchLayerException` from `flayer`) is not caught here or in `Gob.ctick`: it reaches the UI
+  thread. A mod that resolves a resource it did not receive from the server catches those itself.
 - **`instanceof` against an adopted served class fails after a version bump.** The local copy under
   `src/haven/res/` wins only while its `@FromResource` version matches the served resource
   ([published-code.md](published-code.md)); past that the served loader defines a second

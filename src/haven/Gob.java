@@ -859,7 +859,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     private Waitable.Queue updwait = null;
-    void updated() {
+    // addon: 152.2 -- public: an addon-written GAttrib that is a ModSprite.Mod (io.brodgar.addon.GobMaterials)
+    //        bumps the sequence after setattr, so the sprite re-collects its mods on the next tick
+    public void updated() {
 	synchronized(this) {
 	    updateseq++;
 	    if(updwait != null)

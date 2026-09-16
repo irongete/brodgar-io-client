@@ -35,11 +35,13 @@ import java.util.Map;
  * takes and {@code :list()[n]} holds; {@code :wire()} is the server's own number — the {@code vm} tag on the
  * mesh, {@code index - 1} — under the name every wire-side number in this API carries ({@link LuaSlot}).
  *
- * <p><b>Three resource reads, one answer today.</b> {@code :native()} is the material the server dressed the
- * slot in, {@code :material()} the one in force, {@code :drawn()} the one the model is drawn with on the copy
- * this handle reads through. Each hands back the interned {@link LuaResource} for the name, so
- * {@code slot:material() == slot:native()} compares handles. Until an addon can write a slot, the three
- * are the server's resource.
+ * <p><b>Three resource reads, one write.</b> {@code :native()} is the material the server dressed the slot
+ * in, {@code :material()} the one in force — yours once written, else the server's — and {@code :drawn()} the
+ * one the model is drawn with right now on the copy this handle reads through, which follows a write on the
+ * frame the client holds the resource. Each hands back the interned {@link LuaResource} for the name, so
+ * {@code slot:material() == slot:native()} compares handles. {@code :material(name[, id])} is the write
+ * (152.2): a {@link GobMaterials} entry on every live copy of the object and in {@link GobIntent}, the
+ * footing {@code gob:tint} stands on.
  */
 public final class LuaMaterialSlot {
     /** The login this handle was minted through — the copy every read resolves in. */
@@ -116,15 +118,30 @@ public final class LuaMaterialSlot {
         return (m instanceof Material.ResMaterial) ? (Material.ResMaterial)m : null;
     }
 
-    /** The name of the resource in force on slot {@code wire} of {@code g}, or {@code null}. */
+    /**
+     * The name of the resource in force on slot {@code wire} of {@code g}, or {@code null}: an addon's write
+     * where one stands, else the server's. A write on a slot the server has since stopped sending is still
+     * a write in force — the collection no longer lists the slot, and a stashed handle answers its own name.
+     */
     static String inForce(Gob g, int wire) {
+        GobMaterials.Entry e = GobMaterials.entry(g, wire);
+        if(e != null)
+            return e.name;
         Material.ResMaterial rm = nativeOf(g, wire);
         return (rm == null) ? null : rm.res.name;
     }
 
-    /** The name of the resource slot {@code wire} of {@code g} is drawn with, or {@code null}. */
+    /**
+     * The name of the resource slot {@code wire} of {@code g} is drawn with, or {@code null}: what the last
+     * rebuild of this copy's sprite put on the slot, else the server's — a write still fetching, or one the
+     * client could not resolve, is drawn in the server's.
+     */
     static String drawnOn(Gob g, int wire) {
-        return inForce(g, wire);
+        GobMaterials.Drawn d = GobMaterials.drawn(g, wire);
+        if(d != null)
+            return d.name;
+        Material.ResMaterial rm = nativeOf(g, wire);
+        return (rm == null) ? null : rm.res.name;
     }
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
@@ -225,12 +242,38 @@ public final class LuaMaterialSlot {
                 return (rm == null) ? LuaValue.NIL : LuaResource.of(owner, rm.res.name);
             }
         });
-        // material() — the material IN FORCE on the slot: the server's, until an addon writes one.
+        // material() / material(name[, id]) — the material IN FORCE on the slot. Bare reads it: the server's,
+        // until an addon writes one. With a name it WRITES (152.2): the slot is dressed in the named resource's
+        // mat2 layer — `id` a whole number naming which, the resource's first by default — on every live copy
+        // of the object and on the ones that arrive later (GobIntent), and it hands the SLOT back, so
+        // slot:material(name):drawn() is one chain. The swap lands on the next frame when the client holds
+        // the resource, and when the fetch does otherwise; until then, and if the name fails to load or has
+        // no material at `id`, the server's stays drawn — :drawn() and :material():loaded()/:error() say
+        // which. Last write wins per slot. Refused when made: a name that is not a well-formed resource name
+        // (ResourceApi.name, the hafen.resource() rule), an id that is not a whole number, and an explicit
+        // nil, because clearing a slot is :release(), not a nil write. A gob that is gone takes the write and
+        // does nothing with it, gob:tint's rule.
         m.set("material", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaMaterialSlot h = handle(Args.only(a, 0, "slot:material"), "material");
-                String nm = inForce(AddonManager.getgob(h.user, h.gob), h.wire);
-                return (nm == null) ? LuaValue.NIL : LuaResource.of(owner, nm);
+                LuaValue self = Args.only(a, 2, "slot:material");
+                LuaMaterialSlot h = handle(self, "material");
+                if(!Args.passed(a, 2)) {
+                    String nm = inForce(AddonManager.getgob(h.user, h.gob), h.wire);
+                    return (nm == null) ? LuaValue.NIL : LuaResource.of(owner, nm);
+                }
+                if(a.arg(2).isnil())
+                    throw new LuaError("slot:material(nil): an explicit nil is refused — the write takes a resource"
+                        + " name, and handing the slot back to the server's material is :release()");
+                String name = ResourceApi.name(a.arg(2), "slot:material");
+                Integer id = null;
+                if(Args.passed(a, 3) && !a.arg(3).isnil())
+                    id = Integer.valueOf((int)Args.integer(a.arg(3), "slot:material", "id",
+                        "the mat2 layer's number within the resource, its first by default", 0, 65535));
+                GobMaterials.Entry e = new GobMaterials.Entry(owner, name, id);
+                for(Gob g : AddonManager.gobCopies(h.gob))
+                    GobMaterials.apply(g, h.wire, e);
+                GobIntent.material(h.gob, owner, h.wire, e);
+                return self;
             }
         });
         // drawn() — the material the model is DRAWN with right now, on the copy this handle reads through.
@@ -242,7 +285,9 @@ public final class LuaMaterialSlot {
             }
         });
         // info() — the one SNAPSHOT: {index, wire, native, material, drawn, id}, the three resources as
-        // names and `id` the mat2 layer the server's material is; nil once the gob is gone.
+        // names and `id` the mat2 layer of the material in force — the server's, or the one the write named,
+        // or the written resource's first once the client holds it (absent until then); nil once the gob is
+        // gone.
         m.set("info", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaMaterialSlot h = handle(Args.only(a, 0, "slot:info"), "info");
@@ -256,7 +301,10 @@ public final class LuaMaterialSlot {
                 t.set("native", LuaValue.valueOf(rm.res.name));
                 t.set("material", LuaValue.valueOf(inForce(g, h.wire)));
                 t.set("drawn", LuaValue.valueOf(drawnOn(g, h.wire)));
-                t.set("id", LuaValue.valueOf(rm.id));
+                GobMaterials.Entry e = GobMaterials.entry(g, h.wire);
+                Integer id = (e == null) ? Integer.valueOf(rm.id) : e.layerId();
+                if(id != null)
+                    t.set("id", LuaValue.valueOf(id.intValue()));
                 return t;
             }
         });

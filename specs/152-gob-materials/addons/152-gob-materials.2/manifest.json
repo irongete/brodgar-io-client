@@ -1,0 +1,9 @@
+{
+  "name": "152.2 — slot:material(name): the write, and what is drawn",
+  "id": "152-gob-materials.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 152.2: slot:material(name[, id]) dresses a slot on the object, drawn() follows when the client holds the resource, a failed name leaves the server's drawn, and the refusals.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

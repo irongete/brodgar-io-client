@@ -91,6 +91,7 @@ addon can preview a cupboard in oak before building it, or mark a chest by re-dr
 - `src/io/brodgar/addon/ResourceApi.java` (`name`) — 2
 - `src/io/brodgar/addon/LuaSlot.java` (`:get(n)`'s refusal) — 1
 - `src/io/brodgar/addon/GobTint.java` — 2, 3
+- `src/io/brodgar/addon/GobMaterials.java` (`Entry`, `apply`, the per-wire `drawn` merge) — 3 (152.2's)
 - `src/io/brodgar/addon/GobIntent.java` — 2, 3
 - `src/io/brodgar/addon/AddonManager.java` (`gobSnapshot`, `gobCopies`, `getgob`) — 1, 2
 - `src/io/brodgar/addon/UiApi.java` (`teardownGobScales`) — 3

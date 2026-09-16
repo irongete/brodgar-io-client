@@ -1,15 +1,18 @@
 # Gob Materials
 
-Read which materials a game object is drawn in. Many objects — cupboards, chests, carts, boats, walls — are one model drawn in **variable materials**: the server sends one material resource per *slot*, and the client wraps each part of the model tagged with that slot in it. `gob:materials()` is the collection of those slots. It is client-local and **unprotected**.
+Read which materials a game object is drawn in, and dress a slot in another. Many objects — cupboards, chests, carts, boats, walls — are one model drawn in **variable materials**: the server sends one material resource per *slot*, and the client wraps each part of the model tagged with that slot in it. `gob:materials()` is the collection of those slots. A write is client-local, purely visual and **unprotected**: nothing goes on the wire or to disk.
 
 ```lua
 local session = hafen.session():current()
 local cupboard = session and session:world():gob():nearest("terobjs/cupboard")
 
 if cupboard then
-  for _, slot in ipairs(cupboard:materials():list()) do
+  local slots = cupboard:materials()
+  for _, slot in ipairs(slots:list()) do
     hafen.log():write(("slot %d: %s"):format(slot:index(), slot:native():name()))
   end
+  -- Preview the first slot in the last one's material: the swap lands once the client holds the resource.
+  slots:get(1):material(slots:get(slots:count()):native():name())
 end
 ```
 
@@ -39,11 +42,38 @@ A `MaterialSlot` is a live handle. It reads through the object every call: the r
 | `slot:index()` | `number` | Unprotected | The 1-based position, the number `:get(n)` takes. |
 | `slot:wire()` | `number` | Unprotected | The server's own number for the slot, `index - 1` — the `vm` tag on the model's part. |
 | `slot:native()` | `Resource \| nil` | Unprotected | The material the server dressed the slot in, as a [`Resource`](resource/README.md) handle. |
-| `slot:material()` | `Resource \| nil` | Unprotected | The material in force on the slot. |
+| `slot:material()` | `Resource \| nil` | Unprotected | The material in force on the slot: yours once written, else the server's. |
+| `slot:material(name[, id])` | `MaterialSlot` | Unprotected | Dresses the slot in the `mat2` layer of the resource named `name` — `id` a whole number naming which layer, the resource's first by default. Chains. See [The write](#the-write). |
 | `slot:drawn()` | `Resource \| nil` | Unprotected | The material the model is drawn with right now, on the copy this handle reads through. |
-| `slot:info()` | `table \| nil` | Unprotected | `{index, wire, native, material, drawn, id}` — the three resources as names, `id` the material layer's number within its resource. |
+| `slot:info()` | `table \| nil` | Unprotected | `{index, wire, native, material, drawn, id}` — the three resources as names, `id` the layer number of the material in force within its resource (absent while a write that named none is still loading). |
 
-The three resource reads hand back the interned `Resource` handle for the name, so `slot:material() == slot:native()` compares handles. The server dressed the slot, so `slot:native():loaded()` is `true` on every slot the object has. Until an addon writes a slot, the three read the server's material.
+The three resource reads hand back the interned `Resource` handle for the name, so `slot:material() == slot:native()` compares handles. The server dressed the slot, so `slot:native():loaded()` is `true` on every slot the object has. Until you write a slot, the three read the server's material.
+
+---
+
+## The write
+
+`slot:material(name[, id])` takes a resource name — the string `resource:name()` answers, under [`hafen.resource`](resource/README.md)'s rule for a well-formed name — and dresses the slot in that resource's `mat2` layer. It is accepted at once and hands the slot back; `slot:material()` reads the written name from that moment. The swap lands on the next frame when the client holds the resource, and the client fetches one it does not hold: `slot:drawn()` says which material the model is drawn with meanwhile.
+
+| The client's state | `material():loaded()` | `material():error()` | `drawn()` |
+|---|---|---|---|
+| Holds the resource | `true` | `nil` | the written material, from the next frame |
+| Still fetching it | `false` | `nil` | the server's material, until the fetch lands |
+| The fetch failed (a name the server has not got) | `false` | the client's message | the server's material |
+| Loaded, but no `mat2` layer at `id` | `true` | `nil` | the server's material |
+
+**Last write wins per slot**, across addons: a second `slot:material(name)` replaces the first, on every copy. **The write lands on the object, not on one copy**: every live session's copy of the object is dressed, a session that loads the object later dresses its copy on arrival, and the object's own re-sent dressing replaces nothing of yours. The write ends with the loaded object — the object leaving its last session forgets it.
+
+Refused when made:
+
+| Call | Refused because |
+|---|---|
+| `slot:material(nil)` | An explicit `nil` names no material; handing a slot back to the server's material is its own verb. |
+| `slot:material(42)` | The name is a string. |
+| `slot:material("gfx//x")` | The name is malformed (an empty segment, a `..` segment, a leading `/`). |
+| `slot:material(name, 1.5)` | `id` is a whole number. |
+
+`gob:info().materials` reads the names in force per slot, so a written slot reads your name there.
 
 ---
 

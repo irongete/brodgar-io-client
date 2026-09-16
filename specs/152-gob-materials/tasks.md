@@ -21,7 +21,7 @@
       whole number. `gob:info().materials[1] == native():name()`, and absent on the player.
       `[manual]`: none.
 
-- [ ] **152.2 — The write: `slot:material(name[, id])` and what is drawn.** Add `GobMaterials`
+- [x] **152.2 — The write: `slot:material(name[, id])` and what is drawn.** Add `GobMaterials`
       (`GAttrib` + `ModSprite.Mod`, `order() 101`, immutable per-wire entries minted per write, `operate`
       removes the slot's `VarWrap.Applier` and adds its own; `Loading` left to the sprite's retry,
       `BadResourceException` and a missing `Material.Res` caught and recorded as "server's drawn"),

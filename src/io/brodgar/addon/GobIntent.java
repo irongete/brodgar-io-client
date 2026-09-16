@@ -4,14 +4,16 @@ import haven.Gob;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
  * <b>What an addon has asked to be drawn at one game object</b> (092.7, A-087) &mdash; the intent behind
- * {@code gob:scale(k)}, {@code gob:visible(b)}, {@code gob:tint(c)} and {@code gob:overlay():add(key)}, held per <b>gob id</b> so a
- * session that loads the object <i>afterwards</i> draws it the same.
+ * {@code gob:scale(k)}, {@code gob:visible(b)}, {@code gob:tint(c)}, {@code slot:material(name)} and
+ * {@code gob:overlay():add(key)}, held per <b>gob id</b> so a session that loads the object <i>afterwards</i>
+ * draws it the same.
  *
  * <p><b>Why it has to exist.</b> A gob id is the server's and names one object; a {@link Gob} is per
  * {@link haven.OCache}, so one object is as many Gobs as there are characters that can see it. 080.1 made a
@@ -74,9 +76,12 @@ final class GobIntent {
         /** The overlay records this addon stood on the object, in attach order &mdash; the very objects the
          *  copies share. */
         final List<LuaGobOverlay.Attach> overlays = new ArrayList<LuaGobOverlay.Attach>();
+        /** The materials this addon dressed the object's slots in, by wire number (152.2) &mdash; the very
+         *  entries the copies share, so an arriving copy resolves the same fetch. */
+        final Map<Integer, GobMaterials.Entry> materials = new HashMap<Integer, GobMaterials.Entry>();
 
         boolean empty() {
-            return !scaled && !hidden && (tint == null) && overlays.isEmpty();
+            return !scaled && !hidden && (tint == null) && overlays.isEmpty() && materials.isEmpty();
         }
     }
 
@@ -167,6 +172,24 @@ final class GobIntent {
         Record r = record(owner, id, true);
         if(r != null)
             r.tint = c;
+    }
+
+    /**
+     * {@code slot:material(name[, id])} was written (152.2). <b>One material per slot, last write wins</b>,
+     * {@link GobMaterials}' own rule &mdash; so this takes the slot at {@code id} away from every other addon
+     * that had dressed it, exactly as writing the attrib does. The other slots' entries stay where they are:
+     * the rule is per slot, not per object.
+     */
+    static synchronized void material(long id, Addon owner, int wire, GobMaterials.Entry e) {
+        Integer key = Integer.valueOf(wire);
+        for(Addon a : owners()) {
+            Record r = record(a, id, false);
+            if((r != null) && (r.materials.remove(key) != null))
+                prune(a, id, r);
+        }
+        Record r = record(owner, id, true);
+        if(r != null)
+            r.materials.put(key, e);
     }
 
     /**
@@ -273,6 +296,7 @@ final class GobIntent {
         Color tint = null;
         boolean hidden = false;
         List<LuaGobOverlay.Attach> overlays = null;
+        Map<Integer, GobMaterials.Entry> materials = null;
         for(Addon a : owners()) {
             Record r = a.gobIntents.get(key);
             if(r == null)
@@ -290,6 +314,22 @@ final class GobIntent {
                 if(overlays == null)
                     overlays = new ArrayList<LuaGobOverlay.Attach>();
                 overlays.addAll(r.overlays);
+            }
+            if(!r.materials.isEmpty()) {
+                if(materials == null)
+                    materials = new HashMap<Integer, GobMaterials.Entry>();
+                materials.putAll(r.materials);   // disjoint across addons: a slot is one addon's
+            }
+        }
+        /* Blind, like the write on a copy: the copy's own lib/vmat may not have arrived, and operate reads
+         * the parts when the sprite builds, so the order does not matter. */
+        if(materials != null) {
+            for(Map.Entry<Integer, GobMaterials.Entry> me : materials.entrySet()) {
+                try {
+                    GobMaterials.apply(g, me.getKey(), me.getValue());
+                } catch(RuntimeException e) {
+                    /* a copy that cannot take it draws the server's: a state, not a fault */
+                }
             }
         }
         if(scaleOwner != null) {
