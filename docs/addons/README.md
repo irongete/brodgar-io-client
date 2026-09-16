@@ -1,52 +1,57 @@
-# AddOn Development
+# AddOns
 
-The client features a sandboxed **Lua addon system**. Addons are modular folders containing a `manifest.json` and one or more `.lua` files. They interact with the game state, UI, world, events, and networking exclusively through the global `hafen` API.
+A **Lua addon system** for the client. An addon is a folder of Lua files that the client loads when it
+starts and runs in a sandbox, with everything it may touch arriving through one `hafen.*` API: read the game
+state, react to events, draw your own UI, add hotkeys and console commands, restyle the client — and,
+with the user's permission, drive the character.
 
-## Quick Look
+## Quick look
 
 ```lua
--- addons/my_addon/main.lua
-
--- Log entering the world with character name
-hafen.event():on("SessionEnteredWorld", function(session)
-  local character_name = session:character() or "Unknown"
-  hafen.log():write("Hello from character: " .. character_name)
+-- addons/myaddon/main.lua
+hafen.event():on("SessionEnteredWorld", function(s)
+  hafen.log():write("hello from " .. (s:character() or "?"))
 end)
 
--- Scan for nearby trees every 5 seconds
 hafen.timer():every(5, function()
-  local current_session = hafen.session():current()
-  if current_session then
-    local tree_count = current_session:world():gob():count("terobjs/tree")
-    hafen.log():write("Nearby trees: " .. tree_count)
-  end
+  local s = hafen.session():current()
+  if s then hafen.log():write("trees nearby: " .. s:world():gob():count("terobjs/tree")) end
 end)
 ```
 
-To run this:
-1. Place the folder inside the `addons/` directory.
-2. In-game, press `:` to open the console and run `:reload`.
+That is a whole addon, beside a [`manifest.json`](manifest.md) naming it. Nothing above needs
+a permission, a build step or a restart: drop the folder into `addons/`, type `:reload`, and it runs.
 
-## Documentation Map
+## Where to go
 
-| Resource | Description |
+| Page | Read it when |
 |---|---|
-| **[Getting Started](getting-started.md)** | Step-by-step tutorial: build a working addon with a window, hotkey, and persistent state. |
-| **[Guides](guides/README.md)** | Practical task-oriented guides (custom UI, world interaction, events, permissions, data storage). |
-| **[API Reference](api/README.md)** | Technical reference for all `hafen.*` namespaces, methods, signatures, and returns. |
-| **[Manifest Specification](manifest.md)** | Schema and fields for `manifest.json` (metadata, permissions, network access). |
-| **[Runtime & Sandbox](runtime.md)** | Lifecycle hooks (`Load`, `SessionEnteredWorld`, `Disable`), sandbox limits, and console commands. |
-| **[AddOns Manager](panel.md)** | In-game addon management UI, installation workflow, and options integration. |
-| **[Developer Tools](examples.md)** | Inspection tools included with the client (`widgetstack`, `eventstack`, `session-manager`). |
+| [getting started](getting-started.md) | you have not written one yet: from an empty folder to a window with a hotkey that remembers its state |
+| [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, translate, debug |
+| [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
+| [the manifest](manifest.md) | what names an addon: the folder, the manifest field by field, and the API version it declares |
+| [the runtime](runtime.md) | when your code runs, the sandbox, the CPU budgets, and the console commands |
+| [the AddOns manager](panel.md) | the Installed tab that enables, updates and removes an addon, and the Browse tab that searches the hub |
+| [the maintainer's addons](examples.md) | where the addons are, which of them a release ships, and the tools among them for writing your own |
 
-## API Subsystems Overview
+## The API at a glance
 
-| Subsystem | Namespaces | Purpose |
-|---|---|---|
-| **World & Objects** | [`session`](api/session.md), [`world`](api/world.md), [`gob`](api/gob.md), [`position`](api/position.md), [`map`](api/map/README.md), [`virtual`](api/virtual/README.md) | Character sessions, world entities, terrain coordinates, grid tiles, map markers, and 3D visual ghosts. |
-| **Character & Stats** | [`player`](api/player.md), [`char`](api/char.md), [`meter`](api/meter.md), [`buff`](api/buff.md), [`wound`](api/wound.md), [`study`](api/study.md) | Character attributes, energy/stamina meters, buffs, and study desk. |
-| **Gameplay Systems** | [`actionbar`](api/actionbar.md), [`menugrid`](api/menugrid.md), [`flowermenu`](api/flowermenu.md), [`craft`](api/craft.md), [`fight`](api/fight.md), [`speed`](api/speed.md), [`placing`](api/placing.md), [`quest`](api/quest.md), [`kin`](api/kin.md), [`party`](api/party.md), [`chat`](api/chat.md) | Radial menus, crafting, combat maneuvers, movement speed, construction blueprints, action bars, village lists, and chat. |
-| **User Interface** | [`ui`](api/ui/README.md), [`font`](api/font.md), [`style`](api/ui/style/README.md), [`client`](api/client/README.md) | Custom windows, UI controls, styling rules, keybindings, and settings. |
-| **Networking & IO** | [`http`](api/http.md), [`websocket`](api/websocket.md), [`json`](api/json.md), [`asset`](api/asset/README.md), [`resource`](api/resource/README.md), [`sound`](api/sound.md), [`voice`](api/voice/README.md), [`steam`](api/steam.md) | External HTTP/WebSocket communication, JSON parsing, sound effects, voice audio, addon assets, the client's resources, and Steam integration. |
-| **Core Utilities** | [`event`](api/event/README.md), [`timer`](api/timer.md), [`time`](api/time.md), [`store`](api/store/README.md), [`locale`](api/locale.md), [`log`](api/log.md), [`console`](api/console.md) | Event listeners, recurring timers, world clock/calendar, SQLite persistence, translation catalogs, and logging. |
-| **Data & Snapshots** | [`types`](api/types/README.md) | Immutable plain-table data snapshots decoupled from live game state. |
+One page per namespace, and a directory where a namespace is large. The
+[reference index](api/README.md) lists every page.
+
+| Area | Namespaces |
+|---|---|
+| **World** | [`world`](api/world.md) · [Gob](api/gob.md) · [Position](api/position.md) · [`map`](api/map/README.md) |
+| **Character** | [`player`](api/player.md) · [`time`](api/time.md) · [`char`](api/char.md) · [`study`](api/study.md) · [`party`](api/party.md) · [`buff`](api/buff.md) · [`meter`](api/meter.md) |
+| **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
+| **Acting** | [`menugrid`](api/menugrid.md) · [`flowermenu`](api/flowermenu.md), and the protected verbs on [`player`](api/player.md), [`world`](api/world.md) and [items](api/ui/items.md) |
+| **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
+| **Your own content** | [`asset`](api/asset/README.md) · [`resource`](api/resource/README.md) · [`virtual`](api/virtual/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
+| **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) · [`websocket`](api/websocket.md) · [`voice`](api/voice/README.md) · [`steam`](api/steam.md) *(the three protected by your manifest)* |
+| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store/README.md) · [`locale`](api/locale.md) · [`console`](api/console.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
+
+The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what
+a read gives back, [threading](api/threading.md), where your handler runs and what it may reach,
+[references](api/references.md), every kind of thing a verb takes,
+[shapes](api/shapes.md), what a plain table of numbers looks like, [data types](api/types/README.md), every
+snapshot shape, and [events](api/event/bus/README.md), the catalogue of what the client tells you about.

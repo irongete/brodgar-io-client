@@ -1,87 +1,189 @@
-# API Reference
+# hafen API reference
 
-Complete reference for all `hafen.*` namespaces, method signatures, parameters, return types, and permission requirements.
+Every `hafen.*` namespace, one page each, and a directory of pages where a namespace is large. Start with
+the conventions — how the API is spelled, what a read gives back, what a write costs — then take the name
+you came for from the tables below. Every page in the tree is listed here.
 
-## Core Conventions
-Before calling API methods, review the core conventions:
-* **[Conventions](conventions.md)**: Calling syntax, property getters/setters, collection verbs, and error handling.
-* **[References](references.md)**: Object types, handles vs snapshots, and identity.
-* **[Shapes](shapes.md)**: Data structures for coordinates, dimensions, bounds, and colors.
-* **[Threading & Execution](threading.md)**: How addon callbacks execute across client frame ticks.
+| Page | What it holds |
+|---|---|
+| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, `nil`, and the permission model |
+| [threading](threading.md) | where each handler runs, which trees it may reach, and the refusal when it reaches too far |
+| [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
+| [shapes](shapes.md) | what a plain table of numbers looks like: places, pixels, sizes, spans, colours, ids and units |
+| [data types](types/README.md) | every snapshot shape a read hands back, field by field |
+| [`hafen.session`](session.md) | the logins this client holds, the one on screen, the account each is named by, and the world and character that hang off one |
+| [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |
+| [the catalogue](event/bus/README.md) | every event the client fires, and what each one hands your handler |
+| [the message streams](event/streams.md) | a message on its way to the server, and an update on its way in |
+
+## The snapshot shapes
+
+| Page | What it holds |
+|---|---|
+| [the session and the world](types/world.md) | one login, an object in it, the people beside you, the ground, a place, and your own things standing there |
+| [the item and what holds it](types/items.md) | one item, and what a container states about its inside |
+| [the character sheet](types/character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
+| [the fight](types/fight.md) | a maneuver, a card in the deck, and the deck's totals |
+| [the map](types/map.md) | a pin on the recorded map, and a minimap icon category |
+| [the widget layer](types/ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
+
+## The event families
+
+| Page | What it holds |
+|---|---|
+| [your addon and the sessions](event/bus/lifecycle.md) | your addon being loaded, ticked and disabled, and a character connecting, reaching the world, taking the screen and ending |
+| [the world](event/bus/world.md) | a game object coming and going, what is attached to one, and a click on an entity of your own |
+| [the character and the rosters](event/bus/character.md) | the meters, buffs, food, study, equipment, action bar and wounds, the kin roster, the quests, the map's pins, and the radial menu |
+| [the chat](event/bus/chat.md) | a channel appearing, going away or taking the tab, and a line landing in one |
+
+## Reading the world
+
+| Page | What it holds |
+|---|---|
+| [`session:world`](world.md) | one character's live world: every object it has loaded, the terrain it stands on, and the clicks and drags it makes on both |
+| [Gob](gob.md) | one object in the world — `s:world():gob():get(id)` gives a Gob you read with methods |
+| [Look](look.md) | how a gob is drawn: `gob:scale(k)`, `gob:visible(b)`, `gob:tint(c)` and `gob:materials()`, client-local and written on the object |
+| [Materials](materials.md) | the variable-material slots a gob is drawn in: read the server's, dress one in another resource, release it |
+| [Placing](placing.md) | the ghost on the cursor: what you are about to place, where it sits, and the ground it will take |
+| [Position](position.md) | a place: the one position type, computable and saveable, that every spatial verb takes |
+| [Overlay](overlay.md) | what is drawn at a gob: the game's own, the labels and painters you attach, and what you stood there |
+| [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
+| [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
+| [overlays](map/overlays.md) | the recorded claim and province masks, and the switches that draw them |
+| [drawings](map/drawings.md) | a grid as an image handle: the minimap picture, its levels and its cache |
+| [markers](map/markers.md) | the map pins: reading them, adding your own, and the Position one travels as |
+| [icons](map/icons.md) | the minimap icon registry: which gob icons are drawn, and which announce themselves |
+
+## The player and character
+
+| Page | What it holds |
+|---|---|
+| [`session:player`](player.md) | one of the characters you are logged in as, and the anchor for its own Gob |
+| [`hafen.time`](time.md) | the game clock, the day, the night and the season |
+| [`session:char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
+| [`session:study`](study.md) | the study window: the curiosities in it, and their LP and attention |
+| [`session:party`](party.md) | the party roster, in party sequence order |
+| [`session:chat`](chat.md) | the chat channels, the one on screen, the lines in them, and saying a line |
+| [`session:buff`](buff.md) | the buffs on the buff bar |
+| [`session:meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
+
+## Character-sheet subsystems
+
+| Page | What it holds |
+|---|---|
+| [`session:kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
+| [`session:speed`](speed.md) | the crawl, walk, run and sprint selector |
+| [`session:craft`](craft.md) | the open recipe window, and its Craft button |
+| [`session:quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
+| [`session:wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
+| [`session:fight`](fight.md) | one character's maneuver-deck builder, and who it is fighting |
+| [`session:actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one, hold one for an entry of your own |
+
+## Acting
+
+The verbs that act are on the pages of what they change — [`session:player`](player.md),
+[`session:world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
+`Write (protected)` heading, each stating the permission key it needs. The whole catalogue of keys is in
+[permissions](../guides/permissions.md). Two catalogues have a page of their own:
+
+| Page | What it holds |
+|---|---|
+| [`session:menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
+| [`session:flowermenu`](flowermenu.md) | the radial menu one character has open: its petals, the object it belongs to, picking one, a petal of your own, whether the client paints it, and when one opens and closes |
+
+## The UI
+
+| Page | What it holds |
+|---|---|
+| [`hafen.ui`](ui/README.md) | the hub: what is on screen, and the order to read these pages in |
+| [custom](ui/custom.md) | your own windows and bare rectangles |
+| [overlays](ui/overlay.md) | painting over the screen, or over one widget, without owning either |
+| [controls](ui/controls/README.md) | the hub: what a control is, the roster, and the order to read these pages in |
+| [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
+| [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |
+| [columns and rows](ui/column.md) | a surface that lays its children out along one axis, and sizes itself to them |
+| [lists](ui/lists.md) | a listbox, dropdown or menu of rows, and the row source they share with a radio |
+| [the Widget object](ui/widget.md) | what every widget answers, subscribing on one, tooltips and focus |
+| [writes](ui/writes.md) | which writes owned and borrowed widgets take, and greying out one you built |
+| [the mouse](ui/mouse.md) | where the pointer is, what is under it, the modifier keys, and the grab that makes a drag yours |
+| [the pixel](ui/pixels.md) | the unit every coordinate and size is measured in, and the scale in force |
+| [selectors](ui/selectors.md) | naming a widget: the grammar, the lookups, roles, hit-testing, and the inspector |
+| [items](ui/items.md) | the items the client draws, found through the icons that draw them |
+| [contents](ui/contents.md) | what one item holds, and how a stack differs from a bucket |
+| [container](ui/container.md) | an item entering or leaving a container |
+| [native widgets](ui/native.md) | placing and hiding the client's own widgets, handing one to the user to drag or size, and the restore that comes with all of it |
+| [edit](ui/edit.md) | changing one part of one of the client's windows: taking over what a control does |
+| [replace](ui/replace.md) | waiting for a widget to appear, and standing your own window in its place |
+| [drawing](ui/drawing.md) | the `g` wrapper: shapes, images, text, and the cache text goes through |
+
+## The stylesheet
+
+| Page | What it holds |
+|---|---|
+| [the sheet](ui/style/README.md) | `hafen.ui():sheet()`, one widget's own rule, the cascade, and where skinning ends |
+| [keys](ui/style/keys.md) | site keys and tree keys: which surfaces a rule reaches, and what each honours |
+| [surfaces](ui/style/surfaces.md) | every surface the client ships, and what it does with a rule |
+| [the chat](ui/style/chat.md) | the chat window, its five kinds of line, and the two colours it walks |
+| [the HUD's plates](ui/style/hud.md) | the five surfaces the client blits whole, and the property that replaces one |
+| [text](ui/style/text.md) | `font` and `color` |
+| [chrome](ui/style/chrome.md) | `bg`, `border`, `padding`, `picture`, and a window's ornaments |
+| [geometry](ui/style/geometry.md) | `position`, `size` and `anchor` |
+
+## The files your addon ships
+
+| Page | What it holds |
+|---|---|
+| [`hafen.asset`](asset/README.md) | the hub: one loader for every file in your folder — images, fonts, models, data — the sandbox, and the order to read these pages in |
+| [the collection](asset/collection.md) | loading, listing and freeing your files, and naming what a folder of yours holds |
+| [the handles](asset/handles.md) | what each kind of loaded file answers: every asset, an image, a font, a mesh, a data file's bytes and text |
+| [`hafen.font`](font.md) | a font handle: the built-ins, your own `.ttf`, and drawing with it |
+| [`hafen.resource`](resource/README.md) | the client's own resources by name, their [layers](resource/layers.md) read, and the [writes](resource/writes.md) that change them |
+
+## Your own things in the world
+
+| Page | What it holds |
+|---|---|
+| [`hafen.virtual`](virtual/README.md) | the hub: the anchor, the place a thing keeps, the shared verbs, and the switch for the whole section |
+| [ghosts](virtual/ghosts.md) | the game's own props, standing where you put them, translucent and tinted |
+| [sprites](virtual/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
+| [models](virtual/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
+| [widgets](virtual/widgets.md) | a window standing in the world: its facing, its clicks, and standing the client's own |
+| [patches](virtual/patches.md) | a shape lying flat on the terrain: its place, its look, its border, its clicks |
+| [pieces](virtual/pieces.md) | the convex rings a patch is the union of: what a ring may be, the budget, taking one up |
+
+## The client itself
+
+| Page | What it holds |
+|---|---|
+| [`hafen.client`](client/README.md) | the settings the Options window edits: interface, video, audio, camera, client |
+| [keybindings](client/keybindings.md) | the hotkey registry: declare your own, read or remap any |
+| [your addon's options](client/addon.md) | the options your addon declares — a stored value each, which the client keeps and answers reads for — and the page your addon fills |
+| [profiling](client/profiling/README.md) | arming the frame profiler, and reading a frame, a history and its overhead |
+| [the counters](client/profiling/counters.md) | memory, net, loader, render, what stands in the world, the other sessions, the text cache — readable with it off |
+| [attribution](client/profiling/attribution.md) | who spent the frame: addons, your own scopes, widgets, passes, GL |
+
+## Infrastructure
+
+| Page | What it holds |
+|---|---|
+| [`hafen.timer`](timer.md) | run a function later, once or repeatedly |
+| [`hafen.store`](store/README.md) | the hub: your addon's one file, the three shapes it holds and which is which, when it is written and closed, the sandbox, the two caps |
+| [vars](store/vars.md) | a live table you name at `var`, saved for you: the two doors as the two scopes, what survives, and the placements saved for you |
+| [tables](store/tables.md) | a record: the builder, the Table and its rows, the types both ways, and how a declaration evolves |
+| [statements](store/statements.md) | SQL: `:exec` and `:query`, binding, one statement per call, what is refused, and `:transaction` |
+| [`hafen.json`](json.md) | parse and encode JSON |
+| [`hafen.http`](http.md) | fetch a URL, against the host allowlist the user approved |
+| [`hafen.websocket`](websocket.md) | keep a connection to a server on that allowlist, speak on it and hear what it says |
+| [`hafen.voice`](voice/README.md) | the hub: a link to a proximity voice server on that allowlist, the declaration it needs, what the server is told, and the limits |
+| [the link](voice/link.md) | building a link, opening it, what it says, what is live, and ending it |
+| [the mic and the mix](voice/audio.md) | what you send and what you hear: the settings, whether you are speaking, and the counters |
+| [peers](voice/peers.md) | the players a link relates you to, addressed by Gob, and the keys that follow them |
+| [`hafen.locale`](locale.md) | what the client displays: one catalogue of what to draw for the text it would have drawn |
+| [`hafen.console`](console.md) | register a `:name` console command, and run a line at one character's console |
+| [`hafen.log`](log.md) | print a line to the console and the terminal |
+| [`hafen.sound`](sound.md) | play a sound effect, stop it, ask what is still playing |
+| [`hafen.steam`](steam.md) | the Steam client under the game: the player's identity, and the achievements it holds |
 
 ---
 
-## Namespaces Directory
-
-### Character & World
-| Namespace | Description |
-|---|---|
-| **[`session`](session.md)** | Character logins, active session selection, and multi-character management. |
-| **[`player`](player.md)** | Character stats, current action, inventory, movement, and cursor hand. |
-| **[`world`](world.md)** | World entity queries, terrain coordinate conversion, and area interactions. |
-| **[`gob`](gob.md)** | Game Object (Gob) inspection, position, velocity, and visual overlays. |
-| **[`gob/look`](look.md)** | Visual overrides on game objects (model scaling, tinting, visibility toggling, and materials). |
-| **[`gob/materials`](materials.md)** | The variable-material slots a game object is drawn in. |
-| **[`gob/overlay`](overlay.md)** | Floating overhead text labels and custom canvas drawings attached to game objects. |
-| **[`position`](position.md)** | Spatial coordinate representation and distance calculations. |
-| **[`map`](map/README.md)** | Minimap and world map tiles, pins, markers, and path overlays. |
-
-### Gameplay Subsystems
-| Namespace | Description |
-|---|---|
-| **[`char`](char.md)** | Character attributes, abilities, beliefs, and experience. |
-| **[`meter`](meter.md)** | Health, stamina, energy, and water meters. |
-| **[`buff`](buff.md)** | Active status effects, debuffs, and duration timers. |
-| **[`wound`](wound.md)** | Character physical damage, treated wounds, and medical status. |
-| **[`fight`](fight.md)** | Combat stance, combat cards, opponents, and target locking. |
-| **[`study`](study.md)** | Curiosities study desk, attention capacity, and learning points. |
-| **[`craft`](craft.md)** | Crafting recipes, ingredients, and recipe tracking. |
-| **[`quest`](quest.md)** | Personal quests, quest tree conditions, and completion progress. |
-| **[`kin`](kin.md)** | Friends list, village members, villages, and kinship groupings. |
-| **[`party`](party.md)** | Active adventuring party members and health sharing. |
-| **[`actionbar`](actionbar.md)** | Hotbar action slots, key allocations, and triggers. |
-| **[`menugrid`](menugrid.md)** | Main gameplay radial action menu (adventure, build, craft). |
-| **[`flowermenu`](flowermenu.md)** | Contextual radial menus when right-clicking objects. |
-| **[`placing`](placing.md)** | Blueprint placement and construction grid snapping. |
-| **[`speed`](speed.md)** | Character movement speed modes (crawl, walk, run, sprint). |
-| **[`chat`](chat.md)** | In-game chat tabs, message history, channel selection, and posting lines. |
-
-### UI & Styling
-| Namespace | Description |
-|---|---|
-| **[`ui`](ui/README.md)** | Windows, custom canvas widgets, buttons, checkboxes, text fields, and layout columns. |
-| **[`ui/style`](ui/style/README.md)** | CSS-like stylesheet engine for styling native and custom widgets. |
-| **[`font`](font.md)** | TrueType font loading and text measurement. |
-| **[`client`](client/README.md)** | Native client settings, window properties, and keybinding management. |
-
-### Data, Networking & Utilities
-| Namespace | Description |
-|---|---|
-| **[`event`](event/README.md)** | Event bus subscriptions (`hafen.event():on(...)`). |
-| **[`timer`](timer.md)** | Periodic timers (`:every`) and delayed one-shots (`:after`). |
-| **[`store`](store/README.md)** | Addon and character persistent storage backed by SQLite. |
-| **[`log`](log.md)** | Log output to game chat and system terminal. |
-| **[`console`](console.md)** | Custom in-game `:` console commands. |
-| **[`time`](time.md)** | Game world clock, calendar seasons, and daytime tracking. |
-| **[`locale`](locale.md)** | Translation dictionaries and multi-language support. |
-| **[`json`](json.md)** | Fast JSON encoding and decoding. |
-| **[`http`](http.md)** | Outbound HTTP/HTTPS requests (GET, POST). |
-| **[`websocket`](websocket.md)** | Full-duplex WebSocket connections. |
-| **[`sound`](sound.md)** | Playing custom sound effects and audio clips. |
-| **[`asset`](asset/README.md)** | Loading images, textures, and assets shipped in the addon folder. |
-| **[`resource`](resource/README.md)** | The client's own resources by name, their [layers](resource/layers.md), and the [writes](resource/writes.md) that change them. |
-| **[`virtual`](virtual/README.md)** | Spawning client-side visual ghosts and custom map models. |
-| **[`voice`](voice/README.md)** | Proximity voice chat audio and peer streaming. |
-| **[`steam`](steam.md)** | Steam client integration, player identity, and Steam achievements. |
-
-### Data Types & Snapshots
-| Catalog | Description |
-|---|---|
-| **[`types`](types/README.md)** | Overview and index of plain table data snapshots decoupled from live engine state. |
-| **[`types/character`](types/character.md)** | Character attributes, skills, credos, experience, food, meters, and wounds. |
-| **[`types/world`](types/world.md)** | Game objects, spatial coordinates, and terrain tile snapshots. |
-| **[`types/ui`](types/ui.md)** | Widget, chat channel, action page, and craft recipe descriptors. |
-| **[`types/items`](types/items.md)** | Item and container layout snapshots. |
-| **[`types/map`](types/map.md)** | Grid coordinates, map markers, and icon categories. |
-| **[`types/fight`](types/fight.md)** | Combat maneuvers, deck cards, fight summaries, and opponents. |
-
+New to addons? Write one first: [getting started](../getting-started.md) takes about ten minutes.

@@ -1,44 +1,39 @@
-# hafen.voice: Proximity Voice Chat
+# hafen.voice: a link to a voice server
 
-`hafen.voice()` provides proximity-based voice chat capabilities. It allows addons to establish real-time audio links with voice servers, handle microphone input, play 3D spatialized audio streams, and track nearby speakers.
+Talk to the players near you, over a proximity voice server, and hear them panned by where they stand.
+`hafen.voice()` is the collection of your addon's live **voice links**, each one a connection to one
+server in the shape of a [`hafen.websocket`](../websocket.md) connection: built bare, opened on purpose,
+heard through `:on`. It is **protected** the way that section is — the `voice.connect`
+[permission key](../../guides/permissions.md) says whether your addon may open one, and the manifest's
+`network` block says to which servers — because a link opens the user's microphone and puts their voice on
+a server. Reach for it to build the voice addon your players use; the client itself draws no voice UI and
+binds no key.
 
 ```lua
-local voice_connection = hafen.voice():connection("wss://voice.brodgar.io")
-
-voice_connection:on("Open", function(connection)
-  hafen.log():write("Voice connection established, session ID: " .. tostring(connection:id()))
-end)
-
-voice_connection:on("Close", function(close_event)
-  hafen.log():write("Voice disconnected: " .. close_event:reason())
-end)
-
-voice_connection:on("PeerAdded", function(peer)
-  hafen.log():write("Player within voice proximity: " .. tostring(peer:id()))
-end)
-
-voice_connection:vad(true):transmitting(true):connect()
+local voice = hafen.voice():connection("wss://voice.brodgar.io")
+voice:on("Open", function(v) hafen.log():write("voice up, session " .. v:id()) end)
+voice:on("Close", function(ev) hafen.log():write("voice closed: " .. ev:reason()) end)
+voice:on("PeerAdded", function(peer) hafen.log():write("near you: " .. peer:id()) end)
+voice:vad(true):transmitting(true):connect()
 ```
 
----
+## The pages
 
-## Subsystem Documentation
-
-| Guide | Description |
+| Page | What it holds |
 |---|---|
-| [Voice Link](link.md) | Establishing, configuring, and closing voice connections. |
-| [Audio & Microphone](audio.md) | Microphone gating, VAD, volume mixing, and audio telemetry. |
-| [Peers](peers.md) | Tracking and adjusting individual nearby speakers. |
+| [the link](link.md) | building one, opening it, what it says, what is live, and ending it |
+| [the mic and the mix](audio.md) | what you send and what you hear: the settings, whether you are speaking, and the counters |
+| [peers](peers.md) | the players a link relates you to, addressed by Gob, and the keys that follow them |
 
----
+## Declaring network access
 
-## Permission & Network Requirements
-
-Voice links require the [`voice.connect`](../../guides/permissions.md) permission and an explicit host entry in `manifest.json`:
+**The same declaration a request or a connection needs, under its own key.** `voice.connect` is a
+[permission key](../../guides/permissions.md) like any other, and the `network` block is what it takes — the
+key says *whether*, the hosts say *where*:
 
 ```json
 {
-  "id": "proximity_chat",
+  "id": "myaddon",
   "api_version": "1.0",
   "files": ["main.lua"],
   "permissions": ["voice.connect"],
@@ -48,34 +43,64 @@ Voice links require the [`voice.connect`](../../guides/permissions.md) permissio
 }
 ```
 
-- **User Consent**: The client prompts the user when installing the addon: *"use your microphone to talk on the voice servers it lists: voice.brodgar.io"*.
-- **Permission Check**: Permissions and host allowlists are enforced synchronously during `:connect()`.
-- **WSS Only**: Only secure WebSocket (`wss://`) endpoints are supported. Self-signed or unverified certificates are rejected.
-- **Localhost / Private IP Restrictions**: Connections to loopback (`127.0.0.1`), link-local, or private RFC1918 subnets are blocked.
+- **The user reads it as one line** when they enable your addon: *"use your microphone to talk on the
+  voice servers it lists: voice.brodgar.io"*. The line names the microphone because that is what the key
+  grants; an addon that also fetches or keeps a connection declares those keys beside it, and the dialog
+  prints one line per key over the same hosts.
+- **A `wss://` address is the `https` server the block names**, exactly as it is for a
+  [connection](../websocket.md#declaring-network-access): `wss://voice.brodgar.io` is a link to
+  `https://voice.brodgar.io:443`, which `voice.brodgar.io` grants. Everything else about an entry — the
+  wildcard, the case, the port — is on [`hafen.http`](../http.md#declaring-network-access), and holds here
+  unchanged.
+- **The allowlist that gates a link is the one the user approved**, not the one your manifest lists today;
+  **hosts with no key is a load error**, and **a key with no hosts** is refused at `:connect()`, naming the
+  block to add. A link to any other origin is refused at `:connect()`, synchronously, as a Lua error naming
+  the origin and the list that was approved.
 
----
+> **The [permission](../../guides/permissions.md) is checked by `:connect()`**, not by `:connection(url)`:
+> nothing leaves the client, and the microphone stays closed, until then. The URL's *syntax* is checked
+> where you wrote it.
 
-## Proximity & Privacy Model
+## What the server is told
 
-The voice subsystem transmits **relative** positional data to the voice server:
-- Character relative position vectors (in tiles) to other player objects in view.
-- Recent movement orders (clicks and directions) to allow server-side dead reckoning.
-- **No absolute coordinates**: World coordinates, grid IDs, and character account names are never transmitted to the voice server.
-- Audio packets are encrypted and relayed via the audio endpoints designated by the voice server.
+The link reports your character to the server so the server can decide who hears whom — and it reports
+**relative positions only**. Every half second it sends the id of the character's own object, the vector
+from the character to each player object in view, in tiles and in the world's own frame, and each **move
+order** the character issued since the last report — a click on the ground, or an
+[`s:player():move`](../player.md) — as a vector from where they stood, the instant it was given, so the
+server can keep proximity right between two reports. No world coordinate, grid id or account name ever
+leaves the client; the audio itself travels encrypted over a relay the server names in its welcome.
 
----
+**The client draws nothing.** Whether a player is speaking, who can hear you, a mute — everything a voice
+addon shows is yours to draw, with [`gob:overlay()`](../overlay.md) and [`hafen.ui`](../ui/README.md); the
+only thing the client does by itself is pan each voice by its position, when `spatial()` is on.
 
-## Limits & Constraints
+## Security and limits
 
-- **Single Active Microphone**: The client shares one physical capture stream across all active voice links.
-- **Connection Caps**: Maximum 4 concurrent voice links across all active addons.
-- **Handshake Timeout**: 10 seconds by default (configurable between 1 ms and 60,000 ms via `:timeout()`).
+> **A link can never reach a server the user did not approve**, and the microphone opens only for a link
+> the user approved.
 
----
+- **`wss://` only.** TLS is verified against the JDK trust store, and certificate verification is never
+  disabled.
+- **Private, loopback and link-local addresses are refused**, even for an allowlisted host — the same list
+  [`hafen.http`](../http.md#security-and-limits) closes. A host that resolves into one fails with `Error`
+  naming it. A server on your own machine is one such host: it cannot be reached from an addon.
+- **The audio relay the server names is trusted with the audio**, and with nothing else: a server the user
+  approved chooses where its own audio goes.
+- **One microphone, shared.** The first link to open takes the capture device and the last to end releases
+  it; every link between is fed from it. Whether it transmits is each link's own
+  [setting](audio.md#the-settings).
+- **One link per server, for the whole client.** A second `:connect()` to a server any addon already holds a
+  live link to is refused naming that addon, because a second session from the same client would silence
+  both — `hafen.voice():find(host)` is how you reach the one that is live when it is yours.
+- **Resource caps**: **4** live links in the whole client, every addon together, past which `:connect()`
+  raises; the handshake timeout **10 s** by default and settable anywhere in **1 ms..60 s**, refused
+  outside it.
 
-## See Also
+## See also
 
-- [Voice Link](link.md) — Connection lifecycle and state management.
-- [Audio & Mic](audio.md) — Voice activation detection and audio streams.
-- [Peers](peers.md) — Interacting with individual nearby players.
-- [`hafen.websocket`](../websocket.md) — Raw WebSocket communication.
+- [`hafen.websocket`](../websocket.md) — the shape this section shares, and the network declaration in full
+- [`hafen.session`](../session.md) — the character a link speaks for
+- [`gob:overlay()`](../overlay.md) — drawing a speaker's state above their head
+- [threading](../threading.md) — where a handler runs, and why every one of these reaches every tree
+- [permissions](../../guides/permissions.md) — the protected tier, and the key this section needs

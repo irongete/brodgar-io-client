@@ -27,7 +27,7 @@ end)
 |---|---|---|---|---|
 | `resource:layers():add(spec)` | `table` | `Layer \| nil` | Unprotected | Replaces every layer at the spec's [address](#addresses) with one built from the spec over the first of them. Hands back the new `Layer`, or `nil` while the resource is not loaded — the write is registered either way. |
 | `resource:layers():remove(key)` | `string \| Layer` | `LayerCollection` | Unprotected | Drops every layer at `key` (a [layer key](layers.md#keys), or a `Layer` for its key). Chains. |
-| `resource:layers(file)` | `data asset` | `LayerCollection` | Unprotected | Makes the resource's layers the ones in `file`, a `.res` [data asset](../asset/handles.md#data-asset) — see [whole files](#whole-files). Hands back the collection. |
+| `resource:layers(file)` | `data asset` | `LayerCollection` | Unprotected | Makes the resource's layers the ones in `file`, a `.res` [data asset](../asset/handles.md#data) — see [whole files](#whole-files). Hands back the collection. |
 | `resource:release()` | — | `Resource` | Unprotected | Drops every write your addon made on this resource; a loaded copy shows the client's own layers at once. Chains. |
 
 Every write is checked when made and refused naming what is wrong; a write that registers cannot fail when applied.

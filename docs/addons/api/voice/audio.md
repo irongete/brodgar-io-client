@@ -1,111 +1,74 @@
-# hafen.voice: Audio & Microphone Control
+# hafen.voice: the mic and the mix
 
-This section covers microphone input gating, voice activity detection (VAD), volume levels, and audio telemetry on active voice connections.
+What a [link](link.md) sends and what it plays: whether your microphone goes out and how it is gated on the
+way, whether the voices coming in are heard and how loud, whether you are speaking right now, and the
+counters. Every setting is **yours and the link's**: you write it in any state, it reads back what you wrote,
+and it takes effect the moment the link is open — the same verbs before `:connect()` and after `Open`.
 
 ```lua
-local voice_connection = hafen.voice():connection("wss://voice.brodgar.io")
-  :vad(false) -- Disable VAD for explicit push-to-talk
+local voice = hafen.voice():connection("wss://voice.brodgar.io")
+  :vad(false)                                   -- push-to-talk: the key is the whole gate
   :connect()
-
--- Implement Push-to-Talk using keybindings
-local keybindings = hafen.client():options():keybindings()
-keybindings:on("push_to_talk", function() end)
-
-local talk_binding = keybindings:binding():get("push_to_talk")
-hafen.timer():every(0.05, function()
-  voice_connection:transmitting(talk_binding:down())
-end)
+local keys = hafen.client():options():keybindings()
+keys:on("talk", function() end)                 -- declared, so the user has a row to bind
+keys:on("mute", function() voice:muted(not voice:muted()) end)
+local talk = keys:binding():get("talk")
+hafen.timer():every(0.05, function() voice:transmitting(talk:down()) end)
 ```
 
----
+## The settings
 
-## Audio Settings
+Each is one verb — the bare name reads, one argument writes and hands the link back — and each is
+**unprotected past the key that opened the link**: a setting changes what the user's own microphone sends
+and what their speakers play, nothing the server judges. A write is refused, never clamped, outside the
+range its row states; an explicit `nil` is refused too, since the read is the same name with no argument.
 
-All audio setting methods read the current value when called with zero arguments, or update the value and return the connection handle when called with one argument.
-
-| Method | Type | Default | Description |
+| Method | Value | Default | What it does |
 |---|---|---|---|
-| `voice:transmitting(enabled?)` | `boolean` | `false` | Microphone transmission gate. Set to `true` while speaking or holding a PTT key. |
-| `voice:vad(enabled?)` | `boolean` | `true` | Voice Activity Detection. When `true`, audio frames below `threshold` are not sent. |
-| `voice:threshold(rms?)` | `number` | `350` | RMS audio sensitivity threshold (`0` to `32767`). Lower values increase sensitivity. |
-| `voice:agc(enabled?)` | `boolean` | `true` | Automatic Gain Control for microphone level normalization. |
-| `voice:muted(enabled?)` | `boolean` | `false` | Hard mute. When `true`, no microphone data is transmitted. |
-| `voice:deafened(enabled?)` | `boolean` | `false` | When `true`, incoming peer audio playback is silenced. |
-| `voice:volume(multiplier?)` | `number` | `1.0` | Global playback gain multiplier (`0.0` to `4.0`). Multiplies with per-peer volumes. |
+| `voice:transmitting()` / `voice:transmitting(on)` | boolean | `false` | **the gate**: while `true` the microphone goes out, subject to `vad` and `muted` below. Bind it to a key held down for push-to-talk, or set it once for an open mic |
+| `voice:vad()` / `voice:vad(on)` | boolean | `true` | **voice detection**: while `true`, only frames louder than `threshold` go out and the rest are held back, so the link is silent between your sentences. With it `false`, everything goes while `transmitting` is |
+| `voice:threshold()` / `voice:threshold(rms)` | number, `0..32767` | `350` | how loud a frame has to be to count as a voice, as an RMS on the 16-bit sample scale; lower is more sensitive. Read by `vad` only |
+| `voice:agc()` / `voice:agc(on)` | boolean | `true` | **automatic gain**: whether your loudness is evened out before it goes, so a quiet voice and a loud one arrive alike |
+| `voice:muted()` / `voice:muted(on)` | boolean | `false` | **the hard mute**: while `true` nothing goes out, whatever `transmitting` says. Two switches because they are two gestures — the key you hold, and the mute you toggle |
+| `voice:deafened()` / `voice:deafened(on)` | boolean | `false` | while `true` every voice coming in is silenced; your own still goes out |
+| `voice:volume()` / `voice:volume(g)` | number, `0..4` | `1` | the gain every voice coming in is played at, `1` being as sent; a [peer's own](peers.md#the-peer-object) multiplies with it |
 
-### Transmission Logic
+**The settings are what you set, not what the engine has.** A link that is `"new"` or `"connecting"`
+remembers each write and applies them all the instant it opens; one that is `"open"` applies a write at
+once; one that has ended still reads back what it was set to, which is what a reconnect copies over. The
+range check is the same in every state.
 
-Audio is transmitted over the network only when the following condition evaluates to `true`:
-```lua
-is_transmitting = voice:transmitting() and not voice:muted() and (not voice:vad() or voice:speaking())
-```
+> **What goes out is `transmitting and not muted and (not vad or loud enough)`.** Nothing leaves the
+> client while any of the three says no, and `speaking()` is exactly that expression, measured.
 
----
+## Read
 
-## Live Audio State & Telemetry
-
-### `voice:speaking()`
-
-Returns `true` if the local user's microphone is actively producing and transmitting voice audio right now (includes a brief hangover period to avoid choppy transitions between words). Returns `false` when disconnected.
-
-```lua
-if voice_connection:speaking() then
-  -- Highlight local player's voice indicator on HUD
-end
-```
-
-### `voice:info()`
-
-Returns a telemetry snapshot of connection and playback performance:
-
-```lua
-local telemetry = voice_connection:info()
-hafen.log():write(string.format("Voice RTT: %d ms | Sent: %d frames | Streams: %d",
-  telemetry.rtt or 0, telemetry.sent or 0, telemetry.streams or 0))
-```
-
-| Field | Type | Description |
+| Method | Returns | Description |
 |---|---|---|
-| `url` | `string` | Voice server endpoint. |
-| `state` | `string` | Connection status (`"new"`, `"connecting"`, `"open"`, `"closing"`, `"closed"`). |
-| `speaking` | `boolean` | Local microphone transmission state. |
-| `id` | `number \| nil` | Server-assigned session identifier. |
-| `rtt` | `number \| nil` | Round-trip latency to the audio relay server in milliseconds. |
-| `sent` | `number` | Total 20 ms voice frames transmitted. |
-| `received` | `number` | Total voice packets received from the server. |
-| `mixed` | `number` | Total 20 ms audio playback frames processed. |
-| `streams` | `number` | Number of active peer audio decoders currently running. |
+| `voice:speaking()` | boolean | whether your voice is going out **right now** — past the gate, the mute and the detector, with a short hangover so a pause between words does not flicker. `false` in every state but `"open"` |
+| `voice:info()` | table | the settings and the counters below, as one snapshot |
 
----
+`voice:info()` is the one **snapshot** of a link, for logging and for a status line; every other read is the
+live verb. It carries the settings above under their own names, plus:
 
-## Complete Push-to-Talk & Mute Example
+| Field | Type | Notes |
+|---|---|---|
+| `url` | string | `voice:url()` |
+| `state` | string | `voice:state()` |
+| `speaking` | bool | `voice:speaking()` |
+| `id` | number | `voice:id()`; optional — absent before `Open` and once the link has ended |
+| `rtt` | number | the last round trip to the audio relay, in milliseconds; optional — absent until the relay has answered a ping, which is moments after `Open` |
+| `sent` | number | voice frames sent since the link opened, each 20 ms; `0` with no engine |
+| `received` | number | voice packets the relay has sent this link, counted before any mute or deafen |
+| `mixed` | number | 20 ms frames the mix has played, speaking or silent — the playback clock |
+| `streams` | number | how many players' voices the mix is holding a decoder for right now |
 
-```lua
-local voice_connection = hafen.voice():connection("wss://voice.brodgar.io"):connect()
-local keybindings = hafen.client():options():keybindings()
+The counters count from `Open` and stop at the ending; `mixed` climbs whether or not anyone is talking,
+which is how a status line tells a link whose audio is running from one whose audio thread died.
 
--- Push-to-talk toggle
-keybindings:on("ptt_voice", function() end)
-local ptt_binding = keybindings:binding():get("ptt_voice")
+## See also
 
--- Toggle mute
-keybindings:on("toggle_mute", function()
-  local is_muted = not voice_connection:muted()
-  voice_connection:muted(is_muted)
-  hafen.log():write("Microphone " .. (is_muted and "muted" or "unmuted"))
-end)
-
-hafen.timer():every(0.05, function()
-  if ptt_binding:assigned() then
-    voice_connection:transmitting(ptt_binding:down())
-  end
-end)
-```
-
----
-
-## See Also
-
-- [Voice Link](link.md) — Connection lifecycle and state management.
-- [Peers](peers.md) — Per-player audio volume and mute settings.
-- [`hafen.client():options():keybindings()`](../client/keybindings.md) — Keyboard binding configuration.
+- [the link](link.md) — building, opening and ending one
+- [peers](peers.md) — who you hear and who hears you, and the mute and volume that are per player
+- [`hafen.voice`](README.md) — the hub: the declaration, what the server is told, and the limits
+- [keybindings](../client/keybindings.md) — the key a push-to-talk holds, and `down()` for the level of it

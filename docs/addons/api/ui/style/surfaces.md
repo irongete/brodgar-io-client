@@ -1,26 +1,413 @@
-# Surface Fills & Textures
+# hafen.ui: the client's own surfaces
 
-Configure background fills, textures, opacity, and borders.
+What each [site key](keys.md#site-keys) actually is on screen, how to see a rule take effect on it, and the
+caveats that only make sense once you know what the surface is. [keys](keys.md) says *which* properties each
+one honours; this page says *what it is*. Two families sit on pages of their own: [the chat window and its
+kinds of line](chat.md), and [the HUD's plates](hud.md).
 
-## Quick Example
+Two things hold everywhere below. A rule **inherits each site's stock size** unless your handle carries
+one, so `["label"] = { font = h }` swaps the family everywhere while an 18 px row stays 18 px — the safe way
+to restyle text without moving layouts. And re-rendering is **lazy**: each surface picks the rule up the
+next time it draws, so a mass restyle never stalls a frame.
+
+## The global fallback
+
+`*` is the broad hammer: it cascades to every routed surface with no more-specific rule, so `["*"]` alone
+changes everything while another key refines any one surface.
 
 ```lua
-hafen.ui():style():rule("window.dark_theme", {
-  background_color = { 15, 15, 20, 240 },
-  border_color = { 120, 100, 60, 255 },
-  border_width = 1,
-  border_radius = 4
-})
+local sheet = hafen.ui():sheet()
+sheet:rule("*"):font(body)                 sheet:install()   -- everything routed
+sheet:rule("button"):font(h2)                     -- ...but buttons use h2 (an installed sheet is live)
+sheet:rule("button"):release()                           -- buttons fall back to the cascade again
 ```
 
----
+## `window.title`
 
-## Surface Properties
+The caption in a window's title bar, drawn by the window's **decoration** rather than placed as a widget of
+its own — which is why it is a site and not a role. `window[title=…]` names the window that carries the
+caption, not the caption itself. It is **embossed** — a texture tiled through the glyph mask — so it
+follows a `font` rule as it stands while a `color` waits on an [`emboss(false)`](text.md#emboss) beside it.
+Each **visible** window re-renders its caption on the frame after the rule moves.
 
-| Property | Value Type | Description |
+This key also carries the **plate** the caption sits on: a `bg` or a `border` here fills the box the client
+sizes around the caption, so a longer title makes a wider plate and the rule only says what fills it. The
+caption's own place is [`window.frame`'s `caption`](chrome.md#ornaments),
+because that is the surface doing the drawing.
+
+## `window.frame` and `panel`
+
+Neither draws text. `window.frame` is the decoration the client draws around a window — it takes
+[`bg`](chrome.md#bg), [`border`](chrome.md#border), [`padding`](chrome.md#padding) and the
+[ornament](chrome.md#ornaments) properties, and it is the one surface where padding and a border's own
+insets actually **move** anything, because a window re-lays itself out around its content.
+
+### Panels
+
+A great deal of the client is framed without being a window: the boxes around lists and info panes in the
+character sheet, skills, quests, wounds, fight and buddy windows; the HUD portrait; party avatars; the
+map's view and marker list; flower-menu petals; dropdown menus; the cards of the AddOns manager's Browse
+tab and the screenshot box on an addon's page. They draw a 9-slice of their own rather than carrying a
+window's decoration, and `panel` is the key for all of them.
+
+- **`border` reaches every one of them. `bg` does not, and the split is per kind.** A rule's `bg` replaces
+  a surface the client *already paints*; it never invents one. The petals, the dropdown menus, an
+  item-stock box, a Browse card and the screenshot box each paint their own surface before their contents,
+  so a `bg` lands there — a card is its own `@AddonCard`, so a tree rule dresses the cards alone, and a `hover`
+  face in its `bg` is worn under the pointer. The **boxed panels are a border drawn *around* content that is
+  not theirs** — the attribute rows in the character sheet belong to the window, not to the box — so a fill
+  would bury the very rows the box is drawn around. On those, `bg` is **inert** and `border` is what you
+  style with. Nothing is refused and nothing warns.
+- **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no
+  rule re-runs that. So [`padding`](chrome.md#padding) is inert here, and so are your **border's own
+  insets**: the art is drawn *into* the room the stock frame had, not around it. The stock boxes are about
+  **5 design px** of edge, so author your image to roughly that weight; a much fatter one overlaps the
+  panel's contents rather than pushing them aside. This is the opposite of `window.frame`, where the insets
+  *are* the margins, because a window re-lays itself out and a panel cannot.
+- **The change is deliberately small.** A border rule on a boxed panel swaps a few pixels of edge art inside
+  geometry that stays put. If you want a panel to read differently, say it in the border image; there is no
+  fill behind it to carry the difference.
+
+## `inventory.slot`
+
+The empty **square** an inventory is paved with: your own, every container you open — a cupboard, a chest, a
+cart, a stockpile — and the slots of the equipment window, which are the same square laid out around the
+character. It draws no text, so it takes [`bg`](chrome.md#bg) and [`border`](chrome.md#border) and nothing
+else. The client's own square is exactly those two — a translucent dark-green fill inside a one-pixel darker
+outline, drawn in code rather than loaded from a resource — so a
+[line](chrome.md#border) border and a flat `bg` restate it, and any other art replaces it.
+
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("inventory.slot"):bg{ color = {40, 20, 60, 255} }
+                        :border{ color = {255, 140, 40}, width = 1 }
+sheet:install()
+```
+
+Three things follow from where the square is drawn, and none of them is a limit you can lift:
+
+- **A rule paints inside the client's own rectangle.** The square's size *is* the grid's pitch — the cell an
+  item icon is placed on was measured from it when the inventory was built — so a rule says what fills that
+  rectangle and never how big it is. Art of another size is scaled into it, and `padding` has nothing to
+  move here.
+- **The squares are painted before the items.** An inventory draws its whole grid and then its icons over
+  it, so a `bg` never buries an item however opaque it is, and a hovered or dragged item is unaffected.
+- **A masked-off cell is dimmed by the client**, as it always was — a container whose shape leaves some
+  cells unusable draws those darker. The dimming multiplies through *picture* art and leaves a flat `bg`
+  colour as written, so a themed grid that wants its dead cells to read differently gives them a picture.
+
+Deliberately not in this key: the belt across the bottom of the screen, the action-menu grid, the craft
+window's input and output slots and the combat-manoeuvre row. Each of those happens to blit the *same*
+raster, but none of them is an inventory square, and each keeps the client's own.
+
+## `menu.slot`
+
+The empty **square** the action menu's grid is paved with — the icon grid in the bottom-right corner, and
+every page of it. It is the **same raster** [`inventory.slot`](#inventoryslot) paves a bag with: the client
+builds one square and two grids blit it. A key of its own all the same, because a shared key could never be
+told apart — a theme that wants an action grid to read differently from a bag says so here, and one that
+wants them alike writes the two rules the same.
+
+```lua
+local sheet = hafen.ui():sheet()
+local cell = { bg = {color = {20, 30, 50, 140}}, border = {color = {34, 232, 245}, width = 1} }
+sheet:rule("inventory.slot"):bg(cell.bg):border(cell.border)
+sheet:rule("menu.slot"):bg(cell.bg):border(cell.border)      -- ...or something else entirely
+sheet:install()
+```
+
+It draws no text — the **keybind letters** over it are [`menu`](#menu)'s, the same key the flower menu's
+petals wear — and it behaves exactly as an inventory square does: the rule paints inside the client's own
+cell, at the client's own pitch, so every icon stays where it is and every click still lands. `padding` has
+nothing to move.
+
+**The frame round the grid is `menu.frame`**, a key of its own and the twin of
+[`minimap.frame`](hud.md): the client blits both at fixed places of its own, one in each bottom corner,
+and each is dressed with [`picture`](chrome.md#picture) rather than with a fill and a frame. The grid is
+drawn **over** it, so art with no hole in the middle hides the actions behind it.
+
+Because the cell and an inventory square share a raster, the [caveat on `inventory.slot`](#inventoryslot)
+is this key's too: the
+client's own square is one picture whose outline is a single **device** pixel and whose corners are left
+transparent, so a `bg` under a `border` is a near restatement rather than an exact one.
+
+## `button`
+
+The client's standard buttons — the Options window, the character-sheet, craft and build buttons, tab
+buttons, key-bind buttons, `wrapped` multi-line buttons — **caption and face both**: the letters through
+[`font`](text.md#font), and the surface they are set on through [`bg`](chrome.md#bg) and
+[`border`](chrome.md#border). Buttons rasterise themselves into an image, so each **visible** button
+re-renders on the frame after the rule moves — open a window with buttons while toggling and you see it live.
+
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("button"):bg{ color = {70, 40, 100}, pressed = { color = {220, 130, 40} } }
+                :border{ color = {255, 220, 40}, width = 2 }
+sheet:install()
+```
+
+**The client's own button is a fill inside a frame, and a rule replaces the two apart.** Its `bg` stands in
+for the centre texture the caption is set on, its `border` for the four edge caps around it; name one and
+the other stays the client's own, which is why a `bg` alone paints inside the stock frame rather than over
+it. The caption is drawn **between** them, as it always was: over the fill, under the frame.
+
+- **Three states reach a button**, and they ride inside the `bg`
+  [as a face per state](chrome.md#a-face-per-state): `pressed` while it is held down, `hover` while the
+  pointer is on it, `disabled` on a button greyed out — by the client, or
+  [by you](../writes.md#enabled-and-disabled) on one you built. The stock face has no hover of its own, so
+  a button follows the pointer only once a rule gives it something to follow it with. `checked` belongs to
+  a checkbox and is never asked for here.
+- **A face never resizes a button.** Its box is the width it was built with and the height of the client's
+  own art, decided before any rule existed, so a picture is drawn into that rectangle. A frame heavier than
+  the stock edge overlaps the caption rather than pushing it aside.
+- **A disabled button is greyed by the client**, as it always was — it monochromises the picture it
+  rasterised, which is the caption and whatever of its own art the rule left in place. The fill beside it is
+  the `disabled` face you named, at the colour you named it. One you
+  [greyed out](../writes.md#enabled-and-disabled) yourself is dimmed on top of both.
+- **`padding` is inert here.** A button's caption is centred in a box it does not own, so there is no room
+  to make.
+
+The stock caption font is **bold serif 12**, so overriding `button` with a serif handle at size 12 installs
+correctly and looks like nothing happened. Pick a contrasting family when you want to see the change.
+
+`color` reaches only part of this key on its own: the ordinary caption is embossed, so a colour rule needs
+an [`emboss(false)`](text.md#emboss) beside it there, while a `wrapped` multi-line caption and any caption
+the client sets *with* a colour of its own follow it as it stands, both rendering through the plain foundry.
+
+Two surfaces are deliberately not in this key: a button that is a **picture** rather than a box with a
+caption in it — the icon buttons, the character-selection list entries — and button-shaped widgets that are
+not buttons at all (checkboxes, radio labels). Neither draws the fill-inside-a-frame this key dresses, and
+neither renders a caption through it. A standard button the client hands a ready-made caption to is one of
+these buttons still: its letters are the client's, its face is the rule's.
+
+## `textentry`
+
+Both of the client's text-input surfaces, **letters and field both**: every editable box — the chat input,
+search boxes, the login name and password fields, name-a-save fields — **and** the console command line,
+the `:` prompt, so `:lua` and your own [`hafen.console`](../../console.md) commands are typed in your font
+too. Each field drops its cached line when the rule moves, so the change is live on the next frame, and
+selection and caret positions follow the new glyph advances automatically.
+
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("textentry"):bg{ asset = "img/field.png" }
+                   :border{ color = {255, 190, 60}, width = 2 }
+                   :padding(8, 3, 8, 3)
+sheet:install()
+```
+
+**The client's own field is a stretched middle between two end caps**, and a rule replaces the two apart:
+[`bg`](chrome.md#bg) stands in for the middle, [`border`](chrome.md#border) for the caps, and naming one
+leaves the other the client's own. The caret is neither, so it keeps being drawn over whichever painted.
+
+- **`padding` is the room between the field and its text**, and the room comes out of a width the client
+  still owns: a field is as wide as whoever built it asked for, so padding moves the text inward and the
+  visible run shortens by that much. Clicking, caret placement and drag-selection read the same offset.
+- **A `bg` decides how tall a field is *built*.** A field's height comes from its background rather than
+  from its font, which is why a much larger `size=` is drawn and then vertically clipped — stay near the
+  stock serif 12, or the command line's mono 12, unless you want the clipping. A `bg` with a picture in it
+  **is** that background, so a field built while the rule is installed is as tall as the art; a flat
+  `color` has no size of its own and leaves the stock height.
+- **Only a field built *afterwards*, and only from the site key.** Nothing re-measures one that exists — a
+  control's box is decided when it is built — so the chat input keeps its height and the art is drawn into
+  the box it has, and the height is read before there is a widget for a [tree key](keys.md#tree-keys) to
+  match, so `["@TextEntry"]` paints a field and never re-sizes one. Install the rule before building your
+  own [entries](../controls/interactive.md#text-entry) and `:size(w)` gives them the art's height.
+
+## `checkbox`, `scrollbar` and `slider`
+
+The three controls the client draws out of **blitted pictures** rather than out of a frame, and each is two
+keys: the whole, and the part that moves over it. Every one of the six takes [`bg`](chrome.md#bg) and
+[`border`](chrome.md#border) and no text — a checkbox's caption is [`label`](#label)'s.
+
+| Key | What it is | Where you see it |
 |---|---|---|
-| `background_color` | `{r, g, b, [a]}` | Solid color fill. |
-| `background_image` | `string \| AssetHandle` | Repeating or stretched background image. |
-| `border_color` | `{r, g, b, [a]}` | Outline stroke color. |
-| `border_width` | `number` | Stroke thickness in design pixels. |
-| `border_radius`| `number` | Corner curve radius. |
+| `checkbox` | the square a tick sits in | the Options window's rows, and radio buttons |
+| `checkbox.mark` | the tick, drawn only while the box is ticked | the same boxes, once ticked |
+| `scrollbar` | the vertical rail | any list long enough to scroll |
+| `scrollbar.knob` | the thumb that runs down it | the same bars |
+| `slider` | the horizontal rail | the volume and interface sliders in Options |
+| `slider.knob` | the thumb that runs along it | the same sliders |
+
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("checkbox"):bg{ color = {200, 40, 40}, checked = { color = {40, 40, 200} } }
+sheet:rule("checkbox.mark"):bg{ asset = "img/tick.png" }
+sheet:rule("scrollbar"):bg{ color = {30, 60, 120} }:border{ color = {255, 255, 255}, width = 1 }
+sheet:install()
+```
+
+- **The whole and the part are two arts, and neither implies the other.** Name only `scrollbar` and the
+  client's own thumb still runs down your rail; name only `scrollbar.knob` and it runs down the client's own
+  chain. That split is the reason the parts are keys at all — one art on both would be one flat bar.
+- **A rule paints inside the control's own rectangle.** A rail fills the whole control the client built, a
+  thumb fills the box the client's own thumb has, and a tick the box the client's own tick has, wherever the
+  control currently puts it. So art of another size is scaled into that rectangle, the grab shape a drag is
+  measured against never moves, and `padding` has nothing to move either.
+- **`checked` is the one state a checkbox enters on its own**, and it rides
+  [inside the value](chrome.md#a-face-per-state) like every other: `bg{ …, checked = { … } }` on `checkbox`
+  is the ticked box, and on `checkbox.mark` it is the face the tick wears, the mark being drawn in no other
+  state. `disabled` is asked for by one thing only — a checkbox you built and
+  [greyed out](../writes.md#enabled-and-disabled), box and tick both, drawn dimmed whether or not a rule names
+  the face — and `hover` and `pressed` never. A flat `color` on
+  `checkbox.mark` fills the tick's whole rectangle, which is the box's, and buries the face underneath — give
+  the mark a **picture**, whose transparency is what lets the box show through it.
+- **A picture checkbox is deliberately not in this key**, exactly as an icon button is not in
+  [`button`](#button): the client draws some toggles — the map and menu buttons across the HUD, a dropdown's
+  arrow — as a single image with no separate tick, where the image *is* the meaning and the click is routed by
+  sampling its own transparency. A rule replaces a surface the client already paints; it never paints over one
+  that says something. Those keep the client's own art, and so does a scrollbar whose list fits, which draws
+  nothing at all.
+
+## `meter`
+
+A **bar the game fills**: the hunger and stamina meters on the HUD, a container's fill gauge, a quality or
+progress bar a window puts up. Two shapes wear this one key — a **horizontal** bar, which paints a flat
+trough, fills it, and blits a frame over the lot; and a **vertical** one, which blits its frame first and
+draws the fill up over it.
+
+| Property | What it reaches |
+|---|---|
+| [`bg`](chrome.md#bg) | what the fill is drawn **on** — the trough on a horizontal bar, the whole box on a vertical one, which has no trough of its own |
+| [`picture`](chrome.md#picture) | the **frame** the bar blits, replaced where that bar draws its own |
+| [`border`](chrome.md#border) | a frame around the whole bar, painted last. The client draws none, so this **adds** one |
+
+```lua
+local sheet = hafen.ui():sheet()
+sheet:rule("meter"):bg{ color = {8, 12, 20, 255} }
+               :border{ color = {34, 232, 245}, width = 1 }
+sheet:install()
+```
+
+**The fill is never a rule's.** Its colour comes from the *server*, one per meter, and it is what tells a
+hunger bar from a stamina one — the same reason [a party line](chat.md#the-two-colours-the-client-walks)
+keeps the member's own colour. `color` on this key is inert, and a bar keeps meaning what it meant.
+
+**A horizontal bar's frame is the server's art too**, named per meter, so one `picture` makes every bar on
+the HUD look alike. That is a theme's choice to make rather than a mistake, and the art it gives wants the
+transparent centre the stock frame has, or the fill it framed disappears under it.
+
+**This key declares no stock look**, and it is the one place in the catalogue where that is a *finding*
+rather than a missing draw. The two shapes are made of different things — a trough here, a client-owned
+frame there — so one entry under one key would describe neither surface, and
+[`sheet:stock()`](README.md#the-clients-own-look) leaves it out rather than handing back a bar that exists
+nowhere. `panel`, `scrollbar` and `slider` are absent for their own versions of the same reason.
+
+A meter's **tooltip** is [`tooltip`](#tooltip)'s, like every other tip in the client.
+
+## `heading`
+
+The big embossed fraktur captions **inside** a window: "Base Attributes", "Food Satiations", "Abilities",
+"Study Report", "Lore & Skills", "Quest Log", "Health & Wounds", "Kin", the credo group captions, a village
+name, the quest-completed banner. It is deliberately its own key — a heading is neither the window's title
+bar nor body text, so you can restyle one without the others.
+
+Two stock sizes ride this key, window headings and group captions, and a rule with no `size=` keeps each of
+them, so nothing around a heading moves. Headings are baked into an image, so the client rebuilds it and
+re-renders each **visible** heading on the frame after the rule moves. Being embossed is also why a `color`
+rule wants an [`emboss(false)`](text.md#emboss) beside it here, exactly as on a window caption.
+
+## `label`
+
+The client's **body text**: everything it renders with its own hand-picked foundry. The *default* labels
+belong to the `*` cascade; `label` covers the rest.
+
+| Surface | Where you see it |
+|---|---|
+| Attribute rows, name and value | character sheet, Base and Study tabs |
+| List items, text and icon rows | Skills & Lore, Quests, Wounds, combat maneuvers, Icon settings |
+| Menu-search results | the search box results list |
+| Explicit-foundry labels | credo `Level:` and `Quest:` lines, wound quality, the combat-schools counter, the login screen, a village name |
+
+Each site keeps its own colour unless your rule sets one, and labels also keep their **wrap width**.
+
+> **Two geometry caveats if you pass `size=`.** List and attribute **row heights** were computed from the
+> stock font at construction, so taller glyphs clip; and a `Label` resizes itself to its text while its
+> container does not re-lay-out around it.
+
+Deliberately not in this key: a caller-supplied pre-rendered text, and text a widget rasterises into its own
+face. Those are not body text.
+
+## `tooltip`
+
+Every tooltip the client pops up, and the **box** it is popped up in. The bulk of it is the client's tooltip
+**engine**, which composes the tip
+of an inventory item, a buff, a HUD meter, a craft recipe input or output, a minimap marker or object, a
+character-sheet attribute row and an action-menu icon — hovering an inventory item is the quickest way to
+see a rule take effect. On top of that:
+
+| Surface | Where you see it |
+|---|---|
+| Plain string tips | rendered at *display* time, so even the tip already under your cursor re-renders |
+| Widget tips | any widget's own tooltip, including its `Keyboard shortcut: …` tail |
+| Resource pagina tips | the long action and item descriptions |
+| Food and study tips | food event points and satiations, curiosity study times |
+| Terrain, minimap, keybind help, combat action tips | the remaining engine-side tips |
+| Equipment empty-slot names, skill and credo list tips | pre-rendered at construction, re-rendered on the change |
+| Quality, wear, armour, gilding, attribute rows | drawn by code that ships **inside the game resources**, and reached anyway |
+
+Markup inside a tooltip keeps working over your rule — `$b`, `$col`, `$img` — because the rule swaps the
+font family and size rather than the whole font attribute, which is also why a `$col`-coloured row keeps
+*its* colour under a `color` rule. Each cached tooltip image is re-composed the next time you hover it. A
+tooltip sizes its box around its text, so an explicit `size=` is **safe** here, unlike a text field or a
+list row.
+
+Some rows — `Quality:`, `Wear`, `Armor class`, `Gilding`, the attribute deltas — are drawn by code the
+server ships inside the game resources rather than by the client. `tooltip` reaches them anyway: while the
+client composes a tooltip, that whole composition is *declared* to be tooltip text, so any text rendered
+inside it follows the key, even from code that knows nothing about the font system and even when that code
+picked its own font. Those rows keep their own **size**, so a small italic line stays small and italic in
+your family. Nothing outside a tooltip composition is affected. One nuance: with no `size=` the point size
+is preserved exactly, but ascent and descent are per-family metrics, so a family swap can still move a row
+by a pixel.
+
+> **One row needs more than that.** A resource-shipped class that rasterises text into a static field when
+> the class loads cannot be restyled afterwards by any font system, because the JVM never re-runs a static
+> initialiser. That is the `Gilding:` heading, so the client carries a **local copy of that resource's
+> code**, version-matched, which renders the heading on demand instead. There is nothing to do on the addon
+> side. The one caveat is upstream: if the game ships a new version of that resource the local copy steps
+> aside, noting it in the client log, and the heading returns to stock until the copy is refreshed.
+
+**The box is this key too**, so one rule says what a tip is set in *and* what it sits in:
+[`bg`](chrome.md#bg) fills it, [`border`](chrome.md#border) outlines it — a
+[line](chrome.md#border) is what the client's own outline is — and
+[`padding`](chrome.md#padding) is the room between the text and that edge. The client sizes the box around the
+composed text and the box grows **outward**, so padding never re-wraps a tip. Name neither `bg` nor `border`
+and the client's own dark fill and yellow outline stay, at the padding you asked for. There is no cache to
+wait for: the box is painted outside the one the tip's image is kept in, so a rule lands on the tip already
+under your cursor.
+
+## `menu`
+
+Two surfaces: the **petal captions** of a flower menu — the ring of options a right-click opens — and the
+**keybind letters** the action-menu grid paints over its buttons. A petal re-renders *and* re-sizes around
+its own centre when the rule moves, so a menu that is already open restyles in place without drifting off
+its ring, and a bigger `size=` is safe.
+
+## `world.speech` and `world.nick`
+
+`world.speech` is the speech bubble that pops up over a character's head when they talk in area chat, your
+own included, which makes it the easiest key to check: say something and look. The bubble measures its
+frame around the text every frame, so a large size is completely safe here.
+
+**The bubble's box is this key too.** [`bg`](chrome.md#bg) stands in for its white field and
+[`border`](chrome.md#border) for the frame, either alone leaving the other the client's own. With a
+`border` of yours the fill covers the whole bubble; a heavier one draws into the room the stock frame took
+rather than pushing the sentence apart; and the **tail** stays the client's own. Give it a **light** fill —
+the bubble's text is black and stays black, [`color`](keys.md#what-each-key-accepts) being inert here.
+
+`world.nick` is the floating name drawn over characters on your **kin list**, in their kin-group colour. A
+font-only rule leaves that colour alone and the label re-centres itself over the character at the new size;
+a `color` rule **flattens the groups**, painting every name alike. You need a kin visible on screen to
+observe it. Any other world label composed by the same client mechanism follows `world.nick` too.
+
+Neither world key follows a tooltip composition, and both fall back to the `*` cascade when unset, like
+every other key.
+
+## See also
+
+- [keys](keys.md) — which properties each of these keys honours
+- [the chat](chat.md) — the chat window, the five kinds of line in it, and the two colours it walks
+- [the HUD's plates](hud.md) — the five sites whose whole surface is one picture, on a page of their own
+- [style](README.md) — installing the sheet these keys go in
+- [text](text.md) · [chrome](chrome.md) — the properties themselves, and the handles they take

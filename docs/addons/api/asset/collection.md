@@ -1,124 +1,120 @@
-# hafen.asset: Asset Collection
+# hafen.asset: the collection
 
-`hafen.asset()` manages resources loaded by the current addon. All paths are relative to the addon root directory and restricted by sandbox rules.
+`hafen.asset()` is the **collection** of the files this addon has loaded — the same section you load with
+is the one you read — plus the one read that looks at your folder rather than at what is loaded. Every
+verb here is unprotected, and every path is
+[addon-relative and sandboxed](README.md#paths-are-addon-relative-and-sandboxed).
 
 ```lua
-local asset_collection = hafen.asset()
-
-for _, file_path in ipairs(asset_collection:files("audio")) do
-  local asset = asset_collection:get(file_path)
-  hafen.log():write(string.format("%s: %d bytes", file_path, asset:info().bytes))
+for _, path in ipairs(hafen.asset():files("songs")) do
+  hafen.log():write(path .. ": " .. hafen.asset():get(path):info().bytes .. " bytes")
 end
 ```
 
----
+## The collection
 
-## API Methods
-
-All methods in `hafen.asset()` are unprotected.
-
-| Method | Returns | Description |
+| Call | Returns | Description |
 |---|---|---|
-| `hafen.asset():get(path)` | `Asset` | Loads, parses, and interns an asset by relative path. |
-| `hafen.asset():list(filter?)` | `Asset[]` | Returns all active assets loaded by this addon in load order. |
-| `hafen.asset():count(filter?)` | `number` | Returns number of active assets matching optional filter. |
-| `hafen.asset():find(filter)` | `Asset \| nil` | Returns the first asset matching filter. |
-| `hafen.asset():remove(asset)` | `hafen.asset` | Explicitly frees an asset handle. Chains. |
-| `hafen.asset():files(directory?)` | `string[]` | Lists files directly contained in the specified addon directory. |
+| `hafen.asset():get(path)` | an asset | load and intern one file, typed by its extension |
+| `hafen.asset():list(filter)` | asset`[]` | this addon's live assets, in load order |
+| `hafen.asset():count(filter)` | number | how many, without building the array |
+| `hafen.asset():find(filter)` | an asset \| nil | the first one that matches |
+| `hafen.asset():remove(a)` | the collection | free one **now** rather than at teardown; removals chain |
+| `hafen.asset():files(dir)` | string`[]` | the addon-relative paths of the files inside one folder of yours — [below](#the-files-you-ship) |
 
----
+`filter` is the canonical [filter](../conventions.md#the-filter-argument), and a **string** matches the
+addon-relative path an asset was loaded from. There is no `:add` — an asset is a file you shipped, not
+something you make here.
 
-## Loading and Listing Assets
-
-### `get(path)`
-
-Loads a file from the addon directory. Subsequent calls with the same path return the interned asset handle.
-
-```lua
-local icon_asset = hafen.asset():get("textures/icon.png")
-```
-
-### `files(directory?)`
-
-Scans the local addon directory and returns sorted, relative path strings:
+`:remove(a)` takes the **handle**, like every other place an asset is used. It frees the memory on the spot
+and drops the intern entry, so the next `:get(path)` re-reads the file as a new object. It holds **your own
+files only**: a built-in font, a derived variant, a [map drawing](../map/drawings.md) and a file another
+addon loaded are each refused, and each says which of the four it is.
 
 ```lua
-local texture_files = hafen.asset():files("textures")
-for _, file_path in ipairs(texture_files) do
-  hafen.log():write("Found asset: " .. file_path)
+for _, a in ipairs(hafen.asset():list()) do
+  hafen.log():write(("%-5s %s"):format(a:type(), a:path()))
 end
 ```
 
-- If `directory` is omitted, lists files in the addon root directory.
-- Subdirectories inside the target directory are not traversed recursively.
-- Symbolic links escaping the addon root directory are excluded.
+Only *loaded files* appear. A [built-in font](../font.md#the-built-ins) has no file, no path and no lifetime,
+so it is never listed, and neither is a derived variant. A freed asset is gone from the list and never
+resurrected.
 
----
+## The files you ship
 
-## Removing Assets
+### `hafen.asset():files(dir)`
 
-### `remove(asset)`
-
-Explicitly releases resources associated with the handle:
+The **regular files** directly inside `dir`, a folder of your own, as a 1-based array of addon-relative
+paths spelled with `/` and sorted by name — each one a path `:get` takes as it is. `dir` is a folder
+relative to your addon folder, `"songs"` or `"img/icons"`, and leaving it out names the addon folder
+itself. It is unprotected, and it reads the folder on every call, so a file dropped in while the client
+runs is seen on the next call without a `:reload`.
 
 ```lua
-local asset_collection = hafen.asset()
-local temporary_image = asset_collection:get("textures/large_splash.png")
-
--- Use asset...
-asset_collection:remove(temporary_image)
+local songs = hafen.asset():files("songs")            -- { "songs/air.mid", "songs/reel.mid" }
+if #songs == 0 then hafen.log():write("no songs shipped") end
 ```
 
-- Removing an asset invalidates its handle and clears its interned cache entry.
-- Next call to `:get(path)` will reload the file from disk.
-- You can only remove assets loaded by your own addon. Passing built-in fonts, map drawings, or assets from other addons produces a Lua error.
+What it lists is exactly what `:get` would load: the
+[containment check](README.md#paths-are-addon-relative-and-sandboxed) resolves `dir` and then every entry
+inside it, so an entry whose real path leaves your folder — a link pointing out of it — is not a file you
+ship and is not listed. A folder inside `dir` is not listed either; name it to see what is under it. An
+empty folder is an empty array, not an error. It raises on a `dir` that is absolute or climbs out, like
+`:get`, and on one that is not a folder of yours, naming it.
 
----
+## Errors
 
-## Error Handling
+Everything below raises a `pcall`-able error naming `hafen.asset`, and each shape is distinguishable:
 
-Asset calls validate paths and raise descriptive errors on failure:
-
-| Condition | Raised Error |
+| What you did | What you get |
 |---|---|
-| Absolute path passed (`"/icon.png"`) | Path must be relative to addon root. |
-| Path traversal (`"../shared/icon.png"`) | Path leaves addon directory. |
-| Non-existent file | File not found in addon directory. |
-| Invalid file content | File decoding failed (e.g. malformed PNG, corrupt GLTF). |
-| Non-string argument to `:get()` | Expected path string. |
-| Calling `:get()` from interactive console | Interactive `:lua` console lacks an addon root directory. |
-| Removing non-handle object | Parameter must be an asset handle. |
+| `:get("/etc/passwd")` | the path *is absolute* — every path here is relative to your own folder |
+| `:get("../other/icon.png")` | the path *is not inside* your addon folder |
+| `:get("link/icon.png")`, where `link` points out of your folder | the same refusal: the check follows the link |
+| `:get("nope.png")` | *no such file* in this addon's folder, checked before any decode |
+| `:get("broken.png")` | *not a decodable image*, *not a valid font*, or the glTF parser's own message |
+| `:get(1)` | the key is a **path string**, not a number |
+| `:get({})`, `:get(fn)` | expected a path string, got a table or a function |
+| `:get("")` | the path must be a **non-empty** string |
+| `:get(nil)` | the key is **required**: arity is the verb here, so a `nil` variable is refused rather than read as the list |
+| `:get("icon.png")` from `:lua` | the console **has no addon folder**, and an asset path is relative to the folder of the addon loading it |
+| `:files("nope")` | *no such folder* in this addon's folder |
+| `:files("../other")` | the path *is not inside* your addon folder — the same check `:get` makes |
+| `:remove("icon.png")` | pass the **handle**, not a path — every use site of an asset takes the handle |
+| `:remove(h)` on a built-in font or a variant | neither was loaded from a file, so this collection does not hold it |
+| `:remove(img)` on another addon's image | it **names the addon that loaded it**: freeing a file is that addon's job |
+| `:remove(img)` on a [map drawing](../map/drawings.md) | it is a picture of the database, not a file you shipped, and it ends with `img:dispose()` |
 
----
-
-## Complete Example
+## Example
 
 ```lua
-local icon_asset = nil
-local custom_font = nil
+local icon, face, chair            -- upvalues; a reload rebuilds the env, so they are nil again
 
 hafen.event():on("Load", function()
-  icon_asset = hafen.asset():get("textures/indicator.png")
-  custom_font = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
+  icon  = hafen.asset():get("icon.png")
+  face  = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
+  chair = hafen.asset():get("props/chair.glb")
+  local s, b = icon:size(), chair:bounds()
+  hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.extent.z / 11))
 end)
 
-local main_window = hafen.ui():window():title("Tracker"):size(180, 80)
-main_window:on("Draw", function(draw_event)
-  local graphics = draw_event:g()
-  if icon_asset then
-    graphics:image(icon_asset, 8, 8, 16, 16)
-  end
-  if custom_font then
-    graphics:font(custom_font)
-    graphics:text("Status: Active", 32, 10)
-  end
+local win = hafen.ui():window():title("My addon"):size(160, 80):font(face)
+win:on("Draw", function(ev)
+  local g = ev:g()
+  g:image(icon, 4, 4, 16, 16)             -- the handle, not the path
+  g:text("mine", 26, 6)
+end)
+
+hafen.console():on("stand", function()
+  local p = hafen.session():current():player():gob():position()
+  hafen.virtual():object():add(chair, p)               -- the handle, again
 end)
 ```
 
----
+## See also
 
-## See Also
-
-- [`hafen.asset`](README.md) — Asset formats and caching architecture.
-- [Asset Handles](handles.md) — Properties and methods of individual asset types.
-- [`hafen.font`](../font.md) — Font management and typography.
+- [`hafen.asset`](README.md) — the door: the types, the sandbox, interning
+- [handles](handles.md) — what each kind of loaded file answers
+- [`hafen.font`](../font.md) — the built-ins that are not assets, and why they are not listed here
+- [map drawings](../map/drawings.md) — the one picture with an asset's verbs that is not one of your files

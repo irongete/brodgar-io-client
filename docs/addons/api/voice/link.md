@@ -1,107 +1,134 @@
-# hafen.voice: Voice Connection Link
+# hafen.voice: the link
 
-A **voice link** represents an active WebSocket connection to a proximity voice server. Links are created via `hafen.voice():connection(url)`, configured using builder setters, and opened via `:connect()`.
+A **voice link** is one connection to one voice server: built bare by `hafen.voice():connection(url)`,
+configured by chained setters, opened by `:connect()`, heard through `:on`, ended by `:close()` or by the
+server. This page is the link's own life; what it sends and plays is [the mic and the mix](audio.md), and
+who it relates you to is [peers](peers.md).
 
 ```lua
-local voice_connection = hafen.voice():connection("wss://voice.brodgar.io")
+hafen.voice():connection("wss://voice.brodgar.io")
   :timeout(5000)
   :spatial(true)
   :bitrate(32000)
-
-voice_connection:on("Open", function(connection)
-  hafen.log():write("Connected to voice server: " .. connection:url())
-end)
-
-voice_connection:on("Close", function(close_event)
-  hafen.log():write("Voice connection closed: " .. close_event:reason())
-end)
-
-voice_connection:on("Error", function(error_event)
-  hafen.log():write("Voice connection error: " .. error_event:error())
-end)
-
-voice_connection:connect()
+  :on("Open", function(v) hafen.log():write("talking on " .. v:url()) end)
+  :connect()
 ```
 
----
+## Link
 
-## Connection Methods
+**A link is built bare and opened on purpose.** `hafen.voice():connection(url)` hands you one that has
+gone nowhere, you configure it with chained setters, and `:connect()` is what opens it — the handshake, the
+microphone, the audio. `timeout`, `spatial` and `bitrate` are legal until `:connect()` and none after, a
+rule with no timing in it; `session` and every [setting of the mic and the mix](audio.md#the-settings) are
+legal in every state, because whose world the link reports and what it sends can change while it is open.
+
+**The URL is `wss://` and is parsed strictly**, by the same rule a
+[connection](../websocket.md#connection)'s is: a `ws://` address is refused naming the scheme to write, and
+so is any other scheme, an address with no host, one with a fragment, or one carrying a space or a
+malformed escape. Each raises at `:connection(url)`, naming the URL. Write the server's root, `wss://host`
+or `wss://host:port`; the protocol's path is the server's own.
+
+**A link speaks for one character** — its `session()`. By default it follows the screen: the character the
+player is looking at is the one whose position, neighbours and orders the link reports, and a
+[session switch](../session.md) moves the link with it. Pin a session with `session(s)` and the link stays
+with that character whether or not it is drawn — a link per login on a client that holds several — and
+`session(nil)` lets it follow the screen again.
+
+Everything is **asynchronous**: `:connect()` returns at once with the link `"connecting"`, and every edge
+of its life arrives through `:on` a frame or more later, on the [step](../threading.md), holding no widget
+tree. A link needs no login to exist — one opened from `Load` is live on the login screen and outlives
+every character — but it has nothing to report until its session is in the world.
+
+## The link object
 
 | Method | Returns | Description |
 |---|---|---|
-| `voice:url()` | `string` | Target voice server URL. |
-| `voice:state()` | `string` | `"new"`, `"connecting"`, `"open"`, `"closing"`, or `"closed"`. |
-| `voice:id()` | `number \| nil` | Server-assigned session ID. `nil` before `Open` or after close. |
-| `voice:session(session?)` | `Session \| VoiceConnection` | Bind connection to a specific character session (`nil` follows current screen). |
-| `voice:timeout(milliseconds?)` | `number \| VoiceConnection` | Connection handshake timeout (`1` to `60000` ms, default `10000`). Pre-connect only. |
-| `voice:spatial(enabled?)` | `boolean \| VoiceConnection` | 3D spatial panning and distance attenuation (default `true`). Pre-connect only. |
-| `voice:bitrate(bps?)` | `number \| VoiceConnection` | Opus encoder bitrate (`8000` to `64000` bps, default `24000`). Pre-connect only. |
-| `voice:on(event, handler)` | `Subscription` | Subscribes to connection events. See [Events](#events). |
-| `voice:connect()` | `VoiceConnection` | Opens the connection. |
-| `voice:close()` | `VoiceConnection` | Gracefully closes the connection. |
-| `voice:peer()` | `PeerCollection` | Returns the [peer collection](peers.md) for nearby players. |
+| `voice:url()` | string | the address it was built for |
+| `voice:state()` | string | `"new"`, `"connecting"`, `"open"`, `"closing"` or `"closed"` |
+| `voice:id()` | number \| nil | the session id the server gave this link; `nil` before `Open` and once it has ended |
+| `voice:session()` | [`Session`](../session.md) \| nil | the character it speaks for: the pinned one, else the one on screen, `nil` on the login screen |
+| `voice:session(s)` | the link | pin it to `s`; `session(nil)` follows the screen again. Legal in every state |
+| `voice:timeout()` / `voice:timeout(ms)` | number / the link | the milliseconds the handshake may take; **10000** by default, a whole number **1..60000** — anything else is refused, never clamped |
+| `voice:spatial()` / `voice:spatial(on)` | boolean / the link | whether the players you hear are panned and faded by where they stand; **`true`** by default |
+| `voice:bitrate()` / `voice:bitrate(n)` | number / the link | the Opus bitrate in bits per second; **24000** by default, a whole number **8000..64000**, refused outside it |
+| `voice:on(key, fn)` | [`Sub`](../event/README.md#subscribe) | a handler for one of the [keys below](#what-it-says); legal before `:connect()` and after it |
+| `voice:connect()` | the link | **open it.** The three connect-time setters are refused from here on, and so is a second `:connect()` |
+| `voice:close()` | the link | end it; [below](#ending-a-link) |
+| `voice:transmitting()` … `voice:volume(g)` | the value / the link | [the mic and the mix](audio.md#the-settings): what the link sends and plays, legal in every state |
+| `voice:speaking()` | boolean | whether your voice is going out right now; [the mic and the mix](audio.md#read) |
+| `voice:info()` | table | the settings and the counters as one [snapshot](audio.md#read) |
+| `voice:peer()` | [collection](peers.md) | the players this link relates you to |
 
----
+A setter refuses an explicit `nil` — the read is the same name with no argument — except `session(nil)`,
+which is the write that answers the read's own default. The link is a
+[handle in the API's one shape](../conventions.md#snapshots-vs-handles): a name it does not answer raises
+naming the vocabulary, nothing can be written onto it, and `tostring(voice)` names the address and the
+state — `Voice(wss://voice.brodgar.io, open)`.
 
-## Events
+## What it says
 
-Voice connections emit the following events via `:on(event, handler)`:
+A link fires a **closed set** of keys: a name outside it raises at `voice:on`, naming them. `Open` has one
+thing to say and hands the link; `Close` and `Error` hand an `ev` answering `ev:connection()` — the very
+object `:connection(url)` gave you, so `==` tells links apart in a shared handler — and what the key
+carries; the Peer keys hand the [Peer](peers.md#the-peer-object).
 
-| Event | Handler Arguments | Description |
+| Key | When | Your handler is given |
 |---|---|---|
-| `"Open"` | `connection: VoiceConnection` | Connection handshake succeeded and audio pipeline is active. |
-| `"Close"` | `close_event: CloseEvent` | Connection closed cleanly. `close_event:reason()` provides details. |
-| `"Error"` | `error_event: ErrorEvent` | Connection failed or terminated unexpectedly. `error_event:error()` gives error message. |
-| `"PeerAdded"` | `peer: Peer` | A nearby player entered voice proximity range. |
-| `"PeerRemoved"` | `peer: Peer` | A player left voice proximity range. |
-| `"PeerChanged"` | `peer: Peer` | A nearby player's state (`speaking`, `audible`, `hears`) changed. |
+| `Open` | the handshake completed and the audio is running; `voice:state()` reads `"open"` and `voice:id()` is a number | the link |
+| `Close` | the link ended, by your `:close()` or by the server; `voice:state()` reads `"closed"` | `ev` — `ev:reason()` the text, `""` where you closed it |
+| `Error` | the link failed, or never opened; `voice:state()` reads `"closed"` | `ev` — `ev:error()` one line saying why: a host that does not resolve, an address that is refused, a microphone that will not open, a server that refused the hello or speaks another protocol version, a handshake past the timeout |
+| `PeerAdded` | the server began relating you to a player — you hear them, or they you | the [Peer](peers.md) |
+| `PeerRemoved` | it stopped; `peer:exists()` reads `false` | the Peer |
+| `PeerChanged` | a peer's `audible()`, `hears()` or `speaking()` flipped | the Peer |
+
+**Exactly one of `Close` and `Error` ends a link**, and after it nothing more is fired — no `PeerRemoved`
+for the players it was relating you to, who simply stop existing. Every handler runs on the
+[step](../threading.md): `hafen.client():stepping()` is `true` inside it, it holds no tree, and it may build
+a window or write any character's UI. A `Sub` ends with `sub:off()`, and every subscription on a link is
+dropped for you once its `Close` or `Error` has run.
+
+## What is live
+
+`hafen.voice()` is the
+[collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of **your own**
+links that have been opened with `:connect()` and have not ended.
+
+| Call | Returns |
+|---|---|
+| `hafen.voice():list(filter)` | every live link of yours |
+| `hafen.voice():count(filter)` | how many |
+| `hafen.voice():find(filter)` | the first whose URL matches |
+| `hafen.voice():connection(url)` | a new one, unopened |
+
+A string filter is a substring test over `voice:url()`. A link has **no key** — it *is* the handle
+`:connection(url)` gave you — so `:find(url)` is the search, and there is no `:get`. One you build and never
+`:connect()`, or close before you do, costs nothing and holds no slot; one you have closed is live until its
+`Close` has run.
 
 ```lua
-voice_connection:on("PeerAdded", function(peer_handle)
-  hafen.log():write("Player entered voice range: " .. tostring(peer_handle:id()))
-end)
-
-voice_connection:on("PeerChanged", function(peer_handle)
-  if peer_handle:speaking() then
-    hafen.log():write("Player is speaking: " .. tostring(peer_handle:id()))
-  end
-end)
+for _, v in ipairs(hafen.voice():list("brodgar.io")) do v:close() end
 ```
 
----
+## Ending a link
 
-## The Voice Collection
+`voice:close()` ends it, and it is the one verb legal in every state.
 
-`hafen.voice()` manages all active voice connections opened by this addon:
+- **Open**: the link reads `"closing"` while the server is told goodbye and the audio stops, and `Close`
+  fires with `""` once that is done — so inside the handler the microphone is already released, the server
+  slot is free, and a `:connect()` to the same server is not refused.
+- **Connecting**: it reads `"closing"`, and `Close` fires with `""` on the next step; the handshake in
+  flight is abandoned when it completes, and no `Open` is fired for it.
+- **New**: it reads `"closed"` at once, silently — it went nowhere, so there is nothing to report.
+- **Closing or closed**: nothing; a second `:close()` answers the link again.
 
-| Method | Returns | Description |
-|---|---|---|
-| `hafen.voice():connection(url)` | `VoiceConnection` | Creates a new uninitialized voice link. |
-| `hafen.voice():list(filter?)` | `VoiceConnection[]` | Lists all active connections. |
-| `hafen.voice():count(filter?)` | `number` | Count of active connections. |
-| `hafen.voice():find(filter)` | `VoiceConnection \| nil` | Finds first connection matching URL or predicate. |
+A link the server ends fires `Close` with the server's reason; one that fails fires `Error`. A reload, a
+disable and the client exiting close every link of yours, and **no handler runs** — the addon they belonged
+to is going away. There is no automatic reconnect: a `Close` handler and a [timer](../timer.md) are the
+whole of one.
 
-```lua
-local active_links = hafen.voice():list()
-for _, connection in ipairs(active_links) do
-  hafen.log():write(string.format("Active link: %s (%s)", connection:url(), connection:state()))
-end
-```
+## See also
 
----
-
-## Closing a Connection
-
-Calling `voice_connection:close()` shuts down the connection gracefully:
-- Changes state to `"closing"`, notifies the voice server, and releases microphone capture.
-- Emits the `"Close"` event once socket teardown completes.
-- Disabling or reloading the addon automatically closes all open voice links.
-
----
-
-## See Also
-
-- [Voice Overview](README.md) — Permissions and network declaration requirements.
-- [Audio & Microphone](audio.md) — Voice activation detection and volume settings.
-- [Peers](peers.md) — Tracking and muting individual nearby speakers.
-- [`hafen.session`](../session.md) — Character session management.
+- [`hafen.voice`](README.md) — the hub: the declaration, what the server is told, and the limits
+- [the mic and the mix](audio.md) — what the link sends and plays
+- [peers](peers.md) — who the link relates you to
+- [`hafen.websocket`](../websocket.md) — the shape this link shares

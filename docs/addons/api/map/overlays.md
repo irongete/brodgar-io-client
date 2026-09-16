@@ -1,45 +1,126 @@
-# hafen.map: Claim Masks & Map Overlays
+# hafen.map: masks and display switches
 
-Inspect recorded personal claims, village boundaries, realm borders, and display switches on the world map.
+Claims, village claims and provinces. They are two different things, and each is named for what it is:
 
-## Quick Example
+- the **recorded masks** — which tiles of a grid on disk an overlay covered when the client wrote that
+  grid down. Read them off a [`Grid`](grids.md#the-grid-object) with `grid:mask()`.
+- the **display switches** — the switches in the client's own map menu that decide whether the overlay is
+  drawn. Drive them through `hafen.map():display()`.
+
+Both are about claims and provinces, and neither one answers the other's questions: a mask says which
+tiles were covered when the ground was written down, and a switch says whether the client is drawing that
+feature right now.
+
+## The recorded masks
+
+| Call | Returns | Description |
+|---|---|---|
+| `grid:mask():list()` | [`Mask`](#the-mask-object)`[]` | every mask recorded on this grid; empty until the grid and its overlay resources have loaded |
+| `grid:mask():get(tag)` | [`Mask`](#the-mask-object) \| nil | which tiles that tag covers here; `nil` for a tag this grid does not carry |
+| `grid:mask():count()` | number | how many it carries |
+
+`grid:mask()` is a **view** rather than a handle: it re-derives from the grid on every call and holds
+nothing between them, so two calls hand back two collection objects. The `Mask` inside is what is interned —
+asking the same tag twice, through either one, gives you the same object.
+
+**The tag space is open, so an unknown tag is `nil` and not an error.** An overlay's tags are declared by
+its own resource on the server, and no client-side list of them can be complete — which is exactly why
+`:list()` exists: it is the census that makes a `nil` readable. (The display switches below are the
+opposite: that set is the client's own, so a tag it does not own is refused.)
 
 ```lua
-local session = hafen.session():current()
-local player_position = session and session:player():gob():position()
-
-if player_position then
-  local current_grid = hafen.map():grid():at(player_position)
-  if current_grid then
-    -- Inspect claim masks on this grid
-    for _, claim_mask in ipairs(current_grid:mask():list()) do
-      local tag_name = claim_mask:tag()
-      local covered_tile_count = claim_mask:count() or 0
-      hafen.log():write(string.format("Claim mask '%s' covers %d tiles.", tag_name, covered_tile_count))
-    end
-  end
+local here = hafen.session():current():player():gob():position()
+local g = hafen.map():grid():get(here:info().gridId)
+for _, m in ipairs(g:mask():list()) do
+  print(m:tag(), m:count(), "tiles")                 -- e.g. "cplot 812 tiles"
 end
 ```
 
----
+Several overlay resources may carry the same tag — two neighbouring personal claims, say — and a mask is
+the **union** of all of them, which is the same thing the client's own minimap paints for that tag.
 
-## Methods on `Grid:mask()`
+## The Mask object
 
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `:list()` | None | `Mask[]` | All claim/overlay masks recorded on this grid. |
-| `:get(tag_name)` | `string` | `Mask \| nil` | Retrieves a specific overlay mask by tag (e.g. `"cplot"` for personal claim, `"vlg"` for village). |
-| `:count()` | None | `number` | Number of distinct masks on this grid. |
+| Method | Returns | Description |
+|---|---|---|
+| `mask:tag()` | string | the overlay tag — half its identity; answers from the handle alone |
+| `mask:grid()` | [`Grid`](grids.md#the-grid-object) | the recorded grid it belongs to — the other half |
+| `mask:covers(c)` | bool \| nil | is the within-grid tile coord `{x, y}`, `0..99`, inside the overlay? |
+| `mask:count()` | number \| nil | how many of the grid's 10 000 tiles it covers |
+| `mask:area()` | `{x, y, w, h}` \| nil | the tight bounding box of those tiles, in within-grid tile coords |
+| `mask:exists()` | bool | does that grid still carry this tag? |
+| `mask:info()` | table | `{ tag, grid, count, area? }` — the snapshot escape hatch |
 
----
+`mask:covers` takes the same `{x, y}` coord [`grid:tile`](grids.md#the-grid-object) does, so the two
+compose over one loop. There is deliberately no call that hands you ten thousand booleans: `count` and
+`area` answer the whole-mask questions without a table per tile, and `covers` answers the one you
+actually ask.
 
-## Methods on `Mask`
+```lua
+local m = g:mask():get("cplot")
+local c = { x = 40, y = 40 }
+if m and m:covers(c) then print("that tile was inside a personal claim", g:tile(c).name) end
+```
 
-| Method | Parameters | Returns | Description |
-|---|---|---|---|
-| `:tag()` | None | `string` | Identifier tag of the overlay mask. |
-| `:grid()` | None | `MapGrid` | The parent grid this mask belongs to. |
-| `:covers(coords)` | `{x, y}` | `boolean \| nil` | Returns `true` if local tile coordinate `(0..99, 0..99)` falls inside the mask. |
-| `:count()` | None | `number \| nil` | Total number of tiles covered by this mask on this grid (out of 10,000). |
-| `:area()` | None | `{x, y, w, h} \| nil` | Tight bounding box around covered tiles in local grid coordinates. |
-| `:exists()` | None | `boolean` | Returns `true` if this mask is still valid on the grid. |
+## The display switches
+
+The client's map menu owns exactly these, and the province one is **two different switches**:
+
+| Tag | Where | What it draws |
+|---|---|---|
+| `cplot` | world | personal claims, on the ground in the 3D world |
+| `vlg` | world | village claims, on the ground |
+| `prov` | world | provinces, on the ground |
+| `realm` | map | provinces, on the **map window** — drawn from the recorded masks |
+
+> **`prov` and `realm` are the same feature and two engine tags.** The world draws provinces under `prov`;
+> the map window draws them under `realm`. Holding one does not touch the other, and there is no tag that
+> reaches both.
+
+| Call | Returns | Description |
+|---|---|---|
+| `hafen.map():display():get(tag)` | `OverlayToggle` | one switch; a tag the client does not own is refused |
+| `hafen.map():display():list()` | `OverlayToggle[]` | all four |
+| `toggle:tag()` | string | the engine's tag for it |
+| `toggle:where()` | string | `"world"` or `"map"` — which side draws it |
+| `toggle:what()` | string | a sentence naming what it draws, for a settings list of your own |
+| `toggle:shown()` | bool \| nil | is it drawn right now, **by anyone**? `nil` before that side is up |
+| `toggle:held()` | bool | do *you* hold it? |
+| `toggle:hold()` | self | ask for it to be drawn, and keep asking |
+| `toggle:release()` | self | stop asking |
+| `toggle:info()` | table | `{ tag, where, what, shown?, held }` — the snapshot escape hatch |
+
+A tag the client does not own is an **error**, not a silent no-op — the one failure here that nothing else
+would ever report is a typo that quietly does nothing forever.
+
+> **A hold is not a switch, which is why there is no `toggle(tag, on)`.** The engine counts how many
+> things want an overlay drawn: your addon, the user's own checkbox, and the server (which flashes claims
+> on for a few seconds when you mouse over one). So `:release()` means *stop asking*, never *turn it off* —
+> if the user's checkbox is on, it stays on. Your hold is **idempotent**: taking it twice is taking it
+> once, because a single release has to be the whole undo.
+
+The hold is an owned resource like a hidden window: **a `:reload`, a disable or a logout releases it for
+you**, exactly once. Nothing an addon does can leave an overlay stuck on the screen.
+
+> **A hold needs the side that draws the tag to be up.** `:hold()` on a tag whose side is not there
+> yet — the world before a character has entered it, the map window before it has been opened — takes
+> nothing and says nothing, and `:held()` then reads `false`. So a hold taken from `Load`, before any
+> character is in the world, never happens. Take it from
+> [`SessionEnteredWorld`](../event/bus/lifecycle.md#sessions) instead, and check `:held()` where the
+> side is one the user opens.
+
+```lua
+local claims = hafen.map():display():get("cplot")
+claims:hold()                                        -- show me the claims while I survey
+-- …later
+claims:release()                                     -- and stop asking
+```
+
+`:held()` is *your* hold; `:shown()` is what the screen is doing. They are different questions, and only
+the first one is yours to answer.
+
+## See also
+
+- [segments and grids](grids.md) — the `Grid` a mask is read off, and the coord `covers` takes
+- [drawings](drawings.md) — `grid:overlayImage`, the same mask as a picture
+- [the map database](README.md) — the `nil`-until-loaded rule, and interning

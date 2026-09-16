@@ -6,7 +6,7 @@ model, and what *optional* means on the tables below, is on [the catalogue](READ
 
 ## Marker
 
-From [`marker:info()`](../map/markers.md), the snapshot escape hatch for a map
+From [`marker:info()`](../map/markers.md#the-marker-object), the snapshot escape hatch for a map
 marker. The live reads are `marker:name()`, `:type()`, `:segmentTile()` and the rest — and
 `marker:position()` is the place to store, not the `seg` + `tc` below.
 
@@ -14,7 +14,7 @@ marker. The live reads are `marker:name()`, `:type()`, `:segmentTile()` and the 
 |---|---|---|
 | `name` | string | marker label; optional |
 | `type` | string | `"player"`, a user pin, or `"system"`, a server or quest pin |
-| `seg` | string | segment id, a [64-bit decimal string](../shapes.md#coordinates) — client-local |
+| `seg` | string | segment id, a [64-bit decimal string](../shapes.md#coordinates) — client-local, [never stored](../map/grids.md#storing-a-place) |
 | `tc` | `{x, y}` | segment tile coord — client-local, never stored |
 | `color` | [colour](../shapes.md#colours) | player markers only; optional |
 | `onmap` | bool | player markers only, read and written live as `marker:onMap(b)` |
@@ -24,9 +24,9 @@ marker. The live reads are `marker:name()`, `:type()`, `:segmentTile()` and the 
 
 ## IconCategory
 
-From [`cat:info()`](../map/icons.md), the snapshot escape hatch for a minimap icon
+From [`cat:info()`](../map/icons.md#the-iconcat-object), the snapshot escape hatch for a minimap icon
 category; `nil` while the registry carries no setting for that resource, which is the same absence
-`cat:exists()` reads as `false` — the registry grows as the
+[`cat:exists()`](../map/icons.md#the-iconcat-object) reads as `false` — the registry grows as the
 character meets new icon types, so a handle can start answering later.
 
 `{ name = string, res = string, show = bool, notify = bool }` — `res` is the identity, `name` the icon

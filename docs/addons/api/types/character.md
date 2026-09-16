@@ -8,7 +8,7 @@ and what *optional* means on the tables below, is on [the catalogue](README.md).
 ## Attr
 
 From [`attr:info()`](../char.md#attributes). `{ base = number, comp = number }` — the raw base value against
-the computed, buffed value. `session:char():attr()` hands out live [`Attr` objects](../char.md#attributes),
+the computed, buffed value. `s:char():attr()` hands out live [`Attr` objects](../char.md#attributes),
 not this table.
 
 `nil` while the server has published nothing for that attribute, and **an attribute of exactly zero on both
@@ -17,10 +17,9 @@ name it is asked about, so the two cannot be told apart. A living character carr
 what this costs in practice is nothing; what it buys is that a name the server never sent reads `nil` rather
 than as a real zero.
 
-<a id="food"></a>
 ## Food
 
-From [`food:info()`](../char.md#food), the one snapshot escape hatch. `session:char():food()` and the
+From [`food:info()`](../char.md#food), the one snapshot escape hatch. `s:char():food()` and the
 `FepChanged` event hand you a live [`Food` object](../char.md#food), not this table. Either half is absent
 until its meter arrives.
 
@@ -54,8 +53,8 @@ From `:info()` on each. [`session:char`](../char.md) hands out the live objects;
 
 ## StudySlot and StudySummary
 
-From [`slot:info()`](../study.md#methods-on-studyslot), the one snapshot escape hatch. `session:study():curiosity()` and the
-`StudyChanged` event hand you live [`StudySlot` objects](../study.md), not this table.
+From [`slot:info()`](../study.md#a-slot), the one snapshot escape hatch. `s:study():curiosity()` and the
+`StudyChanged` event hand you live [`StudySlot` objects](../study.md#a-slot), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -68,49 +67,49 @@ From [`slot:info()`](../study.md#methods-on-studyslot), the one snapshot escape 
 | `progress` | number | 0..1 study progress; best-effort, optional |
 
 **StudySummary** — `{ lp, attention, cost }`, the totals across the whole window, from
-[`sum:info()`](../study.md#methods-on-studysummary). `session:study():summary()` itself hands you the live
-[`StudySummary` object](../study.md), not this table.
+[`sum:info()`](../study.md#the-summary). `s:study():summary()` itself hands you the live
+[`StudySummary` object](../study.md#the-summary), not this table.
 
 ## Speed
 
-From [`speed:info()`](../speed.md), the snapshot escape hatch for one movement speed.
-`session:speed()` hands out live [`Speed` objects](../speed.md), not this table.
+From [`sp:info()`](../speed.md#the-speed-object), the snapshot escape hatch for one movement speed.
+`s:speed()` hands out live [`Speed` objects](../speed.md#the-speed-object), not this table.
 
 `{ index = number, wire = number, name = string, available = bool, current = bool }` — `index` is the
 1-based position `1..4` and `wire` the raw number `0..3`
 and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
-the one your character is on. The live reads are `speed:index()`, `:wire()`, `:name()` and
-`:available()` — a boolean here; whether you are on it is
-`session:speed():current() == speed`, since the objects are interned.
+the one your character is on. The live reads are `sp:index()`, `:wire()`, `:name()` and
+`:available()` — a boolean here, unlike `man:dealable()`; whether you are on it is
+`s:speed():current() == sp`, since the objects are interned.
 
 ## Quest and Condition
 
-What `quest:info()` and `condition:info()` hand back on [`session:quest`](../quest.md)'s objects; the reads themselves
+What `q:info()` and `c:info()` hand back on [`session:quest`](../quest.md)'s objects; the reads themselves
 are verbs on those objects.
 
 **Quest** — `{ id, title?, res?, status?, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
-or `"disabled"` — absent for a status this client has no word for, which is the absence `quest:status()`
-states with `nil` — and `mtime` is the server's change stamp, which `quest:modified()` reads.
+or `"disabled"` — absent for a status this client has no word for, which is the absence `q:status()`
+states with `nil` — and `mtime` is the server's change stamp, which `q:modified()` reads.
 
 **Condition** — `{ desc = string?, status = "pending"|"done"|"failed", text = string? }`, where `desc`
-is what `condition:description()` reads.
+is what `c:description()` reads.
 
 ## Wound
 
-What `wound:info()` hands back on [`session:wound`](../wound.md)'s objects. Wounds form a **tree**, and the
-`parentid` here is the id `wound:parent()` resolves to the wound itself.
+What `w:info()` hands back on [`session:wound`](../wound.md)'s objects. Wounds form a **tree**, and the
+`parentid` here is the id `w:parent()` resolves to the wound itself.
 
 | Field | Type | Notes |
 |---|---|---|
 | `id` | number | wound id |
 | `name`, `res` | string | wound type; optional |
-| `severity` | number | the magnitude, `wound:severity()`; **not** seconds; absent where the client spells it as a word, which is what `wound:label()` answers |
+| `severity` | number | the magnitude, `w:severity()`; **not** seconds; absent where the client spells it as a word, which is what `w:label()` answers |
 | `parentid` | number | parent wound id, or `-1` for a root wound |
 | `level` | number | tree depth (indent) |
 
 ## Buff
 
-From [`buff:info()`](../buff.md), the one snapshot escape hatch. `session:buff():list()` and the
+From [`buff:info()`](../buff.md#read), the one snapshot escape hatch. `s:buff():list()` and the
 `BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](../buff.md), not this table.
 
 | Field | Type | Notes |

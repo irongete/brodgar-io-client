@@ -1,171 +1,285 @@
-# hafen.client: Addon Options
+# hafen.client: your addon's own options
 
-`hafen.client():options():addon()` allows addons to declare persistent user settings and construct custom configuration panels inside the client's **Options ▸ AddOns** menu. All methods in this subsystem are unprotected.
+`hafen.client():options():addon()` is where your addon's own settings live. An **option** is a stored value:
+you name it and its type, the client keeps the value in its own preference store, checks every write and
+answers reads — so a setting of yours has the standing your [hotkeys](keybindings.md) already have. An
+option draws nothing. The page the user finds it on, in **Options ▸ AddOns**, is yours to fill:
+[`opts:panel(fn)`](#the-page) registers the function the client calls with a column of your own each time
+the page is opened, and what shows an option there is a control you build and
+[bind](#binding-a-control-shows-the-option) to it. Nothing here is protected. The
+[guide](../../guides/hotkeys-and-commands.md) puts it beside the hotkey and the command, the other two ways
+a user drives an addon by hand.
 
 ```lua
-local addon_options = hafen.client():options():addon()
+local opts = hafen.client():options():addon()
 
-local show_overlay_option = addon_options:boolean("show-overlay"):default(true):add()
+local show = opts:boolean("show-timer"):default(true):add()
 
-show_overlay_option:on("Changed", function(new_value)
-  hafen.log():write("Overlay visible: " .. tostring(new_value))
+hafen.log():write("timer shown: " .. tostring(show:value()))
+show:value(false)
+show:on("Changed", function(v) hafen.log():write("now " .. tostring(v)) end)
+```
+
+Declare your options in your file body. One exists from the moment `:add()` runs and goes with your addon
+on `:reload` or a disable — the value the user set stays, because it belongs to the client.
+
+## Declaring an option
+
+Each option is a **builder**: you call the verb for the type you want, chain the setters, and `:add()`
+dispatches it. Every setter is legal until `:add()` and none after — `:add()` is where the declaration is
+checked whole, because it is the first moment every part of it is in hand. Nothing is declared until then,
+so a builder you abandon costs nothing and does not take its name.
+
+| Builder | Holds | Beyond `:default` |
+|---|---|---|
+| `opts:boolean(name)` | `true` or `false` | nothing |
+| `opts:number(name)` | a whole number inside its range | `:range(lo, hi)`, both whole numbers |
+| `opts:choice(name)` | one of its choices | `:choices(t)`, a 1-based array of strings |
+| `opts:text(name)` | a string | nothing |
+
+`name` is **your own name for the option**, unique within your addon: it is what addresses the option
+afterwards and what the value is stored under.
+
+| Setter | Takes | On |
+|---|---|---|
+| `:default(v)` | the value a client that has never been told otherwise reads | every builder |
+| `:range(lo, hi)` | the inclusive bounds of a number, `lo` below `hi` | `number` |
+| `:choices(t)` | what the option offers, in order | `choice` |
+| `:add()` | dispatch: the option is declared, and the Option comes back | every builder |
+
+Every setter returns the builder, so they chain. A setter the type has not got is an error naming the
+builder that does take it and what this one takes instead.
+
+**An option carries no caption, no hover text, no button and no line of text.** Those belong to the
+control that shows it, and you build that control on [your page](#the-page): a caption is
+`hafen.ui():check():text(s)` or a `hafen.ui():label()` beside a slider, a hover text is the control's
+`:tooltip(s)`, a button is `hafen.ui():button()`, a line of text is `hafen.ui():label()`. A builder given a
+caption or a hover text, and the handle asked for a button or a label, each refuse naming the control to
+build instead.
+
+## The value
+
+Every option persists. Its value is stored by the client, under a key of your addon's own, and it survives
+`:reload`, a disable and a restart — it is **one per client**, like every other setting the Options window
+edits, never one per character. Your addon cannot wipe it and does not have to save it.
+
+A **number** option is a whole number: `:range(1, 10)`, `:default(5)`, and a fractional write is refused.
+Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
+
+## The page
+
+`opts:panel(fn)` registers **the page**: the one function the client calls with `root`, a
+[column](../ui/column.md) of your addon's own inside your page of **Options ▸ AddOns**, each time the user
+opens that page. Your addon has a row in the AddOns list exactly while it holds a page — an addon with
+nothing to configure never puts an empty page there — and the row is the addon's display name, in the order
+the addons loaded.
+
+| Verb | Returns | Description |
+|---|---|---|
+| `opts:panel(fn)` | the handle | register `fn(root)` as the page; a second call replaces the first; unprotected |
+| `opts:panel()` | function \| nil | the function registered, `nil` while there is none |
+| `opts:panel(nil)` | the handle | withdraw the page: the row leaves the list, and an open page closes |
+
+```lua
+local opts = hafen.client():options():addon()
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():label():parent(root):text("Harvest")
+  hafen.ui():check():parent(root):text("Only ripe")
+  hafen.ui():button():parent(root):size(120):text("Reset")
 end)
 ```
 
----
+**What the page is.** The client draws a scrolling box the same size on every page of the window, and
+nothing else — no heading, the row picked in the list beside it already reads your addon's name; `root`
+stands inside that box, and everything you build is placed by it. `root:role()` reads `"column"`, its width is pinned to the box and its height follows what you
+put in it, so a page taller than the box scrolls and a shorter one leaves the rest empty. It is a column
+you own, so `:gap`, `:stock` and `:enabled` answer on it, `:parent(root)` on a control you are building
+puts the control in, and a theme's rule for `["column"]` reaches it. Its `:parent()` is the client's:
+walking up from `root` reaches a window titled `Options`, in the tree of the character whose window it is.
 
-## Declaring Options
+**When `fn` runs.** On the [step](../threading.md), one frame after the page is opened, holding no tree —
+like an `Added` handler it may build anything and reach any tree. It runs every time the page is opened:
+picking the row, coming back to it, once per Options window, and again after `:reload`. It runs with
+`hafen.client():stepping()` reading `true`, and the ordinary rule on
+[what a handler may reach](../threading.md#where-each-handler-runs) is the whole of what you need to know.
 
-Declare options in the top-level scope of your addon script. Options persist across addon reloads and game restarts.
+**What it built dies with the page.** The client rebuilds the page on every visit, so `root` and every
+control you parented into it are destroyed when the user leaves the row, when the list is re-read, and when
+your addon reloads. A handle you kept reads `:exists()` `false` after that, and there is nothing of yours
+to end: build the page in `fn` and build it again the next time `fn` runs. A value the page shows belongs to
+an option, not to the page, so nothing is lost with it.
 
-### Option Builders
+**An error in `fn` is logged**, with the line that raised it, and the page shows whatever `fn` had built
+before it stopped.
 
-| Builder | Type | Value Stored | Extra Configuration |
-|---|---|---|---|
-| `addon_options:boolean(name)` | Boolean | `boolean` (`true` \| `false`) | None |
-| `addon_options:number(name)` | Number | Whole integer within range | `:range(min, max)` |
-| `addon_options:choice(name)` | Choice | `string` from valid choices | `:choices(choice_array)` |
-| `addon_options:text(name)` | Text | `string` | None |
+## Binding: a control shows the option
 
-### Builder Setters
+`w:bind(opt)` joins a [control](../ui/controls/README.md) you built to an option, and from then on the two
+are one value: the control takes the option's value at once, the user moving the control writes
+`opt:value(v)` — so the option's `Changed` fires — and a write to the option from anywhere moves every
+control bound to it.
 
-Chain configuration setters and finish declaration with `:add()`:
-
-| Setter | Applicable To | Description |
+| Verb | Returns | Description |
 |---|---|---|
-| `:default(value)` | All builders | Initial value before user modification. Required. |
-| `:range(min, max)` | `number` | Inclusive integer bounds (`min < max`). Required for numbers. |
-| `:choices(table)` | `choice` | Array of choice strings. Required for choices. |
-| `:add()` | All builders | Registers the option and returns the active `Option` handle. |
+| `w:bind(opt)` | the widget | join the control to `opt`: configured from the option, it takes the value in force; a second call replaces the first; unprotected |
+| `w:bind()` | Option \| nil | the option the control is bound to, `nil` while none — and on anything that binds nothing |
+| `w:bind(nil)` | the widget | unbind: the control keeps what it shows and moves with the option no more |
+
+| Control | Binds to | Configured from the option |
+|---|---|---|
+| `hafen.ui():check()` | `boolean` | the tick |
+| `hafen.ui():slider()` | `number` | `:range()` is the option's bounds, then the position |
+| `hafen.ui():dropdown()`, `hafen.ui():radio()` | `choice` | `:rows()` are the choices, in order, then the pick |
+| `hafen.ui():entry()` | `text` | the text |
 
 ```lua
-local auto_harvest = addon_options:boolean("auto_harvest"):default(false):add()
-local scan_radius  = addon_options:number("scan_radius"):range(1, 15):default(5):add()
-local sort_mode    = addon_options:choice("sort_mode"):choices({"name", "quality", "quantity"}):default("quality"):add()
-local label_text   = addon_options:text("hud_label"):default("Nearby Items"):add()
+local opts = hafen.client():options():addon()
+local show = opts:boolean("show"):default(true):add()
+local rows = opts:number("rows"):range(1, 20):default(8):add()
+local sort = opts:choice("sort"):choices{"name", "amount"}:default("name"):add()
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():check():parent(root):text("Show the stock"):bind(show)
+  hafen.ui():label():parent(root):text("Rows")
+  hafen.ui():slider():parent(root):size(160):bind(rows)          -- 1..20, at the value in force
+  hafen.ui():dropdown():parent(root):size(120):bind(sort)
+end)
 ```
 
----
+**Both ways, and the option is what fires.** The user ticking the box is `show:value(true)`: the option's
+`Changed` fires with the new value, and a handler on the control itself — `check:on("Changed", fn)` — runs
+after it, so a handler on either side reads the two in step. `show:value(false)` from your own code moves the box
+and fires no `Changed` on the box: a write of yours is not something the user did,
+[as on every control](../ui/controls/README.md#subscribing). A bound control standing in a tree other than
+the one the write was made from — your own window, when the user moved the control on your page — moves on
+the next [step](../threading.md).
 
-## The Option Handle
+**One option, many controls.** A control is bound to one option; an option may have any number of controls,
+and they all move together. A binding ends with the control: when your page is rebuilt or the control is
+`:destroy()`ed there is nothing of it to end, and the option and its value stay. A control you `:range` or
+`:rows` past what its option declared can be moved to a value the option refuses; the refusal is logged and
+the option keeps its value.
 
-Calling `:add()` or querying via `:option():get(name)` returns an `Option` handle.
+**What is refused.** A control and an option of different kinds — `slider:bind(show)` names the check a
+boolean takes. A control that holds nothing an option stores — a button, a label, a listbox — names the
+pairs above. One of the client's own controls names the client: what it holds is the client's, and
+[driving it](../ui/edit.md#driving-one-protected) is `:value(v)`.
+
+## The Option object
+
+`:add()` hands back the option, and so does `opts:option():get(name)`. It is the **same object** both ways
+and every time after, so it works as a table key.
 
 | Method | Returns | Description |
 |---|---|---|
-| `option:name()` | `string` | Unique identifier of the option. |
-| `option:type()` | `string` | `"boolean"`, `"number"`, `"choice"`, or `"text"`. |
-| `option:value(value?)` | `any` / `Option` | Reads value (no args) or updates it (1 arg). Chains on write. |
-| `option:default()` | `any` | Returns default value. |
-| `option:on("Changed", fn)` | `Subscription` | Subscribes to value modifications. Receives `new_value`. |
-| `option:info()` | `table` | Metadata snapshot: `{name, type, value, default, min?, max?, choices?}`. |
+| `name()` | string | your own name for the option, its identity |
+| `type()` | string | which builder made it: `"boolean"`, `"number"`, `"choice"` or `"text"` |
+| `value()` | the value | what the option holds |
+| `value(v)` | the option | write it, checked against the option's own declaration |
+| `default()` | the value | the default you declared |
+| `on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | see below |
+| `info()` | table | `{name=, type=, value=, default=}`, plus `min` and `max` on a number and `choices` on a choice |
+
+Reading and writing is [arity as the verb](../conventions.md#verbs-arity-is-the-verb), as everywhere else:
+`value()` reads, `value(v)` writes and hands the option back so writes chain. A write is checked against
+what the option declared — a boolean takes `true` or `false`, a number a whole one inside its range, a
+choice one of the choices it offers, a text option a string — and an invalid one raises rather than being
+clipped.
 
 ```lua
-scan_radius:value(10) -- Updates value and persists to preferences
+local size = opts:number("rows"):range(1, 20):default(8):add()
+local mode = opts:choice("mode"):choices{"compact", "wide"}:default("compact"):add()
 
-local subscription = scan_radius:on("Changed", function(new_value)
-  hafen.log():write("Scan radius changed to: " .. tostring(new_value))
-end)
+size:value(size:value() + 1)
+mode:value("wide")
 ```
 
----
+## `Changed`: the one event
 
-## Addon Options Panel
-
-Register a panel callback to display UI controls in the **Options ▸ AddOns** window:
-
-| Method | Returns | Description |
-|---|---|---|
-| `addon_options:panel(callback)` | `AddonOptionRegistry` | Registers `callback(root_column)`. Invoked each time the user visits the page. |
-| `addon_options:panel()` | `function \| nil` | Returns current registered panel callback. |
-| `addon_options:panel(nil)` | `AddonOptionRegistry` | Unregisters panel; removes entry from AddOns list. |
+`opt:on("Changed", fn)` runs `fn` with the **new value** whenever the value moves. It is the only key an
+option has.
 
 ```lua
-addon_options:panel(function(root_column)
-  root_column:gap(6)
+local show = opts:boolean("show-timer"):default(true):add()
 
-  hafen.ui():label():parent(root_column):text("General Configuration")
-  hafen.ui():check():parent(root_column):text("Enable Automation"):bind(auto_harvest)
-  
-  hafen.ui():label():parent(root_column):text("Scan Range")
-  hafen.ui():slider():parent(root_column):size(200):bind(scan_radius)
-  
-  hafen.ui():dropdown():parent(root_column):size(150):bind(sort_mode)
-  hafen.ui():entry():parent(root_column):size(200):bind(label_text)
+local sub = show:on("Changed", function(v)
+  hafen.log():write("the timer is " .. (v and "on" or "off"))
 end)
+
+sub:off()                       -- stop listening; the option and its value stay
 ```
 
----
+**A write of the value already held is not a change**: nothing is stored again and nothing fires, which is
+what makes a handler counting edges count edges. Subscriptions are torn down with your addon like every
+other one, so there is nothing to end in `Disable`.
 
-## Two-Way Control Binding
+## The collection
 
-Calling `control:bind(option)` synchronizes a UI control with an `Option` handle:
+`opts:option()` is every option **your** addon declared, in declaration order. Another addon's options are
+not reachable: remapping any key is something a user asks an addon to do, and writing another addon's
+settings behind its back is not.
 
-| Control | Bound Option Type | Behavior |
-|---|---|---|
-| `hafen.ui():check()` | `boolean` | Checkbox toggles boolean value. |
-| `hafen.ui():slider()` | `number` | Slider range and position sync to number option. |
-| `hafen.ui():dropdown()` | `choice` | Dropdown choices and selection sync to choice option. |
-| `hafen.ui():radio()` | `choice` | Radio group options sync to choice option. |
-| `hafen.ui():entry()` | `text` | Text input syncs to text option. |
-
-Binding methods on controls:
-- `control:bind(option)`: Attaches control to option and updates control to reflect current value.
-- `control:bind()`: Returns currently bound `Option` handle (or `nil`).
-- `control:bind(nil)`: Detaches control from option.
-
----
-
-## Option Collection
-
-Query existing options declared by this addon:
+It carries the
+[collection verbs](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) —
+`:list(filter)`, `:count(filter)`, `:find(filter)` and `:get(name)` — and a string filter is a substring
+test on the name. `:get(name)` answers `nil` for a name you have not declared.
 
 ```lua
-local option_collection = hafen.client():options():addon():option()
-
-for _, option in ipairs(option_collection:list()) do
-  hafen.log():write(string.format("Option: %s = %s", option:name(), tostring(option:value())))
+for _, o in ipairs(opts:option():list()) do
+  hafen.log():write(o:name() .. " (" .. o:type() .. ")")
 end
-
-local existing_option = option_collection:get("scan_radius")
 ```
 
----
+## What a bad declaration says
 
-## Complete Example
+`:add()` refuses a declaration the client cannot honour, and the message names the fix:
+
+| The mistake | What you get |
+|---|---|
+| an option with no `:default` | the setter to call |
+| a `:default` outside the `:range` it declared | widen the range or move the default |
+| a `number` with no `:range` | a slider bound to it has no bounds without it |
+| a `choice` with no `:choices` | the option offers nothing |
+| a choice listed twice in `:choices` | the repeat, by index: each choice is offered once, and a radio bound to the option shows one row per choice |
+| a name your addon already declared | the option it already has, addressed |
+| a setter after `:add()` | the option is declared; configure it before |
+| a name too long for the client's store | give the option a shorter name |
+
+## Example
 
 ```lua
-local addon_options = hafen.client():options():addon()
+local opts = hafen.client():options():addon()
 
-local enabled_option = addon_options:boolean("enabled"):default(true):add()
-local volume_option  = addon_options:number("alert_volume"):range(0, 100):default(75):add()
-local alert_channel  = addon_options:choice("channel"):choices({"chat", "hud", "audio"}):default("hud"):add()
+local show  = opts:boolean("show"):default(true):add()
+local rows  = opts:number("rows"):range(1, 20):default(8):add()
+local sort  = opts:choice("sort"):choices{"name", "amount"}:default("name"):add()
+local title = opts:text("title"):default("Stock"):add()
 
-addon_options:panel(function(root_column)
-  root_column:gap(6)
-
-  hafen.ui():check():parent(root_column):text("Enable Alerts"):bind(enabled_option)
-  
-  hafen.ui():label():parent(root_column):text("Volume:")
-  hafen.ui():slider():parent(root_column):size(180):bind(volume_option)
-  
-  hafen.ui():label():parent(root_column):text("Alert Target:")
-  hafen.ui():dropdown():parent(root_column):size(140):bind(alert_channel)
+hafen.console():on("stockreset", function()
+  for _, o in ipairs(opts:option():list()) do o:value(o:default()) end
 end)
 
-hafen.console():on("resetoptions", function()
-  for _, option in ipairs(addon_options:option():list()) do
-    option:value(option:default())
-  end
-  hafen.log():write("All options reset to default.")
+show:on("Changed", function(v) hafen.log():write(v and "showing" or "hidden") end)
+
+opts:panel(function(root)
+  root:gap(4)
+  hafen.ui():check():parent(root):text("Show the stock window"):bind(show)
+  hafen.ui():slider():parent(root):size(160):bind(rows)
+  hafen.ui():radio():parent(root):bind(sort)
+  hafen.ui():entry():parent(root):size(160):bind(title)
 end)
+
+hafen.log():write(title:value() .. ": " .. rows:value() .. " rows, sorted by " .. sort:value())
 ```
 
----
+## See also
 
-## See Also
-
-- [`hafen.client():options()`](README.md) — Built-in client preference panels.
-- [Keybindings](keybindings.md) — Registering custom hotkeys and key remapping.
-- [Controls](../ui/controls/README.md) — Standard UI interactive widgets.
-- [Columns](../ui/column.md) — Layout containers for option panels.
+- [`hafen.client():options()`](README.md) — the client's own settings, beside yours in the same window
+- [keybindings](keybindings.md) — the hotkey your addon declares, the other thing of yours this window holds
+- [columns and rows](../ui/column.md) — what `root` is, and how it places what you build on your page
+- [controls](../ui/controls/README.md) — what you bind an option to, and what each control holds
+- [conventions](../conventions.md) — builders, collections, and arity as the verb
+- [`hafen.store`](../store/README.md) — your addon's own vars, for what is not a setting

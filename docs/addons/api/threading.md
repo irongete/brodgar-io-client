@@ -1,31 +1,181 @@
-# Threading and Execution Model
+# Threading: where your code runs
 
-How Lua callbacks execute within the client's internal frame loop and threading architecture.
+Your Lua runs in one of two kinds of place: on the **step**, which is inside no character's UI at all, or
+**answering something**, inside the one character's UI that dispatched it. Which one you are in decides how
+far you may reach, and it is the only threading fact the API asks you to hold.
 
----
+The reason is that the client has more than one widget tree. Every character you are logged in as has its
+own, and your own windows live in a tree of their own beside them. Each tree is guarded separately, and the
+client's rule is that nothing ever holds two of those guards at once. Code on the step holds none, so it
+reaches all of them; code answering a click holds exactly one, so it reaches that one.
 
-## 1. Single-Threaded Lua Execution
+```lua
+-- the step: this may write any character's UI, and your own windows
+hafen.event():on("Update", function(dt)
+  for _, s in ipairs(hafen.session():list()) do
+    local inv = s:ui():match("window[title=Inventory]")
+    if inv then inv:visible(true) end
+  end
+end)
+```
 
-Although the underlying Java game engine uses multiple background threads for networking, map streaming, and audio playback, **all addon Lua code runs synchronously on the main client thread**:
-* Event handlers, timers, hotkeys, and console commands execute sequentially during the client's main update tick.
-* `Draw` callbacks execute on the UI rendering pass immediately before frames are presented to the screen.
+## Where each handler runs
 
-Because execution is single-threaded, you do not need mutexes or locks when accessing Lua state.
+| What you subscribed to | When it runs | Trees it may reach |
+|---|---|---|
+| [`hafen.event():on(key, fn)`](event/bus/README.md) — every event in the catalogue but the two below | the step, and for `GobAdded` before the object is drawn | any |
+| [`hafen.timer()`](timer.md) — `:after`, `:every` | the step | any |
+| [`widget:on("Update", fn)`](ui/custom.md) | the step | any |
+| [`s:ui():on(sel, "Added"/"Removed", fn)`](ui/replace.md) | the step, after the widget arrived or left | any |
+| [`item:on("Changed", fn)`](ui/items.md) | the step, after the description resolved | any |
+| an [HTTP](http.md) reply | the step | any |
+| a [connection](websocket.md)'s `Open`, `Message`, `Close` and `Error` | the step | any |
+| a [voice link](voice/link.md)'s `Open`, `Close`, `Error` and the Peer keys | the step | any |
+| [`opts:panel(fn)`](client/addon.md#the-page) — your addon's page | the step, one frame after the page is opened | any |
+| [`hafen.event():message():on(msg, fn)`](event/streams.md) — inbound | as the update arrives, before the widget applies it | any |
+| [`widget:on("Draw", fn)`](ui/custom.md) | the pass that paints that widget | its own only |
+| `widget:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)` | the input that dispatched it | its own only |
+| [`widget:on("Drop", fn)`](ui/custom.md), `"Close"` | the drop, the close button | its own only |
+| a [control's](ui/controls/README.md) `"Pressed"`, `"Changed"`, `"Submitted"`, `"Selected"` | the press | its own only |
+| the `fn` of [a petal you added](flowermenu.md#write-unprotected) to the radial menu | the pick | the ring's own only |
+| a [drag or resize](ui/style/geometry.md) gesture, a [mouse grab's](ui/mouse.md) `"Move"`/`"Up"` | the gesture | its own only |
+| [`keybindings():on(name, fn)`](client/keybindings.md) — a hotkey | the key press that fired it | the **drawn character's** only |
+| [`hafen.event():action():on(msg, fn)`](event/streams.md) — outbound | the code that sent the message, before the server hears it | the **sender's** only |
+| [`hafen.console():on(name, fn)`](console.md) | the line being typed | the console's own only |
+| [`FlowerMenuAdded`, `FlowerMenuRemoved`](event/bus/character.md) | the ring going up or coming down, before its first drawn frame | the ring's own only |
+| [`GhostClicked`, `SpriteClicked`](event/bus/world.md#world-ghosts-and-sprites) and an entity's `onClick` | the click pass that resolved the pick | the clicked scene's only |
+| [`s:world():screenToWorld(x, y, fn)`](world.md) and its `fn` | that same pass, once the ground under the point is known | the scene's only |
 
----
+Everything in the first group runs on the step, and everything in it may build a window, read one character
+while writing another, and reach across every login the client holds. Everything after it is answering a
+thing that is already in progress — a pass that is painting, a press that is waiting for an answer, a
+message on its way out, a ring the server has just put up — and each of those is inside one tree and may
+touch only that one.
 
-## 2. Non-Blocking Callbacks
+**The step is ordered ahead of the client's own drawing, for one event.**
+[`GobAdded`](event/bus/world.md#before-the-first-drawn-frame) runs before the object it announces reaches
+the scene: the client holds a newly arrived object out of the render tree until every handler has seen it,
+so a label or a size written there is in force on that object's **first** drawn frame. Nothing else on the
+step promises that. Every other handler in the first group runs on the next step after the thing it is
+about, and the client has gone on drawing in between.
 
-Because addon callbacks execute directly inside the game loop:
-* **Avoid blocking operations**: Long-running loops, heavy calculations, or repetitive deep tree-searches will lower the game's frame rate.
-* **Instruction Limits**: Any single callback exceeding **10,000,000 Lua instructions** will be terminated immediately by the engine's watchdog.
-* **Tick Budgets**: Consuming more than **10 milliseconds** of Lua CPU time per tick for 30 consecutive ticks will trigger an automatic disable of the addon.
+**A hotkey of yours runs in the character's tree, not in your own layer.** The client matches a key by
+walking the widget tree of the character on screen, so your handler is answering inside *that* tree and may
+write it freely — while your own window, which lives in the layer, is the second tree it may not reach.
+Record what you want and let the step do it, exactly as a `Draw` handler does.
 
----
+The inbound message stream is the one row in neither group: it holds no tree, so it reaches any of them,
+but it is not the step. It answers the server's update **before** the widget applies it, which is what makes
+[`ev:preventDefault()`](event/streams.md) and `ev:rewrite(t)` possible at all, and that answer has to be
+given where the update arrived.
 
-## 3. Asynchronous Operations
+[`hafen.client():stepping()`](client/README.md#where-your-code-is-running) is how a helper called from both
+groups tells which it is in.
 
-Operations that involve external systems are strictly non-blocking and return immediately via callback events:
-* **HTTP Requests (`hafen.http`)**: Dispatched to background worker threads. The `:on("done", callback)` handler is queued back onto the main client thread once the network response arrives.
-* **WebSocket Messages (`hafen.websocket`)**: Handled via `:on("message", callback)` dispatched on the main thread.
-* **Persistent Storage (`hafen.store`)**: Flushed to disk asynchronously by the background database worker.
+## One tree at a time
+
+Reaching a second tree while you hold one is refused, at the line that tried it. It is not a warning and not
+a wait: the call raises, `pcall` catches it, and nothing is written.
+
+```lua
+local win = hafen.ui():window():title("Bags"):size(200, 120)     -- your own tree
+
+win:on("Draw", function(ev)
+  local inv = hafen.session():current():ui():match("window[title=Inventory]")
+  if inv then inv:visible(false) end                             -- raises: a second tree
+end)
+```
+
+The message names both trees, and the doors that do the same work holding neither:
+
+```text
+one tree monitor at a time: this handler already holds the widget tree of the addon layer, and
+writing a widget of the character "yourname" would take a second one — two trees held at once is
+the shape this client deadlocks in. A Draw handler, a control's own notification, a gesture, a
+drop and a console line each run under one tree's monitor and may reach only that tree. Do the
+work that crosses trees where no monitor is held: widget:on("Update", fn),
+hafen.event():on("Update", fn) or hafen.timer():after(0, fn), all of which run on the engine
+step, holding none.
+```
+
+> **It is the nesting that is refused, never the crossing.** The same write lands from the step, and a
+> handler holding a tree may always write **that** tree — its own window, the widget it was handed, anything
+> under the character whose press it is answering. Reaching one character's UI from another character's
+> handler is exactly as legal as anything else, from the step.
+
+`the addon layer` is where your own windows live — everything you build with
+[`hafen.ui()`](ui/README.md) that you did not parent onto a character. A character's tree is named by the
+account it is logged in as.
+
+## Getting onto the step from a handler that holds a tree
+
+Two doors, and both are one line:
+
+```lua
+win:on("Draw", function(ev)
+  hafen.timer():after(0, function()                  -- the next step, holding nothing
+    local inv = hafen.session():current():ui():match("window[title=Inventory]")
+    if inv then inv:visible(false) end
+  end)
+end)
+```
+
+| Door | Use it when |
+|---|---|
+| [`hafen.timer():after(0, fn)`](timer.md) | you are inside a handler now and want this once, on the next step |
+| [`hafen.event():on("Update", fn)`](event/bus/lifecycle.md) | the work is per-frame anyway, or you want it off the handler entirely |
+
+Both hold no tree, so the body may reach anything. `widget:on("Update", fn)` is the same door addressed at
+one of your own surfaces: it runs on the step like the bus's, not in the pass that draws that surface.
+
+A `Draw` handler that wants to change another tree records what it wants and lets the step do it. That is
+the shape for every one of these: decide in the handler, act on the step.
+
+## One at a time, in your own Lua
+
+Your addon is one Lua state, and the rows above are entered from more than one of the client's threads. The
+client lets exactly **one** of them be inside your code at a time: an entry that arrives while another is
+running waits for it, so the tables, the upvalues and the state your handlers share are never read
+half-written. That holds across every row of the table — the step, an inbound update, an HTTP reply, a
+connection's `Message`, a `Draw` pass — and it is why an ordinary addon never has to think about any of this.
+
+**Serialised is not sequenced.** An inbound update aimed at one widget and the step's own `Update` are two
+moments the client puts in no order, so which of your handlers sees a value first depends on when the server
+sent it. Anything you need in a fixed order, do in one place.
+
+> **A handler answering inside a tree may be skipped rather than made to wait.** The rows in the second
+> group are already holding a tree's guard when they reach you, and waiting there is the shape this client
+> deadlocks in — so when your Lua is busy on another thread at that instant, that one call does not happen:
+> a `Draw` handler's picture keeps the previous frame's, and a click or a `screenToWorld` answer is not
+> delivered. It takes your own code running on two threads at once, and a short handler never meets it. A
+> `Draw` handler that must not miss a frame keeps its body to drawing what the step already worked out.
+
+Two more facts follow from where a row runs rather than from that rule:
+
+- **A write on a game object is safe from every row.** [`gob:scale(k)`](look.md#size-unprotected),
+  [`gob:visible(b)`](look.md#drawn-or-not-unprotected), [`gob:tint(c)`](look.md#tint-unprotected) and
+  [`gob:overlay():add`/`:remove`](overlay.md#the-collection) may be made from a `Draw` handler and from the
+  step at once, on the same object, and neither the object's place in the scene nor the value you wrote is
+  the worse for it. The client serialises them per object.
+- **A [line you log](log.md) from inside a tree lands a frame later.** The chat is a widget tree like any
+  other, so a line written from a `Draw` handler, a control's notification or a gesture is held and posted
+  by the next step. It lands, whole and in the order you wrote it; it is simply not on screen yet when the
+  handler returns.
+
+## Nothing blocks
+
+There is no `sleep`, no waiting on a reply, no joining a thread. You schedule a callback and return, and
+that holds in every row of the table. A handler that runs long is a frame the client did not draw, and one
+that never returns would be the client stopping — so two limits catch it: an instruction budget per entry
+into your Lua — one apiece for two of your callbacks running at once on the threads above — and a sustained
+per-frame time budget that disables the addon rather than letting the client stutter on. Both
+are on [budgets and the watchdog](../runtime.md#budgets-and-the-watchdog).
+
+## See also
+
+- [conventions](conventions.md) — the grammar every reference page assumes
+- [`hafen.client()`](client/README.md#where-your-code-is-running) — `stepping()`, which of the two
+  you are in
+- [the message streams](event/streams.md) — the two handlers that do not run on the step
+- [events and timers](../guides/events-and-timers.md) — choosing between an event, a timer and `Update`
+- [custom windows](ui/custom.md) — `Update` and `Draw`, and what each may reach

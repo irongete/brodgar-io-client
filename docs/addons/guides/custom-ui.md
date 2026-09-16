@@ -1,126 +1,203 @@
 # Custom UI
 
-Addons can render custom user interfaces in two ways:
-1. **Direct 2D Canvas Drawing**: Paint text, shapes, and custom textures on a blank window or HUD overlay.
-2. **Native Control Panels**: Compose windows using the client's built-in buttons, labels, checkboxes, and layout columns.
+Your own pixels: a window the user can drag, a bare rectangle, or a layer painted over the HUD and the 3D
+world — or a panel of the client's own controls, laid out for you. All of it is unprotected, and all of it
+disappears cleanly when your addon does. To restyle the *client's* surfaces instead of drawing your own, see
+[theming](theming.md) — and for the third way, where you build the surface and let **somebody else** restyle
+it, see [below](#let-somebody-else-restyle-it).
 
-All UI components created by your addon are automatically cleaned up when your addon reloads or unloads.
+## A window
 
----
-
-## 1. Creating a Window with Custom 2D Drawing
-
-Create a draggable window and handle its `Draw` event to paint custom 2D elements:
+[`hafen.ui():window()`](../api/ui/custom.md) gives you chrome, a caption and a draggable frame around
+content you paint yourself. Build it when the world is up, and keep the handle:
 
 ```lua
-local window_handle = nil
+local window
 
-hafen.event():on("SessionEnteredWorld", function(session)
-  window_handle = hafen.ui():window()
-    :title("Player Radar")
-    :size(200, 60)
-    :position(100, 100)
+hafen.event():on("SessionEnteredWorld", function(text)
+  window = hafen.ui():window():title("Scout"):size(180, 48):position(80, 120)
 
-  window_handle:on("Draw", function(draw_event)
-    local graphics = draw_event:g()
-    local width = draw_event:w()
-    local height = draw_event:h()
-
-    -- Draw dark background panel
-    graphics:color(20, 20, 20, 200)
-    graphics:frect(0, 0, width, height)
-
-    -- Draw border
-    graphics:color(100, 100, 100)
-    graphics:rect(0, 0, width, height)
-
-    -- Draw status text
-    graphics:color(255, 215, 0)
-    graphics:text("Radar Active", 10, 10)
-
-    local player_count = session:world():gob():count("gfx/borka/body")
-    graphics:color(200, 200, 200)
-    graphics:text("Players nearby: " .. player_count, 10, 30)
+  window:on("Draw", function(event)
+    local graphics = event:g()
+    graphics:color(220, 220, 220)
+    graphics:text("players nearby: " .. text:world():gob():count("gfx/borka/body"), 6, 6)
   end)
-
-  window_handle:on("Close", function()
-    hafen.log():write("Radar window closed by user.")
-  end)
+  window:on("Close", function() hafen.log():write("closed") end)
 end)
 ```
 
-### Canvas Drawing Methods (`graphics`)
+`hafen.ui():widget()` is the same thing without the chrome, for something that should not look like a
+window. Every setter is optional, and what you get back is a [Widget](../api/ui/widget.md) — the same
+type the client's own windows are, so `:position`, `:size`, `:visible` and `:destroy` all answer on it.
+The difference between yours and the client's is
+[ownership](../api/ui/writes.md#owned-vs-borrowed), and it decides which writes are allowed.
 
-| Method | Parameters | Description |
-|---|---|---|
-| `graphics:color(r, g, b, [a])` | `number, number, number, [number]` | Set drawing color (values `0..255`). |
-| `graphics:text(text, x, y)` | `string, number, number` | Render cached text at widget-local coordinates. |
-| `graphics:line(x1, y1, x2, y2)` | `number, number, number, number` | Draw a 1-pixel line. |
-| `graphics:rect(x, y, w, h)` | `number, number, number, number` | Draw an unfilled rectangle outline. |
-| `graphics:frect(x, y, w, h)` | `number, number, number, number` | Draw a filled solid rectangle. |
-| `graphics:image(asset_handle, x, y)`| `userdata, number, number` | Render an image loaded via `hafen.asset`. |
+## Draw
 
----
-
-## 2. Composing Native Controls (Columns & Rows)
-
-To create a window with standard game buttons, checkboxes, and text entries, use layout containers ([`column`](../api/ui/column.md) and [`row`](../api/ui/column.md)):
+Every draw handler receives `ev`, answering `:g()` — [the drawing surface](../api/ui/drawing.md) — and
+`:w()`/`:h()`, the area to paint. Coordinates are local: the widget's own top-left for a widget, the screen
+for a HUD overlay. Set a colour, then draw.
 
 ```lua
-local options_window = nil
-
-hafen.event():on("SessionEnteredWorld", function(session)
-  options_window = hafen.ui():window()
-    :title("Harvest Helper")
-    :position(120, 120)
-
-  -- Root vertical column inside the window
-  local root_column = hafen.ui():column()
-    :gap(6)
-    :parent(options_window)
-    :position(10, 10)
-
-  -- Header Label
-  hafen.ui():label()
-    :text("Automated Gathering Settings")
-    :parent(root_column)
-
-  -- Horizontal row with an icon and a checkbox
-  local check_row = hafen.ui():row()
-    :gap(4)
-    :parent(root_column)
-
-  local ripe_only_checkbox = hafen.ui():check()
-    :text("Only harvest fully ripe crops")
-    :parent(check_row)
-
-  ripe_only_checkbox:on("Changed", function(is_checked)
-    hafen.log():write("Setting changed: ripe_only = " .. tostring(is_checked))
-  end)
-
-  -- Action Button
-  local scan_button = hafen.ui():button()
-    :text("Scan Field Now")
-    :size(140, 24)
-    :parent(root_column)
-
-  scan_button:on("Pressed", function()
-    local crops = session:world():gob():count("terobjs/plants")
-    hafen.log():write("Found crops: " .. crops)
-  end)
-
-  -- Automatically size the window to wrap around its contents
-  options_window:pack()
+window:on("Draw", function(event)
+  local graphics, width, height = event:g(), event:w(), event:h()
+  graphics:color(0, 0, 0, 160)
+  graphics:frect(0, 0, width, height)                     -- a dim panel behind the text
+  graphics:color(255, 210, 120)
+  graphics:text("hello", 6, 6)
+  graphics:line(0, height - 1, width, height - 1)
 end)
 ```
 
-## 3. Window Visibility and Toggling
+`g` lives only for the length of the callback: stash it and draw later and nothing happens. To draw an
+image you ship, load it once with [`hafen.asset`](../api/asset/README.md) — in `Load`, never inside a draw —
+and blit the handle with `g:image`. `g:resource(name, …)` draws the client's own art by name.
+
+**Cost.** Geometry is nearly free; text is not, so the engine
+[caches every rendered string](../api/ui/drawing.md#text-is-cached-across-frames) per addon. Redrawing the
+same words in the same font every frame is one rasterisation total; a string whose characters change every
+frame — a clock, a coordinate readout — is a rasterisation every frame. Budget a live readout by how often
+its *text* changes, and round anything you do not need to the digit you do.
+
+## A panel of controls
+
+A window that holds the client's own [controls](../api/ui/controls/README.md) rather than pixels of yours
+is laid out by a [column](../api/ui/column.md): parent each control into it and it stacks them, sizes
+itself to them and re-lays them when one changes. A row inside it puts two on one line, a column inside it
+with a left `padding` is an indent, and [`:enabled(false)`](../api/ui/writes.md#enabled-and-disabled) on
+that inner column greys a whole group until a switch outside it is ticked:
 
 ```lua
--- Toggle window on keybinding or button click
-function toggle_my_window()
-  if not options_window then return end
-  local is_visible = options_window:visible()
-  options_window:visible(not is_visible)
+local win   = hafen.ui():window():title("Harvest"):position(80, 120)
+local panel = hafen.ui():column():gap(4):parent(win):position(0, 0)
+
+local row = hafen.ui():row():gap(4):parent(panel)
+hafen.ui():image():source("gfx/hud/chr/farming"):size(24, 24):parent(row)
+hafen.ui():check():parent(row):text("Only ripe")
+
+local advanced_switch    = hafen.ui():check():parent(panel):text("Advanced")
+local group = hafen.ui():column():gap(4):parent(panel):stock{ padding = {16, 0, 0, 0} }
+hafen.ui():check():parent(group):text("Also unripe")
+hafen.ui():entry():parent(group):size(120)
+group:enabled(false)
+advanced_switch:on("Changed", function(checked) group:enabled(checked) end)
+
+win:pack()                                 -- the window fits the panel, and follows it from here on
+```
+
+Nothing inside the panel is positioned by hand — a child of a column has no `:position` to write, its
+place being its order — and nothing is measured: `win:pack()` reads the panel's box, and a row you add
+later grows the window by itself. A list too long for the window goes in a
+[scroll](../api/ui/controls/interactive.md#scroll) with a column inside it, and the whole panel, scroll
+included, is worked through on [column](../api/ui/column.md#a-panel-composed).
+
+## Let somebody else restyle it
+
+**Painting is final; a declared look is a default anybody can beat.** Pixels you lay down in `Draw` are
+yours and no rule can reach into a callback. The *same look* declared as a **stock** renders identically and
+stays replaceable — so the question is not "paint or declare", it is which parts of your surface you want a
+theme to be able to change.
+
+```lua
+local bar = hafen.ui():widget():parent(hud):name("bar")
+bar:stock{ bg = {color = {0, 0, 0, 90}}, border = {box = "gfx/hud/wnd", mode = "tile"} }
+```
+
+- **`:name(s)` is the one that opens the door.** The engine writes your addon's id in front, so a theme
+  names it back as `["[name=youraddon/bar]"]`. Without a name nothing can single your surface out — every
+  bare widget every addon builds looks alike to a selector.
+- **`:stock(t)` only sets the starting point.** It sits at the *bottom* of the
+  [cascade](../api/ui/style/README.md#the-cascade), so every rule beats it, per property. Put your default
+  here rather than in a rule of your own, which would sit above every theme.
+- **Neither is required**, and a surface with neither is exactly the bare rectangle it always was. Name what
+  is part of how your addon *looks*; leave the scaffolding — containers, drag handles, hit areas — unnamed,
+  because a name is a published contract and renaming it breaks somebody's theme.
+- **Widgets built from the client's own pieces need none of this.** `:window()`, `:button()`, `:label()`
+  and the rest *are* client widgets, so a theme's [site keys](../api/ui/style/keys.md#site-keys) already
+  reach them.
+
+The whole of it, with the reads and the refusals, is on
+[custom](../api/ui/custom.md#naming-and-dressing-your-own-surfaces).
+
+## Overlays
+
+An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
+drag. It is the same vocabulary on the [**HUD**](../api/ui/overlay.md), on **one widget** and on a **game
+object** — keyed decorations you add, read back and remove. On the HUD you name the screen:
+
+```lua
+hafen.ui():overlay():add("clock"):draw(function(graphics, width, height)  -- over the whole HUD; width, height is the screen
+  graphics:color(255, 255, 255)
+  graphics:atext(os.date("%H:%M"), width - 8, 8, 1, 0)               -- anchored to the top-right corner
+end)
+-- ...and hafen.ui():overlay():remove("clock") takes it off again
+```
+
+Over a **game object** the verb is on the object — [`gob:overlay()`](../api/overlay.md) — and you
+name the gob rather than describing a set of them:
+
+```lua
+local function tag(gob)
+  if gob:player() then gob:overlay():add("tag"):text("player"):color{0, 255, 0} end
 end
+hafen.event():on("GobAdded", tag)                         -- everyone who walks in...
+local world = hafen.session():current():world()
+for _, other_gob in ipairs(world:gob():list()) do tag(other_gob) end          -- ...and everyone already here
 ```
+
+The label is drawn at that object's projected screen point — just above the head by default, and
+`:height(0)` stands it on the ground under the object instead — and it follows the gob because it is
+attached to it: no projection to do and nothing to poll. A `:draw(fn)` overlay gets that point as `sx, sy`
+when you want to paint it yourself. Standing something **in** the world instead of over it is
+[`hafen.virtual`](../api/virtual/README.md).
+
+Over **one widget** the verb is on the widget — [`widget:overlay()`](../api/ui/overlay.md#over-one-widget)
+— and the painter is handed that widget's own box, clipped to it and hidden with it:
+
+```lua
+local pack = hafen.session():current():ui():inventory()
+pack:overlay():add("frame"):draw(function(graphics, width, height)   -- width, height is the grid, not the screen
+  graphics:color(255, 90, 90)
+  graphics:rect(0, 0, width, height)
+end)
+```
+
+That is the one to reach for when the thing you want to decorate is a button, a slot or an item icon: you
+name the widget, so nothing is searched and no rectangle is re-derived every frame.
+
+## Input
+
+Mouse input is five more [`:on(key, fn)`](../api/ui/widget.md#subscribing) keys, the same door `Draw` is —
+and they answer on **any** widget, not only one you painted: `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`
+and `Removed`. Coordinates are widget-local, and `ev:preventDefault()` is the one way to consume the
+input; no handler's return value is ever read.
+
+```lua
+window:on("MouseDown", function(event)
+  if event:button() == 3 then return end                       -- leave the right button alone
+  if hafen.ui():mouse():shift() then reset() else step() end
+  event:preventDefault()                                        -- stop the widget seeing it too
+end)
+```
+
+Reading a modifier key is `hafen.ui():mouse():shift()`/`:ctrl()`/`:alt()`, live, from inside the handler —
+an input `ev` carries none of its own, since the pointer already answers them at any time.
+
+A window built with [`:window()`/`:widget()`](../api/ui/custom.md) answers four more of its own: `Update`
+every frame, `Drop` when the client's drag gesture drops something on it (`ev:thing()` is the neutral
+descriptor, drawable with `g:resource` and persistable with [`hafen.store`](../api/store/README.md)), `Close`
+on the window's close button — which destroys the window unless the handler
+[cancels it](../api/ui/custom.md#the-close-button-destroys-the-window-unless-you-say-otherwise) — and
+`Resized` when the user lets go of the [corner grip](../api/ui/custom.md#letting-the-user-resize-a-window-of-yours).
+Keyboard input is not a widget option — a [hotkey](hotkeys-and-commands.md) is.
+
+## What the client already built
+
+Your window and the client's are the same kind of object, so the rest of `hafen.ui` is about *its* widgets
+rather than yours: [naming one](../api/ui/selectors.md), [reading what is inside it](../api/ui/items.md),
+[moving it, hiding it or letting the user drag and size it](../api/ui/native.md), and
+[standing your own window in its place](../api/ui/replace.md) — which is how you rebuild a piece of the
+client's interface without reimplementing what it does. Start from a selector, and use the
+[inspector](debugging.md#name-a-widget-you-are-pointing-at) to find one.
+
+**Next:** [saved data](saved-data.md) — keeping the window's position, and everything else you learn.
