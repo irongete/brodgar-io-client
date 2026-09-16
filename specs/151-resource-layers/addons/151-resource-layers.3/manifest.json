@@ -1,0 +1,9 @@
+{
+  "name": "151.3 — picture, texture and shape specs",
+  "id": "151-resource-layers.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 151.3: an image spec from a PNG asset keeps the original's other fields, a tex needs its picture, and a neg, an obst and a props spec each read back equal.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

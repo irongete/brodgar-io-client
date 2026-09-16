@@ -53,6 +53,8 @@ end)
 
 Stylesheets can also reference images by relative path: `{asset = "textures/badge.png"}`.
 
+An image asset is also what [`resource:layers():add`](../resource/writes.md) takes as an `image` or `tex` picture.
+
 ---
 
 ## Font Asset

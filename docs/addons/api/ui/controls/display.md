@@ -29,12 +29,14 @@ local resource_icon = hafen.ui():image()
   :parent(container_widget)
 
 -- Display custom asset loaded via hafen.asset
-local custom_texture = hafen.asset():load("assets/icons/star.png")
+local custom_texture = hafen.asset():get("assets/icons/star.png")
 local custom_icon = hafen.ui():image()
   :source(custom_texture)
   :size(32, 32)
   :parent(container_widget)
 ```
+
+A resource name is read when the control is built: it shows the resource's current `image` layer, a [written](../../resource/writes.md) one included, and keeps it until the control is built again.
 
 ---
 

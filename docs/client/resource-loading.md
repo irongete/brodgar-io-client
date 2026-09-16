@@ -107,6 +107,21 @@ and never mutated. `init()` is not idempotent on every type (`MeshRes.init` cons
 index buffer), so a second `init()` over a live list is a corrupted mesh, not a refresh. `Resource.used`
 is set by any `layer()` read, including one made only to inspect.
 
+## The wire layouts the constructors read
+
+The record's bytes after `string type, int32 len`, for the layers carrying pictures, shapes and key/value blocks:
+
+| Layer | Layout |
+|---|---|
+| `Resource.Image` | `uint8 ver`; `ver >= 128` is the keyed form: `int16 id`, then `string key, tto value` pairs to an empty key (`z`, `subz`, `nooff` as an int, `off` and `tsz` as `Coord`, `scale` as a float, anything else lands in `info`), then the PNG. `ver < 128` is the old fixed header. `tsz` left out becomes `sz.add(o)`, so a parsed layer cannot tell a served `tsz` from the default |
+| `TexR.Encoded` | `int16 id`, `uint16 off.x, off.y`, `uint16 sz.x, sz.y`, then parts: `uint8 t` whose top two bits are the framing (`0` inline, `1` an `uint8`-length sub-message, `2` an `uint8` flags byte and an `int32` length) and whose low six are the part (`0` the PNG as `int32 len, bytes`, `1` mipmapper, `2`/`3` filters, `4` the alpha mask). `img` and `mask` are private |
+| `Resource.Neg` | `cc`, `ac`, `bc` as three `int16` pairs, four unread bytes, `uint8 en`, then `en` rings of `uint8 epid, uint16 n, n × int16 pair` |
+| `Resource.Obstacle` | `uint8 ver` (`1` or `2`), `string id` when `ver == 2`, `uint8 rings`, one `uint8` count per ring, then every point as `float16 x, float16 y` **in tile units** — the constructor multiplies by `MCache.tilesz` |
+| `Resource.Props` | `uint8 1`, then a `Message.list`: `tto` values alternating key and value, to `T_END` or the end |
+
+`Message.addtto` picks the narrowest integer tag for a whole number, `T_FLOAT64` for a `Double`, `T_COORD`
+for a `Coord`, `T_TTOL` for an `Object[]`, and has no `Boolean` case — `nooff` travels as an int.
+
 ## Re-parsing a live object
 
 `Pool.reload(res)` walks the pool's sources again for a resource the cache already holds and ends in

@@ -47,10 +47,29 @@ Every spec carries `type`. The fields each type takes:
 | `tooltip` | `text` | `text` is present. |
 | `pagina` | `text` | `text` is present. |
 | `audio2` | `id`, `clip`, `volume` | `id` and `clip` are present. `clip` is a data asset holding an Ogg Vorbis file (`hafen.asset():get("chime.ogg")`), checked by its `OggS` header. `volume` is the clip's base loudness, `0` for silent, `1` for as served; `volume` alone keeps the clip. |
+| `image` | `id`, `image`, `z`, `subz`, `nooff`, `offset`, `tsz`, `scale`, `meta` | `id` and `image` are present. `image` is an [image asset](../asset/handles.md) (`hafen.asset():get("icon.png")`), written as the picture; `id` is a number (`-1` is the client's default). `z`/`subz` order the draw, `nooff` is a boolean, `offset` and `tsz` are `{x, y}`, `scale` is the picture's own scale, `meta` a [value table](#values). At an empty address a field left out is the wire's default: `0`, `false`, `{0, 0}`, the picture's size plus its offset, `1`, `{}`. |
+| `tex` | `id`, `image` | `id` and `image` are present. A texture keeps no picture to carry over, so `image` is required at every address; `id` alone is kept. |
+| `neg` | `hotspot`, `box` | Both are present. `hotspot` is `{x, y}`, `box` is `{x, y, w, h}`; the original's `ep` rings are kept, an empty address has none. |
+| `obst` | `id`, `rings` | Both are present. `id` is a string (`""` is the client's default, addressed as `"obst:"`); `rings` is an array of rings, each an array of `{x, y}` points in world units (a tile is 11), at most 255 of each. |
+| `props` | `props` | `props` is present: a [value table](#values), written whole. |
 
-`image`, `tex`, `neg`, `obst` and `props` are the other writable types. Every other type — `mesh`, `skel`, `mat2`, `tileset2`, … — is refused naming the writable ones: those arrive only inside a whole `.res` file.
+Every other type — `mesh`, `skel`, `mat2`, `tileset2`, … — is refused naming the writable ones: those arrive only inside a whole `.res` file.
 
 A `remove` key naming `code` or `codeentry` is refused: the client's published code is not a layer your addon writes or removes.
+
+### Values
+
+`meta` and `props` are string-keyed tables whose values are the wire's own kinds. What each Lua value writes, and what [`:info()`](layers.md#what-info-decodes) reads it back as:
+
+| Lua value | Written as | Reads back as |
+|---|---|---|
+| a string | a string | the string |
+| a whole number | an integer | the number |
+| any other number | a double | the number |
+| `{x = 3, y = 4}` | a coordinate | `{x = 3, y = 4}` |
+| an array `{ "a", 2 }` | a list | the array |
+
+A boolean, a colour, a map or anything else is refused naming those kinds.
 
 ---
 
@@ -80,4 +99,4 @@ A write swaps the resource's layer list. What was built from the old list keeps 
 
 - [`hafen.resource`](README.md) — addressing a resource and reading its state.
 - [Layers](layers.md) — the layer keys and what `:info()` decodes.
-- [Asset handles](../asset/handles.md) — the data asset a `clip` is.
+- [Asset handles](../asset/handles.md) — the image asset an `image` is, the data asset a `clip` is.

@@ -45,7 +45,7 @@ bounded timer (≤ 5 s), never blocks, and ends with `resource:release()` on eve
       `[manual]`: the suite plays `hafen.sound():get("sfx/msg")` after the volume write — expect: the
       chime, much quieter than usual.
 
-- [ ] **151.3 — Picture, texture and shape specs.** `LayerCodec` encoders for `image` (v129: `id`, `z`,
+- [x] **151.3 — Picture, texture and shape specs.** `LayerCodec` encoders for `image` (v129: `id`, `z`,
       `subz`, `nooff`, `offset`, `tsz`, `scale`, `meta`, PNG from `LuaImage`'s `TexI.back` or the
       original's `img`), `tex` (`image` required), `neg` (`hotspot`, `box`, zeros, `ep` kept), `obst`
       (v2, `rings` in world units ÷ `MCache.tilesz` as `float16`), `props` (v1 list; Lua ↔ tto: string,
