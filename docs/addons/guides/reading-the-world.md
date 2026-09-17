@@ -1,144 +1,104 @@
-# Reading the world
+# Reading the World
 
-Everything around your character is a **game object** — a tree, a boulder, an animal, another player's
-body — and reading them is unprotected: no permission, no declaration, nothing to ask for. This guide finds
-objects, reads one, and asks what the ground under them is.
-
-## Find the objects you want
-
-A world belongs to a character, so a read says which character it is about:
-[`hafen.session():current()`](../api/session.md) is the one on screen and `hafen.session():get(user)` is any
-other. [`s:world()`](../api/world.md) scans what that character has loaded, and every one of its verbs takes
-the same [filter](../api/conventions.md#the-filter-argument): nothing, a substring of the resource name, or a
-predicate.
+Everything around your character is a game object (a tree, a boulder, an animal, a player's body), and reading them is unprotected: no permission, no declaration. This guide finds objects, reads one, and asks what the ground under them is.
 
 ```lua
-local s       = hafen.session():current()                            -- the character on screen
-local trees   = s:world():gob():count("terobjs/tree")                -- how many, by name
-local nearest = s:world():gob():nearest("terobjs/tree")              -- the closest one, or nil
-local players = s:world():gob():within(50, function(g)               -- matching, in a radius
-  return g:player()
+local session = hafen.session():current()                                -- the character on screen
+local tree_count = session:world():gob():count("terobjs/tree")            -- how many, by name
+local nearest_tree = session:world():gob():nearest("terobjs/tree")        -- the closest one, or nil
+local players = session:world():gob():within(50, function(gob)            -- matching, in a radius
+  return gob:player()
 end)
 ```
 
-A **name is a resource path**, not a display name: `"gfx/borka/body"` is any player body and
-`"terobjs/tree"` is every kind of tree, because the match is a substring. When you do not know the name,
-log what is around you once and read the list:
+---
+
+## Find the objects you want
+
+A world belongs to a character: [`hafen.session():current()`](../api/session.md) is the one on screen, `hafen.session():get(user)` any other. [`session:world()`](../api/world.md) scans what that character has loaded, and every verb takes the same [filter](../api/conventions.md#the-filter-argument): nothing, a substring of the resource name, or a predicate. A name is a resource path, not a display name: `"gfx/borka/body"` is any player body and `"terobjs/tree"` every kind of tree. When you do not know the name, log what is around you:
 
 ```lua
 hafen.console():on("what", function()
-  for _, g in ipairs(hafen.session():current():world():gob():within(15)) do
-    hafen.log():write(g:name() or "?")
+  for _, gob in ipairs(hafen.session():current():world():gob():within(15)) do
+    hafen.log():write(gob:name() or "?")
   end
 end)
 ```
 
 ## Read one
 
-What you get back is a [Gob](../api/gob.md), and a Gob is a **live object**: it holds an id and re-resolves
-on every call, so one you keep in a variable tracks its object as it moves and answers `nil` once the
-object is gone. Nothing goes stale, and nothing has to be refreshed.
+A [Gob](../api/gob.md) is a live object holding an id and re-resolving on every call: one kept in a variable tracks its object as it moves and answers `nil` once the object is gone.
 
 ```lua
 local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
 if tree and tree:exists() then
-  local p = tree:position()
-  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(p:x(), p:y(), tree:distance()))
+  local position = tree:position()
+  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(position:x(), position:y(), tree:distance()))
 end
 ```
 
-Two Gobs for the same object are the **same value**, so `==` compares them and a table can be keyed by one
-directly — which is how you remember what you have already seen without juggling ids. That holds across your
-characters too: two of them looking at one tree find the same Gob, so a set keyed by Gobs counts objects
-rather than viewings. See [identity](../api/gob.md#identity).
+Two Gobs for one object are the same value, so `==` compares them and a table keyed by one remembers what you have seen without ids; two of your characters looking at one tree find the same Gob ([identity](../api/gob.md#identity)).
 
 ## Do not scan every frame
 
-A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer the
-[events](../api/event/bus/world.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives,
-and keep your own index:
+A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer [`GobAdded` and `GobRemoved`](../api/event/bus/world.md#world) and keep your own index; when you must poll a value with no event, poll on a [timer](events-and-timers.md), not in `Update`.
 
 ```lua
 local boars = {}
-
 hafen.event():on("GobAdded", function(gob)
   if (gob:name() or ""):find("boar") then boars[gob] = true end
 end)
-
 hafen.event():on("GobRemoved", function(gob)
   boars[gob] = nil                     -- the gob is already gone here: only :id() answers
 end)
 ```
 
-`boars` counts boars and not viewings: an object arriving fires once whichever of your characters sees it
-first, and it is reported gone when the last of them loses sight of it.
-
-When you do have to poll — a value with no event behind it — poll on a [timer](events-and-timers.md), not
-in `Update`.
+`boars` counts boars, not viewings: an object fires once whichever character sees it first, and is reported gone when the last loses sight of it.
 
 ## The character itself
 
-[`s:player()`](../api/player.md) is the anchor, and everything positional about that character is read on
-its own Gob, exactly as it is on any other object:
+[`session:player()`](../api/player.md) is the anchor; everything positional about the character is read on its own Gob.
 
 ```lua
-local s  = hafen.session():current()
-local me = s:player():gob()              -- nil until that session is in the world
-if me then
-  local p = me:position()
-  hafen.log():write(("standing at %.0f, %.0f"):format(p:x(), p:y()))
+local session = hafen.session():current()
+local my_gob = session:player():gob()              -- nil until that session is in the world
+if my_gob then
+  local position = my_gob:position()
+  hafen.log():write(("standing at %.0f, %.0f"):format(position:x(), position:y()))
 end
 ```
 
-`gob == s:player():gob()` is how a filter or a handler tells "is this the character I am reading?" without
-comparing ids — for gobs read through that same session.
+`gob == session:player():gob()` tells "is this the character I am reading" without ids, for gobs read through that session.
 
 ## The ground
 
-[`s:world()`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and
-converts between the coordinate spaces — world units, tiles, grids and screen pixels. Terrain reads
-answer `nil` while that part of the map is still streaming in, which is normal rather than an error.
+[`session:world()`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point and converts between world units, tiles, grids and screen pixels. Terrain reads answer `nil` while that part of the map streams in.
 
 ```lua
-local s = hafen.session():current()
-local p = s:player():gob():position()
-local t = s:world():tile(p)
-hafen.log():write(t and (t.name or t.id) or "not loaded yet")
+local session = hafen.session():current()
+local position = session:player():gob():position()
+local tile = session:world():tile(position)
+hafen.log():write(tile and (tile.name or tile.id) or "not loaded yet")
 ```
 
-> **World coordinates do not hold.** The client re-bases them whenever the server drops the map — every
-> login does it, and so does a walk into a cave — and they mean nothing to another player, which is why a
-> place is a [Position](../api/position.md) rather than a pair of numbers:
-> it anchors itself to a map grid, so it goes into [`hafen.store`](../api/store/README.md) and comes back the
-> same place next session.
+> **World coordinates do not hold.** The client re-bases them whenever the server drops the map (every login, a walk into a cave), and they mean nothing to another player: a place is a [Position](../api/position.md), anchored to a map grid, which goes into [`hafen.store`](../api/store/README.md) and comes back the same place.
 
 ## The map you explored
 
-Everything above is the world **streamed around that character**. The ground you walked over last month is
-a different thing entirely — it is on disk, it outlives the session, and it is
-[`hafen.map`](../api/map/README.md):
-segments and grids, the claims and provinces that covered them, your markers, and the drawings the corner
-minimap paints. A [Position](../api/position.md) is the door between the two halves, in
-both directions:
+Everything above is the world streamed around that character. The ground you walked over last month is on disk and outlives the session: [`hafen.map`](../api/map/README.md), with segments and grids, the claims and provinces that covered them, your markers and the corner minimap's drawings. A [Position](../api/position.md) is the door between the two halves.
 
 ```lua
-local s  = hafen.session():current()
-local gp = s:player():gob():position():info()     -- where it is, as {gridId, x, y}
-local g  = hafen.map():grid():get(gp.gridId)      -- ...the same Grid, from the recorded side
-local t  = g and g:tile({ x = 0, y = 0 })         -- nil until the grid is read off the disk
-hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
+local session = hafen.session():current()
+local durable = session:player():gob():position():info()     -- where it is, as {gridId, x, y}
+local grid = hafen.map():grid():get(durable.gridId)          -- the same Grid, from the recorded side
+local tile = grid and grid:tile({ x = 0, y = 0 })            -- nil until the grid is read off the disk
+hafen.log():write(tile and tile.name or "not loaded yet, ask again next tick")
 ```
 
-A read that needs a grid the client has not loaded off the disk **starts the load and answers `nil`** — call
-again next tick and it answers. There is no callback and no ready event: re-asking is the whole protocol, the
-same way a rebuilt Position resolves as the map streams in. A minimap panel is that loop and little else: a
-few-times-a-second timer that is both the retry and the "did the picture change?" test.
+A read needing a grid not yet loaded off the disk starts the load and answers `nil`; call again next tick. No callback, no ready event: a minimap panel is a few-times-a-second timer that is both the retry and the "did the picture change" test.
 
 ## What the client does not know
 
-A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:player()` is the
-test, and [`gob:kin()`](../api/kin.md) names the ones on that character's own roster. Beyond that, reading
-tells you what the client itself has been told: an object outside your view has not been loaded and does
-not exist as far as your addon is concerned.
+A gob's name is its type, so there is no display name for an arbitrary player; `gob:player()` is the test, and [`gob:kin()`](../api/kin.md) names the ones on that character's roster. Reading tells you what the client has been told: an object outside your view has not been loaded and does not exist to your addon.
 
 **Next:** [events and timers](events-and-timers.md) — when your code runs, and what to hang it off.

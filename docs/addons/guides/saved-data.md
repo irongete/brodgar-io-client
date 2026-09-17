@@ -1,123 +1,81 @@
-# Saved data
+# Saved Data
 
-Anything your addon should still know next week goes in [your addon's file](../api/store/README.md), one per
-addon for the whole client, and it takes three shapes. A **var** is a Lua table you name at `var`,
-which the client restores when you first name it and writes back for you: settings. A **table** you declare
-holds rows, typed, looked up by key or by clause: a record. A **statement** is SQL, for what only SQL says.
-Start with a var; move to a table the day the var would grow.
+Anything your addon should still know next week goes in [your addon's file](../api/store/README.md), one per addon for the whole client, in three shapes: a var (a Lua table you name at `var`, restored when you first name it and written back for you: settings), a table you declare (typed rows looked up by key or clause: a record), and a statement (SQL). Start with a var; move to a table the day the var would grow.
+
+```lua
+hafen.session():current():store():var("settings").window = { x = 40, y = 200 }   -- that character's own
+hafen.store():var("seen").lastLogin = os.time()                                   -- your addon's own
+```
+
+---
 
 ## Name it, and it exists
 
-```lua
-hafen.session():current():store():var("settings").window = { x = 40, y = 200 }
-hafen.store():var("seen").lastLogin = os.time()
-```
-
-The door is the scope. A var reached through [a session](../api/session.md) is **that character's
-own**; one reached through `hafen.store()` is your addon's own, one for the whole client whichever account
-or character is up. That is the whole of the difference: nothing declares a scope, and the same name through
-the two doors is two vars.
-
-A name is always a usable table, empty when there is nothing saved yet, so there is nothing to create and
-no `nil` check to write — and a misspelt name is an empty var, since there is nothing to hold it
-against. The table object itself never changes — a restore refills it in place — so a local reference you
-cache stays valid. See [vars](../api/store/vars.md) for the whole surface.
+| Rule | Detail |
+|---|---|
+| The door is the scope | A var through [a session](../api/session.md) is that character's own; through `hafen.store()` it is your addon's own, one for the whole client. The same name through the two doors is two vars. |
+| Always a usable table | Empty when nothing is saved yet, so nothing to create and no `nil` check; a misspelt name is an empty var. The table object never changes (a restore refills it in place), so a cached local stays valid ([vars](../api/store/vars.md)). |
 
 ## Read it at the right moment
 
-The two scopes become readable at different times, because the client does not know which character you
-are until you are in the world.
-
 | Scope | Readable from |
 |---|---|
-| your addon's own | your file bodies and `Load` |
-| per character | that session's `SessionEnteredWorld` onwards |
+| Your addon's own | Your file bodies and `Load`. |
+| Per character | That session's `SessionEnteredWorld` onwards. |
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function(s)
-  local pos = s:store():var("settings").window
-  if pos then window:position(pos.x, pos.y) end
+hafen.event():on("SessionEnteredWorld", function(session)
+  local saved_position = session:store():var("settings").window
+  if saved_position then window:position(saved_position.x, saved_position.y) end
 end)
 ```
 
-Reading a character's table in `Load` is not an error; it is simply empty, which is the bug that looks like
-"my settings do not load".
-
-**Every character has its own.** Your addon is loaded once for the client, which can have several
-characters logged in at once, and each of those sessions keeps its own set of per-character tables. So
-`s:store()` answers about the character that session is playing whether or not you are looking at it, two
-characters write two sets of rows, and a table you cached from one session stays that character's. What raises
-is a session with no character to have variables for — one that has ended, and one that has not reached the
-world yet; the [session events](../api/event/bus/lifecycle.md#sessions) are how you hear about both.
+| Rule | Detail |
+|---|---|
+| In `Load` a character's table is empty | Not an error; the bug that looks like "my settings do not load". |
+| Every character has its own | Your addon is loaded once for a client holding several characters; each session keeps its own tables, `session:store()` answers about the character it plays whether or not you look at it, and a table cached from one session stays that character's. A session with no character (ended, or not yet in the world) raises; the [session events](../api/event/bus/lifecycle.md#sessions) say when. |
 
 ## Store data, not objects
 
-The tables are written as JSON, so tables, strings, numbers and booleans survive and nothing else does. A
-function or a handle comes back as a placeholder string. Keys become strings unless the table is a plain
-`1..n` array, and a `nil` value is just an absent key.
-
-So keep the *description* of a thing rather than the thing: a colour is three numbers, a layout is a table
-of positions, a chosen action is [a resource name](../api/ui/custom.md#drop-makes-a-widget-a-drop-target)
-you can draw again. Rebuild the live objects from that on load.
+The tables are written as JSON: tables, strings, numbers and booleans survive; a function or a handle comes back as a placeholder string; keys become strings unless the table is a plain `1..n` array; a `nil` value is an absent key. Keep the description of a thing (a colour is three numbers, a layout a table of positions, a chosen action [a resource name](../api/ui/custom.md#drop-makes-a-widget-a-drop-target)) and rebuild the live objects on load. Anything positional is a [Position](../api/position.md), since a raw `x, y` is meaningless next session.
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function(s)
-  for _, prop in ipairs(s:store():var("settings").props or {}) do
-    local p = s:world():position(prop.at)          -- :x() is nil until that grid is reachable
-    if p then hafen.virtual():ghost():add(prop.res, p) end
+hafen.event():on("SessionEnteredWorld", function(session)
+  for _, prop in ipairs(session:store():var("settings").props or {}) do
+    local position = session:world():position(prop.at)          -- :x() is nil until that grid is reachable
+    if position then hafen.virtual():ghost():add(prop.res, position) end
   end
 end)
 ```
 
-That example is the general shape of saving anything positional: a raw `x, y` is meaningless next session,
-so store a [Position](../api/position.md) instead.
-
 ## A record is a table
 
-A var is held whole and written whole, so a thousand map nodes in one are a thousand entries serialised
-at every save. Declare a [table](../api/store/tables.md) for them instead: columns, a key and an index, and
-rows that go in and come out typed.
+A var is held and written whole, so a thousand map nodes in one are a thousand entries serialised at every save. Declare a [table](../api/store/tables.md): columns, a key and an index, rows typed both ways.
 
 ```lua
 local nodes = hafen.store():table("nodes")
   :column("grid", "text"):column("x", "integer"):column("y", "integer"):column("kind", "text")
   :key("grid", "x", "y"):index("kind"):create()
-
 nodes:put{ grid = "g1", x = 4, y = 9, kind = "fir" }              -- one row in the file, now
-for _, n in ipairs(nodes:list("WHERE kind = ?", "fir")) do
-  -- your code here
+for _, node in ipairs(nodes:list("WHERE kind = ?", "fir")) do
+  hafen.log():write(node.grid .. " " .. node.x .. "," .. node.y)
 end
 ```
 
-A row is in the file when `:put` returns, so there is nothing to flush; and where a character's rows are
-theirs alone, the character is a column you declare — the file is one for every character, so what all of
-them saw is one `SELECT` away through a [statement](../api/store/statements.md).
+A row is in the file when `:put` returns. Where a character's rows are theirs alone, the character is a column you declare; what every character saw is one `SELECT` away through a [statement](../api/store/statements.md).
 
 ## When it is written
 
-A var's changes are flushed on a timer, and again when the client quits, so an ordinary quit loses
-nothing and a crash loses at most the last half-minute. Your addon's own vars are written again when
-your addon is disabled or reloaded; a character's are written when the session holding them **ends** or
-picks another character, because that is the last moment their data is the data in those tables. A row a
-table or a statement writes waits for none of this: it is in the file when the call returns. Tabbing between
-characters writes nothing and loses nothing — each session keeps its own the whole time.
-
-`s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
-doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses a
-value a var cannot hold, naming where in your table it sits, which is the fastest way to find out that
-you stored the widget instead
-of its place.
-
-A row the client cannot parse leaves that var empty and logs the failure rather than raising it: your
-addon starts with default settings instead of not starting, and that scope is not written back until a
-load succeeds.
+| Rule | Detail |
+|---|---|
+| Vars | Flushed on a timer and when the client quits (an ordinary quit loses nothing, a crash at most the last half-minute); your addon's own again on disable or reload; a character's when the session ends or picks another character. Tabbing writes nothing and loses nothing. |
+| Rows | In the file when the call returns. |
+| `flush()` | `session:store():flush()` and `hafen.store():flush()` write their scope now: worth it after a change the user would be annoyed to lose. Either refuses a value a var cannot hold, naming where it sits, the fastest way to find out you stored the widget instead of its place. |
+| A row the client cannot parse | Leaves that var empty and logs it: default settings instead of an addon that does not start, and the scope is not written back until a load succeeds. |
 
 ## Where a window sits is saved for you
 
-One kind of saved data needs none of the above.
-[`w:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's
-place and box under a name of yours, puts them back the moment you call it, and saves them again — in the
-client's own file, not in yours — each time the user moves the thing:
+[`widget:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's place and box under a name of yours, puts them back when called, and saves them again in the client's own file each time the user moves the thing: no var, no table, no handler. Per character, so it belongs in `SessionEnteredWorld`; the character is the one whose window it is, while a window you built is your addon's own.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function()
@@ -127,21 +85,13 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 ```
 
-There is no var, no table and no handler, because every addon that saved a layout by hand wrote
-the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
-the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and the
-character is the one whose window it is, on screen or not, while a window you built is your addon's own.
-
 ## The other two kinds of file
 
-- **Files you ship** — an image, a font, a model, a data file — are read with
-  [`hafen.asset`](../api/asset/README.md), relative to your own folder. They are yours to read, not to write.
-- **Data from elsewhere** comes through [`hafen.http`](../api/http.md) or a
-  [`hafen.websocket`](../api/websocket.md) connection, each needing a host allowlist in the manifest and the
-  user's approval of it, and lands in a var if you want it to survive the session.
+| Kind | Door |
+|---|---|
+| Files you ship (an image, a font, a model, a data file) | [`hafen.asset`](../api/asset/README.md), relative to your folder; yours to read, not to write. |
+| Data from elsewhere | [`hafen.http`](../api/http.md) or a [`hafen.websocket`](../api/websocket.md) connection, each needing a host allowlist and the user's approval, landing in a var if it should survive the session. |
 
-Neither one gives you a general file system: an addon reads what it ships and writes its own file, and that
-is the whole of it.
+Neither is a general file system: an addon reads what it ships and writes its own file.
 
-**Next:** [hotkeys, commands and settings](hotkeys-and-commands.md) — letting the user drive what you
-have built.
+**Next:** [hotkeys, commands and settings](hotkeys-and-commands.md) — letting the user drive what you have built.

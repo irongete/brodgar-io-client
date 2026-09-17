@@ -1,81 +1,82 @@
-# Data types: the snapshot shapes
+# Data Types: The Snapshot Shapes
 
-The plain Lua tables listed under [every shape](#every-shape), field by field, grouped by the subsystem
-each comes out of. A read gives you a live object; `:info()` is the one escape hatch that copies it, for
-logging, serialising or diffing. A **snapshot** is a point-in-time copy, so it never updates; a field
-marked *optional* is absent (Lua `nil`) when the underlying data is not available yet or is still
-resolving, so guard for it. See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
+The plain Lua tables `:info()` copies out of a live object, field by field, grouped by the subsystem each comes from: a point-in-time copy for logging, serialising or diffing that never updates. A field marked *optional* is absent (`nil`) when the data is not available or still resolving; guard for it ([snapshots vs handles](../conventions.md#snapshots-vs-handles)).
 
-This is a catalogue, not a census. Every object in the API answers `:info()`, and a shape that only one
-page ever reads — what a timer, a keybinding or an option row copies — is stated in the row of the verb
-on that page, where its reader already is. A shape lands here when more than one page names it, or when
-it is big enough that a table beats a sentence.
+```lua
+local gob = hafen.session():current():player():gob()
+local snapshot = gob:info()                                   -- a plain table, frozen now
+hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob cannot do
+```
 
-> **A snapshot field keeps the client's own spelling; the live read is the verb.** The API's verbs are
-> camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`) because you write them. A snapshot is the
-> shape the client holds, handed over as it is — `isplayer`, `mtime`, `qmod` — so what you serialise is
-> what the client said. Each table names the verb beside the field wherever the two differ.
+---
+
+| Rule | Detail |
+|---|---|
+| A catalogue, not a census | Every object answers `:info()`; a shape one page reads (a timer, a keybinding, an option row) is stated in that page's verb row. A shape lands here when more than one page names it, or when a table beats a sentence. |
+| A snapshot keeps the client's own spelling | The verbs are camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`); a snapshot is the shape the client holds (`isplayer`, `mtime`, `qmod`). Each table names the verb beside the field where the two differ. |
 
 ## The pages
 
-| Page | What it holds |
+| Page | Holds |
 |---|---|
-| [the session and the world](world.md) | one login, an object in it, the people beside you and the ones a voice link relates you to, the ground, a place, and your own things standing there |
-| [the item and what holds it](items.md) | one item, and what a container states about its inside |
-| [the character sheet](character.md) | attributes, food and its FEP and hunger halves, learning, movement speed, quests, wounds and buffs |
-| [the fight](fight.md) | a maneuver, a card in the deck, and the deck's totals |
-| [the map](map.md) | a pin on the recorded map, and a minimap icon category |
-| [the widget layer](ui.md) | a widget in the tree, a HUD meter and one band of its bar, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
+| [The session and the world](world.md) | One login, an object in it, the people beside you and the ones a voice link relates you to, the ground, a place, your own things standing there. |
+| [The item and what holds it](items.md) | One item, and what a container states about its inside. |
+| [The character sheet](character.md) | Attributes, food with its FEP and hunger halves, learning, movement speed, quests, wounds, buffs. |
+| [The fight](fight.md) | A maneuver, a card in the deck, the deck's totals. |
+| [The map](map.md) | A pin on the recorded map, a minimap icon category. |
+| [The widget layer](ui.md) | A widget in the tree, a HUD meter and one band of its bar, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
 
 ## Every shape
 
-| Shape | Where it is |
+| Shape | Page |
 |---|---|
-| `ActionbarSlot` | [the widget layer](ui.md#actionbarslot) |
-| `Attr` | [the character sheet](character.md#attr) |
-| `Buff` | [the character sheet](character.md#buff) |
-| `Channel` | [the widget layer](ui.md#channel) |
-| `Condition` | [the character sheet](character.md#quest-and-condition) |
-| `Contents` | [the item and what holds it](items.md#contents) |
-| `Craft` | [the widget layer](ui.md#craft-and-craftspec) |
-| `CraftSpec` | [the widget layer](ui.md#craft-and-craftspec) |
-| `Credo` | [the character sheet](character.md#skill-credo-experience) |
-| `DeckCard` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
-| `Experience` | [the character sheet](character.md#skill-credo-experience) |
-| `Fep` | [the character sheet](character.md#food) |
-| `FepEntry` | [the character sheet](character.md#food) |
-| `FightSummary` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
-| `Food` | [the character sheet](character.md#food) |
-| `GobInfo` | [the session and the world](world.md#gobinfo) |
-| `Hunger` | [the character sheet](character.md#food) |
-| `IconCategory` | [the map](map.md#iconcategory) |
-| `Item` | [the item and what holds it](items.md#item) |
-| `KinEntry` | [the session and the world](world.md#kinentry) |
-| `Maneuver` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
-| `Marker` | [the map](map.md#marker) |
-| `Message` | [the widget layer](ui.md#message) |
-| `Meter` | [the widget layer](ui.md#meter) |
-| `MeterSegment` | [the widget layer](ui.md#metersegment) |
-| `Pagina` | [the widget layer](ui.md#pagina) |
-| `PartyMember` | [the session and the world](world.md#partymember) |
-| `Peer` | [the session and the world](world.md#peer) |
-| `Petal` | [the widget layer](ui.md#petal) |
-| `Position` | [the session and the world](world.md#position) |
-| `Quest` | [the character sheet](character.md#quest-and-condition) |
-| `ResRef` | [the widget layer](ui.md#craft-and-craftspec) |
-| `Session` | [the session and the world](world.md#session) |
-| `Skill` | [the character sheet](character.md#skill-credo-experience) |
-| `Speed` | [the character sheet](character.md#speed) |
-| `StudySlot` | [the character sheet](character.md#studyslot-and-studysummary) |
-| `StudySummary` | [the character sheet](character.md#studyslot-and-studysummary) |
-| `Tile` | [the session and the world](world.md#tile) |
-| `Widget` | [the widget layer](ui.md#widget) |
-| `Wound` | [the character sheet](character.md#wound) |
-| `WorldEntity` | [the session and the world](world.md#worldentity) |
+| `ActionbarSlot` | [The widget layer](ui.md#actionbarslot) |
+| `Attr` | [The character sheet](character.md#attr) |
+| `Buff` | [The character sheet](character.md#buff) |
+| `Channel` | [The widget layer](ui.md#channel) |
+| `Condition` | [The character sheet](character.md#quest-and-condition) |
+| `Contents` | [The item and what holds it](items.md#contents) |
+| `Craft` | [The widget layer](ui.md#craft-and-craftspec) |
+| `CraftSpec` | [The widget layer](ui.md#craft-and-craftspec) |
+| `Credo` | [The character sheet](character.md#skill-credo-experience) |
+| `DeckCard` | [The fight](fight.md#maneuver-deckcard-fightsummary) |
+| `Experience` | [The character sheet](character.md#skill-credo-experience) |
+| `Fep` | [The character sheet](character.md#food) |
+| `FepEntry` | [The character sheet](character.md#food) |
+| `FightSummary` | [The fight](fight.md#maneuver-deckcard-fightsummary) |
+| `Food` | [The character sheet](character.md#food) |
+| `GobInfo` | [The session and the world](world.md#gobinfo) |
+| `Hunger` | [The character sheet](character.md#food) |
+| `IconCategory` | [The map](map.md#iconcategory) |
+| `Item` | [The item and what holds it](items.md#item) |
+| `KinEntry` | [The session and the world](world.md#kinentry) |
+| `Maneuver` | [The fight](fight.md#maneuver-deckcard-fightsummary) |
+| `Marker` | [The map](map.md#marker) |
+| `Message` | [The widget layer](ui.md#message) |
+| `Meter` | [The widget layer](ui.md#meter) |
+| `MeterSegment` | [The widget layer](ui.md#metersegment) |
+| `Pagina` | [The widget layer](ui.md#pagina) |
+| `PartyMember` | [The session and the world](world.md#partymember) |
+| `Peer` | [The session and the world](world.md#peer) |
+| `Petal` | [The widget layer](ui.md#petal) |
+| `Position` | [The session and the world](world.md#position) |
+| `Quest` | [The character sheet](character.md#quest-and-condition) |
+| `ResRef` | [The widget layer](ui.md#craft-and-craftspec) |
+| `Session` | [The session and the world](world.md#session) |
+| `Skill` | [The character sheet](character.md#skill-credo-experience) |
+| `Speed` | [The character sheet](character.md#speed) |
+| `StudySlot` | [The character sheet](character.md#studyslot-and-studysummary) |
+| `StudySummary` | [The character sheet](character.md#studyslot-and-studysummary) |
+| `Tile` | [The session and the world](world.md#tile) |
+| `Widget` | [The widget layer](ui.md#widget) |
+| `Wound` | [The character sheet](character.md#wound) |
+| `WorldEntity` | [The session and the world](world.md#worldentity) |
 
-## See also
+---
 
-- [conventions](../conventions.md#snapshots-vs-handles) — why some readers hand back an object instead
-- [shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units
-- [events](../event/bus/README.md) — which of these shapes arrives as an event payload
-- [the API reference](../README.md) — every namespace, and the live reads these copies come off
+## See Also
+
+- [Conventions](../conventions.md#snapshots-vs-handles) — why readers hand back an object instead.
+- [Shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units.
+- [Events](../event/bus/README.md) — which of these shapes arrives as an event payload.
+- [The API reference](../README.md) — every namespace, and the live reads these copies come off.

@@ -1,127 +1,103 @@
-# Data types: the character sheet
+# Data Types: The Character Sheet
 
-The snapshot shapes off one character's own sheet: its attributes, what it has eaten, what it is
-learning, the speed it moves at, its quests, its wounds and the buffs on it. Each is what `:info()`
-copies out of a live object, so it never updates — the live reads are verbs on that object. The model,
-and what *optional* means on the tables below, is on [the catalogue](README.md).
+The snapshot shapes off one character's sheet: attributes, food, learning, movement speed, quests, wounds and buffs. Each is what `:info()` copies out of a live object; what *optional* means is on [the catalogue](README.md).
+
+```lua
+local food = hafen.session():current():char():food()
+local snapshot = food and food:info()
+if snapshot and snapshot.fep then hafen.log():write(("fep %.0f/%.0f"):format(snapshot.fep.total, snapshot.fep.cap)) end
+```
+
+---
 
 ## Attr
 
-From [`attr:info()`](../char.md#attributes). `{ base = number, comp = number }` — the raw base value against
-the computed, buffed value. `s:char():attr()` hands out live [`Attr` objects](../char.md#attributes),
-not this table.
-
-`nil` while the server has published nothing for that attribute, and **an attribute of exactly zero on both
-halves reads as that same nothing**: the client keeps no published flag and builds a zero record for any
-name it is asked about, so the two cannot be told apart. A living character carries no attribute of zero, so
-what this costs in practice is nothing; what it buys is that a name the server never sent reads `nil` rather
-than as a real zero.
+From [`attr:info()`](../char.md#attributes): `{ base = number, comp = number }`, the raw base value against the computed, buffed value. `session:char():attr()` hands live [`Attr` objects](../char.md#attributes), not this table. `nil` while the server has published nothing for that attribute; an attribute of exactly zero on both halves reads as the same `nil`, since the client keeps no published flag and builds a zero record for any name asked. A living character carries no attribute of zero.
 
 ## Food
 
-From [`food:info()`](../char.md#food), the one snapshot escape hatch. `s:char():food()` and the
-`FepChanged` event hand you a live [`Food` object](../char.md#food), not this table. Either half is absent
-until its meter arrives.
+From [`food:info()`](../char.md#food). `session:char():food()` and `FepChanged` hand a live [`Food` object](../char.md#food), not this table. Either half is absent until its meter arrives.
 
 ```lua
-{
+local shape = {
   fep = {
-    cap   = number,            -- FEP bar capacity
-    total = number,            -- sum of the entry amounts
+    cap   = 0,                 -- FEP bar capacity
+    total = 0,                 -- sum of the entry amounts
     entries = {                -- one per food-event group
-      { res = string?, name = string?, amount = number },
+      { res = "", name = "", amount = 0 },    -- res and name optional
     },
   },
-  hunger = { level = number, label = string?, efficacy = number },
+  hunger = { level = 0, label = "", efficacy = 0 },   -- label optional
 }
 ```
 
 ## Skill, Credo, Experience
 
-From `:info()` on each. [`session:char`](../char.md) hands out the live objects; these are the snapshots.
+From `:info()` on each; [`session:char`](../char.md) hands the live objects.
 
-- **Skill** — `{ name = string, res = string?, cost = number, known = bool }`, where `known`
-  distinguishes a learnt skill from one that can still be bought. `name` is always a string, but while
-  the skill's resource is still loading it is the server's own token for the skill rather than the
-  display name; the token is what `res` resolves from, so the field settles once the resource does.
-- **Credo** — `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus
-  `{ level, levelTotal, quest, questTotal, questId }` on the credo being pursued and on no other. Two of
-  those keep the client's own spelling: `level` is the live `credo:rank()` and `quest` the live
-  `credo:questsDone()`.
-- **Experience** — `{ name = string?, res = string, score = number, mtime = number }`, where `mtime` is
-  the server's change stamp, which `exp:modified()` reads.
+| Shape | Fields |
+|---|---|
+| `Skill` | `{ name = string, res = string?, cost = number, known = bool }`; `known` distinguishes a learnt skill from one buyable. `name` is always a string, the server's token for the skill while its resource loads, settling to the display name once the resource does. |
+| `Credo` | `{ name = string, res = string?, acquired = bool, pursuing = bool }`, plus `{ level, levelTotal, quest, questTotal, questId }` on the pursued credo only; `level` is the live `credo:rank()`, `quest` the live `credo:questsDone()`. |
+| `Experience` | `{ name = string?, res = string, score = number, mtime = number }`; `mtime` is the server's change stamp, `experience:modified()`. |
 
 ## StudySlot and StudySummary
 
-From [`slot:info()`](../study.md#a-slot), the one snapshot escape hatch. `s:study():curiosity()` and the
-`StudyChanged` event hand you live [`StudySlot` objects](../study.md#a-slot), not this table.
+From [`slot:info()`](../study.md#a-slot). `session:study():curiosity()` and `StudyChanged` hand live [`StudySlot` objects](../study.md#a-slot), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
-| `res` | string | the curiosity item's resource, its identity; optional (absent while that resource is still loading) |
-| `name` | string | display name; optional |
-| `lp` | number | learning points; optional |
-| `attention` | number | mental weight; optional |
-| `cost` | number | experience cost; optional |
-| `time` | number | **total** study time in seconds; there is no per-item countdown; optional |
-| `progress` | number | 0..1 study progress; best-effort, optional |
+| `res` | `string` | The curiosity item's resource, its identity; optional while loading. |
+| `name` | `string` | Display name; optional. |
+| `lp` | `number` | Learning points; optional. |
+| `attention` | `number` | Mental weight; optional. |
+| `cost` | `number` | Experience cost; optional. |
+| `time` | `number` | Total study time in seconds, no per-item countdown; optional. |
+| `progress` | `number` | `0..1` study progress; best-effort, optional. |
 
-**StudySummary** — `{ lp, attention, cost }`, the totals across the whole window, from
-[`sum:info()`](../study.md#the-summary). `s:study():summary()` itself hands you the live
-[`StudySummary` object](../study.md#the-summary), not this table.
+`StudySummary` is `{ lp, attention, cost }`, the totals across the window, from [`summary:info()`](../study.md#the-summary); `session:study():summary()` hands the live object.
 
 ## Speed
 
-From [`sp:info()`](../speed.md#the-speed-object), the snapshot escape hatch for one movement speed.
-`s:speed()` hands out live [`Speed` objects](../speed.md#the-speed-object), not this table.
-
-`{ index = number, wire = number, name = string, available = bool, current = bool }` — `index` is the
-1-based position `1..4` and `wire` the raw number `0..3`
-and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
-the one your character is on. The live reads are `sp:index()`, `:wire()`, `:name()` and
-`:available()` — a boolean here, unlike `man:dealable()`; whether you are on it is
-`s:speed():current() == sp`, since the objects are interned.
+From [`speed:info()`](../speed.md#the-speed-object). `session:speed()` hands live [`Speed` objects](../speed.md#the-speed-object), not this table. `{ index = number, wire = number, name = string, available = bool, current = bool }`: `index` the 1-based position `1..4`, `wire` the raw number `0..3`, `available` whether it can be picked now, `current` whether your character is on it (live: `session:speed():current() == speed`).
 
 ## Quest and Condition
 
-What `q:info()` and `c:info()` hand back on [`session:quest`](../quest.md)'s objects; the reads themselves
-are verbs on those objects.
+From `quest:info()` and `condition:info()` on [`session:quest`](../quest.md)'s objects.
 
-**Quest** — `{ id, title?, res?, status?, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
-or `"disabled"` — absent for a status this client has no word for, which is the absence `q:status()`
-states with `nil` — and `mtime` is the server's change stamp, which `q:modified()` reads.
-
-**Condition** — `{ desc = string?, status = "pending"|"done"|"failed", text = string? }`, where `desc`
-is what `c:description()` reads.
+| Shape | Fields |
+|---|---|
+| `Quest` | `{ id, title?, res?, status?, mtime }`; `status` is `"pending"`, `"done"`, `"failed"` or `"disabled"`, absent for a status this client has no word for; `mtime` is the server's change stamp, `quest:modified()`. |
+| `Condition` | `{ desc = string?, status = "pending"\|"done"\|"failed", text = string? }`; `desc` is `condition:description()`, `text` the tooltip line. |
 
 ## Wound
 
-What `w:info()` hands back on [`session:wound`](../wound.md)'s objects. Wounds form a **tree**, and the
-`parentid` here is the id `w:parent()` resolves to the wound itself.
+From `wound:info()` on [`session:wound`](../wound.md)'s objects. Wounds form a tree; `parentid` is the id `wound:parent()` resolves to the wound.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | number | wound id |
-| `name`, `res` | string | wound type; optional |
-| `severity` | number | the magnitude, `w:severity()`; **not** seconds; absent where the client spells it as a word, which is what `w:label()` answers |
-| `parentid` | number | parent wound id, or `-1` for a root wound |
-| `level` | number | tree depth (indent) |
+| `id` | `number` | Wound id. |
+| `name`, `res` | `string` | Wound type; optional. |
+| `severity` | `number` | The magnitude (`wound:severity()`), not seconds; absent where the client spells it as a word, which `wound:label()` answers. |
+| `parentid` | `number` | Parent wound id, or `-1` for a root. |
+| `level` | `number` | Tree depth (indent). |
 
 ## Buff
 
-From [`buff:info()`](../buff.md#read), the one snapshot escape hatch. `s:buff():list()` and the
-`BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](../buff.md), not this table.
+From [`buff:info()`](../buff.md#read). `session:buff():list()` and the buff events hand live [`Buff` objects](../buff.md), not this table.
 
 | Field | Type | Notes |
 |---|---|---|
-| `res`, `name` | string | resource plus display name; optional |
-| `amount` | number | 0..1 fraction; content-defined, often absent |
-| `duration` | number | 0..1 fraction of the buff's run that is left, the live `buff:remaining()`; content-defined, often absent — **not** seconds |
-| `number` | number | integer overlay; content-defined, often absent |
+| `res`, `name` | `string` | Resource plus display name; optional. |
+| `amount` | `number` | `0..1` fraction; content-defined, often absent. |
+| `duration` | `number` | `0..1` fraction of the run left, the live `buff:remaining()`; content-defined, often absent; not seconds. |
+| `number` | `number` | Integer overlay; content-defined, often absent. |
 
-## See also
+---
 
-- [the catalogue](README.md) — every snapshot shape, and what a snapshot is
-- [`session:char`](../char.md) — the live `Attr`, `Food`, `Skill`, `Credo` and `Experience` objects
-- [`session:study`](../study.md) — the live study window these two shapes copy
-- [shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units
+## See Also
+
+- [The catalogue](README.md) — every snapshot shape, and what a snapshot is.
+- [`session:char`](../char.md) — the live `Attr`, `Food`, `Skill`, `Credo` and `Experience` objects.
+- [`session:study`](../study.md) — the live study window these shapes copy.
+- [Shapes](../shapes.md) — the anonymous tables these fields carry.

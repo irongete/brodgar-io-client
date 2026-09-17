@@ -1,4 +1,4 @@
-# steam: Steam client and achievements
+# hafen.steam: Steam Client and Achievements
 
 Steam connection status, user identity, and Steam achievements. Reach for it to inspect Steam integration, query unlocked achievements, or react when an achievement unlocks.
 
