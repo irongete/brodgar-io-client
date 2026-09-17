@@ -42,8 +42,8 @@ You ask a segment for an area, never for a list: `segment:grid():count()` refuse
 ```lua
 local session = hafen.session():current()
 local segment = hafen.map():segment():current()
-local here = session:world():grid():at(session:player():gob():position())
-local centre = here:segmentCoord()
+local current_grid = session:world():grid():at(session:player():gob():position())
+local centre = current_grid:segmentCoord()
 for _, grid in ipairs(segment:grid():list{ x = centre.x - 2, y = centre.y - 2, w = 5, h = 5 }) do
   local corner = grid:position()                           -- a Position: durable, and locatable here
   if corner:x() then drawGrid(grid, corner) end

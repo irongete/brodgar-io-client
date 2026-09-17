@@ -30,13 +30,17 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
   * A verb called ON A COLLECTION that is not one of the core six. A collection's `extra` verbs are
     per-site, so anything else is skipped rather than guessed at -- which is why `credo:cost()`, advertised
     by two refusal messages for a feature and a half, had to be found by reading.
-  * A chain rooted at `s`. It is the most overloaded name in the tree -- a Session on most pages, a
-    profiling scope, a Sound, a string, a local for anything -- so mapping it reported 78 collisions and
-    zero defects. A session-rooted chain is therefore not resolved at all, which is why `credo:cost()`
-    had to be found by reading rather than by this.
+  * A chain rooted at a session beyond the hops RETURNS seeds. `session:kin():get(7)` walks one hop into a
+    collection and checks the core verbs; `session:world():gob():nearest(...)` stops at `world`, a section
+    object with no closedIndex vocabulary, and is counted rather than guessed at. The old shorthand `s` was
+    the most overloaded name in the tree -- a Session, a profiling scope, a Sound, a string -- and stays
+    unmapped; `session` is only ever a Session.
   * A receiver spelled ambiguously. `p` is a Position and a profiling handle; `sp` is a Speed and a
-    scrollport. Those are mapped per file where a page is unambiguous and skipped otherwise, and
-    --verbose lists what was skipped so the map's coverage is visible instead of assumed.
+    scrollport; `segment` is a map Segment and a band of a meter's bar; `summary` a study summary and a
+    fight summary. Those are mapped per file where a page is unambiguous and skipped otherwise, and
+    --verbose lists what was skipped so the map's coverage is visible instead of assumed. A local name
+    built on an entity word (`scout_window`, `draw_event`, `alt_session`) resolves by its suffix, so
+    the pages' own naming widens the map without a row per variable.
   * WHICH of a page's receivers a call belongs to, where one page documents two types under one
     spelling. `ov:` on the UI overlay page is a HUD painter in one section and a widget's overlay in
     the next, so that file maps `ov` to BOTH and a verb resolves if either type answers it. A verb
@@ -64,36 +68,103 @@ BRIDGE = os.path.join(ROOT, "src", "io", "brodgar", "addon")
 DOCS = os.path.join(ROOT, "docs", "addons")
 
 # The receiver spelling a page uses -> the entity whose closedIndex owns that vocabulary.
+#
+# The pages write descriptive names (DOCUMENTATION.md §6): `position:`, `segment:`, `message:`. The shorthand
+# they replaced (`p:`, `seg:`, `msg:`) stays mapped, so a page or a comment that still spells one is checked
+# rather than skipped. A local name built on an entity word -- `scout_window`, `draw_event`, `alt_session` --
+# resolves through SUFFIXES below, so a well-named variable needs no row of its own here.
 RECEIVERS = {
-    "gob": "gob", "p": "position", "ov": "overlay", "marker": "marker", "m": None,
-    "seg": "segment", "grid": "grid", "cat": "iconcat", "toggle": "toggle",
+    "gob": "gob", "p": "position", "position": "position", "ov": "overlay", "overlay": "overlay",
+    "marker": "marker", "pin": "marker", "m": None,
+    "seg": "segment", "segment": "segment", "grid": "grid", "cat": "cat", "category": "cat",
+    "toggle": "toggle", "mask": "mask",
     "buff": "buff", "meter": "meter", "food": "food", "fep": "fep", "hunger": "hunger",
-    "wound": "wound", "quest": "quest", "q": "quest", "cond": "condition", "c": None,
-    "kin": "kin", "member": "partymember", "slot": None, "card": "deckcard",
-    "channel": "channel", "ch": "channel", "msg": "message",
-    "sp": "speed", "skill": "skill", "credo": "credo", "attr": "attr", "exp": "experience",
-    "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
-    "w": "widget", "widget": "widget", "win": "widget", "col": "widget", "row": "widget", "ev": None, "sub": "sub",
-    "h": None, "asset": "asset", "req": "request", "res": "res", "conn": "connection", "sheet": "sheet",
-    "voice": "voice", "peer": "peer",
+    "wound": "wound", "quest": "quest", "q": "quest", "cond": "condition", "condition": "condition", "c": None,
+    "kin": "kin", "member": "partymember", "slot": None, "card": "deckcard", "maneuver": "maneuver",
+    "channel": "channel", "ch": "channel", "msg": "message", "message": "message",
+    "sp": "speed", "speed": "speed", "skill": "skill", "credo": "credo", "attr": "attr",
+    "exp": "experience", "experience": "experience",
+    "pag": "pagina", "pagina": "pagina", "item": "item", "contents": "contents", "hand": "hand",
+    "w": "widget", "widget": "widget", "win": "widget", "window": "widget", "col": "widget", "column": "widget",
+    "row": "widget", "control": "widget", "inventory": "widget", "root": "widget", "node": "widget",
+    "hovered": "widget", "entry": "widget", "check": "widget", "slider": "widget", "radio": "widget",
+    "listbox": "widget", "table": "widget", "menu": "widget", "button": "widget", "scrollbar": "widget",
+    "label": "widget", "picture": "widget", "bar": "widget", "group": "widget",
+    # An event object. Three files register verbs under `ev` -- the UI's shapes, a connection's and a voice
+    # link's -- and their union is what a spelling resolves against: a verb no event of any kind answers is
+    # caught, a verb from another kind's shape is not. The shorthand stays None: `ev` was also a local for
+    # anything, where the descriptive spellings are only ever an event.
+    "ev": None, "event": "ev", "press": "ev", "payload": None,
+    "sub": "sub", "subscription": "sub", "poll": "timer",
+    "h": None, "handle": "font", "face": "font",
+    "req": "request", "request": "request", "res": "res", "result": "res",
+    "conn": "connection", "connection": "connection", "opened": "connection", "sheet": "sheet",
+    "voice": "voice", "link": "voice", "peer": "peer",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
-    "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
-    "miss": "miss", "opt": "option", "pl": "placing",
+    "binding": "binding", "b": None, "sound": "sound", "bell": "sound", "timer": "timer",
+    "miss": "miss", "opt": "option", "option": "option", "rows": "option", "pl": "placing", "placing": "placing",
+    "target": "opponent", "grab": "grab", "scope": "scope", "profiling": "profiling", "declaration": "declaration",
+    "mouse": "hafen.ui():mouse()",
+    # The session the pages read one character through. Its verbs are a closedIndex vocabulary (LuaSession),
+    # so a bare `session:verb()` resolves; a chain rooted at it walks only the hops RETURNS names, as before.
+    "session": "session", "viewer": "session",
+    # A gob under a name a page gives it once, and a place under one: the world pages call the object they
+    # found `tree`, `prey`, `boar`, and the ground pages the place they stand `here`.
+    "tree": "gob", "prey": "gob", "boar": "gob", "here": "position", "corner": "position",
+    "agility": "resource", "sun": "resource", "first_frame": "layer", "command": "sub", "strength": "attr",
+    "backpack": "widget", "advanced_switch": "widget", "badge": "widget", "view": "widget",
+    "held": "contents", "inner": "item", "jug": "item",
+    # Prose the call regex reads as a receiver (`name:find(` is a Lua string method; `and`, `only`, `a` are
+    # words), and the client option handles a page names after their panel.
+    "name": None, "and": None, "only": None, "a": None, "video": None, "camera": None, "client_options": None,
     # The client's resources (151). `res:` stays the HTTP result; the pages spell the handle `resource:`.
     "resource": "resource", "layer": "layer",
     # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue
     # itself, so its verbs are enumerable only by reading LocaleApi, exactly as `s:char()`'s are.
-    "locale": None,
+    "locale": None, "options": None, "opts": None, "keybindings": None, "world": None, "store": None,
+    "steam": None, "menugrid": None, "actionbar": None, "speeds": None, "slots": None, "layers": None,
+    "resources": None, "collection": None, "gobs": None, "answers": None,
+    # The draw wrapper `draw_event:g()` hands a Draw handler. Its verbs are built in LuaGraphics through the
+    # section machinery rather than a closedIndex literal, so there is nothing to resolve against.
+    "graphics": None,
+    # A loaded file. `hafen.asset():get(path)` answers a handle typed by the file's extension, and none of
+    # the four kinds declares a closedIndex, so an asset's verbs are not enumerable here.
+    "asset": None, "image": None, "img": None, "data": None, "mesh": None, "chair": None, "icon": None,
     # A virtual KIND. Every one of them is handed out by VirtualApi.entityHandle, whose closedIndex is built from
     # a `kind` VARIABLE rather than a literal, so no vocabulary is extractable for any of them and the
     # whole family is skipped here. `patch` is spelled out because `p` is a Position everywhere else.
-    "patch": None,
+    "patch": None, "entity": None, "ghost": None, "sprite": None, "object": None, "panel": None,
+    "footprint": None, "footprint_patch": None, "plan": None, "field": None,
     # A piece of a patch. Its closedIndex IS a literal, but `bridge_vocabularies` unions a file's verbs, and
     # VirtualApi.java sets thirty of them for the five kinds beside it -- so `piece` would resolve `:border()`
     # and `:ring()`, which no piece answers. A miss costs a check; a false positive costs trust.
-    "piece": None,
-    "seg2": None, "g": None, "s": None, "t": None, "v": None, "x": None,
+    "piece": None, "middle": None,
+    "seg2": None, "g": None, "s": None, "t": None, "v": None, "x": None, "X": None,
 }
+
+# A local name built on an entity word resolves by its last word: `scout_window` is a widget, `draw_event`
+# an event, `alt_session` a session, `toggle_binding` a binding. Only suffixes that name ONE type are here;
+# `_entry` is not, because `dig_entry` is an action-menu entry and `search_entry` a text control, and neither is
+# `_grid`, because `icon_grid` is a control and `current_grid` a map Grid.
+SUFFIXES = {
+    "_window": "widget", "_button": "widget", "_label": "widget", "_check": "widget", "_checkbox": "widget",
+    "_slider": "widget", "_radio": "widget", "_column": "widget", "_scrollbar": "widget", "_box": "widget",
+    "_list": "widget",
+    "_event": "ev", "_session": "session", "_gob": "gob", "_position": "position", "_binding": "binding",
+    "_hotkey": "sub", "_command": "sub", "_timer": "timer", "_speed": "speed", "_font": "font",
+    "_meter": "meter", "_scope": "scope", "_patch": None,
+}
+
+def receiver(base, over):
+    """The entity a receiver spelling names on one page: the page's override, the map, then the suffix rule."""
+    if base in over:
+        return over[base]
+    if base in RECEIVERS:
+        return RECEIVERS[base]
+    for suffix, ent in SUFFIXES.items():
+        if base.endswith(suffix) and len(base) > len(suffix):
+            return ent
+    return "?"
 
 # A receiver spelling that means something else on one page. `w:` is a widget nearly everywhere, a Wound on
 # wound.md and the world SECTION on world.md -- three types, one letter, which is the docs' own shorthand
@@ -106,7 +177,6 @@ PER_FILE = {
     "player.md": {"gob": None},               # the page discusses gob verbs that deliberately do NOT exist
     "conventions.md": {"gob": None},          # ...and prints a typo on purpose, to show the refusal
     "shapes.md": {"w": None},
-    "types/character.md": {"w": "wound"},   # the Wound snapshot section, where `w:` is a Wound
     # `w:` is the world section on every page that draws in it; `p:` is the profiling handle under
     # client/profiling/ and a progress control on the control pages; `sp:` is a scrollport there too.
     "mouse.md":  {"w": None},
@@ -118,20 +188,54 @@ PER_FILE = {
     "attribution.md": {"p": None},
     "counters.md": {"p": None},
     "display.md": {"p": None},
-    "interactive.md": {"sp": None, "p": None},
-    "column.md": {"sp": None},                # the worked panel's scroll, not a speed
     "flowermenu.md": {"p": "petal"},          # `p` is a petal on that page, not a Position
-    "lists.md":  {"grid": None},              # a UI grid control, not the map's Grid
     "drawings.md": {"grid": None},
     # The UI overlays are one page and two receivers -- the HUD painter and a widget's overlay -- both
-    # spelled `ov`. The gob's page keeps the bare name, so this one is keyed by its directory too.
-    "ui/overlay.md": {"ov": ("uioverlay", "widgetoverlay")},
+    # spelled `overlay`. The gob's page keeps the bare name, so this one is keyed by its directory too.
+    "ui/overlay.md": {"ov": ("uioverlay", "widgetoverlay"), "overlay": ("uioverlay", "widgetoverlay"),
+                      "painters": "@collection"},      # `hafen.ui():overlay()` itself: the collection, not a painter
+    # One word, two entities: `segment` is a map Segment on the map pages and a band of a meter's bar on the
+    # meter pages, `summary` a study summary or a fight summary, `icon` a loaded image on the asset pages
+    # and the widget that draws an item on the item pages, `chest` and `cupboard` a gob on the world pages
+    # and a container window on the UI pages, `first`/`second` two markers or two labels.
+    "meter.md": {"segment": "meter", "fill": "meter", "health_meter": "meter"},
+    "types/ui.md": {"segment": "meter"},
+    "study.md": {"summary": "studysummary"},
+    "types/character.md": {"w": "wound", "summary": "studysummary"},
+    "fight.md": {"summary": "fightsummary"},
+    "items.md": {"icon": "widget", "first": "item"},
+    "references.md": {"icon": "widget"},
+    "container.md": {"chest": "widget"},
+    "look.md": {"chest": "gob", "boar": "gob"},
+    "replace.md": {"cupboard": "widget"},
+    "selectors.md": {"cupboard": "widget"},
+    "markers.md": {"first": "marker", "second": "marker", "camp": "marker"},
+    "column.md": {"sp": None, "first": "widget", "second": "widget", "labels": "widget"},
+    "icons.md": {"candidate": "cat", "boars": "cat"},
+    "event/README.md": {"candidate": "sub"},
+    "patches.md": {"candidate": None},
+    "keybindings.md": {"sprint": "binding"},
+    "chat.md": {"newest": "message", "area": "channel", "party": "channel"},
+    "steam.md": {"swan": "achievement", "ach": "achievement"},
+    "gob.md": {"crop": "gob", "wall": "gob", "log": "gob"},
+    "menugrid.md": {"child": "pagina", "dig": "pagina", "tools": "pagina", "harvest": "pagina",
+                    "category": "pagina"},           # a category of the action menu, not an icon category
+    "actionbar.md": {"dig_entry": "pagina"},
+    "native.md": {"chat": "widget", "minimap": "widget"},
+    "guides/saved-data.md": {"nodes": "table", "chat": "widget"},
+    "edit.md": {"volume": "widget"},
+    "interactive.md": {"sp": None, "p": None, "volume": "widget", "search_entry": "widget"},
+    "lists.md": {"grid": None, "kind_filter": "widget", "actions": "widget", "icon_grid": "widget"},
+    "overlays.md": {"claim": "mask", "claims": "toggle"},
+    "position.md": {"home": "position"},
+    "grids.md": {"current_grid": "grid"},
     # An addon's own options: the page names each row after what it configures, which is what an author
     # writes, so the spellings are mapped here rather than the page renaming its variables to suit a tool.
     # `opts` is the handle itself, whose vocabulary is not a closedIndex one (it is built through
     # OptionsHandle.close), so it is skipped and counted like every other section object.
     "client/addon.md": {"opts": None, "show": "option", "size": "option", "mode": "option",
-                        "sort": "option", "title": "option", "state": "option", "o": "option"},
+                        "sort": "option", "title": "option", "state": "option", "o": "option",
+                        "show_timer": "option"},      # an option named for what it shows, not a timer
     # ...and the guide that puts a setting beside the hotkey and the command names its one row the same way.
     "guides/hotkeys-and-commands.md": {"opts": None, "rows": "option"},
     # The store's tables: `nodes`, `trees` and `prices` are Tables on the pages that declare them, and `decl`
@@ -141,10 +245,9 @@ PER_FILE = {
     "store/README.md": {"trees": "table"},
     "store/tables.md": {"nodes": "table", "decl": "declaration"},
     "store/statements.md": {"prices": "table", "decl": "declaration"},
-    "guides/saved-data.md": {"nodes": "table"},
     # A gob's material slots (152). `slot` is an action-bar slot on the pages that skip it; here it is the
     # MaterialSlot, whose closedIndex is the one literal in LuaMaterialSlot.java.
-    "materials.md": {"slot": "materialslot"},
+    "materials.md": {"slot": "materialslot", "chest": "gob", "cupboard": "gob"},
 }
 
 def per_file(rel):
@@ -166,6 +269,18 @@ RETURNS = {
     # session and the hops have to be walked or the mention is invisible -- which is how two refusals
     # advertised `credo:cost()` for a feature and a half.
     ("session", "char"): "@charsection",
+    # The collections a session hands out: a bare `session:kin():get(7)` walks one hop and checks the core
+    # verbs; a section that is not a collection (`world`, `ui`, `player`, `study`, `craft`, `fight`, `store`,
+    # `console`) has no closedIndex vocabulary and stays a counted hop.
+    ("session", "kin"): "@collection", ("session", "actionbar"): "@collection",
+    ("session", "meter"): "@collection", ("session", "buff"): "@collection",
+    ("session", "party"): "@collection", ("session", "quest"): "@collection",
+    ("session", "wound"): "@collection", ("session", "menugrid"): "@collection",
+    ("session", "chat"): "@collection", ("session", "speed"): "@collection",
+    ("session", "flowermenu"): "@collection",
+    ("widget", "rule"): "rule", ("sheet", "rule"): "rule", ("ev", "widget"): "widget",
+    ("partymember", "gob"): "gob", ("opponent", "gob"): "gob", ("peer", "gob"): "gob",
+    ("hand", "item"): "item", ("grid", "mask"): "@collection",
     ("charsection", "credo"): "@collection",
     ("charsection", "skill"): "@collection",
     ("widget", "parent"): "widget",
@@ -231,7 +346,9 @@ def resolve_line(line, over, vocab, whole=None):
     out = []
     for m in CHAIN.finditer(line):
         base, mid, verb = m.group(1), m.group(2) or "", m.group(3)
-        ent = over[base] if (base in over) else (RECEIVERS.get(base, "?") if whole is None else "?")
+        # a page resolves through its overrides, the map and the suffix rule; a bridge MESSAGE through the
+        # unambiguous spellings alone, since its prose reuses the short names for other things
+        ent = receiver(base, over) if whole is None else (over[base] if base in over else "?")
         if ent == "@session":
             ent = "session"
         if ent is None:
@@ -339,6 +456,11 @@ def as_array(vocab):
 # in the bridge's own prose `p` is a profiling handle as often as a Position and `sp` is a scrollport as
 # often as a Speed, so mapping them would report collisions rather than defects.
 MSG_RECEIVERS = {k: v for k, v in RECEIVERS.items() if (v is not None) and (len(k) > 2)}
+# ...and the words a message uses as prose rather than as a receiver: "the handle :request(url) handed you",
+# "here :find(needle) searches". `overlay` in a message may be any of the three overlay kinds.
+for _prose in ("handle", "here"):
+    MSG_RECEIVERS.pop(_prose, None)
+MSG_RECEIVERS["overlay"] = ("overlay", "uioverlay", "widgetoverlay")
 
 def java_mentions(vocab):
     """Every receiver-typed call spelled inside a MESSAGE the bridge raises.
