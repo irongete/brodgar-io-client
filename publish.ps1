@@ -135,7 +135,7 @@ if ($Version) {
 }
 $Version = if ($Beta) { "$number-beta" } else { $number }
 $tag = "v$Version"
-$title = "$product $Version"
+$title = "$product $tag"
 # a release after a beta: is it that beta's code?
 $codeNote = $null
 if ($Release -and $newest -and $newest.Version.Beta) {
