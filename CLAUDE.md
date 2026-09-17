@@ -16,7 +16,7 @@ and a feature is built on a branch of its own (see *Branches and releases*).
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
 | `tools/` | The checkers that hold `docs/` to `src/`: every documented verb resolved against its own **receiver's** vocabulary, and every verb a refusal offers as a replacement. Run them when either side moves — they exit non-zero, and they state their own blind spots |
-| `release.ps1` · `etc/release-addons` | The release: the script that builds, tags and publishes from `master` — the maintainer runs it, no command does — and the list of addons a release ships |
+| `publish.ps1` · `etc/release-addons` · `.github/workflows/publish.yml` | The release: the script that builds, tags and publishes from `master` — the maintainer runs it, or CI does on a push to `master`; no command does — the list of addons a release ships, and the workflow |
 | `DOCUMENTATION.md` | How a page under `docs/` is written |
 
 **If a fact is true of the API today, it lives in `docs/` and `src/` — nowhere else.** `ls specs/`
@@ -41,12 +41,18 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
 - **A feature is a branch**, `feature/<NNN>-<feature>`, cut from `master` by `/plan` as it writes
   the feature's folder. Its tasks' `/end` commits land on it, and the `/end` that closes its last
   task fast-forwards it into `master` and deletes it. A half-built feature is never on `master`.
-- **A release is a tag on `master`**, cut by `release.ps1`: a version with a suffix
-  (`0.1.0-beta.1`) is a GitHub pre-release, which the launcher's **Beta** channel installs; a plain
-  one (`0.1.0`) is a release, which both channels install. The script refuses any other branch.
+- **A release is a tag on `master`**, cut by `publish.ps1`. A release is a number, `v6`, a plain GitHub
+  release, which both channels install; a beta is `v6.1-beta`, `v6.2-beta`, … — the betas since release
+  6 — a GitHub pre-release, which the launcher's **Beta** channel installs (`v5 < v5.1-beta < v6`). The
+  script counts from the newest version on GitHub: `-Beta` the next beta, `-Release` the next number;
+  `-Version` names one instead. Every other build is version `dev`. The script refuses any other branch.
+  CI runs the same script (`.github/workflows/publish.yml`): **a push to `master` publishes the next
+  beta**, the workflow's *Run workflow* button the next release; a commit already tagged by hand is left
+  alone.
 - **`release/<x.y>` exists only to fix a published release** while `master` already carries the
-  next betas: cut from the release's tag, fixed there, released with `-Branch release/<x.y>`, and
-  merged back into `master`. Until that day there is no such branch.
+  next betas: cut from the release's tag, fixed there, released with `-Release -Version <n>
+  -Branch release/<x.y>` (off `master` the number is named, never counted), and merged back into
+  `master`. Until that day there is no such branch.
 - **Three repositories**: this one; `brodgar-io-client-addons`, the maintainer's addons, of which
   `etc/release-addons` names the ones a release ships; `brodgar-io-client-launcher`, what a player
   installs, with tags of its own.

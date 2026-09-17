@@ -7,6 +7,7 @@
        beside this one. bin/ (the sandbox) takes every addon it holds; a release takes only the ones
        etc/release-addons names. Override with an `addons.repo=` line in build.properties. -->
   <property name="addons.repo" value="../brodgar-io-client-addons" />
+  <!-- addon: the version is what publish.ps1 passes (-Dversion=1.2.3) and `dev` for every other build. -->
   <property name="version" value="dev" />
 
   <target name="build-env">
@@ -33,8 +34,8 @@
     </condition>
   </target>
 
-  <!-- addon: `version` is what release.ps1 passes (-Dversion=1.2.3) and `dev` for every other build; it
-       lands in the jar's buildinfo beside the git revision, where the error reporter already reads it. -->
+  <!-- addon: `version` lands in the jar's buildinfo beside the git revision, where the error reporter already
+       reads it. -->
   <target name="buildinfo" depends="make-buildinfo" unless="buildinfo-unchanged">
     <echo message="Updating buildinfo" />
     <echo file="build/classes/buildinfo" xml:space="default">
@@ -263,7 +264,7 @@
 
   <target name="deftgt" depends="jars, opt/panama, bin" />
 
-  <!-- addon: a self-contained, playable install for handing to someone else. Unlike bin/ (the
+  <!-- addon: dist/, a self-contained, playable install: what a release is made of. Unlike bin/ (the
        development sandbox, which also carries whatever suite is in flight and every addon of the
        maintainer's), dist/ holds only what the client needs to run: the jars, the resource jars, the
        natives, the server config, the addons etc/release-addons names, and run.bat. Every one of
@@ -271,7 +272,7 @@
        behind. savedata/ is the one exception, because it is the store of whoever plays from this
        folder and the build has no business in it. A folder handed to someone else is zipped WITHOUT
        savedata/. -->
-  <target name="release" depends="deftgt">
+  <target name="dist" depends="deftgt">
     <mkdir dir="dist" />
     <delete includeemptydirs="true">
       <fileset dir="dist" includes="**/*" excludes="savedata/**" defaultexcludes="no" />
@@ -315,13 +316,13 @@
     <fixcrlf srcdir="etc" includes="run.bat" destdir="dist" eol="crlf" />
     <copy file="etc/steam_appid.txt" todir="dist" />
     <chmod file="dist/hafen.jar" perm="a+x" />
-    <echo message="Release ready in dist/ -- double-click dist\run.bat to play." />
+    <echo message="Client ready in dist/ -- double-click dist\run.bat to play." />
   </target>
 
-  <!-- addon: the release asset release.ps1 uploads: dist/ without savedata/, the client at the zip's root,
+  <!-- addon: the release asset publish.ps1 uploads: dist/ without savedata/, the client at the zip's root,
        named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
        Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). -->
-  <target name="release-zip" depends="release">
+  <target name="release" depends="dist">
     <zip destfile="build/brodgar-io-client-${version}.zip" basedir="dist" excludes="savedata/**" />
     <echo message="Release asset: build/brodgar-io-client-${version}.zip" />
   </target>

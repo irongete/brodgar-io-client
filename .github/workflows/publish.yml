@@ -1,0 +1,75 @@
+# A push to master publishes the next beta; the Run workflow button the next release. Both run publish.ps1.
+name: Publish
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "That number instead of the counted one"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # a commit that carries a tag was published by hand
+      - name: Skip a commit published by hand
+        id: tagged
+        run: |
+          tags="$(git tag --points-at HEAD 'v*')"
+          if [ -n "$tags" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "HEAD is already $tags: published by hand, nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.tagged.outputs.skip != 'true'
+        with:
+          distribution: temurin
+          java-version: '23'
+
+      - name: Checkers
+        if: steps.tagged.outputs.skip != 'true'
+        run: |
+          python3 tools/docverbs.py
+          python3 tools/refusalverbs.py
+          python3 tools/widgetstate.py
+
+      # the build takes the addons etc/release-addons names from ../brodgar-io-client-addons, a private
+      # repository this token cannot read: a list that names one needs a checkout of it beside this one
+      - name: The addons a release ships
+        if: steps.tagged.outputs.skip != 'true'
+        run: |
+          if grep -v '^[[:space:]]*#' etc/release-addons | grep -q '[^[:space:]]'; then
+            echo "etc/release-addons names addons, and CI has no checkout of brodgar-io-client-addons to take them from" >&2
+            exit 1
+          fi
+
+      - name: Publish
+        if: steps.tagged.outputs.skip != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          $arguments = @('-Yes', $(if ($env:EVENT -eq 'push') { '-Beta' } else { '-Release' }))
+          if ($env:VERSION) { $arguments += @('-Version', $env:VERSION) }
+          ./publish.ps1 @arguments
+          "Published $(git tag --points-at HEAD 'v*') from $(git rev-parse --short HEAD)." | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY

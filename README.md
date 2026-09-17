@@ -20,22 +20,38 @@ in the Haven & Hearth account your Steam account is linked to (linking is on the
 
 ## Build
 
-A JDK 21 or later and `ant`: `ant` builds a runnable `bin/`, `ant run` starts it, `ant release` builds
-`dist/`.
+A JDK 21 or later and `ant`: `ant` builds `bin/`, the development sandbox (the client plus every addon of
+the sibling `brodgar-io-client-addons` checkout), `ant run` starts it, and `ant dist` builds `dist/`, a
+playable install with only the addons [`etc/release-addons`](etc/release-addons) names. Every build is
+version `dev` unless `-Dversion=` says otherwise; the launcher shows the installed version in its title.
 
-## Release
+## Publish
 
-From a clean `master`, with `git`, `ant` and `gh` (`gh auth login`) on the PATH:
+A **release** is a number, `v6`: a plain GitHub release, which every launcher installs. A **beta** is
+`v6.1-beta`, `v6.2-beta`, … — the betas since release 6: GitHub pre-releases, which only a launcher on its
+Beta channel installs. So `v5 < v5.1-beta < v5.2-beta < v6`: the Release channel counts 5, 6, 7, and the Beta
+channel sees the betas in between. The script counts from the newest version on GitHub, whichever channel it
+is on. From a clean `master`, with `git`, `ant` and `gh` (`gh auth login`) on the PATH:
 
 ```powershell
-.\release.ps1                 # highest vX.Y.Z tag with Z+1: v0.1.0 -> 0.1.1
-.\release.ps1 0.2.0           # this version
-.\release.ps1 0.2.0-beta.1    # a beta: a GitHub pre-release, for the launcher's Beta channel
+.\publish.ps1 -Beta         # the next beta:     v5 -> v5.1-beta, v5.1-beta -> v5.2-beta
+.\publish.ps1 -Release      # the next release:  v5.3-beta -> v6, v5 -> v6
 ```
 
-[`release.ps1`](release.ps1) builds `dist/` with the addons in [`etc/release-addons`](etc/release-addons),
-zips it, tags `v<version>`, pushes and creates the GitHub release. Notes: `-Notes notes.md` or
-`-Message "..."`; without them, the commit subjects since the last tag. `-NoPublish` builds and tags only.
+[`publish.ps1`](publish.ps1) prints the newest version on GitHub, the one it is about to publish and — for a
+release after a beta — whether `master` still holds that beta's code, and asks (`-Yes` skips the question);
+then it builds `dist/`, zips it, tags `v<version>`, pushes and creates the GitHub release. Notes: `-Notes
+notes.md` or `-Message "..."`; without them, the commit subjects since the previous version. `-NoPublish`
+builds and tags only. Nothing published counts as release 0: the first beta is `v0.1-beta`, the first
+release `v1`. `-Version 6` names the number instead of counting it, for the rare day the count is not what
+you mean.
+
+CI does the same, with the same script ([`.github/workflows/publish.yml`](.github/workflows/publish.yml)):
+**a push to `master` publishes the next beta**, and the workflow's **Run workflow** button (Actions ▸
+Publish) publishes the next release from `master` — the button takes a `version` for the rare day one has
+to be named. Every run passes the three checkers in `tools/` first, and a commit that already carries a tag
+(published by hand) is left alone. A push that is not to become a beta says `[skip ci]` in its commit
+message.
 
 ## License
 
