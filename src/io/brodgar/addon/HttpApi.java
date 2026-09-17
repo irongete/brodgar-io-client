@@ -89,7 +89,7 @@ final class HttpApi {
             }
         });
         // get(url) / post(url, body) -- the one-line conveniences, and they take NO CALLBACK: the handler
-        // has exactly one spelling, req:on("done", fn), which is the API's one notification verb.
+        // has exactly one spelling, req:on("Done", fn), which is the API's one notification verb.
         extra.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "hafen.http()", "get");
@@ -262,7 +262,7 @@ final class HttpApi {
     /**
      * Build a request — <b>bare</b>. On the UI thread (the call path). Returns the Lua request object:
      * {@code :url()} {@code :method(name)} {@code :body(v)} {@code :header(name, value)} {@code :timeout(ms)}
-     * {@code :on("done", fn)} {@code :send()} and {@code :cancel()}.
+     * {@code :on("Done", fn)} {@code :send()} and {@code :cancel()}.
      *
      * <p><b>Nothing is registered or scheduled here</b> (095): the queue cap is charged by {@code :send()},
      * because a request that never goes reaches no wire and should hold no slot against a cap that counts
@@ -360,14 +360,17 @@ final class HttpApi {
                 // in LuaJ a string that scans as a number answers isnumber() too -- with the sentence meant
                 // for a missing pair. Now a real number is refused as the wrong kind, and a string that is
                 // not an event reaches the refusal below, which names it.
-                String key = Args.str(a, 2, "request:on", "key", "the event to hear, which is done").tojstring();
+                String key = Args.str(a, 2, "request:on", "key", "the event to hear, which is Done").tojstring();
                 LuaValue fnArg = Args.required(a, 3, "request:on", "fn");
                 if(!fnArg.isfunction())
                     throw new LuaError("request:on(key, fn): fn must be a function -- it runs once with the"
                         + " result, got " + fnArg.typename());
+                String moved = Refusal.eventKey("request", key);
+                if(moved != null)
+                    throw new LuaError(moved);
                 if(!LuaHttpRequest.DONE.equals(key))
                     throw new LuaError("request:on(key, fn): a request has no event '" + key + "' -- it has:"
-                        + " done, which fires once with the result (res:ok() says whether the exchange"
+                        + " Done, which fires once with the result (result:ok() says whether the exchange"
                         + " completed at all)");
                 return req.subs.on(key, fnArg);
             }

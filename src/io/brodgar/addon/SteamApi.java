@@ -101,22 +101,12 @@ public final class SteamApi {
             }
         });
 
-        // user() — current Steam persona / display name, or nil.
+        // user() — current Steam persona / display name, or nil. The ONE spelling: `username` was an alias of
+        // it, and the API grammar has no aliases (one canonical way, a replaced spelling throws naming its
+        // replacement), so that name is a Refusal.MOVED row now.
         methods.set("user", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "steam", "user");
-                Steam s = Steam.get();
-                if(s == null)
-                    return LuaValue.NIL;
-                String name = s.displayname();
-                return (name == null) ? LuaValue.NIL : LuaValue.valueOf(name);
-            }
-        });
-
-        // username() — alias for user().
-        methods.set("username", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "steam", "username");
                 Steam s = Steam.get();
                 if(s == null)
                     return LuaValue.NIL;

@@ -131,8 +131,20 @@ final class Refusal {
                   + " of your addon's own var `name`, saved for you");
         MOVED.put("session:store():get", "session:store():get(name) is session:store():var(name): the live"
                   + " table of that character's var `name`, saved for you");
+        // The Steam section shipped two aliases, and the grammar has none: one canonical way, and a replaced
+        // spelling throws naming its replacement.
+        MOVED.put("hafen.steam():username", "hafen.steam():username() is hafen.steam():user(): the active"
+                  + " Steam player's display name, nil without Steam");
+        MOVED.put("achievement:achieved", "achievement:achieved() is achievement:unlocked(): whether it is"
+                  + " achieved on Steam, false while locked or not loaded");
         KEYS.put("widget|Destroy", "widget:on(\"Destroy\", fn): the key is Removed — widget:on(\"Removed\","
                  + " fn) fires when the widget leaves its tree");
+        // A key the client fires is PascalCase and closed; these two were spelled like an open emitter's own
+        // names. A menu entry of yours is pressed as a button of yours is; a request has one moment, its end.
+        KEYS.put("pagina|use", "pagina:on(\"use\", fn): the key is Pressed — pagina:on(\"Pressed\", fn) fires"
+                 + " on a left-click on the entry, on its key on a held action-bar slot and on pagina:use()");
+        KEYS.put("request|done", "request:on(\"done\", fn): the key is Done — request:on(\"Done\", fn) fires"
+                 + " once with the result, whether or not the exchange completed");
         KEYS.put("hafen.event()|FlowerMenuOpened", "hafen.event():on(\"FlowerMenuOpened\", fn): the key is"
                  + " FlowerMenuAdded — hafen.event():on(\"FlowerMenuAdded\", fn) fires when a radial menu"
                  + " opens");

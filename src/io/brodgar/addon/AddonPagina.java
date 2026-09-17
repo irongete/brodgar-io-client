@@ -101,12 +101,19 @@ public final class AddonPagina extends MenuGrid.Pagina {
     private MenuGrid.Pagina parent;
 
     /**
-     * The Lua handlers on this entry's one key, {@code "use"} — {@code pag:on("use", fn)}. One {@link Subs} per
-     * entry, on the entry, because the state belongs on the THING (D-100): an entry nobody listens to costs an
-     * empty map, and there is no registry anywhere to keep in step with {@code :remove()}.
+     * The one key this entry fires, {@code pag:on("Pressed", fn)}: the word a button of yours fires on, since
+     * the grid's own {@code MenuGrid.use} is the caller exactly as a native {@code Button}'s {@code Pressed}
+     * is. A key the client fires is PascalCase and closed; {@code tools/docverbs.py} reads {@link #KEYS}.
+     */
+    static final String PRESSED = "Pressed";
+    static final String[] KEYS = {"Pressed"};
+
+    /**
+     * The Lua handlers on this entry's one key, {@link #PRESSED}. One {@link Subs} per entry, on the entry,
+     * because the state belongs on the THING (D-100): an entry nobody listens to costs an empty map, and there
+     * is no registry anywhere to keep in step with {@code :remove()}.
      *
-     * <p>It charges {@link Addon#C_WIDGET}, what a click on a button costs everywhere else in this API — the
-     * grid's own {@code MenuGrid.use} is the caller, exactly as a native {@code Button}'s {@code Pressed} is.
+     * <p>It charges {@link Addon#C_WIDGET}, what a click on a button costs everywhere else in this API.
      */
     final Subs subs;
 
@@ -174,16 +181,16 @@ public final class AddonPagina extends MenuGrid.Pagina {
     }
 
     /**
-     * A left-click on this entry, and {@code pag:use()} — run every handler {@code pag:on("use", fn)} registered,
-     * in registration order, each one error-isolated by {@link AddonManager#callLua}. The handler is handed the
-     * entry itself, so one function can serve several buttons and still tell which was pressed. An entry nobody
-     * subscribed to does nothing at all, which is what makes a bare {@code :add(id)} a legal thing to leave in
-     * the menu.
+     * A left-click on this entry, its key on a held action-bar slot, and {@code pag:use()} — run every handler
+     * {@code pag:on("Pressed", fn)} registered, in registration order, each one error-isolated by
+     * {@link AddonManager#callLua}. The handler is handed the entry itself, so one function can serve several
+     * buttons and still tell which was pressed. An entry nobody subscribed to does nothing at all, which is
+     * what makes a bare {@code :add(id)} a legal thing to leave in the menu.
      */
     void fire() {
-        if(!subs.has("use"))
+        if(!subs.has(PRESSED))
             return;
-        subs.fire("use", LuaPagina.of(owner, user, id));
+        subs.fire(PRESSED, LuaPagina.of(owner, user, id));
     }
 
     /**

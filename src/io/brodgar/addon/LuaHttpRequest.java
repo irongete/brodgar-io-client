@@ -39,7 +39,7 @@ final class LuaHttpRequest {
     byte[] body;              // request body, or null (GET / empty POST)
     final Map<String, String> headers;   // caller headers, already hygiene-filtered (may be empty)
     int timeout;              // ms; a setter on the request object until :send() (UI thread only)
-    /** {@code req:on("done", fn)} — the API's one notification verb, where a positional callback was (A-116). */
+    /** {@code req:on("Done", fn)} — the API's one notification verb, where a positional callback was (A-116). */
     final Subs subs;
 
     volatile boolean dead;    // cancelled / torn down — handler suppressed, result discarded
@@ -73,6 +73,11 @@ final class LuaHttpRequest {
         this.subs = new Subs(owner, Addon.C_EVENT);
     }
 
-    /** The keys a request answers — one today, and {@code "progress"} costs nothing to add later. */
-    static final String DONE = "done";
+    /**
+     * The keys a request answers — one today, and a {@code "Progress"} costs nothing to add later. PascalCase
+     * and closed, as every key the client fires is; the old lower-case {@code "done"} is a {@code Refusal.KEYS}
+     * row naming it, and {@code tools/docverbs.py} reads {@link #KEYS}.
+     */
+    static final String DONE = "Done";
+    static final String[] KEYS = {"Done"};
 }

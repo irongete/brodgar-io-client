@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * <b>What a request came back with</b> (095, A-117) &mdash; the {@code res} an
- * {@code req:on("done", fn)} handler is handed.
+ * {@code req:on("Done", fn)} handler is handed.
  *
  * <p><b>An object, not a plain Lua table</b>, because every other callback payload in the API is one:
  * {@code ev:x()}, {@code ev:args()}, {@code gob:name()}, {@code w:title()} are all colon verbs, and a lone

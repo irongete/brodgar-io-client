@@ -335,12 +335,14 @@ public final class LuaPagina {
                 return LuaValue.valueOf(((AddonPagina)p).owner.manifest.id);
             }
         });
-        // on(key, fn) — 059.3: run fn(pag) when this entry is clicked, and when pag:use() fires it. The one
+        // on(key, fn) — 059.3: run fn(pag) when this entry is pressed, and when pag:use() fires it. The one
         // notification verb, on the object that emits it (D-100): a Sub back, sub:off() to end it, and the whole
         // set dropped on :reload/disable or when the entry is :remove()d. The key set is CLOSED — an entry says
         // one thing — so a misspelling throws at the line that wrote it rather than reading as a subscription
-        // that never fires. Only on an entry THIS addon added: the handlers are the owner's code, charged to the
-        // owner and torn down with it, so there is nowhere to put another addon's.
+        // that never fires. The key is "Pressed", the word a button of yours fires on: a key the client fires
+        // is PascalCase and closed, and the old lower-case "use" is a Refusal.KEYS row naming it. Only on an
+        // entry THIS addon added: the handlers are the owner's code, charged to the owner and torn down with
+        // it, so there is nowhere to put another addon's.
         m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -349,11 +351,15 @@ public final class LuaPagina {
                 if(keyArg.type() != LuaValue.TSTRING || !fnArg.isfunction())
                     throw new LuaError("pagina:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
-                if(!"use".equals(key))
+                String moved = Refusal.eventKey("pagina", key);
+                if(moved != null)
+                    throw new LuaError(moved);
+                if(!AddonPagina.PRESSED.equals(key))
                     throw new LuaError("pagina:on(key, fn): a menu entry has no event '" + key + "' — it has:"
-                        + " use, which fires on a left-click and on pag:use()");
+                        + " Pressed, which fires on a left-click, on the key of a held action-bar slot and on"
+                        + " pagina:use()");
                 LuaPagina h = handle(self, "on");
-                AddonPagina p = AddonPagina.owned(owner, h.user, h.res, "pagina:on(\"use\", fn)");
+                AddonPagina p = AddonPagina.owned(owner, h.user, h.res, "pagina:on(\"Pressed\", fn)");
                 return p.subs.on(key, fnArg);
             }
         });
@@ -436,7 +442,7 @@ public final class LuaPagina {
         // NO ARGUMENTS on purpose: PagButton.use never reads Interaction.modflags — it builds the message from
         // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
         // trace).
-        // On a CUSTOM entry the same call runs the addon's own on("use", fn) handlers instead, because
+        // On a CUSTOM entry the same call runs the addon's own on("Pressed", fn) handlers instead, because
         // AddonPagButton.use IS that — one door, and no branch here that could answer differently from a click.
         // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped unprotected only
         // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "menugrid.use"

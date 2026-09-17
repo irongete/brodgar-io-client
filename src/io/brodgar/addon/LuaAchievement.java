@@ -119,7 +119,8 @@ public final class LuaAchievement {
                 return LuaValue.valueOf(handle(self, "name").name);
             }
         });
-        // unlocked() — true if achieved, false if locked or stats not loaded.
+        // unlocked() — true if achieved, false if locked or stats not loaded. The ONE spelling: `achieved`
+        // was an alias of it, and the API grammar has no aliases, so that name is a Refusal.MOVED row now.
         m.set("unlocked", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaAchievement h = handle(self, "unlocked");
@@ -130,26 +131,17 @@ public final class LuaAchievement {
                 return (st != null && st.booleanValue()) ? LuaValue.TRUE : LuaValue.FALSE;
             }
         });
-        // achieved() — alias for unlocked().
-        m.set("achieved", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaAchievement h = handle(self, "achieved");
-                Steam s = Steam.get();
-                if(s == null)
-                    return LuaValue.FALSE;
-                Boolean st = s.isAchieved(h.name);
-                return (st != null && st.booleanValue()) ? LuaValue.TRUE : LuaValue.FALSE;
-            }
-        });
-        // exists() — whether this achievement exists in the loaded Steam schema.
+        // exists() — whether this achievement is in the loaded Steam schema. The schema is the list of names
+        // the stats callback read off Steam; isAchieved() cannot answer this, since steamworks4j hands back
+        // its default (false) for a name Steam has not got, which read as "exists" for any string once the
+        // stats were in. False without Steam and until the stats have loaded.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaAchievement h = handle(self, "exists");
                 Steam s = Steam.get();
-                if(s == null)
+                if((s == null) || !s.isStatsLoaded())
                     return LuaValue.FALSE;
-                Boolean st = s.isAchieved(h.name);
-                return LuaValue.valueOf(st != null);
+                return LuaValue.valueOf(s.getAchievementNames().contains(h.name));
             }
         });
         // info() — snapshot table: {name = "...", unlocked = true/false}

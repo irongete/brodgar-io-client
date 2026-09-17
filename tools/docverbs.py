@@ -443,8 +443,9 @@ def as_array(vocab):
             rel = os.path.relpath(p, ROOT).replace("\\", "/")
             for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
                 for v in verbs:
-                    # the receiver may itself be a call, as in `inventory():items()`, so `)` is in the class
-                    for pat, how in ((r'#\s*[\w.\[\]"():]*:' + v + r'\(\s*\)', "# on"),
+                    # the receiver may itself be a call, as in `inventory():items()`, so `)` is in the class;
+                    # `#` counts what the whole chain answers, so `#x:coll():unlocked()` is an array's length
+                    for pat, how in ((r'#\s*[\w.\[\]"():]*:' + v + r'\(\s*\)(?!\s*[:.])', "# on"),
                                      (r'ipairs\(\s*[\w.\[\]"():]*:' + v + r'\(\s*\)\s*\)', "ipairs over"),
                                      (r':' + v + r'\(\s*\)\s*\[', "indexing")):
                         if re.search(pat, line):
@@ -506,9 +507,9 @@ def java_mentions(vocab):
 # lower-case one is skipped.
 #
 # BLIND SPOTS, stated rather than implied:
-#   - open emitters (hafen.console(), keybindings(), action(), message(), pag:on("use"), req:on("done"))
-#     are not checked at all. Their key sets are PROTOCOL or user-chosen; there is nothing to check
-#     against, and a typo there is the author's own.
+#   - open emitters (hafen.console(), keybindings(), action(), message()) are not checked at all. Their
+#     key sets are PROTOCOL or user-chosen; there is nothing to check against, and a typo there is the
+#     author's own. A menu entry's `Pressed` and a request's `Done` are closed and read below.
 #   - a key built from a variable rather than written as a literal is invisible here.
 #   - suites under addons/<NNN>-*/ and addons/R<nn>-*/ are skipped: they call moved spellings ON PURPOSE, to prove the
 #     refusal raises. A suite is re-run every round, which is its own guard.
@@ -521,10 +522,13 @@ def event_keys():
     lw = io.open(os.path.join(BRIDGE, "LuaWidget.java"), encoding="utf-8", errors="replace").read()
     ws = io.open(os.path.join(BRIDGE, "LuaWebSocket.java"), encoding="utf-8", errors="replace").read()
     vo = io.open(os.path.join(BRIDGE, "LuaVoice.java"), encoding="utf-8", errors="replace").read()
-    # conn:on(key, fn) / voice:on(key, fn) -- the edges of a connection and of a voice link, each declared
-    # as an array like the bus's own
+    pg = io.open(os.path.join(BRIDGE, "AddonPagina.java"), encoding="utf-8", errors="replace").read()
+    hr = io.open(os.path.join(BRIDGE, "LuaHttpRequest.java"), encoding="utf-8", errors="replace").read()
+    # conn:on(key, fn) / voice:on(key, fn) / pagina:on(key, fn) / request:on(key, fn) -- the edges of a
+    # connection, a voice link, a menu entry of yours and a request, each declared as an array like the
+    # bus's own
     live = (arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS") | arr(ws, "KEYS")
-            | arr(vo, "KEYS"))
+            | arr(vo, "KEYS") | arr(pg, "KEYS") | arr(hr, "KEYS"))
     # widgetKeys() adds these by interface rather than from an array, so they are named here.
     live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
     live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)
