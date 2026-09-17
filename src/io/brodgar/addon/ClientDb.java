@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Config;
 import haven.Coord;
 import haven.Utils;
 import haven.Warning;
@@ -69,19 +70,24 @@ public final class ClientDb {
 
     // ---- the paths ---------------------------------------------------------------------------------
 
+    /** Another {@code savedata/} folder, or {@code null} for the default: {@code haven.savedatadir}, from
+     *  {@code haven-config.properties} beside the jar or from {@code -D}, as {@link AddonRegistry#addondir}. */
+    static final Config.Variable<Path> savedatadir = Config.Variable.propp("haven.savedatadir", (Path)null);
+
     /**
-     * The {@code savedata/} folder beside the client: {@code -Dhaven.savedatadir}; else the parent of
-     * {@code -Dhaven.addondir}; else the jar's own sibling, and a bare {@code savedata} where the jar has no
-     * location. Every addon's folder and the client's own file live in it.
+     * The {@code savedata/} folder beside the client: {@link #savedatadir}; else {@code savedata} beside the
+     * folder {@link AddonRegistry#addondir} names, so that the two move as one; else the jar's own sibling,
+     * and a bare {@code savedata} where the jar has no location. Every addon's folder and the client's own
+     * file live in it.
      */
     static File dir() {
-        String override = System.getProperty("haven.savedatadir");
-        if((override != null) && !override.isEmpty())
-            return new File(override);
-        String addons = System.getProperty("haven.addondir");
-        if((addons != null) && !addons.isEmpty()) {
-            File parent = new File(addons).getParentFile();
-            return new File((parent != null) ? parent : new File("."), "savedata");
+        Path override = savedatadir.get();
+        if(override != null)
+            return override.toFile();
+        Path addons = AddonRegistry.addondir.get();
+        if(addons != null) {
+            Path parent = addons.getParent();
+            return new File((parent != null) ? parent.toFile() : new File("."), "savedata");
         }
         try {
             return Utils.srcpath(ClientDb.class).resolveSibling("savedata").toFile();

@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Config;
 import haven.Console;
 import haven.GameUI;
 import haven.KeyBinding;
@@ -18,6 +19,7 @@ import org.luaj.vm2.LuaValue;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -83,11 +85,16 @@ public final class AddonRegistry {
 
     // ------------------------------------------------------------- discovery + loading
 
-    /** Default: the {@code addons/} folder beside the client jar. {@code -Dhaven.addondir} overrides. */
+    /** Another folder to read addons from, or {@code null} for the default: {@code haven.addondir}, a line of
+     *  {@code haven-config.properties} beside the jar — what the launcher writes from its Options — or
+     *  {@code -Dhaven.addondir}, which wins over the file; an empty value is the default. */
+    static final Config.Variable<Path> addondir = Config.Variable.propp("haven.addondir", (Path)null);
+
+    /** Default: the {@code addons/} folder beside the client jar; {@link #addondir} names another. */
     static File addonDir() {
-        String override = System.getProperty("haven.addondir");
-        if((override != null) && !override.isEmpty())
-            return new File(override);
+        Path override = addondir.get();
+        if(override != null)
+            return override.toFile();
         try {
             return Utils.srcpath(AddonManager.class).resolveSibling("addons").toFile();
         } catch(RuntimeException e) {
