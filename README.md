@@ -1,4 +1,4 @@
-# Brodgar.io Client
+# brodgar.io client
 
 [![Download the launcher](https://img.shields.io/github/v/release/irongete/brodgar-io-client-launcher?label=Download%20the%20launcher)](https://github.com/irongete/brodgar-io-client-launcher/releases/latest)
 
