@@ -27,7 +27,7 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
    anything needing code.
 
 3. **No page may teach a name that already throws.** `python tools/docverbs.py` and
-   `python tools/retiredverbs.py` — both exit non-zero on a finding, so this is a gate and not a
+   `python tools/refusalverbs.py` — both exit non-zero on a finding, so this is a gate and not a
    reading. Between them they resolve every documented verb against its own **receiver's**
    vocabulary, every event key against the sets the bridge actually fires, every verb a refusal
    offers as a replacement, and every collection used as an array. A grep over `Retired.NAMES`

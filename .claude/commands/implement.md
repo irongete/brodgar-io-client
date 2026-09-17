@@ -97,7 +97,7 @@ hafen.console():on("t033-2", run)   -- the only way in: a suite does not start i
   "version": "1.0.0",
   "author": "brodgar",
   "description": "Self-checking suite for task 033.2: <what it proves>.",
-  "api_version": 1,
+  "api_version": "1.0",
   "files": ["main.lua"]
 }
 ```
@@ -120,7 +120,7 @@ docs sweep as the next task of the same feature, and the close charges it. Nothi
   `spec.md` derived is discharged **once per feature**, by the task whose surface owns it — each
   page of it revised, or explicitly discharged with its reason.
 - **Run the checkers over what you moved**: `python tools/docverbs.py` and
-  `python tools/retiredverbs.py`. They hold `docs/` to `src/` by **receiver type**, which is the
+  `python tools/refusalverbs.py`. They hold `docs/` to `src/` by **receiver type**, which is the
   drift a task that renames a verb or an event key creates and cannot see in its own diff. Both exit
   non-zero; fix here, not at the close.
 - **A retired spelling is retired everywhere, `addons/` included**: `grep -rl` the old name over
