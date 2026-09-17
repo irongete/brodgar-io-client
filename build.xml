@@ -323,8 +323,8 @@
        named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
        Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). -->
   <target name="release" depends="dist">
-    <zip destfile="build/brodgar-io-client-${version}.zip" basedir="dist" excludes="savedata/**" />
-    <echo message="Release asset: build/brodgar-io-client-${version}.zip" />
+    <zip destfile="build/brodgar-io-client-v${version}.zip" basedir="dist" excludes="savedata/**" />
+    <echo message="Release asset: build/brodgar-io-client-v${version}.zip" />
   </target>
 
 

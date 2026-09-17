@@ -154,7 +154,7 @@ if ($Release -and $newest -and $newest.Version.Beta) {
 if ($newest -and $current -eq 'master' -and (Parse-Version $Version).Key -le $newest.Version.Key) {
     throw "$tag is not above $($newest.Tag), the newest on GitHub, and a launcher never installs a lower version: name one above it, or leave -Version out"
 }
-$asset = Join-Path 'build' "brodgar-io-client-$Version.zip"   # Join-Path: CI runs this on Linux
+$asset = Join-Path 'build' "brodgar-io-client-$tag.zip"   # Join-Path: CI runs this on Linux
 if (git tag -l $tag) { throw "the tag $tag already exists in this clone" }
 if ($needsGitHub -and ($published | Where-Object { $_.Tag -eq $tag })) { throw "$tag is published on GitHub already" }
 if (-not $NoPublish -and (git ls-remote --tags origin $tag)) { throw "the tag $tag already exists on origin" }
@@ -184,11 +184,16 @@ if ($Notes) {
         $previous = $null
         if ($newest -and (git tag -l $newest.Tag)) { $previous = $newest.Tag }
         if (-not $previous) { $previous = git tag -l 'v*' --merged HEAD --sort=-v:refname | Select-Object -First 1 }
-        $range = if ($previous) { "$previous..HEAD" } else { 'HEAD' }
-        $log = git log --format='- %s' $range
-        if (-not $log) { throw "no commits since $previous to write notes from: give -Notes or -Message" }
-        Set-Content -Path $notesFile -Value $log -Encoding UTF8
-        Write-Host "Release notes (the commits since $(if ($previous) { $previous } else { 'the beginning' })):"
+        if ($previous) {
+            $log = @(git log --format='- %s' --max-count=200 "$previous..HEAD")
+            if (-not $log) { throw "no commits since $previous to write notes from: give -Notes or -Message" }
+            $count = [int](git rev-list --count "$previous..HEAD")
+            if ($count -gt $log.Count) { $log += "- ... and $($count - $log.Count) more" }
+        } else {
+            $log = @('The first version.')   # not the whole history of the fork
+        }
+        Set-Content -Path $notesFile -Value ($log -join "`n") -Encoding UTF8
+        Write-Host "Release notes$(if ($previous) { " (the commits since $previous)" }):"
         $log | ForEach-Object { Write-Host "  $_" }
     }
 }
