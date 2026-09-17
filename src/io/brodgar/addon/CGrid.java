@@ -19,8 +19,9 @@ import java.util.List;
  * ({@code drawitem(GOut, T)}), so this adapter takes no part in the {@link LuaRows} bridge the other four
  * share. {@code :rows(t)} is a plain array of arbitrary Lua values (item shape is the addon's own, unlike the
  * string/{@code {icon=,text=}} rows the bridge enforces); {@code :cellSize(w, h)} is the cell box,
- * building-only like {@code :rowHeight(n)} ({@code Group.itemsz} is {@code final}); {@code :onCell(g, item, w, h)} paints one
- * cell through the SAME {@link LuaGOut} wrapper {@code widget:onDraw(fn)} hands a surface (task 040.11,
+ * building-only like {@code :rowHeight(n)} ({@code Group.itemsz} is {@code final}); {@code :on("Cell", fn)} paints one
+ * cell, {@code fn(event)} reading {@code event:g()}, {@code event:item()}, {@code event:w()}, {@code event:h()} —
+ * the SAME {@link LuaGOut} wrapper {@code widget:on("Draw", fn)} hands a surface (task 040.11,
  * D-163) — bound for the duration of one {@link #drawitem} call and inert otherwise, exactly
  * {@link AddonWidget#draw}'s own shape.
  *
@@ -31,11 +32,11 @@ import java.util.List;
  * {@code :rows(t)} feeds it through {@link Group#update}, which is public and live. The cell BOX itself
  * (`itemsz`) is {@code final} on {@code Group}, so — like a list's row height — choosing a different one is
  * not a property write but a different widget under the same Lua handle (D-164):
- * {@link Controls#cellSize} rebuilds exactly as {@link Controls#rowHeight} does, carrying the current rows and {@code :onCell} handler across.
+ * {@link Controls#cellSize} rebuilds exactly as {@link Controls#rowHeight} does, carrying the current rows and {@code "Cell"} handler across.
  *
  * <p><b>A handler that throws is isolated PER CELL, not per frame.</b> {@link AddonManager#callLua} already
  * catches every Lua/Java error a callback raises and returns without rethrowing — the same choke point
- * {@code widget:onDraw(fn)} goes through — so one cell's {@code :onCell} throwing costs that cell's line in
+ * {@code widget:on("Draw", fn)} goes through — so one cell's {@code "Cell"} throwing costs that cell's line in
  * the log and nothing else: {@code GridList.draw}'s own loop keeps calling {@link #drawitem} for every
  * remaining item in the list on the very same frame.
  */
@@ -132,7 +133,7 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
         super.draw(Owned.dim(this, g));   // 139.3: disabled? the whole control paints dimmed
     }
 
-    /** An array of arbitrary, non-nil Lua values — the item shape itself is entirely {@code :onCell}'s to read. */
+    /** An array of arbitrary, non-nil Lua values — the item shape itself is entirely {@code "Cell"}'s to read. */
     private static List<LuaValue> parseRows(LuaValue t) {
         if(!t.istable())
             throw new LuaError("widget:rows(t) is an ARRAY of grid items, got " + t.typename());

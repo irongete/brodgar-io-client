@@ -603,13 +603,13 @@ final class UiApi {
         });
         // :button() — 040.1, THE CONTROLS. The client already has them — Button, TextEntry, SListBox and fifteen
         // more, the same classes its own windows are built from — and until now nothing in the bridge so much as
-        // named one: an addon that wanted a button drew a rectangle, drew a caption in it, read :onClick, and
+        // named one: an addon that wanted a button drew a rectangle, drew a caption in it, read the mouse keys, and
         // reimplemented hover, press and focus outside the theme permanently. A real control is dressed by the
         // stylesheet for free, which is the whole payoff.
         //   A CONTROL IS A WIDGET, not a nineteenth entity: :position :size :parent :visible :destroy :style
         // :type :role and every selector answer on one with nothing written for them, and a verb answers where
-        // it applies. What a button adds is :text(s) (its caption) and :onPress(fn) (it fired, and holds
-        // nothing) — :onClick(fn) stays what it always was, the raw mouse event. Built bare and configured by
+        // it applies. What a button adds is :text(s) (its caption) and :on("Pressed", fn) (it fired, and holds
+        // nothing) — "MouseDown"/"MouseUp" stay what they always were, the raw mouse events. Built bare and configured by
         // chained setters like every other builder, arming rule included, so it is findable from the first
         // instant and never drawn half-built.
         m.set("button", new VarArgFunction() {
@@ -657,7 +657,7 @@ final class UiApi {
         // :check() — 040.4, THE VALUE SPINE. A haven.CheckBox, where :image(up, down, hoverUp, hoverDown)
         // completes it as an ICheckBox exactly as :image(up, down[, hover]) completes :button() as an IButton
         // (040.2's rule, one more control). Its caption is :text(s), its state :value(v), and it is the first
-        // control in this feature to answer :onChange(fn) -- fires from a real click only; a programmatic
+        // control in this feature to answer :on("Changed", fn) -- fires from a real click only; a programmatic
         // :value(v) never re-enters it.
         m.set("check", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -668,9 +668,9 @@ final class UiApi {
         // :radio() — 040.5, ONE control, not a group object plus N buttons. hafen.ui():radio():rows{"Quality",
         // "Amount", "Name"} builds three real haven.RadioGroup.RadioButtons, stacked downward from this
         // control's own :position, one row height apart; RadioGroup/RadioButton never surface. :value(label)
-        // checks one and :onChange(fn) fires on a real pick only -- a programmatic :value(v) flips the two
+        // checks one and :on("Changed", fn) fires on a real pick only -- a programmatic :value(v) flips the two
         // buttons' own state directly rather than going through RadioGroup.check() (which always fires the
-        // group's changed hook), so it never re-enters :onChange, the same rule 040.4 pinned for the checkbox.
+        // group's changed hook), so it never re-enters "Changed", the same rule 040.4 pinned for the checkbox.
         m.set("radio", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "radio");
@@ -679,9 +679,9 @@ final class UiApi {
         });
         // :slider() — 040.6, a real haven.HSlider. :range(min, max) sets the bounds, :value(n) the position
         // within them -- CLAMPED on a write outside the range rather than refused, unlike :progress()'s hard
-        // 0..1 -- and :onChange(v, final) is ONE callback over the engine's changed()/fchanged() pair, final
+        // 0..1 -- and :on("Changed", fn) is ONE key over the engine's changed()/fchanged() pair, event:final()
         // false while dragging and true once on release. Narrowing :range re-clamps an existing value without
-        // firing :onChange, since that is not a user interaction.
+        // firing "Changed", since that is not a user interaction.
         m.set("slider", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "slider");
@@ -689,7 +689,7 @@ final class UiApi {
             }
         });
         //   :scrollbar() — a bare haven.Scrollbar for driving something yourself: the same :range/:value as
-        // the slider, minus the final flag on :onChange(fn) -- the engine gives this one no separate "drag
+        // the slider, minus the final flag on "Changed" -- the engine gives this one no separate "drag
         // ended" hook.
         m.set("scrollbar", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -698,8 +698,8 @@ final class UiApi {
             }
         });
         // :entry() — 040.7, a real haven.TextEntry. Its content is :value(s), the ONE door (decision A) --
-        // :onChange(fn) fires on every keystroke and
-        // :onSubmit(fn) once, on Enter -- two names for two gestures, not one name with a flag. Typing into it
+        // :on("Changed", fn) fires on every keystroke and
+        // :on("Submitted", fn) once, on Enter -- two names for two gestures, not one name with a flag. Typing into it
         // never reaches the game: it takes keyboard focus like any TextEntry, and nothing here calls wdgmsg.
         m.set("entry", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -710,7 +710,7 @@ final class UiApi {
         // :scroll() — 040.8, a scrolling container over haven.Scrollport's own two pieces. :parent(sp) on any
         // control puts it INSIDE the scrolling area (LuaWidget's parent(w) write redirects into the port's own
         // inner container for this one control) -- never beside the bar, which is the trap a plain add() would
-        // fall into. The bar itself answers the same :range/:value/:onChange as a bare :scrollbar(), found the
+        // fall into. The bar itself answers the same :range/:value/"Changed" as a bare :scrollbar(), found the
         // ordinary way once content taller than the box makes it live; the container itself has no verb of its
         // own.
         m.set("scroll", new VarArgFunction() {
@@ -726,7 +726,7 @@ final class UiApi {
         // and a table may mix both freely -- built through LuaRows, the bridge the later model-backed controls
         // (040.10's dropdown/menu, 040.12's table) reuse rather than re-deriving. :value()/:value(v) is the
         // selected row -- the SAME Lua value :rows(t) was given, so it can be handed straight back to :value(v)
-        // or compared with == -- :onChange(fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the
+        // or compared with == -- :on("Changed", fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the
         // client's own label height -- is building-only like a face setter, since the engine fixes a row-list's
         // item height at construction.
         m.set("listbox", new VarArgFunction() {
@@ -736,7 +736,7 @@ final class UiApi {
             }
         });
         // :dropdown() — 040.10, the second of the MODEL-BACKED five: a real haven.SDropBox, closed until
-        // clicked, over the same LuaRows bridge :listbox() uses. :rows(t)/:value()/:value(v)/:onChange(fn) answer
+        // clicked, over the same LuaRows bridge :listbox() uses. :rows(t)/:value()/:value(v)/:on("Changed", fn) answer
         // exactly as they do on :listbox() -- the same spine, a different engine class underneath.
         m.set("dropdown", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -745,7 +745,7 @@ final class UiApi {
             }
         });
         // :menu() — 040.10, the third of the MODEL-BACKED five: a real haven.SListMenu. It FIRES and holds
-        // nothing -- :value() reads nil on it -- so :onSelect(fn), not :onChange(fn), carries the picked row.
+        // nothing -- :value() reads nil on it -- so :on("Selected", fn), not :on("Changed", fn), carries the picked row.
         // The engine's own SListMenu grabs all mouse/keyboard input the instant it is attached; this builder
         // opts out (haven.SListMenu.nograb()) so a menu behaves like any other control you place and configure,
         // not a modal popup.
@@ -757,8 +757,9 @@ final class UiApi {
         });
         // :grid() — 040.11, the fourth of the MODEL-BACKED five: a real haven.GridList, and the odd one out --
         // it DRAWS cells rather than building row widgets, so :rows(t) is a plain array of arbitrary Lua values
-        // and :onCell(g, item, w, h) paints one through the SAME g wrapper :onDraw(fn) hands a surface, rather
-        // than the LuaRows bridge the other four share. :cell(w, h) is the cell box and, like :rowHeight(n), is
+        // and :on("Cell", fn) paints one through the SAME g wrapper :on("Draw", fn) hands a surface (event:g(),
+        // :item(), :w(), :h()), rather than the LuaRows bridge the other four share. :cellSize(w, h) is the cell
+        // box and, like :rowHeight(n), is
         // building-only -- GridList.Group.itemsz is final.
         m.set("grid", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -770,7 +771,7 @@ final class UiApi {
         // columns until :columns(t) names them -- {title=, width=, of(row)} per column, over ColSpec.of -- and
         // :rows(t) is a plain array of arbitrary Lua values, the same shape :grid()'s row source has (a table
         // row is not a string or {icon=, text=} pair; it is whatever of(row) reads from it). Both :columns(t)
-        // and :rowHeight(n) are building-only, like :cell(w, h) -- the client's own TableBox fixes its columns
+        // and :rowHeight(n) are building-only, like :cellSize(w, h) -- the client's own TableBox fixes its columns
         // and row height at construction.
         m.set("table", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -1184,7 +1185,7 @@ final class UiApi {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():" + what + "() takes no arguments — it is built bare and configured"
                 + " by chained setters: hafen.ui():" + what + "()"
-                + (window ? ":title(\"…\")" : "") + ":size(w, h):position(x, y):onDraw(fn)");
+                + (window ? ":title(\"…\")" : "") + ":size(w, h):position(x, y):on(\"Draw\", fn)");
         UI u = requireUi(what);
 
         final AddonWidget content = new AddonWidget(owner, Px.in(Coord.of(DEF_W, DEF_H)));

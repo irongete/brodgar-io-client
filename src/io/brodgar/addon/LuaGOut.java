@@ -454,7 +454,7 @@ final class LuaGOut {
         // g:resource(name, x, y)         — draw an ENGINE .res image BY NAME at its native size, top-left at (x,y).
         // g:resource(name, x, y, w, h)   — the same, scaled into a w×h box.
         // The sibling of g:image: g:image draws the addon's OWN PNGs (hafen.asset, R1), g:resource draws
-        // the client's own .res art (action icons, hud pieces) — e.g. the `res` a widget receives from onDrop
+        // the client's own .res art (action icons, hud pieces) — e.g. the `res` a widget receives from "Drop"
         // (D-038). The name is resolved ASYNC + cached (one Indir per name) and the draw is Loading-GUARDED: it
         // draws nothing until the texture is ready, then blits the default image layer (Resource.imgc) — the
         // client's own idiom (cf. MenuGrid.draw swallowing Loading). A bad name / load error simply draws nothing

@@ -23,7 +23,7 @@ import org.luaj.vm2.LuaValue;
  * seam left for one to add its own hook to that same object. So this control rebuilds the same two-widget shape
  * from the pieces {@code Scrollport} already exposes as {@code public} — {@link Scrollbar} itself, and the
  * nested {@link Scrollport.Scrollcont} — with the bar its OWN adapter ({@link Bar}) instead of the engine's
- * plain one, which is what lets the standard {@code :range}/{@code :value}/{@code :onChange} contract (the same
+ * plain one, which is what lets the standard {@code :range}/{@code :value}/{@code "Changed"} contract (the same
  * one {@link CScrollbar} answers for a bare {@code :scrollbar()}) reach it: {@code s:ui():matchAll("@Scrollbar")}
  * (or {@code sp:children()}) finds it exactly as it would the standalone control.
  *
@@ -104,11 +104,11 @@ final class CScrollport extends Widget implements Owned.Control {
      * The port's own {@link Scrollbar}, but a real {@link Owned.Control} — {@link CScrollbar}'s shape exactly,
      * plus the one line {@code haven.Scrollport}'s own anonymous bar carries and this one must keep too: a real
      * drag (or a programmatic write) moves {@link #cont}'s {@code sy}, which is what actually scrolls the
-     * content — {@code :onChange} still fires from a real drag only, never from the programmatic writes.
+     * content — {@code "Changed"} still fires from a real drag only, never from the programmatic writes.
      */
     final class Bar extends Scrollbar implements Owned.Control, Controls.Value, Controls.Change, Controls.Range {
         private final Owned.State own;
-        /** {@code :onChange(fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
+        /** {@code :on("Changed", fn)}. Volatile: the engine fires it from the input pass while Lua may be replacing it. */
         private volatile LuaValue onChange;
 
         Bar(Addon owner) {
@@ -145,7 +145,7 @@ final class CScrollport extends Widget implements Owned.Control {
 
         /**
          * {@code s:range(min, max)} — {@code min} must not exceed {@code max}; re-clamps the current value into
-         * the new bounds WITHOUT firing {@code :onChange} (narrowing the range is not a user interaction).
+         * the new bounds WITHOUT firing {@code "Changed"} (narrowing the range is not a user interaction).
          */
         public void range(LuaValue minv, LuaValue maxv) {
             int nmin = Controls.bound(minv, "min"), nmax = Controls.bound(maxv, "max");

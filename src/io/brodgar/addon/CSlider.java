@@ -11,9 +11,10 @@ import org.luaj.vm2.LuaValue;
 /**
  * The adapter behind {@code hafen.ui():slider()} — a real {@link HSlider}, the client's own (spec
  * {@code 040-ui-controls}, task 040.6): {@code :range(min, max)} sets the bounds, {@code :value(n)} the
- * position within them, and {@code :onChange(v, final)} — ONE callback over the engine's two hooks.
+ * position within them, and {@code :on("Changed", fn)} — ONE key over the engine's two hooks, {@code fn(event)}
+ * reading {@code event:value()} and {@code event:final()}.
  *
- * <p><b>{@code :onChange(v, final)} is one name for {@code changed()}/{@code fchanged()}</b> (api-sketch §4):
+ * <p><b>{@code "Changed"} is one name for {@code changed()}/{@code fchanged()}</b> (api-sketch §4):
  * the engine calls {@link #changed()} on every step while the thumb is dragged and {@link #fchanged()} once,
  * on release — both from a real drag only. {@link #value(LuaValue)} below writes {@link HSlider#val} directly
  * and calls neither, the same feedback-loop guarantee 040.4 pinned for the checkbox.
@@ -22,7 +23,7 @@ import org.luaj.vm2.LuaValue;
  * slider's range is itself an addon-chosen, moving target ({@code :range(min, max)} may narrow it after a
  * value was written), so a write outside it is silently pinned to the nearer bound instead of erroring.
  *
- * <p><b>{@code :range(min, max)} re-clamps the current value without firing {@code :onChange}</b> — narrowing
+ * <p><b>{@code :range(min, max)} re-clamps the current value without firing {@code "Changed"}</b> — narrowing
  * the range out from under a value that no longer fits is not a user interaction, so it goes through the same
  * direct field write {@link #value(LuaValue)} does.
  *
@@ -87,7 +88,7 @@ final class CSlider extends HSlider implements Owned.Control, Controls.Value, Co
 
     /**
      * {@code s:range(min, max)} — {@code min} must not exceed {@code max}; re-clamps the current value into
-     * the new bounds WITHOUT firing {@code :onChange} (narrowing the range is not a user interaction).
+     * the new bounds WITHOUT firing {@code "Changed"} (narrowing the range is not a user interaction).
      */
     public void range(LuaValue minv, LuaValue maxv) {
         int nmin = Controls.bound(minv, "min"), nmax = Controls.bound(maxv, "max");

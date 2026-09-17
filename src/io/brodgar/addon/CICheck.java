@@ -24,10 +24,10 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>The switch is a REBUILD</b>, D-148's rule again: {@code ICheckBox}'s faces are {@code final} and its box
  * is the up image's size, so {@code widget:image(...)} on a checkbox is building-only, legal exactly while
- * {@link Owned#pending() pending}. The rebuild carries the checked state and the {@code :onChange} handler
- * across, exactly as {@link Controls#image} already carries a button's {@code :onPress} handler.
+ * {@link Owned#pending() pending}. The rebuild carries the checked state and the {@code "Changed"} handler
+ * across, exactly as {@link Controls#image} already carries a button's {@code "Pressed"} handler.
  *
- * <p>Otherwise {@link CCheck}'s shape verbatim: {@code :value()}/{@code :onChange(fn)} over the same
+ * <p>Otherwise {@link CCheck}'s shape verbatim: {@code :value()}/{@code :on("Changed", fn)} over the same
  * {@link haven.ACheckBox#a}/{@code changed} pair, a direct field write on {@code :value(v)} so it never
  * re-enters the handler, and the ownership contract over one {@link Owned.State}.
  */

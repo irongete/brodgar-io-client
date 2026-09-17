@@ -6,7 +6,7 @@ import haven.GOut;
 
 /**
  * The adapter behind {@code hafen.ui():button()} — a real {@link Button}, the very class the client's own
- * windows are built from, carrying the ownership contract and the Lua {@code :onPress} callback.
+ * windows are built from, carrying the ownership contract and the Lua {@code "Pressed"} callback.
  *
  * <p><b>This class is the convention every later control copies</b> (spec {@code 040-ui-controls}, task 040.1),
  * and it is four things and nothing else:
@@ -19,7 +19,7 @@ import haven.GOut;
  *       ownership half: provenance, teardown and the arming rule all come from the mixin's defaults.</li>
  *   <li><b>One override per Lua callback the engine wants as an override.</b> Here that is {@link #click()},
  *       {@link Button}'s own activation — which fires from the keyboard as well as the mouse, and which
- *       {@code Button.mouseup} calls <i>last</i>, after releasing its grab, so an {@code :onPress} that destroys
+ *       {@code Button.mouseup} calls <i>last</i>, after releasing its grab, so an {@code "Pressed"} that destroys
  *       its own window is safe. The slot itself is published as {@link Controls.Press}, so the verb dispatches on
  *       the capability rather than on this class — {@link CtlIButton} is the second button and shares no ancestor
  *       with this one below {@code Widget}.</li>

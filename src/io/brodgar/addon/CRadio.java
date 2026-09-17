@@ -28,7 +28,7 @@ import java.util.LinkedHashMap;
  * user pick and a programmatic write could be told apart — so a write here flips the two
  * {@code RadioGroup.RadioButton#changed(boolean)} calls (the old one off, the new one on) directly, bypassing
  * {@code check()} and its hook. That is D-153's rule again, first pinned for {@link CCheck}: a direct write
- * never re-enters {@code :onChange}. The USER-driven half is untouched — {@code RadioButton.mousedown} still
+ * never re-enters {@code "Changed"}. The USER-driven half is untouched — {@code RadioButton.mousedown} still
  * calls the group's own {@code check(this)}, which is exactly what the overridden {@code changed(int, String)}
  * hook below exists to catch.
  *

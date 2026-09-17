@@ -16,7 +16,7 @@ import java.util.List;
  * The adapter behind {@code hafen.ui():listbox()} — a real {@link SListBox}, the client's own scrolling row list
  * (spec {@code 040-ui-controls}, task 040.9): the first of the model-backed five, and the one {@link LuaRows}
  * ships alongside (D-108). {@code :rows(t)} is the row source, {@code :value()}/{@code :value(v)} the
- * selection, {@code :onChange(fn)} fires on a real pick only, and {@code :rowHeight(n)} — defaulting to the
+ * selection, {@code :on("Changed", fn)} fires on a real pick only, and {@code :rowHeight(n)} — defaulting to the
  * client's own label height — chooses the row height while the control is being built.
  *
  * <p><b>{@code I} is {@link LuaRows.Row}, not the raw Lua value.</b> {@code SListWidget}'s selection is
@@ -26,15 +26,15 @@ import java.util.List;
  * given, so a caller can hand it straight back to {@code :value(v)} or compare it with {@code ==}.
  *
  * <p><b>{@code :value(v)} writes {@code sel} directly, never through {@link #change}.</b> D-153's rule again:
- * a programmatic write must not re-enter {@code :onChange}. The USER-driven half is untouched —
+ * a programmatic write must not re-enter {@code "Changed"}. The USER-driven half is untouched —
  * {@code SListWidget.ItemWidget#mousedown} (built into every row {@link LuaRows#makeitem} hands back) still
  * calls {@code list.change(item)} on a real click, which is exactly what the override below exists to notify.
  *
  * <p><b>{@code :rowHeight(n)} rebuilds</b>, like a button's face (D-148): {@code SListBox.itemh} is
  * {@code final}, fixed at construction, so choosing a different one is not a property write but a different
  * widget under the same Lua handle — {@link Controls#rowHeight} carries the current rows, selection and
- * {@code :onChange} handler across the swap exactly as {@link Controls#image} carries a button's
- * {@code :onPress}.
+ * {@code "Changed"} handler across the swap exactly as {@link Controls#image} carries a button's
+ * {@code "Pressed"}.
  */
 final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control, Controls.Rows, Controls.Value,
         Controls.Change, Controls.RowHeight {
@@ -97,7 +97,7 @@ final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control
     public void value(LuaValue v) {
         for(LuaRows.Row item : curItems) {
             if(item.raw.eq_b(v)) {
-                sel = item;     // direct field write -- D-153: a programmatic write never re-enters :onChange
+                sel = item;     // direct field write -- D-153: a programmatic write never re-enters "Changed"
                 return;
             }
         }

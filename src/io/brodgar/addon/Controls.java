@@ -28,7 +28,7 @@ import java.util.List;
  * reads {@code nil} on a bare widget and {@code :items()} answers on a container.
  *
  * <p><b>A builder is constructed bare and configured by chained setters</b> (R4): {@code hafen.ui():button()}
- * takes no argument, and {@code :text}, {@code :size}, {@code :position}, {@code :onPress} follow. It is the
+ * takes no argument, and {@code :text}, {@code :size}, {@code :position}, {@code "Pressed"} follow. It is the
  * same shape {@code :window()} has, arming rule included — a control is attached inert and completes on the
  * tick after the statement that built it (D-112/D-119), so it is findable from the first instant and never
  * drawn half-built.
@@ -195,12 +195,12 @@ final class Controls {
     /**
      * {@code hafen.ui():button()} — a {@link haven.Button}, the client's own, at its own height and a default
      * width {@code :size(w, h)} overrides. Its caption is {@code :text(s)} and its activation
-     * {@code :onPress(fn)}; {@code :onClick(fn)} is not it — that is the raw mouse event every widget has.
+     * {@code :on("Pressed", fn)}; {@code :onClick(fn)} is not it — that is the raw mouse event every widget has.
      */
     static LuaValue button(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():button() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():button():text(\"Go\"):position(x, y):parent(w):onPress(fn)");
+                + " chained setters: hafen.ui():button():text(\"Go\"):position(x, y):parent(w):on(\"Pressed\", fn)");
         UI u = UiApi.requireUi("button");
         return UiApi.attach(u, owner, new CtlButton(owner, Px.in(CtlButton.DEF_W)));
     }
@@ -264,12 +264,12 @@ final class Controls {
      * {@code :image(up, down, hoverUp, hoverDown)} completes it as an {@link haven.ICheckBox} exactly as
      * {@code :image(up, down[, hover])} completes {@code :button()} as an {@link haven.IButton}. Its caption is
      * {@code :text(s)}, its state {@code :value(v)}, and it is the first control this feature ships that answers
-     * {@code :onChange(fn)} — the sixth and last of the six names spec 040 §1 gives the whole roster.
+     * {@code :on("Changed", fn)} — the sixth and last of the six names spec 040 §1 gives the whole roster.
      */
     static LuaValue check(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():check() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():check():text(\"Show grid\"):value(true):onChange(fn)");
+                + " chained setters: hafen.ui():check():text(\"Show grid\"):value(true):on(\"Changed\", fn)");
         UI u = UiApi.requireUi("check");
         return UiApi.attach(u, owner, new CCheck(owner));
     }
@@ -278,13 +278,13 @@ final class Controls {
      * {@code hafen.ui():radio()} — ONE control, not a group object plus N buttons (task 040.5): a real
      * {@link haven.RadioGroup} of the client's own {@code RadioButton}s, stacked downward from this control's
      * own {@code :position}, one row height apart. {@code :rows{…}} is the row source, {@code :value(label)}
-     * checks one and {@code :onChange(fn)} fires on a real pick only — {@code RadioGroup}/{@code RadioButton}
+     * checks one and {@code :on("Changed", fn)} fires on a real pick only — {@code RadioGroup}/{@code RadioButton}
      * never appear in Lua.
      */
     static LuaValue radio(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():radio() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():radio():rows{\"A\", \"B\"}:value(\"A\"):onChange(fn)");
+                + " chained setters: hafen.ui():radio():rows{\"A\", \"B\"}:value(\"A\"):on(\"Changed\", fn)");
         UI u = UiApi.requireUi("radio");
         return UiApi.attach(u, owner, new CRadio(owner));
     }
@@ -292,13 +292,13 @@ final class Controls {
     /**
      * {@code hafen.ui():slider()} — a real {@link haven.HSlider}, the client's own (task 040.6). Its bounds are
      * {@code :range(min, max)}, its position within them {@code :value(n)} — CLAMPED on a write outside the
-     * range rather than refused — and {@code :onChange(v, final)} is one callback over the engine's
-     * {@code changed()}/{@code fchanged()} pair, {@code final} false while dragging and true once on release.
+     * range rather than refused — and {@code :on("Changed", fn)} is one key over the engine's
+     * {@code changed()}/{@code fchanged()} pair, {@code event:final()} false while dragging and true once on release.
      */
     static LuaValue slider(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():slider() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():slider():range(0, 100):value(50):onChange(fn)");
+                + " chained setters: hafen.ui():slider():range(0, 100):value(50):on(\"Changed\", fn)");
         UI u = UiApi.requireUi("slider");
         return UiApi.attach(u, owner, new CSlider(owner));
     }
@@ -306,25 +306,25 @@ final class Controls {
     /**
      * {@code hafen.ui():scrollbar()} — a bare {@link haven.Scrollbar}, the client's own (task 040.6), for
      * driving something yourself: the same {@code :range}/{@code :value} as {@code :slider()}, minus the
-     * {@code final} flag on {@code :onChange(fn)} — the engine gives this control no separate "drag ended" hook.
+     * {@code final} flag on {@code :on("Changed", fn)} — the engine gives this control no separate "drag ended" hook.
      */
     static LuaValue scrollbar(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():scrollbar() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():scrollbar():range(0, 100):value(0):onChange(fn)");
+                + " chained setters: hafen.ui():scrollbar():range(0, 100):value(0):on(\"Changed\", fn)");
         UI u = UiApi.requireUi("scrollbar");
         return UiApi.attach(u, owner, new CScrollbar(owner));
     }
 
     /**
      * {@code hafen.ui():entry()} — a real {@link haven.TextEntry}, the client's own (task 040.7). Its content is
-     * {@code :value(s)} — the ONE door (decision A) — with {@code :onChange(fn)} firing per keystroke and
-     * {@code :onSubmit(fn)} once, on Enter.
+     * {@code :value(s)} — the ONE door (decision A) — with {@code :on("Changed", fn)} firing per keystroke and
+     * {@code :on("Submitted", fn)} once, on Enter.
      */
     static LuaValue entry(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():entry() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():entry():value(\"\"):onChange(fn):onSubmit(fn)");
+                + " chained setters: hafen.ui():entry():value(\"\"):on(\"Submitted\", fn)");
         UI u = UiApi.requireUi("entry");
         return UiApi.attach(u, owner, new CEntry(owner));
     }
@@ -332,7 +332,7 @@ final class Controls {
     /**
      * {@code hafen.ui():scroll()} — a scrolling container over {@link haven.Scrollport}'s own two pieces (task
      * 040.8): {@code :parent(sp)} on any control puts it INSIDE the scrolling area, never beside the bar, and
-     * the bar answers the same {@code :range}/{@code :value}/{@code :onChange} as a bare {@code :scrollbar()}
+     * the bar answers the same {@code :range}/{@code :value}/{@code "Changed"} as a bare {@code :scrollbar()}
      * (found the ordinary way, {@code s:ui():matchAll("@Scrollbar")} or {@code sp:children()}) once content
      * taller than the box makes it live. The container itself has no verb of its own.
      */
@@ -348,13 +348,13 @@ final class Controls {
      * {@code hafen.ui():listbox()} — a real {@link haven.SListBox}, the client's own scrolling row list (task
      * 040.9), the first of the model-backed five. Its row source is {@code :rows(t)} — the Lua-array bridge
      * {@link LuaRows} every later model-backed control reuses (D-108) — its selection
-     * {@code :value()}/{@code :value(v)}, and {@code :onChange(fn)} fires on a real pick only, exactly the same
+     * {@code :value()}/{@code :value(v)}, and {@code :on("Changed", fn)} fires on a real pick only, exactly the same
      * spine every other value-bearing control in this feature already answers.
      */
     static LuaValue listbox(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():listbox() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():listbox():rowHeight(20):rows{\"A\", \"B\"}:onChange(fn)");
+                + " chained setters: hafen.ui():listbox():rowHeight(20):rows{\"A\", \"B\"}:on(\"Changed\", fn)");
         UI u = UiApi.requireUi("listbox");
         return UiApi.attach(u, owner, new CList(owner, Px.in(CList.DEF_SZ), CList.defaultItemHeight()));
     }
@@ -363,13 +363,13 @@ final class Controls {
      * {@code hafen.ui():dropdown()} — a real {@link haven.SDropBox}, the client's own closed-until-clicked row
      * list (task 040.10), the second of the model-backed five: the same {@link LuaRows} bridge
      * {@code :listbox()} uses (D-108). Its row source is {@code :rows(t)}, its pick
-     * {@code :value()}/{@code :value(v)}, and {@code :onChange(fn)} fires on a real pick only — the same spine
+     * {@code :value()}/{@code :value(v)}, and {@code :on("Changed", fn)} fires on a real pick only — the same spine
      * {@code :listbox()} answers.
      */
     static LuaValue dropdown(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():dropdown() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():dropdown():rowHeight(18):rows{\"A\", \"B\"}:onChange(fn)");
+                + " chained setters: hafen.ui():dropdown():rowHeight(18):rows{\"A\", \"B\"}:on(\"Changed\", fn)");
         UI u = UiApi.requireUi("dropdown");
         return UiApi.attach(u, owner,
             new CDropdown(owner, Px.in(CDropdown.DEF_W), Px.in(CDropdown.DEF_LISTH), CDropdown.defaultItemHeight()));
@@ -378,13 +378,13 @@ final class Controls {
     /**
      * {@code hafen.ui():menu()} — a real {@link haven.SListMenu}, the client's own row-of-actions widget (task
      * 040.10), the third of the model-backed five over the same {@link LuaRows} bridge. It FIRES and holds
-     * nothing: {@code :value()} reads {@code nil} on it, and {@code :onSelect(fn)} — not {@code :onChange} — is
+     * nothing: {@code :value()} reads {@code nil} on it, and {@code :on("Selected", fn)} — not {@code "Changed"} — is
      * what carries the picked row.
      */
     static LuaValue menu(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():menu() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():menu():rows{\"A\", \"B\"}:onSelect(fn)");
+                + " chained setters: hafen.ui():menu():rows{\"A\", \"B\"}:on(\"Selected\", fn)");
         UI u = UiApi.requireUi("menu");
         return UiApi.attach(u, owner, new CMenu(owner, Px.in(CMenu.DEF_SZ), CMenu.defaultItemHeight()));
     }
@@ -393,14 +393,14 @@ final class Controls {
      * {@code hafen.ui():grid()} — a real {@link haven.GridList}, the client's own laid-out icon grid (task
      * 040.11), the fourth of the model-backed five and the odd one out: it DRAWS cells rather than building row
      * widgets, so its row source ({@code :rows(t)}, a plain array of arbitrary Lua values) is painted through
-     * {@code :onCell(g, item, w, h)} — the same {@code g} wrapper {@code widget:onDraw(fn)} hands a surface —
+     * {@code :on("Cell", fn)}, {@code event:g()} the same wrapper {@code widget:on("Draw", fn)} hands a surface —
      * rather than turned into rows by {@link LuaRows}. {@code :cellSize(w, h)} is the cell box and, like
      * {@code :rowHeight(n)}, building-only.
      */
     static LuaValue grid(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():grid() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():grid():cellSize(48, 48):rows(items):onCell(fn)");
+                + " chained setters: hafen.ui():grid():cellSize(48, 48):rows(items):on(\"Cell\", fn)");
         UI u = UiApi.requireUi("grid");
         return UiApi.attach(u, owner, new CGrid(owner, Px.in(CGrid.DEF_SZ), Px.in(CGrid.DEF_CELL)));
     }
@@ -1208,7 +1208,7 @@ final class Controls {
      * {@code widget:range(min, max)} — the value BOUNDS of a slider or scrollbar. Dispatches on {@link Range}
      * and hands both raw bounds to the implementation, which type-checks them through {@link #bound} and
      * throws naming the rule (040.6: {@link CSlider}/{@link CScrollbar} require {@code min <= max}, and
-     * re-clamp a value that no longer fits WITHOUT firing {@code :onChange} — narrowing the range is not a
+     * re-clamp a value that no longer fits WITHOUT firing {@code "Changed"} — narrowing the range is not a
      * user interaction).
      */
     static void range(Owned c, Widget w, Varargs a) {

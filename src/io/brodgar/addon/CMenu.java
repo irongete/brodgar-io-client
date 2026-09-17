@@ -16,7 +16,7 @@ import java.util.List;
  * widget (spec {@code 040-ui-controls}, task 040.10): the third of the model-backed five, reusing
  * {@link LuaRows} exactly as {@link CList}/{@link CDropdown} do (D-108). It FIRES and holds nothing —
  * {@code :value()} reads {@code nil} on it (this class does not implement {@link Controls.Value}) — so
- * {@code :onSelect(fn)} is its own name rather than the shared {@code :onChange(fn)} spine.
+ * {@code :on("Selected", fn)} is its own name rather than the shared {@code :on("Changed", fn)} spine.
  *
  * <p><b>Subclasses {@code SListMenu} directly</b>, the same shape {@link CDropdown} settles for {@code SDropBox}:
  * neither adapter goes through the engine's {@code of(...)} factories (which hand back anonymous subclasses),
@@ -33,7 +33,7 @@ import java.util.List;
  * workaround — this control behaves like an ordinary embedded widget, not a floating popup. One side effect:
  * the ESC-cancels / click-outside-cancels paths ({@code keydown}/{@code mousedown} calling
  * {@code choice(null)}) go inert without the grab, since neither reaches this widget for an event outside its
- * own box any more. That costs nothing this feature promises — {@code :onSelect} fires from a real row pick
+ * own box any more. That costs nothing this feature promises — {@code "Selected"} fires from a real row pick
  * either way.
  */
 final class CMenu extends SListMenu<LuaRows.Row, Widget> implements Owned.Control, Controls.Rows,

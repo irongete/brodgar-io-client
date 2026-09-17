@@ -1602,7 +1602,7 @@ public final class LuaWidget {
         // rows(t) / rows() — 040.5: the ROW SOURCE of a model-backed control (spec 040 §1) — an array. Reads
         // back exactly the table last given. hafen.ui():radio() is the first builder that answers it: three
         // labels become three RadioButtons stacked under it. A control with no row source reads nil and a
-        // write there throws naming what does, exactly like :value()/:onChange().
+        // write there throws naming what does, exactly like :value()/"Changed".
         m.set("rows", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:rows() → narg 1 · w:rows(t) → narg 2
                 LuaValue self = a.arg1();
@@ -1619,7 +1619,7 @@ public final class LuaWidget {
         // range(min, max) / range() — 040.6: the value BOUNDS of a slider or scrollbar. The bare read hands
         // back {min=, max=} as they stand; a control with none reads nil, and a write there throws naming the
         // builders that take one. Changing the range RE-CLAMPS a value that no longer fits, WITHOUT firing
-        // :onChange — narrowing is not a user interaction, the same direct-field-write discipline 040.3/040.4
+        // "Changed" — narrowing is not a user interaction, the same direct-field-write discipline 040.3/040.4
         // pinned for a programmatic :value(v). An explicit widget:range(nil) is refused (R5) like any other
         // required argument, naming "min" — there is no "undo" meaning for a control's own bounds the way
         // :position(nil)/:size(nil) undo a layer on a possibly-borrowed widget.

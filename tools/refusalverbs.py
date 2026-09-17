@@ -164,6 +164,10 @@ HOPS = {
 for _c in ("window", "widget", "button", "label", "entry", "check", "radio", "slider", "scroll", "scrollbar",
            "dropdown", "menu", "listbox", "table", "grid", "image", "progress", "separator"):
     HOPS[("hafen.ui()", _c)] = "widget"
+# ...and a widget's chained setters hand the widget back, so a builder chain a message spells
+# (`hafen.ui():button():text("Go"):position(x, y):parent(w):on("Pressed", fn)`) walks to the verb it promises.
+WIDGET_SETTERS = {"text", "position", "size", "parent", "title", "resizable", "image", "source", "value", "range",
+                  "rows", "rowHeight", "cellSize", "columns"}
 
 # Collections whose spelling is built at runtime (a local, a parameter) -- named here, a list to keep.
 HAND_SPELLINGS = {
@@ -588,6 +592,8 @@ def hop(spelling, step, vocab):
         return nxt
     if (spelling, step) in HOPS:
         return HOPS[(spelling, step)]
+    if (spelling == "widget") and (step in WIDGET_SETTERS):
+        return "widget"
     if (spelling in MEMBER) and (step in ("get", "find", "add", "nearest", "current")):
         return MEMBER[spelling]
     r = docverbs.RETURNS.get((spelling, step))

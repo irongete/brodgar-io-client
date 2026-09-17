@@ -60,7 +60,7 @@ final class CScrollbar extends Scrollbar implements Owned.Control, Controls.Valu
 
     /**
      * {@code s:range(min, max)} — {@code min} must not exceed {@code max}; re-clamps the current value into
-     * the new bounds WITHOUT firing {@code :onChange} (narrowing the range is not a user interaction).
+     * the new bounds WITHOUT firing {@code "Changed"} (narrowing the range is not a user interaction).
      */
     public void range(LuaValue minv, LuaValue maxv) {
         int nmin = Controls.bound(minv, "min"), nmax = Controls.bound(maxv, "max");

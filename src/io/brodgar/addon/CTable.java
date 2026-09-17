@@ -43,7 +43,7 @@ import java.util.List;
  * {@code TableBox}'s columns ({@code cols}, {@code main}) are {@code public final}, fixed at construction from
  * {@code spec()}, so a different column set is a different widget under the same Lua handle. {@link
  * Controls#columns} carries the current rows across that rebuild, exactly as {@link Controls#cellSize} carries a
- * grid's rows and {@code :onCell} handler. {@code :rowHeight(n)} is the SAME shape, over the same rebuild.
+ * grid's rows and {@code "Cell"} handler. {@code :rowHeight(n)} is the SAME shape, over the same rebuild.
  */
 abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Controls.Rows, Controls.RowHeight,
         Controls.Columns {

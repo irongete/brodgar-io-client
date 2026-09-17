@@ -35,7 +35,7 @@ import java.util.function.Supplier;
  * SListWidget}'s own selection is IDENTITY-keyed ({@code IdentityHashMap}, {@code !=} comparisons in its diff),
  * so a {@link CList} keeps {@link Row} objects (not the raw values) as its {@code I} type and hands the raw
  * value back out through {@code :value()}, which is what lets a later {@code :value(row)} name one by the very
- * object an earlier {@code :rows(t)} or an {@code :onChange} handler already gave the caller.
+ * object an earlier {@code :rows(t)} or an {@code "Changed"} handler already gave the caller.
  */
 final class LuaRows {
     private LuaRows() {

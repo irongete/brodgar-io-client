@@ -16,7 +16,7 @@ import java.util.List;
  * The adapter behind {@code hafen.ui():dropdown()} — a real {@link SDropBox}, the client's own closed-until-
  * clicked row list (spec {@code 040-ui-controls}, task 040.10): the second of the model-backed five, reusing
  * {@link LuaRows} exactly as {@link CList} does (D-108). {@code :rows(t)} is the row source,
- * {@code :value()}/{@code :value(v)} the current pick, {@code :onChange(fn)} fires on a real pick only, and
+ * {@code :value()}/{@code :value(v)} the current pick, {@code :on("Changed", fn)} fires on a real pick only, and
  * {@code :rowHeight(n)} — like {@link CList}'s — is building-only.
  *
  * <p><b>Subclasses {@code SDropBox} directly, exactly like {@link CList} subclasses {@code SListBox}</b> — the
@@ -31,7 +31,7 @@ import java.util.List;
  * in the closed box — that is built and swapped only inside {@link SDropBox#change}. Calling
  * {@code super.change(item)} from the write runs exactly that state update (and its {@code makeitem} rebuild
  * of the closed-box widget through {@link #makeitem}) while skipping THIS adapter's own override below, which
- * is where the {@code :onChange} notify lives — the same D-153 outcome (no re-entering the handler) reached
+ * is where the {@code "Changed"} notify lives — the same D-153 outcome (no re-entering the handler) reached
  * through the shape this engine class actually has.
  *
  * <p><b>{@link #makeitem} must tolerate a {@code null} item.</b> {@link SDropBox#change} calls it with
@@ -121,7 +121,7 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
      * {@code d:rows(t)} — an array of rows (040.10); replaces the whole set. Validated and resolved BEFORE
      * anything is torn down (see {@link LuaRows#parse}), so a bad table leaves the existing rows exactly as
      * they were. The previous selection does not carry over — it may not name a row in the new set — so the
-     * closed box is cleared via {@code super.change(null)}, bypassing this adapter's own {@code :onChange}
+     * closed box is cleared via {@code super.change(null)}, bypassing this adapter's own {@code "Changed"}
      * notify (clearing on a table replacement is not a user pick).
      */
     public void rows(LuaValue t) {

@@ -300,8 +300,8 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
 
     /**
      * {@code widget:on("Draw"/"Drop"/"Close", fn)} — the notifications a surface answers from the pass or the
-     * gesture that raised them (041.4, re-spelled off the single {@code onDraw(fn)}/{@code onDrop(fn)}/
-     * {@code onClose(fn)} slots this widget used to carry): each looks up its {@link WidgetSubs} WITHOUT
+     * gesture that raised them (041.4, re-spelled off the single per-callback slots this widget used to
+     * carry): each looks up its {@link WidgetSubs} WITHOUT
      * minting one ({@link Addon#widgetSubsOrNull}), so an unlistened surface costs one map lookup a draw and
      * nothing else. N subscribers, in registration order, exactly like every other key in the API.
      *
@@ -415,7 +415,7 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     }
 
     /**
-     * Build the neutral drop descriptor for {@code onDrop} (D-038), or {@code null} for a thing v1 does not
+     * Build the neutral drop descriptor for {@code "Drop"} (D-038), or {@code null} for a thing v1 does not
      * deliver. A menu-grid action &rarr; {@code {kind="pagina", res="<name>"}}, where {@code res} is the
      * action's resource name once it has resolved — for an <b>id-only</b> pagina ({@code fl&2}, the
      * server-pushed abilities) as much as for a resource-based one, because that name is the entry's identity

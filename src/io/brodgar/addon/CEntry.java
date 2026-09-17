@@ -19,7 +19,7 @@ import org.luaj.vm2.LuaValue;
  * <p><b>{@code :value(v)} does NOT go through {@link ReadLine#setline}.</b> The engine's own {@code Base.setline}
  * (and {@code TextEntry.settext}, which calls it) notifies {@code owner.changed(this)} whenever the line actually
  * differs — the one hook a real edit fires through — so writing a value that way would re-enter
- * {@code :onChange} for a value the addon itself just wrote, exactly the feedback loop D-150's whole roster has
+ * {@code "Changed"} for a value the addon itself just wrote, exactly the feedback loop D-150's whole roster has
  * to not have. {@link TextEntry#rsettext} is the way out: it replaces the {@link ReadLine} buffer outright
  * (the same thing the constructor does) rather than editing the live one, so it notifies nothing — D-153's direct
  * write, one level further in because this control's state is a buffer object rather than a field.
@@ -68,7 +68,7 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
         return LuaValue.valueOf(text());
     }
 
-    /** {@code e:value(v)} — {@code v} must be a string; replaces the buffer outright, so it does NOT fire :onChange. */
+    /** {@code e:value(v)} — {@code v} must be a string; replaces the buffer outright, so it does NOT fire "Changed". */
     public void value(LuaValue v) {
         // Args.str, which asks the TYPE: the hand-rolled !isstring() || isnumber() refused "42" and "061.8",
         // ordinary strings a user types into an ordinary field, because in LuaJ a string that scans as a

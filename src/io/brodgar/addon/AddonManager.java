@@ -4955,11 +4955,12 @@ public final class AddonManager {
         // craft:make, slot:use, pag:use, the kin writes, flowermenu:select) share the one gate,
         // requirePermission — each asking for its own key out of the Permission catalogue.
 
-        // hafen.ui — custom client-side UI (spec 07, Phase 2a). window(opts) = a draggable, titled window;
-        // widget(opts) = a bare rectangle (no chrome). opts: size={w,h}, pos={x,y}, parent="root"|"gameui",
-        // title (window only), and callbacks onDraw(g,w,h) / onTick(dt) / onClick(x,y,button) / onMouseUp /
-        // onMouseMove(x,y) / onWheel(x,y,amount) / onClose (window). Returns a handle:
-        //   :move(x,y)  :show()  :hide()  :visible()  :pack()  :size(w,h)  :destroy()
+        // hafen.ui — custom client-side UI (spec 07, Phase 2a). :window() = a draggable, titled window;
+        // :widget() = a bare rectangle (no chrome). Both are built bare and configured by chained setters
+        // (:size(w, h), :position(x, y), :parent(w), :title(s) on a window) and painted and driven through
+        // :on(key, fn): "Draw" (event:g(), :w(), :h()), "Update" (delta seconds), "MouseDown"/"MouseUp"/
+        // "MouseMove"/"Wheel", "Drop", and "Close" on a window. The handle answers :visible(b) :pack()
+        // :destroy() like any widget.
         // The widget is bridge-owned (P2) and torn down on reload/disable. Client-side only: it cannot
         // wdgmsg the server — that is widget:send(msg, ...) on a BOUND widget, 048.6. See AddonWidget for the
         // callback plumbing.

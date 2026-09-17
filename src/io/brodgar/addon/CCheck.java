@@ -15,13 +15,13 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>{@code :value(v)} writes {@link CheckBox#a} directly, never through {@link haven.ACheckBox#set}.</b>
  * The engine's own {@code set(boolean)} is what a USER click runs (compare-and-{@link #fire}), and going
- * through it from a programmatic write would re-enter {@code :onChange} for a value the addon itself just
+ * through it from a programmatic write would re-enter {@code "Changed"} for a value the addon itself just
  * wrote — exactly the feedback loop D-150's whole roster of value-bearing controls has to not have. So a write
  * here is a bare field assignment, symmetric with {@link CProgress#value(LuaValue)}.
  *
  * <p><b>The user-driven half goes through the engine's own click path unmodified</b>
  * ({@code CheckBox.mousedown} &rarr; {@code ACheckBox.click} &rarr; {@code set(!state())}), which is exactly
- * what has to fire {@code :onChange} — only {@link haven.ACheckBox#changed} is replaced, from the stock
+ * what has to fire {@code "Changed"} — only {@link haven.ACheckBox#changed} is replaced, from the stock
  * consumer (a {@code wdgmsg} this client-side control never wants to send anyway, since {@code canactivate}
  * defaults {@code false} on a bare-constructed widget) to {@link #fire}, the one Lua callback slot.
  *
@@ -58,7 +58,7 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
         return LuaValue.valueOf(a);
     }
 
-    /** {@code c:value(v)} — {@code v} must be a boolean; a direct field write, so it does NOT fire :onChange. */
+    /** {@code c:value(v)} — {@code v} must be a boolean; a direct field write, so it does NOT fire "Changed". */
     public void value(LuaValue v) {
         this.a = Args.bool(v, "widget:value", "v", "a checkbox holds one or the other");
     }
