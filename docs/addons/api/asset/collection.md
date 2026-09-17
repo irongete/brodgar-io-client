@@ -1,6 +1,6 @@
 # hafen.asset: The Collection
 
-`hafen.asset()` is the collection of the files this addon has loaded, plus the one read that looks at your folder rather than at what is loaded. Every verb is unprotected; every path is [addon-relative and sandboxed](README.md#paths-are-addon-relative-and-sandboxed).
+`hafen.asset()` is the collection of the files this addon has loaded. It adds the one read that looks at your folder rather than at what is loaded. Every verb is unprotected. Every path is [addon-relative and sandboxed](README.md#paths-are-addon-relative-and-sandboxed).
 
 ```lua
 for _, path in ipairs(hafen.asset():files("songs")) do
@@ -23,14 +23,14 @@ end
 
 | Rule | Detail |
 |---|---|
-| `filter` | The canonical [filter](../conventions.md#the-filter-argument); a string matches the addon-relative path an asset was loaded from. |
+| `filter` | The canonical [filter](../conventions.md#the-filter-argument). A string matches the addon-relative path an asset was loaded from. |
 | No `:add` | An asset is a file you shipped. |
 | `:remove(asset)` | Takes the handle. Frees the memory on the spot and drops the intern entry, so the next `:get(path)` re-reads the file as a new object. Your own files only: a built-in font, a derived variant, a [map drawing](../map/drawings.md) and a file another addon loaded are each refused, saying which. |
-| Only loaded files are listed | A [built-in font](../font.md#the-built-ins) has no file, path or lifetime; a derived variant is not listed either. A freed asset is gone and never resurrected. |
+| Only loaded files are listed | A [built-in font](../font.md#the-built-ins) has no file, path or lifetime. A derived variant is not listed either. A freed asset is gone and never resurrected. |
 
 ```lua
 for _, asset in ipairs(hafen.asset():list()) do
-  hafen.log():write(("%-5s %s"):format(asset:type(), asset:path()))
+  hafen.log():write(asset:type() .. " " .. asset:path())
 end
 ```
 
@@ -38,7 +38,7 @@ end
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `hafen.asset():files(dir)` | `string[]` | Unprotected | The regular files directly inside `dir`, as a 1-based array of addon-relative paths spelled with `/`, sorted by name, each a path `:get` takes as it is. `dir` is relative to your addon folder (`"songs"`, `"img/icons"`); omitted, it names the addon folder itself. |
+| `hafen.asset():files(dir)` | `string[]` | Unprotected | The regular files directly inside `dir`, as a 1-based array of addon-relative paths spelled with `/`, sorted by name. Each is a path `:get` takes as it is. `dir` is relative to your addon folder (`"songs"`, `"img/icons"`). Omitted, it names the addon folder itself. |
 
 ```lua
 local songs = hafen.asset():files("songs")            -- { "songs/air.mid", "songs/reel.mid" }
@@ -48,8 +48,8 @@ if #songs == 0 then hafen.log():write("no songs shipped") end
 | Rule | Detail |
 |---|---|
 | Reads the folder every call | A file dropped in while the client runs is seen on the next call without a `:reload`. |
-| Exactly what `:get` would load | The [containment check](README.md#paths-are-addon-relative-and-sandboxed) resolves `dir` and every entry: an entry whose real path leaves your folder (a link out) is not listed. A folder inside `dir` is not listed; name it to see under it. An empty folder is an empty array. |
-| Raises | A `dir` that is absolute or climbs out, as `:get` does; one that is not a folder of yours, naming it. |
+| Exactly what `:get` would load | The [containment check](README.md#paths-are-addon-relative-and-sandboxed) resolves `dir` and every entry: an entry whose real path leaves your folder (a link out) is not listed. A folder inside `dir` is not listed. Name it to see under it. An empty folder is an empty array. |
+| Raises | A `dir` that is absolute or climbs out, as `:get` does. One that is not a folder of yours, naming it. |
 
 ## Errors
 
@@ -57,7 +57,7 @@ Every refusal is a `pcall`-able error naming `hafen.asset`.
 
 | Call | Refusal names |
 |---|---|
-| `:get("/etc/passwd")` | The path is absolute; every path is relative to your own folder. |
+| `:get("/etc/passwd")` | The path is absolute. Every path is relative to your own folder. |
 | `:get("../other/icon.png")` | The path is not inside your addon folder. |
 | `:get("link/icon.png")`, `link` pointing out | The same refusal: the check follows the link. |
 | `:get("nope.png")` | No such file in this addon's folder, checked before any decode. |
@@ -66,13 +66,13 @@ Every refusal is a `pcall`-able error naming `hafen.asset`.
 | `:get({})`, `:get(fn)` | Expected a path string, got a table or a function. |
 | `:get("")` | The path must be a non-empty string. |
 | `:get(nil)` | The key is required: arity is the verb, so a `nil` variable is refused rather than read as the list. |
-| `:get("icon.png")` from `:lua` | The console has no addon folder; an asset path is relative to the loading addon's folder. |
+| `:get("icon.png")` from `:lua` | The console has no addon folder. An asset path is relative to the loading addon's folder. |
 | `:files("nope")` | No such folder in this addon's folder. |
 | `:files("../other")` | The path is not inside your addon folder. |
 | `:remove("icon.png")` | Pass the handle, not a path. |
 | `:remove(handle)` on a built-in font or a variant | Neither was loaded from a file, so this collection does not hold it. |
 | `:remove(image)` on another addon's image | The addon that loaded it: freeing a file is that addon's job. |
-| `:remove(image)` on a [map drawing](../map/drawings.md) | A picture of the database, not a file you shipped; it ends with `image:dispose()`. |
+| `:remove(image)` on a [map drawing](../map/drawings.md) | A picture of the database, not a file you shipped. It ends with `image:dispose()`. |
 
 ## Example
 
@@ -84,7 +84,8 @@ hafen.event():on("Load", function()
   face  = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
   chair = hafen.asset():get("props/chair.glb")
   local icon_size, chair_bounds = icon:size(), chair:bounds()
-  hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(icon_size.w, icon_size.h, chair_bounds.extent.z / 11))
+  local tiles_tall = math.floor(chair_bounds.extent.z / 11 * 10 + 0.5) / 10     -- one decimal by hand: %.1f prints the raw double
+  hafen.log():write(("icon %dx%d, chair %s tiles tall"):format(icon_size.w, icon_size.h, tiles_tall))
 end)
 
 local window = hafen.ui():window():title("My addon"):size(160, 80):font(face)

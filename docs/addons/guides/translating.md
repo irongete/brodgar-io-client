@@ -1,6 +1,6 @@
 # Translating the Client
 
-One catalogue says what this client displays: an entry names the string the client would have drawn and the surface it is drawn at, so a translation is a JSON file your addon ships and a dozen lines of Lua. No permission; client-local; releasing it or disabling your addon puts the client's English back.
+One catalogue says what this client displays. An entry names the string the client would have drawn and the surface it is drawn at. A translation is a JSON file your addon ships, loaded from Lua. No permission. Client-local. Releasing it or disabling your addon puts the client's English back.
 
 ```lua
 hafen.locale():load{
@@ -15,15 +15,15 @@ hafen.locale():load{
 
 ## One catalogue, one command
 
-Reload, open a window, and the caption is in your words; `hafen.locale():release()` hands them back.
+Reload, open a window, and the caption is in your words. `hafen.locale():release()` restores the client's own.
 
 | Rule | Detail |
 |---|---|
-| One catalogue per addon | Handed back by identity from [`hafen.locale()`](../api/locale.md); `:install()` replaces the displayed one whole. `:load(document)` on an installed catalogue is what the client says from that line on: no re-apply verb, nothing to restart. |
+| One catalogue per addon | Handed back by identity from [`hafen.locale()`](../api/locale.md). `:install()` replaces the displayed one whole. `:load(document)` on an installed catalogue is what the client says from that line on: no re-apply verb, nothing to restart. |
 
 ## Write the first file by playing
 
-A key is the string as the surface composed it (a tooltip row carries the number the player's item put in it, a System line the name of the addon that wrote it), so write the file from what the client offered: install a catalogue that names nothing, play, and read back what missed.
+A key is the string as the surface composed it. A tooltip row carries the number the player's item put in it. A System line carries the name of the addon that wrote it. So write the file from what the client offered. Install a catalogue that names nothing, play, and read back what missed.
 
 ```lua
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
@@ -40,15 +40,15 @@ end)
 
 | Rule | Detail |
 |---|---|
-| The sweep | Open the windows you mean to translate, hover the items, right-click for a menu, type `:dump`: the terminal shows a JSON object keyed as a catalogue's `text` is, every string doubled. Translate the right-hand side. |
-| Kept in a var | Reached through `hafen.store()`, since the client's strings are not one character's; the live table grows across sweeps. |
+| The sweep | Open the windows you mean to translate, hover the items, right-click for a menu, type `:dump`. The terminal shows a JSON object keyed as a catalogue's `text` is, every string doubled. Translate the right-hand side. |
+| Kept in a var | Reached through `hafen.store()`, since the client's strings are not one character's. The live table grows across sweeps. |
 | Rounds | `:install()` starts a fresh round, so re-installing between sweeps tells you what one sweep reached. [`locale:miss()`](../api/locale.md#what-missed) is per addon, bounded, and holds neither a string yours matched nor anything an addon drew, so the same command is your progress report. |
 
 ## The file
 
 Nothing in a catalogue is a handle or code, so the document is JSON your addon ships.
 
-```text
+```json
 { "text": {
     "button":       { "Cancel": "Cancelar", "Buy": "Comprar" },
     "window.title": { "Inventory": "Inventario", "Character Sheet": "Hoja de personaje" },
@@ -63,12 +63,12 @@ Nothing in a catalogue is a handle or code, so the document is JSON your addon s
 
 | Rule | Detail |
 |---|---|
-| The key is the surface | The surface's own key is looked up first, `"*"` after it has missed. [The surfaces a catalogue names](../api/locale.md) draw text; a key naming a window's frame or a checkbox raises listing them. |
-| A tooltip is many rows | An item's name, quality, wear and each bonus reach `tooltip` as separate strings; an entry names one row. Most are drawn by code inside the resource, keyed and answered like a button caption. |
+| The key is the surface | The surface's own key is looked up first, `"*"` after it has missed. [The surfaces a catalogue names](../api/locale.md) draw text. A key naming a window's frame or a checkbox raises listing them. |
+| A tooltip is many rows | An item's name, quality, wear and each bonus reach `tooltip` as separate strings. An entry names one row. Most are drawn by code inside the resource, keyed and answered like a button caption. |
 
 ## The strings the client composed
 
-A row carrying a number is a different string every time, so a [pattern](../api/locale.md#patterns-the-strings-the-client-composed) names its shape: the surface, a `match` for the whole string, and the `text` to draw with `%1$s` where the first capture group goes.
+A row carrying a number is a different string every time, so a [pattern](../api/locale.md#patterns-the-strings-the-client-composed) names its shape. A pattern is the surface, a `match` for the whole string, and the `text` to draw with `%1$s` where the first capture group goes.
 
 ```lua
 hafen.locale():load{
@@ -82,8 +82,8 @@ hafen.locale():load{
 | Rule | Detail |
 |---|---|
 | Groups by number | `%2$s` is the second group wherever it stands, so your language orders the parts. |
-| An ordered list | Two patterns can describe one string and position says which wins; every exact key is consulted first. |
-| Write `match` tightly | A pattern reaches a whole string, not a word: one wide enough to catch a composed line catches a typed one too, which is why a catalogue keys on `button` and `menu` rather than `"*"`. |
+| An ordered list | Two patterns can describe one string and position says which wins. Every exact key is consulted first. |
+| Write `match` tightly | A pattern reaches a whole string, not a word. One wide enough to catch a composed line catches a typed one too. That is why a catalogue keys on `button` and `menu` rather than `"*"`. |
 
 ## Ship it
 
@@ -92,14 +92,14 @@ local document = hafen.json():parse(hafen.asset():get("es.json"):text())
 hafen.locale():load(document):install()
 ```
 
-[`hafen.asset`](../api/asset/README.md) reads the file out of your folder as text, [`hafen.json`](../api/json.md) parses it. A language picker is one addon choosing which file to read. `locale:info()` says whether yours is in force and how much it holds; two addons' catalogues stack, the last installed winning per entry, so a string yours does not name falls through to the one beneath rather than to English.
+[`hafen.asset`](../api/asset/README.md) reads the file out of your folder as text, [`hafen.json`](../api/json.md) parses it. A language picker is one addon choosing which file to read. `locale:info()` says whether yours is in force and how much it holds. Two addons' catalogues stack, the last installed winning per entry. A string yours does not name falls through to the one beneath rather than to English.
 
 ## What a catalogue does not reach
 
 | Not reached | Detail |
 |---|---|
 | Free text | A chat body, a kin name, a player's words: a different string every time, so only a pattern around the varying part comes close. |
-| What the user types | No catalogue matches an entry field, `"*"` included; `textentry` is refused as a key. |
-| The model | A catalogue lands at the render: [`widget:text()`](../api/ui/widget.md), a [`[title=]` selector](../api/ui/selectors.md), an [action's](../api/menugrid.md) name and a [petal's](../api/flowermenu.md) answer the client's English while yours is installed, which lets an addon that reads a caption and one that translates it run side by side, and is why `locale:miss()` exists. |
+| What the user types | No catalogue matches an entry field, `"*"` included. `textentry` is refused as a key. |
+| The model | A catalogue lands at the render. [`widget:text()`](../api/ui/widget.md), a [`[title=]` selector](../api/ui/selectors.md), an [action's](../api/menugrid.md) name and a [petal's](../api/flowermenu.md) answer the client's English while yours is installed. That lets an addon that reads a caption and one that translates it run side by side, and it is why `locale:miss()` exists. |
 
 **Next:** [debugging](debugging.md) — the reload loop, the inspector, and finding out why a string did not change.

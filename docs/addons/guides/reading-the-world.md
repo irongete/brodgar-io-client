@@ -1,6 +1,6 @@
 # Reading the World
 
-Everything around your character is a game object (a tree, a boulder, an animal, a player's body), and reading them is unprotected: no permission, no declaration. This guide finds objects, reads one, and asks what the ground under them is.
+Everything around your character is a game object: a tree, a boulder, an animal, a player's body. Reading them is unprotected: no permission, no declaration. This guide finds objects, reads one, and asks what the ground under them is.
 
 ```lua
 local session = hafen.session():current()                                -- the character on screen
@@ -27,21 +27,22 @@ end)
 
 ## Read one
 
-A [Gob](../api/gob.md) is a live object holding an id and re-resolving on every call: one kept in a variable tracks its object as it moves and answers `nil` once the object is gone.
+A [Gob](../api/gob.md) is a live object holding an id and re-resolving on every call. One kept in a variable tracks its object as it moves, and answers `nil` once the object is gone.
 
 ```lua
 local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
 if tree and tree:exists() then
   local position = tree:position()
-  hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(position:x(), position:y(), tree:distance()))
+  local distance = math.floor(tree:distance() * 10 + 0.5) / 10                -- one decimal by hand: %.1f prints the raw double
+  hafen.log():write(("tree at %d, %d, %s away"):format(position:x(), position:y(), distance))
 end
 ```
 
-Two Gobs for one object are the same value, so `==` compares them and a table keyed by one remembers what you have seen without ids; two of your characters looking at one tree find the same Gob ([identity](../api/gob.md#identity)).
+Two Gobs for one object are the same value, so `==` compares them. A table keyed by one remembers what you have seen without ids. Two of your characters looking at one tree find the same Gob ([identity](../api/gob.md#identity)).
 
 ## Do not scan every frame
 
-A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer [`GobAdded` and `GobRemoved`](../api/event/bus/world.md#world) and keep your own index; when you must poll a value with no event, poll on a [timer](events-and-timers.md), not in `Update`.
+A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer [`GobAdded` and `GobRemoved`](../api/event/bus/world.md#world) and keep your own index. When you must poll a value with no event, poll on a [timer](events-and-timers.md), not in `Update`.
 
 ```lua
 local boars = {}
@@ -57,14 +58,14 @@ end)
 
 ## The character itself
 
-[`session:player()`](../api/player.md) is the anchor; everything positional about the character is read on its own Gob.
+[`session:player()`](../api/player.md) is the anchor. Everything positional about the character is read on its own Gob.
 
 ```lua
 local session = hafen.session():current()
 local my_gob = session:player():gob()              -- nil until that session is in the world
 if my_gob then
   local position = my_gob:position()
-  hafen.log():write(("standing at %.0f, %.0f"):format(position:x(), position:y()))
+  hafen.log():write(("standing at %d, %d"):format(position:x(), position:y()))
 end
 ```
 
@@ -81,11 +82,11 @@ local tile = session:world():tile(position)
 hafen.log():write(tile and (tile.name or tile.id) or "not loaded yet")
 ```
 
-> **World coordinates do not hold.** The client re-bases them whenever the server drops the map (every login, a walk into a cave), and they mean nothing to another player: a place is a [Position](../api/position.md), anchored to a map grid, which goes into [`hafen.store`](../api/store/README.md) and comes back the same place.
+> **World coordinates do not hold.** The client re-bases them whenever the server drops the map: every login, a walk into a cave. They mean nothing to another player. A place is a [Position](../api/position.md), anchored to a map grid. It goes into [`hafen.store`](../api/store/README.md) and comes back the same place.
 
 ## The map you explored
 
-Everything above is the world streamed around that character. The ground you walked over last month is on disk and outlives the session: [`hafen.map`](../api/map/README.md), with segments and grids, the claims and provinces that covered them, your markers and the corner minimap's drawings. A [Position](../api/position.md) is the door between the two halves.
+Everything above is the world streamed around that character. The ground already explored is on disk and outlives the session: [`hafen.map`](../api/map/README.md). It holds segments and grids, the claims and provinces that covered them, your markers and the corner minimap's drawings. A [Position](../api/position.md) is the value the two halves share.
 
 ```lua
 local session = hafen.session():current()
@@ -95,10 +96,10 @@ local tile = grid and grid:tile({ x = 0, y = 0 })            -- nil until the gr
 hafen.log():write(tile and tile.name or "not loaded yet, ask again next tick")
 ```
 
-A read needing a grid not yet loaded off the disk starts the load and answers `nil`; call again next tick. No callback, no ready event: a minimap panel is a few-times-a-second timer that is both the retry and the "did the picture change" test.
+A read needing a grid not yet loaded off the disk starts the load and answers `nil`. Call again next tick. No callback, no ready event: a minimap panel is a few-times-a-second timer that is both the retry and the "did the picture change" test.
 
 ## What the client does not know
 
-A gob's name is its type, so there is no display name for an arbitrary player; `gob:player()` is the test, and [`gob:kin()`](../api/kin.md) names the ones on that character's roster. Reading tells you what the client has been told: an object outside your view has not been loaded and does not exist to your addon.
+A gob's name is its type, so there is no display name for an arbitrary player. `gob:player()` is the test, and [`gob:kin()`](../api/kin.md) names the ones on that character's roster. Reading tells you what the client has been told: an object outside your view has not been loaded and does not exist to your addon.
 
 **Next:** [events and timers](events-and-timers.md) — when your code runs, and what to hang it off.

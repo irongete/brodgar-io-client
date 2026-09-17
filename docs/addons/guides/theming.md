@@ -1,6 +1,6 @@
 # Theming
 
-One sheet per addon says what the client looks like: a [selector](../api/ui/selectors.md) names a rule, the rule's properties are setters, and installing the sheet restyles the running client at once — no restart, no patched files, no permission, dropped when your addon is.
+One sheet per addon says what the client looks like. A [selector](../api/ui/selectors.md) names a rule, the rule's properties are setters, and installing the sheet restyles the running client at once. No restart, no patched files, no permission. Dropped when your addon is.
 
 ---
 
@@ -13,12 +13,12 @@ sheet:rule("chat"):color{190, 210, 190}
 sheet:install()
 ```
 
-`"*"` is the fallback under everything; `"chat"` refines one surface. `sheet:release()` puts the stock client back, as does disabling your addon.
+`"*"` is the fallback under everything. `"chat"` refines one surface. `sheet:release()` puts the stock client back, as does disabling your addon.
 
 | Rule | Detail |
 |---|---|
-| One sheet per addon | `hafen.ui():sheet()` hands it back by identity; `:install()` replaces the applied sheet whole. |
-| A rule is the same object each time its selector is named | An edit to an installed sheet lands on the spot; `sheet:rule("chat"):release()` gives one rule back. |
+| One sheet per addon | `hafen.ui():sheet()` hands it back by identity. `:install()` replaces the applied sheet whole. |
+| A rule is the same object each time its selector is named | An edit to an installed sheet lands on the spot. `sheet:rule("chat"):release()` gives one rule back. |
 
 ## What a key can name
 
@@ -27,7 +27,7 @@ sheet:install()
 | [Site key](../api/ui/style/keys.md#site-keys) | A place the client draws, wherever it is: a family of surfaces at once. | `chat`, `window.title`, `window.frame`, `panel`, `button`, `tooltip`, `label` |
 | [Tree key](../api/ui/style/keys.md#tree-keys) | The widgets a selector matches, and everything inside them. A chain reaches one part of one window. | `window[title=Inventory]`, `window[title=Inventory] label` |
 
-[Surfaces](../api/ui/style/surfaces.md), [chat](../api/ui/style/chat.md) and [hud](../api/ui/style/hud.md) say what each surface is under a rule; [what each key accepts](../api/ui/style/keys.md#what-each-key-accepts) says which properties a key honours.
+[Surfaces](../api/ui/style/surfaces.md), [chat](../api/ui/style/chat.md) and [hud](../api/ui/style/hud.md) say what each surface is under a rule. [what each key accepts](../api/ui/style/keys.md#what-each-key-accepts) says which properties a key honours.
 
 ## What a rule can say
 
@@ -40,7 +40,7 @@ sheet:install()
 | `:caption(t)`, `:closeButton(t)`, `:sizer(t)` | [A window's ornaments](../api/ui/style/chrome.md#ornaments). |
 | `:position(x, y)`, `:size(w, h)`, `:anchor(t)`, `:margin(n)` | [Where the widget is, how big, and the room around it](../api/ui/style/geometry.md). |
 
-Each setter returns the rule and reads back with no argument; properties are independent; a misspelt property raises naming the ones that exist.
+Each setter returns the rule and reads back with no argument. Properties are independent. A misspelt property raises naming the ones that exist.
 
 ```lua
 sheet:rule("window.frame")
@@ -53,14 +53,14 @@ sheet:rule("window[title=Inventory]"):anchor{ to = "screen", at = "bottomright",
 
 ## A theme is a file
 
-Every value has a JSON spelling — a [picture](../api/ui/style/chrome.md#naming-a-picture) is a path or a resource name, a [face](../api/ui/style/text.md#font) is named the same way, a list of pictures is an array, a walked colour is a [sequence](../api/ui/style/chat.md#the-two-colours-the-client-walks) — so a whole look lives in a file and the Lua only reads it.
+Every value has a JSON spelling, so a whole look lives in a file and the Lua only reads it. A [picture](../api/ui/style/chrome.md#naming-a-picture) is a path or a resource name. A [face](../api/ui/style/text.md#font) is named the same way. A list of pictures is an array. A walked colour is a [sequence](../api/ui/style/chat.md#the-colours-the-client-walks).
 
 ```lua
 local theme = hafen.json():parse(hafen.asset():get("theme.json"):text())
 hafen.ui():sheet():load(theme.rules):install()
 ```
 
-```text
+```json
 { "rules": {
     "*":            { "font": { "builtin": "serif", "size": 11 } },
     "window.frame": { "border": { "box": "gfx/hud/wnd", "mode": "tile" },
@@ -74,8 +74,8 @@ hafen.ui():sheet():load(theme.rules):install()
 
 | Rule | Detail |
 |---|---|
-| What the file says | A serif face at 11 design pixels under everything; the client's own frame, named by its folder, edges tiled, over two background layers; 8 px of room on three sides and 24 at the top, since a caption is painted and the room for a title bar is the padding's; the chat in one colour; speakers cycling two colours of yours. |
-| `sheet:load(rules)` | Takes the whole sheet and replaces what it said: the file is the document. Properties are the setter names; an unknown one raises. |
+| What the file says | A serif face at 11 design pixels under everything. The client's own frame, named by its folder, edges tiled, over two background layers. Room of 8 px on three sides and 24 at the top. A caption is painted, and the room for a title bar is the padding's. The chat in one colour. Speakers cycling two colours of yours. |
+| `sheet:load(rules)` | Takes the whole sheet and replaces what it said: the file is the document. Properties are the setter names. An unknown one raises. |
 | A `size` on `"*"` reaches every surface | Captions and headings included. [Omitting the size](../api/ui/style/text.md#font) swaps the family alone and leaves each surface its height. |
 
 ## Start from the client's own look
@@ -90,27 +90,29 @@ hafen.ui():sheet():load(look):install()        -- and the client looks exactly a
 
 ## One widget, and the cascade
 
-To restyle a single widget you hold, ask it for [its own rule](../api/ui/style/README.md#restyle-one-widget), the top of a cascade resolved most-specific first — the widget's level, the matching tree rule, the site rule, `*`, [the widget's own stock](../api/ui/custom.md#naming-and-dressing-your-own-surfaces), the client's stock — composing per property. [`widget:style()`](../api/ui/widget.md) reads what a widget resolves to. Layout resolves through the same cascade with the verb [`widget:position(x, y)`](../api/ui/native.md) as its top; a saved layout is a table of `widget:position()` reads kept in [`hafen.store`](../api/store/README.md).
+To restyle a single widget you hold, ask it for [its own rule](../api/ui/style/README.md#restyle-one-widget). That is the top of a cascade resolved most-specific first, composing per property. The levels: the widget's own, the matching tree rule, the site rule, `*`, [the widget's own stock](../api/ui/custom.md#naming-and-dressing-your-own-surfaces), the client's stock. [`widget:style()`](../api/ui/widget.md) reads what a widget resolves to. Layout resolves through the same cascade with the verb [`widget:position(x, y)`](../api/ui/native.md) as its top. A saved layout is a table of `widget:position()` reads kept in [`hafen.store`](../api/store/README.md).
 
 ## Reaching another addon's surfaces
 
 An addon that [names](../api/ui/custom.md#naming-and-dressing-your-own-surfaces) the surfaces it builds is themed like anything else, knowing nothing about themes.
 
 ```json
-"[name=actionbars/bar]":   { "border": { "box": "gfx/hud/wnd", "mode": "tile" } },
-"[name^=actionbars/slot]": { "bg": { "asset": "img/slot.png", "mode": "stretch" } }
+{ "rules": {
+    "[name=actionbars/bar]":   { "border": { "box": "gfx/hud/wnd", "mode": "tile" } },
+    "[name^=actionbars/slot]": { "bg": { "asset": "img/slot.png", "mode": "stretch" } }
+} }
 ```
 
 | Rule | Detail |
 |---|---|
-| `[name=…]` | [The one refiner an addon owns](../api/ui/selectors.md#the-one-refiner-an-addon-owns), written `<addon>/<name>`; it outranks every other part of a selector. |
+| `[name=…]` | [The one refiner an addon owns](../api/ui/selectors.md#the-one-refiner-an-addon-owns), written `<addon>/<name>`. It outranks every other part of a selector. |
 | One step is enough | What an addon declares for itself is a stock beneath every rule, so your rule wins without chaining. |
-| No site key falls into it | `["*"]` reaches the places the client draws; an addon's surface is reached only by a rule naming it. |
-| `^=` reaches a group | `[name^=actionbars/slot]` dresses `slot1`…`slot12`; `[name=actionbars/slot7]` one of them. The two weigh the same, so an exception is a chain, `[name=actionbars/bar] [name=actionbars/slot7]`. |
-| Finding names | Ask the addon, or point the `widgetstack` addon at it ([the maintainer's addons](../examples.md)); a name nobody answers to matches nothing. |
+| No site key falls into it | `["*"]` reaches the places the client draws. An addon's surface is reached only by a rule naming it. |
+| `^=` reaches a group | `[name^=actionbars/slot]` dresses `slot1`…`slot12`. `[name=actionbars/slot7]` dresses one of them. The two weigh the same, so an exception is a chain, `[name=actionbars/bar] [name=actionbars/slot7]`. |
+| Finding names | Ask the addon, or point the `widgetstack` addon at it ([the maintainer's addons](../examples.md)). A name nobody answers to matches nothing. |
 
 ## Where it stops
 
-The sheet restyles and does not rebuild: a state is a face [inside a value](../api/ui/style/chrome.md#a-face-per-state), not a key; there is no animation; re-flowing what a client window puts inside itself is [replacing](../api/ui/replace.md) it. [Where the skinning system ends](../api/ui/style/README.md#where-the-skinning-system-ends) states the boundary. Two addons styling one surface: entries tagged by owner, the last applied wins, disabling one falls back to the next.
+The sheet restyles and does not rebuild: a state is a face [inside a value](../api/ui/style/chrome.md#a-face-per-state), not a key. There is no animation. Re-flowing what a client window puts inside itself is [replacing](../api/ui/replace.md) it. [Where the skinning system ends](../api/ui/style/README.md#where-the-skinning-system-ends) states the boundary. Two addons styling one surface: entries tagged by owner, the last applied wins, disabling one falls back to the next.
 
 **Next:** [translating](translating.md) — what a surface draws, rather than what it is drawn with.

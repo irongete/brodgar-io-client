@@ -1,6 +1,6 @@
 # hafen.virtual: The Pieces a Patch Is Made Of
 
-A piece is one convex ring of a [patch](patches.md), and a patch is drawn as the union of its pieces: an L, a stroke or a field with a bite out of it is one patch of several pieces (one handle, one place, one look, no line across the join). `hafen.virtual():patch():add(ring, anchor)` lays a patch of one piece; `patch:piece():add(ring)` lays another into the same shape.
+A piece is one convex ring of a [patch](patches.md), and a patch is drawn as the union of its pieces. An L, a stroke or a field with a notch is one patch of several pieces. One handle, one place, one look, no line across the join. `hafen.virtual():patch():add(ring, anchor)` lays a patch of one piece. `patch:piece():add(ring)` lays another into the same shape.
 
 ```lua
 local session = hafen.session():current()
@@ -28,9 +28,9 @@ patch:border({255, 255, 255}, 0)                   -- ...and outlined round the 
 
 | Rule | Detail |
 |---|---|
-| No `:get(key)` | A piece has nothing to be addressed by; the refusal says so. |
+| No `:get(key)` | A piece has nothing to be addressed by. The refusal says so. |
 | `filter` | The canonical [filter](../conventions.md#the-filter-argument), except a piece is a region with no name: a string raises naming the two forms that work, as on `hafen.virtual():patch()`. |
-| `:add(ring)` takes no anchor | A piece is held as offsets from the patch's own [anchor](README.md#the-anchor-is-an-argument), so `patch:position(position)`, `patch:offset(x, y)`, `patch:rotate(angle)` and `patch:scale(k)` move every piece together, and a piece laid into a turned patch lands where the turned shape is. Laying into a patch that is gone raises naming `patch:exists()`. |
+| `:add(ring)` takes no anchor | A piece is held as offsets from the patch's own [anchor](README.md#the-anchor-is-an-argument). `patch:position(position)`, `patch:offset(x, y)`, `patch:rotate(angle)` and `patch:scale(k)` move every piece together. A piece laid into a turned patch lands where the turned shape is. Laying into a patch that is gone raises naming `patch:exists()`. |
 
 ## The ring
 
@@ -47,8 +47,8 @@ end
 
 | Rule | Detail |
 |---|---|
-| Kept as offsets from the anchor | Not as points, which is why the same ring means the same shape at a point and on an object, and why it survives [the numbers moving under it](README.md#the-ground-under-one-that-stands-still). |
-| Immutable | A different ring is a different piece. There is no `:ring()` verb; `piece:info().ring` reads the shape back. |
+| Kept as offsets from the anchor | Not as points. That is why the same ring means the same shape at a point and on an object. It is why it survives [the numbers moving under it](README.md#the-ground-under-one-that-stands-still). |
+| Immutable | A different ring is a different piece. There is no `:ring()` verb. `piece:info().ring` reads the shape back. |
 
 ## What a ring may be
 
@@ -59,9 +59,9 @@ Each rule is a refusal naming itself, for the ring `hafen.virtual():patch():add`
 | Fewer than three points | Raises: a ring of two is a line, and a line has no ground under it. |
 | Three or more points enclosing nothing (all one place, or all on one line) | Raises, naming how many edges it found. |
 | Concave | Raises: the silhouette is the intersection of the ring's edge half-planes, so a concave ring would draw as its hull. Split it into convex rings, one piece each. |
-| Crossing itself (a star, a bow-tie) | Raises as concave does: the half-planes carve the small shape in the middle. A star is five triangles and a pentagon; the point order decides which. |
+| Crossing itself (a star, a bow-tie) | Raises as concave does: the half-planes carve the small shape in the middle. A star is five triangles and a pentagon. The point order decides which. |
 | More than 32 edges | Raises naming the number, rather than truncating to the wrong shape. |
-| An element that is not a Position | Raises, naming which one and the three verbs that make a place. |
+| An element that is not a Position | Raises, naming which one and the verbs that make a place. |
 | A point with no way to reach the anchor (another grid, neither end located this session) | Raises: a ring one point short is the wrong shape. |
 
 ```lua
@@ -82,7 +82,7 @@ An edge is a segment, so a repeated point costs nothing: a ring of four points v
 
 ## Pieces overlap; they do not abut
 
-Two pieces laid edge to edge draw a faint hairline along the seam: the shape's distance is zero there, and zero is what the silhouette antialiases across. Overlap them, even by a fraction of a world unit, and the join carries nothing, as the L above does. The [border](patches.md#the-border) is a band off the union's edge, so it lays no line where two pieces meet.
+Two pieces laid edge to edge draw a faint hairline along the seam. The shape's distance is zero there, and zero is what the silhouette antialiases across. Overlap them, even by a fraction of a world unit, and the join carries nothing, as the L above does. The [border](patches.md#the-border) is a band off the union's edge, so it lays no line where two pieces meet.
 
 ## Taking one up
 
@@ -96,19 +96,19 @@ hafen.log():write(tostring(middle:exists()))      -- false
 
 | Rule | Detail |
 |---|---|
-| A taken-up piece goes on answering | `piece:exists()` reads `false`; [`piece:info()`](#the-piece) reads back the ring and where it stands. A piece of a patch that has ended reads the same `false`. |
-| Raises | A value that is not a piece; a piece of another patch (a shape is taken apart only by the patch that holds it); one already let go; a patch that is gone, naming `patch:exists()`. |
+| A taken-up piece goes on answering | `piece:exists()` reads `false`. [`piece:info()`](#the-piece) reads back the ring and where it stands. A piece of a patch that has ended reads the same `false`. |
+| Raises | A value that is not a piece. A piece of another patch (a shape is taken apart only by the patch that holds it). One already let go. A patch that is gone, naming `patch:exists()`. |
 | A patch with no pieces is still a patch | It holds its place, tint, border and everything else, and draws nothing: [`patch:drawn()`](patches.md#the-patch) is `false` until a piece is laid back, [`patch:info().pieces`](patches.md#the-snapshot) is empty. Ending the patch is `hafen.virtual():patch():remove(patch)` ([the ending is the collection's](../conventions.md#endings-the-receivers-kind-picks-the-word)). |
-| Re-cuts the ground | The set of pieces decides which tiles the shape masks, so laying or taking up one re-lays them; a look (tint, [border](patches.md#the-border), turn, scale) costs no terrain work. Laying and taking up every frame costs what [moving a patch](patches.md#the-patch) costs. |
+| Re-cuts the ground | The set of pieces decides which tiles the shape masks, so laying or taking up one re-lays them. A look (tint, [border](patches.md#the-border), turn, scale) costs no terrain work. Laying and taking up every frame costs what [moving a patch](patches.md#the-patch) costs. |
 
 ## The piece
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `piece:info()` | `table` | Unprotected | `{exists=, ring=}`: `ring` is the shape as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with, absent while the character on screen cannot locate the ground, as [`patch:info()`](patches.md#the-snapshot)'s is. |
+| `piece:info()` | `table` | Unprotected | `{exists=, ring=}`. `ring` is the shape as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with. It is absent while the character on screen cannot locate the ground, as [`patch:info()`](patches.md#the-snapshot)'s is. |
 | `piece:exists()` | `boolean` | Unprotected | Whether the patch still holds it. |
 
-Two verbs are the whole of a piece. Where it is, how big, what colour, whether drawn, whether the world may hide it and [what a click means](patches.md#clickability) are the patch's. A verb no piece has raises naming `piece` and listing the two; `tostring(piece)` is `Piece`.
+Those verbs are the whole of a piece. Where it is, how big, what colour, whether drawn, whether the world may hide it and [what a click means](patches.md#clickability) are the patch's. A verb no piece has raises naming `piece` and listing what it answers. `tostring(piece)` is `Piece`.
 
 ---
 

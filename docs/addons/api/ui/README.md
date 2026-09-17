@@ -8,7 +8,7 @@ hafen.log():write(session:ui():inventory():items():count() .. " items in the bac
 
 local clock = hafen.ui():window():title("Clock"):size(160, 40):position(50, 50)
 clock:on("Draw", function(draw_event)
-  draw_event:g():text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
+  draw_event:g():text(string.format("%d", hafen.time():clock() or 0), 6, 12)
 end)
 ```
 
@@ -16,14 +16,14 @@ end)
 
 ## One type, two trees
 
-Every widget — one you build, one the client put up, the one under the cursor, the container an `Added` subscription hands you — is the same [Widget](widget.md) object.
+Every widget is the same [Widget](widget.md) object. One you build, one the client put up, the one under the cursor, the container an `Added` subscription hands you.
 
 | Tree | Reached through | Holds |
 |---|---|---|
-| The addon layer | `hafen.ui():window()`, `:widget()`, `:column()`, the controls | What you build. Drawn above every session and above the login screen; stays when the player tabs between characters. |
-| A character's tree | `session:ui():match(selector)`, `:matchAll(selector)`, `:root()`, `:node(id)`, `:inventory()`, `:equipment()` | What the client put up for that character. Nothing you built is under it; nothing the client built is reachable without it. |
+| The addon layer | `hafen.ui():window()`, `:widget()`, `:column()`, the controls | What you build. Drawn above every session and above the login screen. Stays when the player tabs between characters. |
+| A character's tree | `session:ui():match(selector)`, `:matchAll(selector)`, `:root()`, `:node(id)`, `:inventory()`, `:equipment()` | What the client put up for that character. Nothing you built is under it. Nothing the client built is reachable without it. |
 
-Both trees speak the same [selector](selectors.md), which is also the key of a [stylesheet](style/README.md) rule. The pointer, hit tests and the [scale](pixels.md) are `hafen.ui()`'s alone: one screen, however many characters are logged in.
+Both trees take the same [selector](selectors.md), which is also the key of a [stylesheet](style/README.md) rule. The pointer, hit tests and the [scale](pixels.md) are `hafen.ui()`'s alone: one screen, however many characters are logged in.
 
 | Fact | Rule |
 |---|---|
@@ -42,14 +42,14 @@ Both trees speak the same [selector](selectors.md), which is also the key of a [
 | [column](column.md) | A column or a row that lays its children out and sizes itself to them. |
 | [lists](lists.md) | Listbox, dropdown, menu, grid and table: the row-source controls. |
 | [widget](widget.md) | The Widget object: every read, subscriptions, tooltips, focus, sending a message. |
-| [writes](writes.md) | Which writes answer on a widget you built and on one you found; disabling one of yours. |
+| [writes](writes.md) | Which writes answer on a widget you built and on one you found. Disabling one of yours. |
 | [selectors](selectors.md) | The selector grammar, the roles, hit-testing, the inspector. |
 | [items](items.md) | The items the client draws: reads and the protected item actions. |
 | [contents](contents.md) | What one item holds: nested items, a stated line, a fill meter. |
 | [container](container.md) | `ItemAdded`/`ItemRemoved` on a container, and how deep they reach. |
 | [mouse](mouse.md) | The pointer: position, hover, pick, modifiers, cursor, grab. |
 | [pixels](pixels.md) | Design pixels, the unit of every coordinate, and the scale in force. |
-| [native](native.md) | Moving, hiding and re-homing client widgets; letting the user drag and size one; `remember`. |
+| [native](native.md) | Moving, hiding and re-homing client widgets. Letting the user drag and size one. `remember`. |
 | [edit](edit.md) | Changing what a client control says or does, and intercepting it. |
 | [replace](replace.md) | Watching for a widget and standing your own window in its place. |
 | [drawing](drawing.md) | The `g` wrapper: text, shapes, images, measuring, the raster cache. |

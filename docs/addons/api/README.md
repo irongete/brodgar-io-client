@@ -1,6 +1,6 @@
 # hafen API Reference
 
-Every `hafen.*` namespace, one page each, and a directory where a namespace is large. Start with the conventions, then take the name you came for from the tables below; every page in the tree is listed here.
+Every `hafen.*` namespace, one page each, and a directory where a namespace is large. Start with the conventions, then find the name in the tables below. Every page in the tree is listed here.
 
 | Page | Holds |
 |---|---|
@@ -21,7 +21,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The session and the world](types/world.md) | One login, an object in it, the people beside you, the ground, a place, your own things standing there. |
 | [The item and what holds it](types/items.md) | One item, and what a container states about its inside. |
 | [The character sheet](types/character.md) | Attributes, food, learning, movement speed, quests, wounds, buffs. |
-| [The fight](types/fight.md) | A maneuver, a card in the deck, the deck's totals. |
+| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals. |
 | [The map](types/map.md) | A pin on the recorded map, a minimap icon category. |
 | [The widget layer](types/ui.md) | A widget, a HUD meter, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
 
@@ -29,7 +29,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 
 | Page | Holds |
 |---|---|
-| [Your addon and the sessions](event/bus/lifecycle.md) | Your addon loaded, ticked and disabled; a character connecting, reaching the world, taking the screen, ending. |
+| [Your addon and the sessions](event/bus/lifecycle.md) | Your addon loaded, ticked and disabled. A character connecting, reaching the world, taking the screen, ending. |
 | [The world](event/bus/world.md) | A game object coming and going, what is attached to one, a click on an entity of your own. |
 | [The character and the rosters](event/bus/character.md) | Meters, buffs, food, study, equipment, action bar, wounds, kin, quests, map pins, the radial menu, Steam. |
 | [The chat](event/bus/chat.md) | A channel appearing, going away or taking the tab, and a line landing in one. |
@@ -69,12 +69,12 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [`session:craft`](craft.md) | The open recipe window, and its Craft button. |
 | [`session:quest`](quest.md) | The quest log, current and completed, and a quest's objectives. |
 | [`session:wound`](wound.md) | The wounds on the Health and Wounds tab, as a tree. |
-| [`session:fight`](fight.md) | The maneuver-deck builder, and who the character is fighting. |
+| [`session:fight`](fight.md) | The manoeuvre-deck builder, and who the character is fighting. |
 | [`session:actionbar`](actionbar.md) | The hotbar: read a slot, use it, assign one, hold one for an entry of your own. |
 | [`session:menugrid`](menugrid.md) | The action menu: every action the character knows, invoking one, entries of your own. |
 | [`session:flowermenu`](flowermenu.md) | The radial menu one character has open: its petals, picking one, a petal of your own, whether it is painted. |
 
-The verbs that act are on the pages of what they change, under a **Write (protected)** heading with the key beside the verb; the catalogue of keys is [permissions](../guides/permissions.md).
+The verbs that act are on the pages of what they change, under a **Write (protected)** heading with the key beside the verb. The catalogue of keys is [permissions](../guides/permissions.md).
 
 ## The UI
 
@@ -144,7 +144,7 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 | [Keybindings](client/keybindings.md) | The hotkey registry: declare your own, read or remap any. |
 | [Your addon's options](client/addon.md) | The options your addon declares, and the page it fills. |
 | [Profiling](client/profiling/README.md) | Arming the frame profiler, and reading a frame and its history. |
-| [The counters](client/profiling/counters.md) | Memory, net, loader, render, what stands in the world, the other sessions, the text cache; readable with profiling off. |
+| [The counters](client/profiling/counters.md) | Memory, net, loader, render, what stands in the world, the other sessions, the text cache. Readable with profiling off. |
 | [Attribution](client/profiling/attribution.md) | Who spent the frame: addons, your own scopes, widgets, passes, GL, the overhead. |
 
 ## Infrastructure
@@ -152,8 +152,8 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 | Page | Holds |
 |---|---|
 | [`hafen.timer`](timer.md) | Run a function later, once or repeatedly. |
-| [`hafen.store`](store/README.md) | Your addon's one file, the three shapes it holds, when it is written and closed, the sandbox, the caps. |
-| [Vars](store/vars.md) | A live table you name at `var`, saved for you: the two scopes, what survives, the placements saved for you. |
+| [`hafen.store`](store/README.md) | Your addon's one file, the shapes it holds, when it is written and closed, the sandbox, the caps. |
+| [Vars](store/vars.md) | A live table you name at `var`, saved for you: the scopes, what survives, the placements saved for you. |
 | [Tables](store/tables.md) | A record: the builder, the Table and its rows, the types both ways, how a declaration evolves. |
 | [Statements](store/statements.md) | SQL: `:exec` and `:query`, binding, what is refused, `:transaction`. |
 | [`hafen.json`](json.md) | Parse and encode JSON. |
@@ -171,4 +171,4 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 
 ---
 
-New to addons? [Getting started](../getting-started.md) writes one in about ten minutes.
+[Getting started](../getting-started.md) builds a first addon in about ten minutes.

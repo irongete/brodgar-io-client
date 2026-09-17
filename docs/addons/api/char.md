@@ -15,12 +15,12 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 
 | Rule | Detail |
 |---|---|
-| Streams in after login | The sheet lives in HUD widgets that build a beat after `SessionEnteredWorld`: an immediate read answers `nil` or an empty array. Read on a short timer. |
+| Streams in after login | The sheet lives in HUD widgets that build shortly after `SessionEnteredWorld`: an immediate read answers `nil` or an empty array. Read on a short timer. |
 | Events | `FepChanged` for food and hunger, `StudyChanged` for the curiosities, [both on the bus](event/bus/character.md#character-and-status). Attributes, learning points, weight, skills, credos and lore change only on an action of yours: read them on demand, after it. |
 | Whose sheet | `session:char()` is the sheet of the character that session plays: `hafen.session():get("alt"):char():lp()` answers for that character whether or not you look at it. |
 | One object | `session:char()` and each collection below are the same object every call, minted once per session, so a panel reading every frame allocates nothing. `session:char():skill():buyable(filter)` is a partition, [a view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many): two calls are two objects, and the skills inside them are the identity. |
-| A session the client no longer holds | Answers `nil`-shaped, the shape before entering the world; [`session:exists()`](session.md#read) tells the two apart. |
-| Unprotected, never throws | The sheet is a display of server state; every change to it is an action taken elsewhere. |
+| A session the client no longer holds | Answers `nil`-shaped, the shape before entering the world. [`session:exists()`](session.md#read) tells the two apart. |
+| Unprotected, never throws | The sheet is a display of server state. Every change to it is an action taken elsewhere. |
 
 ## Read
 
@@ -38,7 +38,7 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `session:char():attr():get(name)` | `Attr` | Unprotected | One attribute; never `nil` for a real name. |
+| `session:char():attr():get(name)` | `Attr` | Unprotected | One attribute. Never `nil` for a real name. |
 | `session:char():attr():list(filter)` | `Attr[]` | Unprotected | Every attribute the server has published. |
 | `session:char():attr():count(filter)` | `number` | Unprotected | How many match. |
 | `session:char():attr():find(filter)` | `Attr \| nil` | Unprotected | The first that matches. |
@@ -49,16 +49,16 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 
 | Rule | Detail |
 |---|---|
-| Names | `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil`, `psy`. The set is closed: a name outside it raises listing them; a misspelt attribute is a typo, never something whose every read is `nil`. |
-| `:get(name)` always answers | `:base()` and `:composite()` are `nil` until the server has sent it; `:list()` holds only the published ones. |
-| Identity | Interned on session and name: `:get("str") == :get("str")` on one session, and `seen[attr] = true` works; the same name on two characters is two objects. |
+| Names | `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil`, `psy`. The set is closed: a name outside it raises listing them. A misspelt attribute is a typo, never something whose every read is `nil`. |
+| `:get(name)` always answers | `:base()` and `:composite()` are `nil` until the server has sent it. `:list()` holds only the published ones. |
+| Identity | Interned on session and name: `:get("str") == :get("str")` on one session, and `seen[attr] = true` works. The same name on two characters is two objects. |
 
 ## Skills
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `session:char():skill():list(filter)` | `Skill[]` | Unprotected | The skills the character knows. |
-| `session:char():skill():buyable(filter)` | collection | Unprotected | The skills that can be bought, each with a `:cost()`. A partition minted per call: `:count()`, `:find()` and `:list()` answer on it; `:buyable() == :buyable()` is false. |
+| `session:char():skill():buyable(filter)` | collection | Unprotected | The skills that can be bought, each with a `:cost()`. A partition minted per call: `:count()`, `:find()` and `:list()` answer on it. `:buyable() == :buyable()` is false. |
 | `session:char():skill():count(filter)` | `number` | Unprotected | How many known ones match. |
 | `session:char():skill():find(filter)` | `Skill \| nil` | Unprotected | The first known skill that matches. |
 | `skill:name()` | `string` | Unprotected | The display name. |
@@ -84,7 +84,7 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 | `credo:name()` | `string` | Unprotected | The display name. |
 | `credo:res()` | `string \| nil` | Unprotected | The icon resource name. |
 | `credo:acquired()` | `boolean` | Unprotected | Whether the character has completed it. |
-| `credo:rank()`, `credo:levelTotal()` | `number \| nil` | Unprotected | Pursuit progress; only on the pursued credo. |
+| `credo:rank()`, `credo:levelTotal()` | `number \| nil` | Unprotected | Pursuit progress. Only on the pursued credo. |
 | `credo:questsDone()`, `credo:questTotal()` | `number \| nil` | Unprotected | Quest progress within the current level, both counts. |
 | `credo:questId()` | `number \| nil` | Unprotected | The id of the credo quest, for [`session:quest`](quest.md). |
 | `credo:exists()` | `boolean` | Unprotected | Whether it is still listed. |
@@ -106,7 +106,7 @@ The pursued credo is a member of the collection like any other and compares equa
 | `experience:exists()` | `boolean` | Unprotected | Whether it is still listed. |
 | `experience:info()` | [`Experience`](types/character.md#skill-credo-experience) `\| nil` | Unprotected | A plain-table snapshot. |
 
-A lore entry is addressed by its resource, so it appears in `:list()` once that resource has resolved, a beat after the tab builds.
+A lore entry is addressed by its resource, so it appears in `:list()` once that resource has resolved, shortly after the tab builds.
 
 ## Food
 
@@ -122,21 +122,21 @@ A lore entry is addressed by its resource, so it appears in `:list()` once that 
 | `food:hunger():label()` | `string \| nil` | Unprotected | The client's own word for that level. |
 | `food:hunger():efficacy()` | `number \| nil` | Unprotected | The multiplier on what you eat next at this hunger. |
 | `food:hunger():info()` | `table \| nil` | Unprotected | Snapshot of the meter: the `hunger` half of [`Food`](types/character.md#food). |
-| `food:fep():exists()`, `food:hunger():exists()` | `boolean` | Unprotected | Whether that half is still up; always answers. |
+| `food:fep():exists()`, `food:hunger():exists()` | `boolean` | Unprotected | Whether that half is still up. Always answers. |
 | `food:exists()` | `boolean` | Unprotected | Whether this is still that character's live sheet. |
 | `food:info()` | [`Food`](types/character.md#food) `\| nil` | Unprotected | Snapshot, the two halves in one table. |
 
 | Rule | Detail |
 |---|---|
-| Hunger is not points | `hunger:level()` is the raw fullness figure the client's tooltip prints in per-mille (`level() * 1000`); the bar draws only its fractional part, so it is not capped at 1 and a very full character reads above it. `hunger:efficacy()` is a `0..1` multiplier the client paints as a percentage. Neither carries a client [unit](shapes.md#units). |
-| Snapshots | Each half snapshots on its own and inside `food:info()`; an entry's `:info()` is one row of the `entries` array. Each is `nil` when its meter is not up. |
-| An entry is data, not a handle | The client rebuilds the FEP bar whole on every update, so an entry has no key and no `:exists()`: it carries the resource, name and amount the bar had when read. Read `fep():entry()` again rather than keeping one across a meal. |
+| Hunger is not points | `hunger:level()` is the raw fullness figure the client's tooltip prints in per-mille (`level() * 1000`). The bar draws only its fractional part, so it is not capped at 1 and a character past full reads above it. `hunger:efficacy()` is a `0..1` multiplier the client paints as a percentage. Neither carries a client [unit](shapes.md#units). |
+| Snapshots | Each half snapshots on its own and inside `food:info()`. An entry's `:info()` is one row of the `entries` array. Each is `nil` when its meter is not up. |
+| An entry is data, not a handle | The client rebuilds the FEP bar whole on every update, so an entry has no key and no `:exists()`. It carries the resource, name and amount the bar had when read. Read `fep():entry()` again rather than keeping one across a meal. |
 | Event | [`FepChanged`](event/bus/character.md#character-and-status), whose payload is the `Food` object. |
 
 ```lua
 hafen.event():on("FepChanged", function(food)
-  hafen.log():write(("fep %.0f/%.0f, %s"):format(food:fep():total(), food:fep():cap(),
-                                                 food:hunger():label() or "?"))
+  hafen.log():write(("fep %d/%d, %s"):format(food:fep():total(), food:fep():cap(),     -- %d takes the points whole
+                                             food:hunger():label() or "?"))
 end)
 ```
 

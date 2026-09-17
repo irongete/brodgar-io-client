@@ -16,7 +16,7 @@ end
 | Builds after login | A read at `SessionEnteredWorld` answers an empty array. |
 | Whose study | `hafen.session():get("alt"):study():summary()` answers for that character while you watch another. |
 | One object | `session:study()` and its `:curiosity()` collection are the same objects every call, minted once per session. A session the client no longer holds answers an empty array and a `nil` summary. |
-| Unprotected | Nothing here is protected; nothing throws. |
+| Unprotected | Nothing here is protected. Nothing throws. |
 
 ## Read
 
@@ -25,7 +25,7 @@ end
 | `session:study():curiosity():list(filter)` | `StudySlot[]` | Unprotected | The curiosities in the window. |
 | `session:study():curiosity():count(filter)` | `number` | Unprotected | How many match. |
 | `session:study():curiosity():find(filter)` | `StudySlot \| nil` | Unprotected | The first that matches. |
-| `session:study():summary()` | `StudySummary \| nil` | Unprotected | The totals across the curiosities in the window; `nil` until the tab has built. Takes no arguments. |
+| `session:study():summary()` | `StudySummary \| nil` | Unprotected | The totals across the curiosities in the window. `nil` until the tab has built. Takes no arguments. |
 
 | Rule | Detail |
 |---|---|
@@ -42,14 +42,14 @@ end
 | `slot:attention()` | `number \| nil` | Unprotected | Mental weight. |
 | `slot:cost()` | `number \| nil` | Unprotected | Experience cost. |
 | `slot:time()` | `number \| nil` | Unprotected | Total study time in seconds: not what is left, not a [fraction](shapes.md#units). The client is sent no per-item countdown. |
-| `slot:progress()` | `number \| nil` | Unprotected | `0..1` study progress; best-effort. |
+| `slot:progress()` | `number \| nil` | Unprotected | `0..1` study progress. Best-effort. |
 | `slot:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that draws it: the crossing back into the tree. |
-| `slot:exists()` | `boolean` | Unprotected | Whether it is still in a study window; always answers. |
+| `slot:exists()` | `boolean` | Unprotected | Whether it is still in a study window. Always answers. |
 | `slot:info()` | [`StudySlot`](types/character.md#studyslot-and-studysummary) `\| nil` | Unprotected | A plain-table snapshot. |
 
 | Rule | Detail |
 |---|---|
-| Resource-only for a beat | The study profile arrives in a second server message, so `:lp()`, `:attention()`, `:cost()` and `:time()` answer `nil` together just after a curiosity appears. The moment they resolve is itself a `StudyChanged`. |
+| Resource-only at first | The study profile arrives in a second server message, so `:lp()`, `:attention()`, `:cost()` and `:time()` answer `nil` together just after a curiosity appears. The moment they resolve is itself a `StudyChanged`. |
 | Identity | Interned on the item in the window: `:list()[1] == :list()[1]` and `seen[slot] = true` work. |
 | A curiosity taken out keeps answering | `:exists()` is `false` while `:res()` and the numbers read what it had. The slot carries its own character, so `:exists()` is about the window it was taken from. |
 | Event | [`StudyChanged`](event/bus/character.md#character-and-status), whose payload is the array of slots. |
@@ -72,9 +72,9 @@ end)
 
 | Rule | Detail |
 |---|---|
-| The attention cap | `summary:attention()` is the numerator the window draws; the cap is that character's Intelligence, [`session:char():attr():get("int"):composite()`](char.md#attributes). |
+| The attention cap | `summary:attention()` is the numerator the window draws. The cap is that character's Intelligence, [`session:char():attr():get("int"):composite()`](char.md#attributes). |
 | Read together | The totals are read together, so they add up against the same set of curiosities. |
-| Identity | Interned on the study tab: `session:study():summary() == session:study():summary()` and `seen[summary] = true` work; a kept one reads the live totals. The same kind of object as [`session:fight():summary()`](fight.md#the-summary), `nil` rather than empty while there is no tab. |
+| Identity | Interned on the study tab: `session:study():summary() == session:study():summary()` and `seen[summary] = true` work. A kept one reads the live totals. The same kind of object as [`session:fight():summary()`](fight.md#the-summary), `nil` rather than empty while there is no tab. |
 
 ---
 

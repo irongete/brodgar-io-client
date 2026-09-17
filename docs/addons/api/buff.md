@@ -1,6 +1,6 @@
 # session:buff: Buffs
 
-The buffs on one character's buff bar, read through its [session](session.md); `session:buff()` is that character's bar.
+The buffs on one character's buff bar, read through its [session](session.md). `session:buff()` is that character's bar.
 
 ```lua
 local session = hafen.session():current()                    -- the character on screen
@@ -27,8 +27,8 @@ end
 | One object | `session:buff()` is the same object every call, minted once per session. A session the client no longer holds answers an empty array. |
 | Interned per addon | `session:buff():find("poison") == session:buff():find("poison")` and `seen[buff] = true` work while the buff is up. A `Buff` wraps the buff widget and re-reads it on every call, so a stashed one tracks its meters ([snapshots vs handles](conventions.md#snapshots-vs-handles)). It carries its own character: `buff:exists()` is about the bar it stands on. |
 | Order | The buffs on the bar in the order drawn, which is arrival order. A buff the server has removed is excluded even while it fades out on screen. |
-| Res-only for a beat | The display name and the meters arrive in a second server message, so every reader may answer `nil` just after a buff appears. |
-| No write side | The bar displays server state; clicking a buff icon sends a message no buff is known to act on. |
+| Res-only at first | The display name and the meters arrive in a second server message, so every reader may answer `nil` just after a buff appears. |
+| No write side | The bar displays server state. Clicking a buff icon sends a message no buff is known to act on. |
 
 ## Read
 
@@ -40,14 +40,14 @@ end
 | `buff:remaining()` | `number \| nil` | Unprotected | The radial overlay fraction, `0..1`: how much of the buff is left. |
 | `buff:number()` | `number \| nil` | Unprotected | The integer badge drawn on the icon. |
 | `buff:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that draws it: the crossing back into the tree. |
-| `buff:exists()` | `boolean` | Unprotected | Whether this buff is still on its bar; always answers. |
+| `buff:exists()` | `boolean` | Unprotected | Whether this buff is still on its bar. Always answers. |
 | `buff:info()` | [`Buff`](types/character.md#buff) `\| nil` | Unprotected | A plain-table snapshot, for logging and serialising. |
 
 | Rule | Detail |
 |---|---|
-| Content-defined meters | `amount`, `remaining` and `number` are published by the buff's resource and often absent. `remaining` is a [`0..1` fraction](shapes.md#units) of the whole run (`0.25` is a quarter left); the client has no seconds-based buff timer. |
-| A removed buff keeps answering | `:exists()` is `false` while `:res()`, `:name()` and the meters read the values it had, which is what makes a `BuffRemoved` payload or a stashed buff worth holding. `:exists()` is the predicate `:list()` filters on. |
-| Events | [`BuffAdded`, `BuffRemoved`, `BuffChanged`](event/bus/character.md#character-and-status); each payload is the `Buff` object. The buffs a character already has arrive as a burst of `BuffAdded` shortly after it enters the world. |
+| Content-defined meters | `amount`, `remaining` and `number` are published by the buff's resource and often absent. `remaining` is a [`0..1` fraction](shapes.md#units) of the whole run (`0.25` is a quarter left). The client has no seconds-based buff timer. |
+| A removed buff keeps answering | `:exists()` is `false` while `:res()`, `:name()` and the meters read the values it had, so a `BuffRemoved` payload or a stashed buff still reads. `:exists()` is the predicate `:list()` filters on. |
+| Events | [`BuffAdded`, `BuffRemoved`, `BuffChanged`](event/bus/character.md#character-and-status). Each payload is the `Buff` object. The buffs a character already has arrive as a burst of `BuffAdded` shortly after it enters the world. |
 
 ```lua
 hafen.event():on("BuffRemoved", function(buff)

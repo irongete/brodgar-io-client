@@ -15,7 +15,7 @@ sheet:install()
 
 ## font
 
-`rule:font(face)` says what the text is set in. Every key honours it; only family, size, weight and antialiasing travel.
+`rule:font(face)` says what the text is set in. Every key honours it. Only family, size, weight and antialiasing travel.
 
 | Written | Is |
 |---|---|
@@ -34,9 +34,9 @@ sheet:rule("window.title"):font{ asset = "fonts/Inter.ttf", size = 15, bold = tr
 |---|---|
 | Read-back | `rule:font()` reads a handle whichever way the face was written, so [the handle's own reads](../../font.md#the-variant) answer for it. |
 | One door | `{asset = …}` interns as `hafen.asset():get(path)` does, `{builtin = …}` as `hafen.font():get(name)` does. With no field beside the name, the name is that handle. |
-| A name plus a field is a variant | Derived once and sealed when the rule reads it: writing to the handle read back is refused; derive another from it. |
-| No colour, no outline in a face | `color` inside a face raises naming [`rule:color(c)`](#color); a handle carrying a `color` or an [`outline`](../../font.md#an-outline-round-every-glyph) is refused the same two ways, on `widget:rule()` too. A handle's colour is for [your own drawing](../../font.md#draw-with-it). |
-| Refusals | A name that is not one of the four built-ins, a file that is not a font, a face naming neither `builtin` nor `asset`. |
+| A name plus a field is a variant | Derived once and sealed when the rule reads it: writing to the handle read back is refused. Derive another from it. |
+| No colour, no outline in a face | `color` inside a face raises naming [`rule:color(c)`](#color). A handle carrying a `color` or an [`outline`](../../font.md#an-outline-round-every-glyph) is refused the same two ways, on `widget:rule()` too. A handle's colour is for [your own drawing](../../font.md#draw-with-it). |
+| Refusals | A name that is not one of the built-ins, a file that is not a font, a face naming neither `builtin` nor `asset`. |
 | Omit `size` | Each surface keeps its own: `rule("label"):font(h)` swaps the family while every row keeps its height. With `size`, read the caveats in [surfaces](surfaces.md): a field's height comes from its background and list rows were measured at construction, so both clip. |
 
 ---
@@ -47,10 +47,10 @@ sheet:rule("window.title"):font{ asset = "fonts/Inter.ttf", size = 15, bold = tr
 
 | Rule | Detail |
 |---|---|
-| Two keys take a sequence | `chat.speaker` (a colour per speaker) and `chat.urgent` (a colour per urgency level) are written `{palette = …}` or `{generate = …}` and refuse a flat colour — [the two colours the client walks](chat.md#the-two-colours-the-client-walks). A sequence on any other key raises naming those two. |
+| Two keys take a sequence | `chat.speaker` (a colour per speaker) and `chat.urgent` (a colour per urgency level) are written `{palette = …}` or `{generate = …}`. They refuse a flat colour ([the two colours the client walks](chat.md#the-colours-the-client-walks)). A sequence on any other key raises naming those two. |
 | The rule wins over the client's own colour | While it is on, text carrying meaning in its colour is flattened: a red warning under `["*"] = {color = …}` goes the same colour as the rest. Style one site when that matters. |
-| Still wins over a rule | `$col[…]` markup inside the text (part of the string, so a tooltip's green and red deltas survive a `["tooltip"]` rule); a [tree key](keys.md#tree-keys) covering the widget, and [`widget:rule()`](README.md#restyle-one-widget) above it. |
-| Embossed surfaces ignore it | A window caption, a section heading and an ordinary button caption take their colour from a texture tiled through the glyph mask; [`emboss(false)`](#emboss) hands the letters back to the font and the colour beside it — [what each key accepts](keys.md#what-each-key-accepts). |
+| Still wins over a rule | `$col[…]` markup inside the text (part of the string, so a tooltip's green and red deltas survive a `["tooltip"]` rule). A [tree key](keys.md#tree-keys) covering the widget, and [`widget:rule()`](README.md#restyle-one-widget) above it. |
+| Embossed surfaces ignore it | A window caption, a section heading and an ordinary button caption take their colour from a texture tiled through the glyph mask. [`emboss(false)`](#emboss) hands the letters back to the font and the colour beside it — [what each key accepts](keys.md#what-each-key-accepts). |
 | `widget:style()` | Reports the colour a rule set even where the surface throws it away. |
 
 ---
@@ -61,8 +61,8 @@ sheet:rule("window.title"):font{ asset = "fonts/Inter.ttf", size = 15, bold = tr
 
 | Written | Is |
 |---|---|
-| `false` | No relief: the letters are drawn in the font, in the rule's own [`color`](#color); the [halo](#glow) behind them stays. |
-| `{texture = <art>}` | The theme's own picture tiled through the letters, named the [same ways](chrome.md#naming-a-picture) as every art minus the flat colour, and taking no `at`, `offset` or `mode`. |
+| `false` | No relief: the letters are drawn in the font, in the rule's own [`color`](#color). The [halo](#glow) behind them stays. |
+| `{texture = <art>}` | The theme's own picture tiled through the letters. It is named the [same ways](chrome.md#naming-a-picture) as every art minus the flat colour, and takes no `at`, `offset` or `mode`. |
 
 ```lua
 sheet:rule("window.title"):emboss(false):color{230, 220, 190}          -- flat captions, one colour
@@ -73,14 +73,14 @@ sheet:rule("button"):emboss{ texture = { asset = "img/brass.png" } }   -- your o
 | Rule | Detail |
 |---|---|
 | Silence keeps the client's relief | To the pixel, which is why `true` raises rather than meaning it. `rule:emboss()` reads `false` where a rule dropped the relief and `nil` where it says nothing. |
-| Independent of the halo | `emboss` fills the letters; [`glow`](#glow) is the shadow behind them. |
-| Texture weight | A shipped file is design pixels, scaled with the interface; the client's art carries its own scale. |
+| Independent of the halo | `emboss` fills the letters. [`glow`](#glow) is the shadow behind them. |
+| Texture weight | A shipped file is design pixels, scaled with the interface. The client's art carries its own scale. |
 
 ---
 
 ## glow
 
-`rule:glow{color = …, radius = n}` is the blurred halo behind a surface's letters, the shadow every carved caption sits on. Reaches the keys `emboss` does; inert elsewhere.
+`rule:glow{color = …, radius = n}` is the blurred halo behind a surface's letters, the shadow behind every embossed caption. Reaches the keys `emboss` does. Inert elsewhere.
 
 | Field | Value |
 |---|---|
@@ -94,12 +94,12 @@ sheet:rule("heading"):glow{ color = {0, 0, 0}, radius = 0 }             -- none 
 
 | Rule | Detail |
 |---|---|
-| Both fields required | A value carrying one raises naming both; a negative radius raises. |
-| `radius = 0` is a value | The only way to say no halo. Leaving the property out keeps the client's own blur to the pixel; `rule:glow()` reads `nil` then. |
-| One radius, two in the client | A blur has a gradient radius and a blur radius, differing by a fraction of a pixel; a rule says one number and both take it. |
+| Both fields required | A value carrying one raises naming both. A negative radius raises. |
+| `radius = 0` is a value | The only way to say no halo. Leaving the property out keeps the client's own blur to the pixel. `rule:glow()` reads `nil` then. |
+| One radius, two in the client | A blur has a gradient radius and a blur radius, differing by a fraction of a pixel. A rule says one number and both take it. |
 | Independent of the relief | A caption with `emboss(false)`, a `color` and a `glow` is three properties saying three things. |
 | A halo grows the raster | By the radius on every side, and what the client sizes around it grows too: a wide radius widens a window's caption [plate](chrome.md#ornaments). The client's halo already does this at its own radius. |
-| Focus | A caption's halo differs focused and unfocused; a rule replaces both. |
+| Focus | A caption's halo differs focused and unfocused. A rule replaces both. |
 
 ---
 

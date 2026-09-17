@@ -1,6 +1,6 @@
 # Data Types: The Snapshot Shapes
 
-The plain Lua tables `:info()` copies out of a live object, field by field, grouped by the subsystem each comes from: a point-in-time copy for logging, serialising or diffing that never updates. A field marked *optional* is absent (`nil`) when the data is not available or still resolving; guard for it ([snapshots vs handles](../conventions.md#snapshots-vs-handles)).
+The plain Lua tables `:info()` copies out of a live object, field by field, grouped by the subsystem each comes from. A snapshot is a point-in-time copy for logging, serialising or diffing. It never updates. A field marked *optional* is absent (`nil`) when the data is not available or still resolving. Guard for it ([snapshots vs handles](../conventions.md#snapshots-vs-handles)).
 
 ```lua
 local gob = hafen.session():current():player():gob()
@@ -12,19 +12,19 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 
 | Rule | Detail |
 |---|---|
-| A catalogue, not a census | Every object answers `:info()`; a shape one page reads (a timer, a keybinding, an option row) is stated in that page's verb row. A shape lands here when more than one page names it, or when a table beats a sentence. |
-| A snapshot keeps the client's own spelling | The verbs are camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`); a snapshot is the shape the client holds (`isplayer`, `mtime`, `qmod`). Each table names the verb beside the field where the two differ. |
+| A catalogue, not a census | Every object answers `:info()`. A shape one page reads (a timer, a keybinding, an option row) is stated in that page's verb row. A shape lands here when more than one page names it, or when a table beats a sentence. |
+| A snapshot keeps the client's own spelling | The verbs are camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`). A snapshot is the shape the client holds (`isplayer`, `mtime`, `qmod`). Each table names the verb beside the field where the two differ. |
 
 ## The pages
 
 | Page | Holds |
 |---|---|
-| [The session and the world](world.md) | One login, an object in it, the people beside you and the ones a voice link relates you to, the ground, a place, your own things standing there. |
+| [The session and the world](world.md) | One login and an object in it. The people beside you, and the ones a voice link relates you to. The ground, a place, your own things standing there. |
 | [The item and what holds it](items.md) | One item, and what a container states about its inside. |
 | [The character sheet](character.md) | Attributes, food with its FEP and hunger halves, learning, movement speed, quests, wounds, buffs. |
-| [The fight](fight.md) | A maneuver, a card in the deck, the deck's totals. |
+| [The fight](fight.md) | A manoeuvre, a card in the deck, the deck's totals. |
 | [The map](map.md) | A pin on the recorded map, a minimap icon category. |
-| [The widget layer](ui.md) | A widget in the tree, a HUD meter and one band of its bar, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
+| [The widget layer](ui.md) | A widget in the tree. A HUD meter and one band of its bar. The open recipe. A hotbar slot. An action-menu entry. A chat channel and its lines. |
 
 ## Every shape
 

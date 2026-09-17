@@ -1,12 +1,13 @@
 # hafen.client: Profiling
 
-`hafen.client():profiling()` is the read surface over the client's frame profiler, the same per-frame CPU and GPU trees the client's own profile windows draw: where a frame went, in your addon or across the whole client. Unprotected.
+`hafen.client():profiling()` is the read surface over the client's frame profiler, the same per-frame CPU and GPU trees the client's own profile windows draw. It says where a frame went, in your addon or across the whole client. Unprotected.
 
 ```lua
 local profiling = hafen.client():profiling()
 local frame = profiling:frame()
-hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
-                               frame.fps, frame.ms, frame.ui, frame.addons))
+local function round(milliseconds) return math.floor(milliseconds * 100 + 0.5) / 100 end   -- %.2f prints the raw double here
+hafen.log():write(string.format("%d fps, %s ms (ui %s, addons %s)",
+                               frame.fps, round(frame.ms), round(frame.ui), round(frame.addons)))
 ```
 
 ---
@@ -16,7 +17,7 @@ hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `profiling:frame()` | `table` | Unprotected | The frame that just finished. Armed only. |
-| `profiling:history(n)` | `table[]` | Unprotected | The last `n` frames, oldest first; `n` omitted is everything held. Armed only. |
+| `profiling:history(n)` | `table[]` | Unprotected | The last `n` frames, oldest first. `n` omitted is everything held. Armed only. |
 | `profiling:addons()` | `table[]` | Unprotected | [What each addon's Lua cost](attribution.md#addons), most expensive first. Armed only. |
 | `profiling:widgets()` | `table` | Unprotected | [Where the UI's frame time went](attribution.md#widgets). Armed only. |
 | `profiling:passes()` | `table[]` | Unprotected | [The named render passes](attribution.md#passes), CPU and GPU side by side. Armed only. |
@@ -36,12 +37,12 @@ hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
 
 | Rule | Detail |
 |---|---|
-| Dormant by design | A profiling addon reads and draws nothing until opened: a profiler that runs while you are not looking measures itself. Arm on a hotkey, read on the frames you watch, stop when the window closes. `history()` held as snapshots turns the graph into a timeline to scrub frame by frame, where a three-frame stutter is visible. |
-| The handle | A stateless proxy that never goes stale, a [handle in the API's one shape](../../conventions.md#snapshots-vs-handles): a misspelt counter raises naming the ones there are; `tostring(profiling)` is `Profiling`. |
+| Read only while open | A profiling addon reads and draws nothing until opened: a profiler that runs while you are not looking measures itself. Arm on a hotkey, read on the frames you watch, stop when the window closes. `history()` held as snapshots turns the graph into a timeline to scrub frame by frame, where a three-frame stutter is visible. |
+| The handle | A stateless proxy that never goes stale, a [handle in the API's one shape](../../conventions.md#snapshots-vs-handles): a misspelt counter raises naming the ones there are. `tostring(profiling)` is `Profiling`. |
 | The reads are snapshots | Plain tables of frozen numbers: walking hundreds of samples is that many table lookups, not bridge calls. |
 | Two kinds of verb | Frame sampling (`frame()`, `history()`, `addons()`, `widgets()`, `passes()`, `gl()`, `overhead()`) exists only while [the switch](../README.md#client) is on. The [counters](counters.md) are pull-only numbers the client keeps anyway, answering armed or not at no cost. `scope()` and `measure()` always run your code and record only while armed. |
 | Units | Every duration is milliseconds, except the byte counts in [`memory()`](counters.md#memory). |
-| An absent key means "not measured", never zero | Everywhere on this surface: no connection, no `net()` keys; no world, no scene keys in `render()`; no `scene` key on a frame, since the 3D scene has no timing boundary of its own. Check with `if frame.gpuMs then …`, not `> 0`. |
+| An absent key means "not measured", never zero | Everywhere on this surface. No connection, no `net()` keys. No world, no scene keys in `render()`. No `scene` key on a frame, since the 3D scene has no timing boundary of its own. Check with `if frame.gpuMs then …`, not `> 0`. |
 
 ## `frame()`
 
@@ -54,8 +55,8 @@ hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
 | `msAvg` / `msMin` / `msMax` / `msP95` | `number` | Frame time over the whole history ring. |
 | `idle` | `number` | Share of the last second spent waiting, `0.0`..`1.0`. |
 | `latency` | `number` | UI-thread to GPU-fence lag. |
-| `gpuMs` | `number` | GPU time; absent until the first fence lands. |
-| `gpuFrameno` | `number` | Which frame `gpuMs` belongs to; absent with it. |
+| `gpuMs` | `number` | GPU time. Absent until the first fence lands. |
+| `gpuFrameno` | `number` | Which frame `gpuMs` belongs to. Absent with it. |
 | `phases` | `table` | The UI thread's phase breakdown: `dwait`, `stick`, `utick`, `sessions`, `draw`, `aux`, `wait`, the client's own names, so the numbers line up with its profile window. |
 | `render` | `table` | The render thread's phases: `tick`, `draw`, `swap`, `finish`. Lags by about one frame: that profile closes a frame on the next frame's fence. |
 | `ui` | `number` | Widget-tree cost this frame. |
@@ -65,12 +66,15 @@ hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
 
 ## `history(n)`
 
-The ring holds several hundred frames, a handful of seconds at a normal framerate; a larger `n` is clamped, not an error. Each entry carries `frameno`, `t`, `ms`, `addons`, `phases`, and `gpuMs` only if that frame's GPU time resolved, so a frame graph skips the unresolved ones rather than drawing a dip to zero.
+The ring holds several hundred frames, a few seconds at a normal framerate. A larger `n` is clamped, not an error. Each entry carries `frameno`, `t`, `ms`, `addons` and `phases`. `gpuMs` is there only if that frame's GPU time resolved, so a frame graph skips the unresolved ones rather than drawing a dip to zero.
 
 ```lua
+local function draw_bar(index, cpu_ms, gpu_ms)
+  -- implementation here
+end
 local frames = hafen.client():profiling():history(120)     -- the last ~2 seconds, oldest first
 for index, frame in ipairs(frames) do
-  drawBar(index, frame.ms, frame.gpuMs)                    -- frame.gpuMs may be nil
+  draw_bar(index, frame.ms, frame.gpuMs)                   -- frame.gpuMs may be nil
 end
 ```
 
@@ -80,7 +84,7 @@ end
 |---|---|
 | Empty tables, never `nil` | `frame()`, `history()`, `addons()`, `widgets()`, `passes()`, `gl()` and `overhead()` return `{}`, so `for _, frame in ipairs(profiling:history(60)) do … end` does nothing while off. |
 | The first sample | On the second frame after arming, since arming is next-frame: a freshly armed profiler answers empty for one frame. |
-| `reset()` | Empties the ring and every per-addon, per-scope and per-widget figure, as arming does. The counters are unaffected; [`textcache()`](counters.md#textcache)'s tallies are left alone, since `reset()` owns the frame ring, not a cache's bookkeeping. |
+| `reset()` | Empties the ring and every per-addon, per-scope and per-widget figure, as arming does. The counters are unaffected. [`textcache()`](counters.md#textcache)'s tallies are left alone, since `reset()` owns the frame ring, not a cache's bookkeeping. |
 
 ---
 

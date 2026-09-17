@@ -1,6 +1,6 @@
 # Guides
 
-One page per task, start to finish: each shows the shape of a solution and links every verb it uses to [the reference](../api/README.md), where the arguments, return values and error cases live. [Getting started](../getting-started.md) comes first: these pages assume a folder that loads.
+One page per task, start to finish. Each shows the shape of a solution and links every verb it uses to [the reference](../api/README.md), where the arguments, return values and error cases live. [Getting started](../getting-started.md) comes first: these pages assume a folder that loads.
 
 | Guide | The task |
 |---|---|
@@ -14,4 +14,4 @@ One page per task, start to finish: each shows the shape of a solution and links
 | [Translating](translating.md) | Change what the client says, and ship a translation as a file. |
 | [Debugging](debugging.md) | The reload loop, the inspector, the log and the profiling surface. |
 
-Written to be read in that order, each ending by pointing at the next. Beside them: [the manifest](../manifest.md) for what names an addon and the API version it declares, [the runtime](../runtime.md) for the sandbox and the console commands, [the maintainer's addons](../examples.md) for where the addons are and the tools among them.
+Written to be read in that order, each ending by pointing at the next. Beside them, [the manifest](../manifest.md) says what names an addon and the API version it declares. [The runtime](../runtime.md) covers the sandbox and the console commands. [The maintainer's addons](../examples.md) says where the addons are and which are tools.

@@ -1,6 +1,6 @@
 # hafen.virtual: One of the Game's Own Props
 
-A ghost is one of the game's `.res` props rendered at a place you choose (a log cabin, a timber house, a fence) with a facing, translucency, tint and scale of its own: lay something out over the terrain before you build it. Your own image or model is a [sprite](sprites.md) or a [model](models.md).
+A ghost is one of the game's `.res` props rendered at a place you choose: a log cabin, a timber house, a fence. It has a facing, translucency, tint and scale of its own. Lay something out over the terrain before you build it. Your own image or model is a [sprite](sprites.md) or a [model](models.md).
 
 ```lua
 local position = hafen.session():current():player():gob():position()
@@ -17,9 +17,9 @@ ghost:rotate(math.pi)
 | `res` | A resource name (`"gfx/terobjs/arch/logcabin"`) resolved through the game resource pool: any server or client resource. |
 | The anchor | A [Position](../position.md) to stand it at a point or a [Gob](../gob.md) to follow one ([the anchor](README.md#the-anchor-is-an-argument)). |
 | Client-only | A game object with no server id: never sent, no gameplay advantage, unprotected ([the section's note](README.md)). |
-| Streams in | The resource resolves on a loader thread: `:add` returns a working ghost at once and the visual appears a beat later. Every verb works meanwhile; a `:position` before it is visible sets where it will appear. |
+| Streams in | The resource resolves on a loader thread: `:add` returns a working ghost at once and the visual appears once the resource has loaded. Every verb works meanwhile. A `:position` before it is visible sets where it will appear. |
 
-> **Any resource name is accepted, a body or a critter included.** A ghost of a player body at full opacity looks like somebody standing there, and no read about the world lists it (not a [Gob](../gob.md), not in `session:world()`, unknown to `session:party()` and the kin roster). It deceives nobody but the person running your addon: say what yours stands, and keep an alpha or a tint on anything a player could mistake for real.
+> **Any resource name is accepted, a body or a critter included.** A ghost of a player body at full opacity looks like somebody standing there. No read about the world lists it: not a [Gob](../gob.md), not in `session:world()`, unknown to `session:party()` and the kin roster. It deceives nobody but the person running your addon. Say what yours stands. Keep an alpha or a tint on anything a player could mistake for real.
 
 ## The ghost
 
@@ -28,7 +28,7 @@ The [shared vocabulary](README.md#one-vocabulary-every-kind) (`:position`, `:off
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `ghost:res()` | `string` | Unprotected | The resource name it draws. |
-| `ghost:res(name, spawn_data)` | the ghost | Unprotected | Swap the visual to another resource, streaming in like `:add`. `spawn_data` is an optional byte array selecting a variant or state (`{0x01, 0x00}`); rarely needed. |
+| `ghost:res(name, spawn_data)` | the ghost | Unprotected | Swap the visual to another resource, streaming in like `:add`. `spawn_data` is an optional byte array selecting a variant or state (`{0x01, 0x00}`). Rarely needed. |
 
 ## Look and orientation
 
@@ -48,19 +48,19 @@ ghost:visible(true)                           -- ...and put it back
 | Verb | Detail |
 |---|---|
 | `:alpha` | Opacity `0..1`. Below `1` the prop is see-through, and a translucent 3D object does not self-occlude: far faces show through near ones. |
-| `:tint` | A colour overlay in the shape [`marker:color`](../map/markers.md), [`session:party`](../party.md) and [`session:kin`](../kin.md) use; the fourth component is the blend strength, independent of `:alpha`. |
-| `:res(name)` | Swaps the resource; the new visual streams in a beat later. |
+| `:tint` | A colour overlay in the shape [`marker:color`](../map/markers.md), [`session:party`](../party.md) and [`session:kin`](../kin.md) use. The fourth component is the blend strength, independent of `:alpha`. |
+| `:res(name)` | Swaps the resource. The new visual appears once it has loaded. |
 | `:visible(false)` | Removes the ghost from the scene keeping position, look and clickability: cheaper than removing and re-placing. |
-| `:scale` | `1` is original size; in place, around its own footprint, keeping position and facing; clamped to a positive range. A saved layout or a drag handle reads `ghost:position()`, `ghost:rotate()` and `ghost:scale()` and writes them back. The special resource types that reset their transform (curio-style sprites, which ignore ghost rotation) ignore scale too; building and terrain props scale. |
+| `:scale` | `1` is original size. In place, around its own footprint, keeping position and facing. Clamped to a positive range. A saved layout or a drag handle reads `ghost:position()`, `ghost:rotate()` and `ghost:scale()` and writes them back. The special resource types that reset their transform (curio-style sprites, which ignore ghost rotation) ignore scale too. Building and terrain props scale. |
 
 ## Clickability
 
-Opt-in with `ghost:clickable(true)`: a clickable ghost gains a pick surface, and a click on it in the 3D view is detected and consumed (your handlers fire; the character does not walk or interact). A planner flips its ghosts clickable in an edit mode.
+Opt-in with `ghost:clickable(true)`. A clickable ghost gains a pick surface. A click on it in the 3D view is detected and consumed: your handlers fire, the character does not walk or interact. A planner flips its ghosts clickable in an edit mode.
 
 ```lua
 local ghost = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", position)
   :clickable(true)
-  :onClick(function(clicked_ghost, button, x, y)     -- 1 = left, 3 = right; x, y = the clicked world point
+  :onClick(function(clicked_ghost, button, world_x, world_y)     -- 1 = left, 3 = right; then the clicked world point
     hafen.log():write("clicked my ghost with button " .. button)
   end)
 -- or globally, for every clickable ghost this addon owns:
@@ -72,7 +72,7 @@ end)
 | Rule | Detail |
 |---|---|
 | Both fire | The per-ghost `:onClick` and the [`GhostClicked`](../event/bus/world.md#world-ghosts-and-sprites) event, which reaches only your addon. |
-| Still unprotected | Client-side detection: the pick pass returns the ghost and the bridge calls you; nothing is sent. A non-clickable ghost has no pick surface and is click-through. |
+| Still unprotected | Client-side detection: the pick pass returns the ghost and the bridge calls you. Nothing is sent. A non-clickable ghost has no pick surface and is click-through. |
 
 ## Layouts and persistence
 
@@ -85,10 +85,10 @@ Drag a ghost along the terrain, snapping as a real building placement does, with
 | Step | Primitive |
 |---|---|
 | 1 | [The mouse's grab](../ui/mouse.md#the-grab) captures the pointer, so the camera stays put. |
-| 2 | [`session:world():screenToWorld`](../world.md#the-screen-and-the-world) turns the cursor pixel into a ground Position; it reads a pixel, so `session` is [`hafen.session():current()`](../session.md). |
+| 2 | [`session:world():screenToWorld`](../world.md#the-screen-and-the-world) turns the cursor pixel into a ground Position. It reads a pixel, so `session` is [`hafen.session():current()`](../session.md). |
 | 3 | [`session:world():snapPlace`](../world.md#the-screen-and-the-world) snaps it to the placement grid, Shift for the fine grid. |
 
-Wired into a move mode: select a ghost, take the grab, and it follows the cursor snapped to the grid until you click to drop it ([the grab](../ui/mouse.md#the-grab) has the drag pattern in full).
+Wired into a move mode. Select a ghost and take the grab. It follows the cursor snapped to the grid until you click to drop it. [The grab](../ui/mouse.md#the-grab) has the drag pattern in full.
 
 ---
 

@@ -1,6 +1,6 @@
 # AddOns
 
-A Lua addon system for the client: an addon is a folder of Lua files the client loads at start and runs in a sandbox, with everything it may touch arriving through one `hafen.*` API. Read the game state, react to events, draw your own UI, add hotkeys and console commands, restyle the client, and, with the user's permission, drive the character.
+A Lua addon system for the client. An addon is a folder of Lua files the client loads at start and runs in a sandbox. Everything it may touch arrives through one `hafen.*` API. Read the game state and react to events. Draw your own UI. Add hotkeys and console commands. Restyle the client. With the user's permission, drive the character.
 
 ```lua
 -- addons/myaddon/main.lua
@@ -30,7 +30,7 @@ That is a whole addon beside a [`manifest.json`](manifest.md) naming it. Nothing
 
 ## The API at a glance
 
-One page per namespace, and a directory where a namespace is large; the [reference index](api/README.md) lists every page.
+One page per namespace, and a directory where a namespace is large. The [reference index](api/README.md) lists every page.
 
 | Area | Namespaces |
 |---|---|

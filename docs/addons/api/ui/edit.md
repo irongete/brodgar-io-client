@@ -1,6 +1,6 @@
 # hafen.ui: Editing the Client's Windows
 
-Editing changes one part of a window the client built and leaves the rest alone: what it says, a control of yours inside it, what its own controls do. [Replacing](replace.md) hides the window and hands the whole job to you.
+Editing changes one part of a window the client built and leaves the rest alone. That part is what it says, a control of yours inside it, or what its own controls do. [Replacing](replace.md) hides the window and hands the whole job to you.
 
 ```lua
 hafen.session():current():ui():on("window[title=Options]", "Added", function(options_window)
@@ -18,10 +18,10 @@ Nothing here is a new verb: every name is one you use on a widget your addon bui
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `widget:text()` | `string \| nil` | Unprotected | What a widget says, best-effort, on any widget; `nil` where it says nothing. |
+| `widget:text()` | `string \| nil` | Unprotected | What a widget says, best-effort, on any widget. `nil` where it says nothing. |
 | `widget:text(s)` | `self` | Unprotected | Writes a label, a button's caption or a checkbox's label. |
-| `widget:text(nil)` | `self` | Unprotected | Drops your level; the stock text comes back. |
-| `widget:title()` | `string \| nil` | Unprotected | A window's caption; `nil` on anything that is not a window. |
+| `widget:text(nil)` | `self` | Unprotected | Drops your level. The stock text comes back. |
+| `widget:title()` | `string \| nil` | Unprotected | A window's caption. `nil` on anything that is not a window. |
 | `widget:title(s)`, `widget:title(nil)` | `self` | Unprotected | Writes or drops a window's caption, as `:text` does. |
 
 ```lua
@@ -32,11 +32,11 @@ options_window:matchAll("@Button")[1]:text("Go")
 
 | Rule | Detail |
 |---|---|
-| A level, not a write into the client | The first write records what the widget said; `:text(nil)`, `:title(nil)`, disable and `:reload` give it back, colour and wrapping included. A second write replaces your level, so one `nil` is always enough. Two addons may each hold a caption: the last wins on screen, each gives back what it found. |
-| The server rewriting the text | Your level goes back on within a frame of the update; what `:text(nil)` gives back afterwards is the server's latest value. |
+| A level, not a write into the client | The first write records what the widget said. `:text(nil)`, `:title(nil)`, disable and `:reload` give it back, colour and wrapping included. A second write replaces your level, so one `nil` is always enough. Two addons may each hold a caption: the last wins on screen, each gives back what it found. |
+| The server rewriting the text | Your level goes back on within a frame of the update. What `:text(nil)` gives back afterwards is the server's latest value. |
 | Held on the widget | [The client reuses its windows](native.md#the-client-reuses-its-windows), so a caption can outlive what its window means. |
 | Not style | There is no `text` property in the [stylesheet](style/README.md): what one widget says is a fact about that widget. |
-| Refusals | A text entry (naming `:value(v)`: its content reaches the server), a window on `:text(s)` (naming `:title(s)`), a non-window on `:title(s)` (naming `:text(s)`), and a widget with nothing to say — a window's close button is three pictures. |
+| Refusals | A text entry, naming `:value(v)`: its content reaches the server. A window on `:text(s)`, naming `:title(s)`. A non-window on `:title(s)`, naming `:text(s)`. A widget with nothing to say: a window's close button is three pictures. |
 
 ---
 
@@ -46,7 +46,7 @@ options_window:matchAll("@Button")[1]:text("Go")
 |---|---|---|---|
 | `control:parent(window)` | `self` | Unprotected | Builds the control you are building into a client window. Build-time: refused on a control already on screen, naming `:position(x, y)`. |
 | `window:pack()` | `self` | Unprotected | Refits the client window around what is inside it, your control included. |
-| `window:size(nil)` | `self` | Unprotected | Drops your level; the [stock box](native.md#moving-and-resizing-unprotected) comes back. |
+| `window:size(nil)` | `self` | Unprotected | Drops your level. The [stock box](native.md#moving-and-resizing-unprotected) comes back. |
 
 ```lua
 hafen.ui():button():text("Reload"):parent(options_window):position(0, options_window:size().h)
@@ -55,16 +55,16 @@ options_window:pack()
 
 | Rule | Detail |
 |---|---|
-| A child's place is the content area | `(0, 0)` is under the caption bar, so the window's own height is a place below everything it shows; a [geometry rule](style/geometry.md) anchors your control to one of the window's own widgets for anything more exact. |
-| `:pack()` is a level | What the pack came out at is your size level: `:size(nil)`, disable and `:reload` give the stock box back. A window that packs itself (the main inventory) undoes it before the call returns, inert; a client widget that is not a window refuses, naming `:size(w, h)`. |
-| Your control dies with the window | Its `Removed` fires when the window is destroyed and `:exists()` is `false` from then; a window the client merely hides brings your control back with it. |
+| A child's place is the content area | `(0, 0)` is under the caption bar, so the window's own height is a place below everything it shows. A [geometry rule](style/geometry.md) anchors your control to one of the window's own widgets for anything more exact. |
+| `:pack()` is a level | What the pack came out at is your size level: `:size(nil)`, disable and `:reload` give the stock box back. A window that packs itself (the main inventory) undoes it before the call returns, inert. A client widget that is not a window refuses, naming `:size(w, h)`. |
+| Your control dies with the window | Its `Removed` fires when the window is destroyed and `:exists()` is `false` from then. A window the client merely hides brings your control back with it. |
 | The other direction | A client widget into a surface of yours is [`widget:parent(p)`](native.md#taking-one-into-a-surface-of-your-own-unprotected), and `:parent(nil)` gives it back. |
 
 ---
 
 ## Taking over what a control does
 
-A [control](controls/README.md)'s capability key answers on a borrowed control with the same `:on(key, fn)`, the same `sub:off()`, two handlers both firing — and an `event` that can stop or run the client's own action.
+A [control](controls/README.md)'s capability key answers on a borrowed control with the same `:on(key, fn)`, the same `sub:off()`, two handlers both firing. It adds an `event` that can stop or run the client's own action.
 
 | Key | Fires on | `event` answers |
 |---|---|---|
@@ -78,14 +78,14 @@ A [control](controls/README.md)'s capability key answers on a borrowed control w
 
 | Rule | Detail |
 |---|---|
-| Naming the control | A [selector](selectors.md); every window has a close button, so `window:match("@IButton")` reaches a control without knowing what the window is made of. |
-| A borrowed control can be rebuilt under you | The client remakes whole columns of its windows when a setting changes (Options rebuilds its video column), and a control dying as a descendant fires no `Removed`: your takeover stops on a control that looks the same. Re-arm from [`session:ui():on(sel, "Added", fn)`](replace.md). |
+| Naming the control | A [selector](selectors.md). Every window has a close button, so `window:match("@IButton")` reaches a control without knowing what the window is made of. |
+| A borrowed control can be rebuilt under you | The client remakes whole columns of its windows when a setting changes (Options rebuilds its video column). A control dying as a descendant fires no `Removed`. Your takeover stops on a control that looks the same. Re-arm from [`session:ui():on(sel, "Added", fn)`](replace.md). |
 | Cancelling | `event:preventDefault()` stops the client's own action. It is OR across every handler and every addon of one press: any one cancels, all run, order does not matter. On a control you built the key carries no `event`: your handler is the action. |
-| Which widget a list's key belongs to | A dropdown's rows live in a popup list and a menu's in an inner list; the key fires on the control (`session:ui():matchAll("@SDropBox")[1]:on("Changed", fn)`), and subscribing on the list of rows raises, naming the control. |
+| Which widget a list's key belongs to | A dropdown's rows live in a popup list and a menu's in an inner list. The key fires on the control (`session:ui():matchAll("@SDropBox")[1]:on("Changed", fn)`), and subscribing on the list of rows raises, naming the control. |
 
 ### The key that only reports
 
-A slider and a scrollbar write their value before they say anything, so their `Changed` is a report: `event:preventDefault()` and `event:resend()` raise there, naming that the value has already moved. `event:value()` is where the control landed; putting the thumb back is a write.
+A slider and a scrollbar write their value before they report, so their `Changed` is a report. `event:preventDefault()` and `event:resend()` raise there, naming that the value has already moved. `event:value()` is where the control landed. Putting the thumb back is a write.
 
 ```lua
 local volume = hafen.session():current():ui():match("window[title=Options]"):matchAll("@HSlider")[1]
@@ -100,12 +100,13 @@ volume:on("Changed", function(event) hafen.log():write("now at " .. event:value(
 |---|---|
 | A checkbox | The flipped tick. |
 | A radio button | The row the selection is about to move to. |
-| A list, a dropdown, a menu, a grid | The row or cell the click landed on; `nil` for a click on empty space that would clear the selection. |
+| A list, a dropdown, a menu, a grid | The row or cell the click landed on. `nil` for a click on empty space that would clear the selection. |
 | A text entry | The line about to be submitted. |
 | A button | `nil`: `Pressed` is an activation. |
 | A slider, a scrollbar | Where it moved to. |
 
 ```lua
+local options_checkbox = options_window:matchAll("@CheckBox")[1]
 options_checkbox:on("Changed", function(event)
   if event:value() == true then event:preventDefault() end   -- this box may be cleared, never ticked
 end)
@@ -115,7 +116,7 @@ end)
 
 ## Reading what a borrowed control holds
 
-`widget:value()` answers on a client control as on [one you built](controls/README.md#setters): a checkbox's boolean, a radio's row (read from any of its buttons), a slider's or scrollbar's number, a text field's string, a list's or dropdown's row. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is an opaque handle: hold it and compare it with `==`; there is nothing inside to read.
+`widget:value()` answers on a client control as on [one you built](controls/README.md#setters). A checkbox's boolean. A radio's row, read from any of its buttons. A slider's or scrollbar's number. A text field's string. A list's or dropdown's row. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is an opaque handle: hold it and compare it with `==`. There is nothing inside to read.
 
 ---
 
@@ -123,7 +124,7 @@ end)
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `widget:value(v)` | `self` | `widget.value` | Drives a client control as the user would: the control runs through the method the user's gesture ends in, so the client sends the server what it sends. The key is checked before the value is read. |
+| `widget:value(v)` | `self` | `widget.value` | Drives a client control as the user would. The control runs through the method the user's gesture ends in, so the client sends the server what it sends. The key is checked before the value is read. |
 
 ```lua
 local options_checkbox = hafen.session():current():ui():match("window[title=Options]"):matchAll("@CheckBox")[1]
@@ -141,9 +142,9 @@ options_checkbox:value(not options_checkbox:value())    -- ticked, exactly as a 
 
 | Rule | Detail |
 |---|---|
-| An act, not a layer | No `:value(nil)`; nothing is recorded; neither `:reload` nor disable puts a driven control back. The write went to the server as an interaction. |
-| It fires nothing | No `Changed` of yours runs from a `:value(v)`; read the control back to see where it landed. |
-| Refusals | A value of the wrong shape; a row not in the radio's set (naming the rows); a row not the list's; a widget that holds nothing (naming what does); a client progress bar, whose value the client re-reads every frame. |
+| An act, not a layer | No `:value(nil)`. Nothing is recorded. Neither `:reload` nor disable puts a driven control back. The write went to the server as an interaction. |
+| It fires nothing | No `Changed` of yours runs from a `:value(v)`. Read the control back to see where it landed. |
+| Refusals | A value of the wrong shape. A row not in the radio's set (naming the rows). A row not the list's. A widget that holds nothing (naming what does). A client progress bar, whose value the client re-reads every frame. |
 
 ---
 
@@ -151,9 +152,10 @@ options_checkbox:value(not options_checkbox:value())    -- ticked, exactly as a 
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `event:resend()` | — | `ui.resend` | Runs the action the control already had, as the gesture would have reached it: a button's click, a checkbox's flip, a radio's pick, a list's selection change on the very list the click went through (a dropdown closes its popup, a menu fires its choice), an entry's submission on the entry itself. |
+| `event:resend()` | — | `ui.resend` | Runs the action the control already had, as the gesture would have reached it. A button's click. A checkbox's flip. A radio's pick. A list's selection change on the very list the click went through (a dropdown closes its popup, a menu fires its choice). An entry's submission on the entry itself. |
 
 ```lua
+local close_button = options_window:match("@IButton")
 close_button:on("Pressed", function(press)
   if hafen.ui():mouse():shift() then
     press:resend()                        -- shift-click goes through, this once
@@ -167,17 +169,17 @@ end)
 |---|---|
 | Its own key | `ui.resend`, narrower than `widget.send`: it re-runs the press the user already made, the message the client sends included. |
 | Implies `preventDefault()` | The action happens exactly once however many handlers ask. It re-enters no handler for that key. |
-| Once per event | Callable from a later frame (the client has released its mouse grab, and the handler may destroy the window), but a second `resend()` on the same event raises. |
+| Once per event | Callable from a later frame: the client has released its mouse grab, and the handler may destroy the window. A second `resend()` on the same event raises. |
 | A stale widget | Raises, naming that: nothing was re-sent. |
-| No `event:send(t)` | That verb belongs to an [outbound action](../event/streams.md#intercepting-an-outbound-action), where a message has arguments to rewrite; here a method is held back, and the spelling refuses naming `resend`. |
+| No `event:send(t)` | That verb belongs to an [outbound action](../event/streams.md#intercepting-an-outbound-action), where a message has arguments to rewrite. Here a method is held back, and the spelling refuses naming `resend`. |
 
 ---
 
 ## A native control inside one of yours
 
-A control you built is often made of the client's smaller ones — a dropdown's arrow is a client checkbox — and those read borrowed (`:info().owned` is `false`), so this page applies to them. The addon that owns a control keeps the dispatch it had and never also receives it here: your `Changed` on the dropdown is the picked row, the arrow is a separate widget with a key of its own, and its popup list is covered by [the address rule](#taking-over-what-a-control-does).
+A control you built is often made of the client's smaller ones: a dropdown's arrow is a client checkbox. Those read borrowed (`:info().owned` is `false`), so this page applies to them. The addon that owns a control keeps the dispatch it had and never also receives it here. Your `Changed` on the dropdown is the picked row. The arrow is a separate widget with a key of its own. Its popup list is covered by [the address rule](#taking-over-what-a-control-does).
 
-## Four writes to one window
+## The edits on one window
 
 ```lua
 hafen.session():current():ui():on("window[title=Options]", "Added", function(options_window)
@@ -202,7 +204,7 @@ The window stays the client's, still fills itself, and everything above comes of
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `widget:revert()` | `self` | Unprotected | Gives back everything your addon holds on the widget and on everything under it, as the tree stands: the text, the place, the size, the hide, your [`widget:rule()`](style/README.md#restyle-one-widget) level, every subscription you hold in that subtree, and every control you adopted into it, destroyed (its `Removed` fires). A widget you hold nothing on is a no-op. |
+| `widget:revert()` | `self` | Unprotected | Gives back everything your addon holds on the widget and on everything under it, as the tree stands. That is the text, the place, the size, the hide, your [`widget:rule()`](style/README.md#restyle-one-widget) level, and every subscription you hold in that subtree. Every control you adopted into it is destroyed (its `Removed` fires). A widget you hold nothing on is a no-op. |
 
 ```lua
 local keybindings = hafen.client():options():keybindings()
@@ -218,8 +220,8 @@ end)
 | Rule | Detail |
 |---|---|
 | Scope | That widget and everything under it, so an addon that edited two windows gives one back. A hidden widget comes back under [the hide's own rule](native.md#hiding-a-native-widget-carries-a-restore). |
-| Left standing | `widget:value(v)`, an act the server has seen; and a [replacement](replace.md), which `widget:replace(nil)` ends. |
-| Not a small `:reload` | Disable and `:reload` run every undo here at teardown; `revert()` gives one window back while the addon keeps running. |
+| Left standing | `widget:value(v)`, an act the server has seen. And a [replacement](replace.md), which `widget:replace(nil)` ends. |
+| Not a small `:reload` | Disable and `:reload` run every undo here at teardown. `revert()` gives one window back while the addon keeps running. |
 
 ---
 

@@ -1,6 +1,6 @@
 # Getting Started
 
-One addon, from an empty folder to a window with a hotkey that remembers whether it was open, in about ten minutes with no setup beyond the client you run. Every block goes into the same two files, in order.
+One addon, from an empty folder to a window with a hotkey that remembers whether it was open. About ten minutes, with no setup beyond the client you run. Every block goes into the same two files, in order.
 
 ## Step 1: make the folder
 
@@ -27,7 +27,7 @@ The folder name is the addon's id, and `manifest.json` repeats it:
 }
 ```
 
-`id` and `files` are required. `api_version` names the API you wrote against, the one these pages describe; without it the client leaves your addon out as out of date. The rest is what the [AddOns manager](panel.md) shows. Every field is in [the manifest](manifest.md).
+`id` and `files` are required. `api_version` names the API you wrote against, the one these pages describe. Without it the client leaves your addon out as out of date. The rest is what the [AddOns manager](panel.md) shows. Every field is in [the manifest](manifest.md).
 
 ## Step 2: write a line of Lua
 
@@ -45,7 +45,7 @@ Start the client, or press `:` and type:
 :reload
 ```
 
-`:reload` rebuilds the addon layer from disk without touching your session. A newly discovered addon is enabled, so `myaddon loaded` appears in the console; if not, [`:addons`](runtime.md#the-console-commands) lists what the client found and what it made of it. Every code change from here is the same loop: edit, `:reload`, look at the console.
+`:reload` rebuilds the addon layer from disk without touching your session. A newly discovered addon is enabled, so `myaddon loaded` appears in the console. If not, [`:addons`](runtime.md#the-console-commands) lists what the client found and what it made of it. Every code change from here is the same loop: edit, `:reload`, look at the console.
 
 ## Step 4: react to entering the world
 
@@ -66,7 +66,7 @@ end)
 `hafen.ui():window()` is a draggable, titled window whose content you paint. Build it when you enter the world and keep the handle:
 
 ```lua
-local window                                    -- the window, once we are in the world
+local window                                    -- the window, once the character is in the world
 local settings                                  -- this character's var, once it is up
 local tree_count = 0                            -- what it displays
 
@@ -102,30 +102,32 @@ An addon hotkey is declared by name and starts unbound: you name the action, the
 
 ```lua
 hafen.client():options():keybindings():on("toggle", function()
-  if not window then return end
-  if window:visible() then window:visible(false) else window:visible(true) end
+  hafen.timer():after(0, function()               -- the next step: the key press runs in the character's tree, the window stands in yours
+    if not window then return end
+    if window:visible() then window:visible(false) else window:visible(true) end
+  end)
 end)
 ```
 
-Reload, then open Options ▸ Game ▸ Keybindings: a **My Addon** section holds one action, `toggle`. Assign a key, and it hides and shows your window. Your addon owns the window, so both verbs answer on it ([owned vs borrowed](api/ui/writes.md#owned-vs-borrowed)).
+Reload, then open Options ▸ Game ▸ Keybindings: a **My Addon** section holds one action, `toggle`. Assign a key, and it hides and shows your window. Your addon owns the window, so both verbs answer on it ([owned vs borrowed](api/ui/writes.md#owned-vs-borrowed)). A hotkey fires inside the tree of the character on screen, and your window stands in the addon layer, a tree of its own. So the toggle is handed to the next step with `hafen.timer():after(0, fn)` ([threading](api/threading.md#getting-onto-the-step-from-a-handler-that-holds-a-tree)).
 
 ## Step 8: remember it across sessions
 
-A var is a table the client saves for you, existing the first time you name it; asked of a session's store it is that character's own. At the end of the `SessionEnteredWorld` handler:
+A var is a table the client saves for you, existing the first time you name it. Asked of a session's store it is that character's own. At the end of the `SessionEnteredWorld` handler:
 
 ```lua
   settings = session:store():var("settings")
   if settings.open == false then window:visible(false) end
 ```
 
-and the hotkey's body becomes:
+and the body the hotkey hands to the step becomes:
 
 ```lua
-  if window:visible() then window:visible(false) else window:visible(true) end
-  settings.open = window:visible()
+    if window:visible() then window:visible(false) else window:visible(true) end
+    settings.open = window:visible()
 ```
 
-The engine fills the table from disk when you name it and writes it back for you; the reference stays live. Reload, hide the window, log out and back in: it stays hidden. [Vars](api/store/vars.md) has the client scope and what a saved table may hold.
+The client fills the table from disk when you name it and writes it back for you. The reference stays live. Reload, hide the window, log out and back in: it stays hidden. [Vars](api/store/vars.md) has the client scope and what a saved table may hold.
 
 ## The whole addon
 
@@ -146,7 +148,7 @@ The engine fills the table from disk when you name it and writes it back for you
 `addons/myaddon/main.lua`:
 
 ```lua
-local window                                    -- the window, once we are in the world
+local window                                    -- the window, once the character is in the world
 local settings                                  -- this character's var, once it is up
 local tree_count = 0                            -- what it displays
 
@@ -170,13 +172,15 @@ hafen.timer():every(1, function()
 end)
 
 hafen.client():options():keybindings():on("toggle", function()
-  if not window then return end
-  if window:visible() then window:visible(false) else window:visible(true) end
-  settings.open = window:visible()
+  hafen.timer():after(0, function()               -- the next step: the key press runs in the character's tree, the window stands in yours
+    if not window then return end
+    if window:visible() then window:visible(false) else window:visible(true) end
+    settings.open = window:visible()
+  end)
 end)
 ```
 
-A manifest, a lifecycle, a read, a surface of its own, an input the user controls, and data that outlives the session.
+The addon uses a manifest, a lifecycle event and a read. It has a surface of its own, an input the user controls, and data that outlives the session.
 
 ## Where to go next
 

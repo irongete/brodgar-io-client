@@ -1,9 +1,9 @@
 # Permissions
 
-Reading the game needs no permission. Acting on it (walking, clicking an object, using an item, picking a menu entry) is protected: one key per action, declared in your manifest and approved by the user when they enable your addon. This guide is the catalogue of keys, how to ask for them, and what sits on the near side of the gate.
+Reading the game needs no permission. Acting on it (walking, clicking an object, using an item, picking a menu entry) is protected. There is one key per action, declared in your manifest and approved by the user when they enable your addon. This guide is the catalogue of keys, how to ask for them, and what needs no key.
 
 ```json
-"permissions": ["player.move", "gob.click", "item.*"]
+{ "permissions": ["player.move", "gob.click", "item.*"] }
 ```
 
 ---
@@ -39,10 +39,10 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 | `chat.send` | [`channel:send`](../api/chat.md#write-protected) | say a line in the chat, as any of your characters |
 | `speed.set` | [`session:speed():set`](../api/speed.md#write-protected) | change the movement speed of any of your characters |
 | `session.close` | [`session:close`](../api/session.md#write-protected), [`hafen.session():remove`](../api/session.md#write-protected) | log out any of your characters |
-| `session.add` | [`hafen.session():add(user)`](../api/session.md#remembered-accounts-protected) | log a remembered account in as a new session |
-| `session.forget` | [`hafen.session():forget(user)`](../api/session.md#remembered-accounts-protected) | forget a remembered account: delete its saved login |
+| `session.add` | [`hafen.session():add(user)`](../api/session.md#remembered-accounts-protected) | log in any of the accounts you told the login screen to remember |
+| `session.forget` | [`hafen.session():forget(user)`](../api/session.md#remembered-accounts-protected) | forget any of the accounts you told the login screen to remember, so it asks for their password again |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected), [`event:resend`, `event:send`](../api/event/streams.md#intercepting-an-outbound-action) | send any message the client itself could send |
-| `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls (a box it ticks, a field it types into), which the server sees |
+| `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 | `ui.resend` | [`event:resend` on a control](../api/ui/edit.md#running-the-action-yourself) | re-run a button you pressed, so the client sends what that press sends |
 | `ui.focus` | [`session:chat():selected(channel)`](../api/chat.md#write-unprotected) | move the keyboard into a chat entry line, so what you type next goes there |
 | `virtual.click` | [`hafen.virtual():click`](../api/virtual/README.md#clicking-what-stands-in-the-world-protected) | click the controls it has standing in the world, which act as if you had clicked them |
@@ -56,12 +56,12 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 | Rule | Detail |
 |---|---|
 | The whole set | Nothing else is protected, and no key grants the tier whole: an addon that declared `gob.click` can click objects and nothing else on the list. |
-| `console.run` is the widest | It names a surface, the command line, so it covers every command the client dispatches, `:lua` included, which evaluates outside the sandbox: an addon holding it can do what the user's console can. |
-| Keyed without reaching the game server | `map.marker` deletes a pin no server restores; `client.settings` rewrites every hotkey and reaches the client's own bindings (`binding:key("Ctrl+I")` on `inv`); `http.*`, `websocket.connect` and `voice.connect` reach outside the client, the last opening the microphone. Each is a control the player has in front of them. |
+| `console.run` is the widest | It names a surface, the command line, so it covers every command the client dispatches. `:lua` is one, and it evaluates outside the sandbox. An addon holding this key can do what the user's console can. |
+| Keyed without reaching the game server | `map.marker` deletes a pin no server restores. `client.settings` rewrites every hotkey and reaches the client's own bindings (`binding:key("Ctrl+I")` on `inv`). `http.*`, `websocket.connect` and `voice.connect` reach outside the client, the last opening the microphone. Each is a control the player has in front of them. |
 
 ## A key names the action, not the target
 
-The client holds several logins, and a protected verb is addressed at one (`session:kin():add` adds a kin to the character `session` names, drawn or not); the key you declared covers every one of them. A verb is protected because it starts something the player could have performed, and the player could have tabbed to that character. Read every line of the table across the whole client: what the user approves is a capability, and the character it is pointed at is your addon's to choose. `gob.click` is the one key not named for the section its verb sits under: it grants clicking an object, kept when the verb moved onto the world of the character clicking.
+The client holds several logins, and a protected verb is addressed at one (`session:kin():add` adds a kin to the character `session` names, drawn or not). The key you declared covers every one of them. A verb is protected because it starts something the player could have performed, and the player could have tabbed to that character. Read every line of the table across the whole client. What the user approves is a capability. The character it is pointed at is your addon's to choose. `gob.click` is the one key not named for the section its verb sits under. It names the action, clicking an object. The verb, [`session:world():click`](../api/world.md#write-protected), sits on the world of the character clicking.
 
 ## Groups
 
@@ -84,25 +84,25 @@ A `<prefix>.*` entry stands for every key under that prefix.
 | Rule | Detail |
 |---|---|
 | Any prefix is a group | `gob.*`, `menugrid.*`, `craft.*`, `speed.*`, `map.*`, `client.*`, `console.*`, `chat.*`, `virtual.*`, `websocket.*` and `voice.*` parse, each a longer spelling of its single key. |
-| Whole dot segments | A group never reaches a key that merely starts with the same letters, and does reach a nested one: `player.hand.use` is the only nested key, covered by `player.*` and alone by `player.hand.*`. |
+| Whole dot segments | A group never reaches a key that merely starts with the same letters, and does reach a nested one. `player.hand.use` is the only nested key, covered by `player.*` and alone by `player.hand.*`. |
 | The unit the user reads | The dialog prints one line per entry as written (`item.*` is one line naming its verbs), and the panel row counts entries the same way. |
-| No `"*"` | An entry that is neither a key nor a group (a typo, an invented key, a bare asterisk) is a load error: the addon does not run and the panel row names the entry and lists the vocabulary. |
-| Tolerated | `""` or a string of spaces is dropped; entries are read trimmed (`" item.take "` is that key); a key declared twice is one grant, printed once. |
+| No `"*"` | An entry that is neither a key nor a group (a typo, an invented key, a bare asterisk) is a load error. The addon does not run. The panel row names the entry and lists the vocabulary. |
+| Tolerated | `""` or a string of spaces is dropped. Entries are read trimmed (`" item.take "` is that key). A key declared twice is one grant, printed once. |
 
 ## Declaring it
 
 | Step | Detail |
 |---|---|
 | 1. The manifest declares a key or a group for every protected verb you call | `"permissions": ["player.move", "gob.click", "item.*"]`. |
-| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it, and enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. Its row carries a `[protected: N]` badge with the entries in the tooltip, and **Enable all** skips it. |
+| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it. Enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. Its row carries a `[protected: N]` badge with the entries in the tooltip, and **Enable all** skips it. |
 
 | Rule | Detail |
 |---|---|
-| Asking for more re-asks | The approved keys and the hosts shown beside them are remembered per addon; a version adding either is disabled and prompts again with the addition marked new. A widened group counts as added, and so does a host no approved entry covers (`b.example.com` re-asks; narrowing `*.example.com` to `a.example.com` does not). Dropping a key or a host never re-prompts. |
+| Asking for more re-asks | The approved keys and the hosts shown beside them are remembered per addon. A version adding either is disabled and prompts again with the addition marked new. A widened group counts as added, and so does a host no approved entry covers (`b.example.com` re-asks, narrowing `*.example.com` to `a.example.com` does not). Dropping a key or a host never re-prompts. |
 | An undeclared key | A protected verb called by an addon that did not declare its key raises naming the verb, the key and the manifest line to paste. |
 | The gate asks the record, not the manifest | What the user approved for your addon: a key added to `manifest.json` after consent is refused at the call until the addon is enabled again. Both halves must hold: a key no longer declared is no longer granted. |
-| The gate asks who is running | A protected verb reads the manifest of the addon whose code is on the stack; handing another addon an `event`, a `Widget` or a `Session` hands it nothing. |
-| The record has a fixed size | A declaration large enough to overflow it (a `network` block of hundreds of hosts) cannot be recorded; approving it is refused naming your addon and the limit, and the addon stays disabled until the declaration is smaller. |
+| The gate asks who is running | A protected verb reads the manifest of the addon whose code is on the stack. Handing another addon an `event`, a `Widget` or a `Session` hands it nothing. |
+| The record has a fixed size | A declaration large enough to overflow it (a `network` block of hundreds of hosts) cannot be recorded. Approving it is refused naming your addon and the limit, and the addon stays disabled until the declaration is smaller. |
 
 ## What is not protected
 
@@ -111,24 +111,24 @@ Everything else writes to your own client and needs no key.
 | Unprotected write | Changes |
 |---|---|
 | [`session:menugrid():add`](../api/menugrid.md#write-unprotected) | An entry of your own in a character's action menu. |
-| [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) | Which of your entries the client draws over a bar slot; the server's content stays and comes back untouched. |
+| [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) | Which of your entries the client draws over a bar slot. The server's content stays and comes back untouched. |
 | [`category:show(flag)`](../api/map/icons.md#the-iconcat-object) | Which icons your minimap draws. |
-| [`session:chat():selected(channel)`](../api/chat.md#write-unprotected) | Which tab a character's chat has on screen; the keyboard moves with it only for `ui.focus`. |
+| [`session:chat():selected(channel)`](../api/chat.md#write-unprotected) | Which tab a character's chat has on screen. The keyboard moves with it only for `ui.focus`. |
 | [`widget:position`, `:size`, `:visible`, `:draggable`, `:resizable`, `:remember`](../api/ui/native.md) | Where the client's own windows sit and how big they are, whether the user can drag or size one, whether that lasts. |
 | [`widget:replace(view)`](../api/ui/replace.md) | Which window a client toggle opens. |
 | [`hafen.ui():sheet()`](theming.md) | What the client looks like. |
-| [`hafen.virtual`](../api/virtual/README.md) | Props only you can see; every verb but `:click`, which is `virtual.click`. |
+| [`hafen.virtual`](../api/virtual/README.md) | Props only you can see. Every verb but `:click`, which is `virtual.click`. |
 | [`hafen.sound`](../api/sound.md) | What you hear. |
-| [Option reads](../api/client/README.md) | Nothing; every client option write is `client.settings`. |
+| [Option reads](../api/client/README.md) | Nothing. Every client option write is `client.settings`. |
 | [`option:value(value)`, `:add()`, `options:panel(fn)`](../api/client/addon.md) | Your own options and page. |
 
 | Rule | Detail |
 |---|---|
-| The line | Whether the user would have to undo it by hand: everything above is a display choice changed back in a click, or something only your addon sees. A deleted pin, a rebound hotkey, a request to another host and a connection kept to one are not. |
+| The line | Whether the user would have to undo it by hand. Everything above is a display choice changed back in a click, or something only your addon sees. A deleted pin, a rebound hotkey, a request to another host and a connection kept to one are not. |
 | A menu entry of yours | Naming it, drawing it, putting it on the bar and running your function on a click never reach past your client. [`pagina:use()`](../api/menugrid.md#use-protected) keeps `menugrid.use` whichever entry it names. |
 | Re-issuing an action needs `widget.send` | [`event:resend()` and `event:send(table)`](../api/event/streams.md#intercepting-an-outbound-action) put a message on the wire `widget:send` uses, with arbitrary arguments, as often as a handler loops. [`event:preventDefault()`](../api/event/streams.md) stays open: cancelling reaches nothing. |
-| Re-running a control's action needs `ui.resend` | [`event:resend()` on a client control](../api/ui/edit.md#running-the-action-yourself) runs its method, its own `wdgmsg`. Narrower than `widget.send`: it re-runs the press the user made, once per event; a second `event:resend()` on the same event raises. |
-| Two keys, one act | `kin.end` and `kin.forget` are one message on the wire, resolved by the entry's state: an addon granted only `kin.end` can `endKin()` an un-kinned entry and forget it, and one granted only `kin.forget` can end a kinship. Granting either grants the pair. |
+| Re-running a control's action needs `ui.resend` | [`event:resend()` on a client control](../api/ui/edit.md#running-the-action-yourself) runs its method, its own `wdgmsg`. Narrower than `widget.send`: it re-runs the press the user made, once per event. A second `event:resend()` on the same event raises. |
+| Two keys, one act | `kin.end` and `kin.forget` are one message on the wire, resolved by the entry's state. An addon granted only `kin.end` can `endKin()` an un-kinned entry and forget it. One granted only `kin.forget` can end a kinship. Granting either grants the pair. |
 
 ## Writing an addon that acts
 
@@ -146,31 +146,31 @@ end)
 | Habit | Detail |
 |---|---|
 | Your manifest answers "may I act" | A declared, running addon was granted the key: nothing to test at run time. A file shipping either way reads its own `manifest.json` rather than provoking the error. |
-| Act from `SessionEnteredWorld` onwards | Every verb here needs a live map view or object and throws before one exists; a verb at a character not yet in the world says so and sends nothing. |
-| Make the user ask | Bind actions to a [hotkey, a command or a setting](hotkeys-and-commands.md), not a timer. An addon acting on its own at load is what a dialog cannot warn about; the switcher among [the maintainer's addons](../examples.md) is built the other way round. |
-| Declare the narrowest set | The dialog is the user's whole view of what you do; a group asked for out of convenience reads as every capability in it. |
+| Act from `SessionEnteredWorld` onwards | Every verb here needs a live map view or object and throws before one exists. A verb at a character not yet in the world says so and sends nothing. |
+| Make the user ask | Bind actions to a [hotkey, a command or a setting](hotkeys-and-commands.md), not a timer. An addon acting on its own at load is what a dialog cannot warn about. The switcher among [the maintainer's addons](../examples.md) is built the other way round. |
+| Declare the narrowest set | The dialog is the user's whole view of what you do. A group asked for out of convenience reads as every capability in it. |
 
 ## What the permission does not buy
 
 | Rule | Detail |
 |---|---|
-| The server is the authority | An addon sends what a click could have sent and finds out what happened by watching the world; a refused action is refused server-side with nothing to catch. |
-| Some of it outlives the addon | `slot:res(name)` and `slot:clear()` write the character's bar on the server: disabling, `:reload` and logout put nothing back; the user undoes it in the game. [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) is unprotected beside them because the server's content comes back untouched. |
+| The server is the authority | An addon sends what a click could have sent and finds out what happened by watching the world. A refused action is refused server-side with nothing to catch. |
+| Some of it outlives the addon | `slot:res(name)` and `slot:clear()` write the character's bar on the server: disabling, `:reload` and logout put nothing back. The user undoes it in the game. [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) is unprotected beside them because the server's content comes back untouched. |
 
 ## Network: one key, and the hosts are its argument
 
-`http.get`, `http.post`, `websocket.connect` and `voice.connect` are keys like any other, and the [`network` block](../api/http.md#declaring-network-access) is what they take: the key says whether, the hosts say where.
+`http.get`, `http.post`, `websocket.connect` and `voice.connect` are keys like any other. The [`network` block](../api/http.md#declaring-network-access) is what they take. The key says whether, the hosts say where.
 
 ```json
-"permissions": ["http.get", "websocket.connect"],
-"network": { "hosts": ["api.example.com"] }
+{ "permissions": ["http.get", "websocket.connect"],
+  "network": { "hosts": ["api.example.com"] } }
 ```
 
 | Rule | Detail |
 |---|---|
-| One line per key over the same hosts | *"fetch data from the servers it lists: api.example.com"*, *"keep a live connection to the servers it lists: api.example.com"*, and for a [voice link](../api/voice/README.md#declaring-network-access) *"use your microphone to talk on the voice servers it lists"*. |
-| Load error, refusal | Hosts without a key is a load error naming the keys; a key with no hosts is refused at the call. An origin the user did not approve is refused before any request leaves, connection opens or microphone is taken. |
-| An entry | One scheme on one port; a [`wss://` address is the `https` server](../api/websocket.md#declaring-network-access) the block names; a wildcard covers one domain's sub-domains, never a top-level domain ([what an entry means](../api/http.md#declaring-network-access)). |
+| One line per key over the same hosts | *"fetch data from the servers it lists: api.example.com"*. *"keep a live connection to the servers it lists: api.example.com"*. For a [voice link](../api/voice/README.md#declaring-network-access), *"use your microphone to talk on the voice servers it lists"*. |
+| Load error, refusal | Hosts without a key is a load error naming the keys. A key with no hosts is refused at the call. An origin the user did not approve is refused before any request leaves, connection opens or microphone is taken. |
+| An entry | One scheme on one port. A [`wss://` address is the `https` server](../api/websocket.md#declaring-network-access) the block names. A wildcard covers one domain's sub-domains, never a top-level domain ([what an entry means](../api/http.md#declaring-network-access)). |
 | The panel | A `[net]` badge with the exact hosts in the row's tooltip. |
 
 **Next:** [theming](theming.md) — changing what the client looks like, which needs no permission.

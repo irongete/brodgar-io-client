@@ -1,6 +1,6 @@
 # Threading: Where Your Code Runs
 
-Your Lua runs in one of two kinds of place: on the step, inside no character's UI, or answering something, inside the one character's UI that dispatched it. Which decides how far you may reach, and it is the only threading fact the API asks you to hold.
+Your Lua runs in one of two kinds of place. On the step, inside no character's UI. Or answering something, inside the one character's UI that dispatched it. Which one decides how far you may reach. It is the only threading rule in the API.
 
 ```lua
 -- the step: this may write any character's UI, and your own windows
@@ -14,13 +14,13 @@ end)
 
 ---
 
-The client has more than one widget tree: one per logged-in character, and one of your own beside them for your windows. Each is guarded separately and nothing ever holds two guards at once. Code on the step holds none and reaches all; code answering a click holds one and reaches that one.
+The client has more than one widget tree: one per logged-in character, and one of your own beside them for your windows. Each is guarded separately and nothing ever holds two guards at once. Code on the step holds none and reaches all. Code answering a click holds one and reaches that one.
 
 ## Where each handler runs
 
 | Subscribed to | Runs | Reaches |
 |---|---|---|
-| [`hafen.event():on(key, fn)`](event/bus/README.md), every catalogue event but the two rows marked below | The step; for `GobAdded`, before the object is drawn. | Any tree. |
+| [`hafen.event():on(key, fn)`](event/bus/README.md), every catalogue event but the rows marked below | The step. For `GobAdded`, before the object is drawn. | Any tree. |
 | [`hafen.timer()`](timer.md) `:after`, `:every` | The step. | Any. |
 | [`widget:on("Update", fn)`](ui/custom.md) | The step. | Any. |
 | [`session:ui():on(selector, "Added"/"Removed", fn)`](ui/replace.md) | The step, after the widget arrived or left. | Any. |
@@ -29,7 +29,7 @@ The client has more than one widget tree: one per logged-in character, and one o
 | A [connection](websocket.md)'s `Open`, `Message`, `Close`, `Error` | The step. | Any. |
 | A [voice link](voice/link.md)'s `Open`, `Close`, `Error` and the Peer keys | The step. | Any. |
 | [`options:panel(fn)`](client/addon.md#the-page) | The step, one frame after the page is opened. | Any. |
-| [`hafen.event():message():on(msg, fn)`](event/streams.md), inbound | As the update arrives, before the widget applies it. | Any; not the step. |
+| [`hafen.event():message():on(msg, fn)`](event/streams.md), inbound | As the update arrives, before the widget applies it. | Any, not the step. |
 | [`widget:on("Draw", fn)`](ui/custom.md) | The pass that paints that widget. | Its own only. |
 | `widget:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)` | The input that dispatched it. | Its own only. |
 | [`widget:on("Drop", fn)`](ui/custom.md), `"Close"` | The drop, the close button. | Its own only. |
@@ -46,9 +46,9 @@ The client has more than one widget tree: one per logged-in character, and one o
 | Rule | Detail |
 |---|---|
 | The step group | May build a window, read one character while writing another, reach every login. Every other row answers something in progress (a pass painting, a press waiting, a message leaving, a ring the server put up) inside one tree. |
-| `GobAdded` is ordered ahead of drawing | The client holds a new object out of the render tree until every handler has seen it, so a label or a size written there is in force on its first drawn frame ([before the first drawn frame](event/bus/world.md#before-the-first-drawn-frame)). Every other step handler runs on the step after the thing it is about. |
-| A hotkey runs in the character's tree | The client matches a key by walking the drawn character's tree, so your handler may write that tree and not your own window in the layer. Record what you want and let the step do it. |
-| The inbound stream is in neither group | Holds no tree, so it reaches any, but is not the step: it answers before the widget applies the update, which makes [`event:preventDefault()`](event/streams.md) and `event:rewrite(table)` possible, where the update arrived. |
+| `GobAdded` is ordered ahead of drawing | The client holds a new object out of the render tree until every handler has seen it. A label or a size written there is in force on its first drawn frame ([before the first drawn frame](event/bus/world.md#before-the-first-drawn-frame)). Every other step handler runs on the step after the thing it is about. |
+| A hotkey runs in the character's tree | The client matches a key by walking the drawn character's tree. Your handler may write that tree, and not your own window in the layer. Record what you want and let the step do it. |
+| The inbound stream is in neither group | Holds no tree, so it reaches any, but is not the step. It answers before the widget applies the update, where the update arrived. That makes [`event:preventDefault()`](event/streams.md) and `event:rewrite(table)` possible. |
 | Which am I in | [`hafen.client():stepping()`](client/README.md#where-your-code-is-running). |
 
 ## One tree at a time
@@ -77,7 +77,7 @@ step, holding none.
 
 | Rule | Detail |
 |---|---|
-| The nesting is refused, never the crossing | The same write lands from the step, and a handler holding a tree may write that tree: its own window, the widget it was handed, anything under the character whose press it answers. |
+| The nesting is refused, never the crossing | The same write lands from the step. A handler holding a tree may write that tree: its own window, the widget it was handed, anything under the character whose press it answers. |
 | The names | `the addon layer` is where your own windows live, everything built with [`hafen.ui()`](ui/README.md) not parented onto a character. A character's tree is named by its account. |
 
 ## Getting onto the step from a handler that holds a tree
@@ -102,15 +102,15 @@ Both hold no tree. `widget:on("Update", fn)` is the same door on one of your sur
 
 | Rule | Detail |
 |---|---|
-| One entry at a time | Your addon is one Lua state entered from several client threads; the client lets one be inside your code at a time, so shared tables and upvalues are never read half-written. Holds across every row: the step, an inbound update, an HTTP reply, a connection's `Message`, a `Draw` pass. |
-| Serialised is not sequenced | An inbound update and the step's `Update` are two moments in no order; anything needing a fixed order belongs in one place. |
-| A tree handler may be skipped rather than made to wait | The second group holds a tree's guard when it reaches you, and waiting there deadlocks, so when your Lua is busy on another thread that call does not happen: a `Draw` keeps the previous frame's picture, a click or a `screenToWorld` answer is not delivered. It takes your code running on two threads at once; a short handler never meets it. A `Draw` that must not miss a frame draws what the step worked out. |
+| One entry at a time | Your addon is one Lua state entered from several client threads. The client lets one be inside your code at a time, so shared tables and upvalues are never read half-written. Holds across every row: the step, an inbound update, an HTTP reply, a connection's `Message`, a `Draw` pass. |
+| Serialised is not sequenced | An inbound update and the step's `Update` are two moments in no order. Anything needing a fixed order belongs in one place. |
+| A tree handler may be skipped rather than made to wait | The second group holds a tree's guard when it reaches you, and waiting there deadlocks. So when your Lua is busy on another thread that call does not happen. A `Draw` keeps the previous frame's picture. A click or a `screenToWorld` answer is not delivered. It takes your code running on two threads at once. A short handler never meets it. A `Draw` that must not miss a frame draws what the step worked out. |
 | A write on a game object is safe from every row | [`gob:scale(k)`](look.md#size-unprotected), [`gob:visible(flag)`](look.md#drawn-or-not-unprotected), [`gob:tint(color)`](look.md#tint-unprotected) and [`gob:overlay():add`/`:remove`](overlay.md#the-collection) from a `Draw` handler and the step at once are serialised per object. |
-| A logged line from inside a tree lands a frame later | The chat is a widget tree, so a [line](log.md) from a `Draw` handler, a control's notification or a gesture is held and posted by the next step, whole and in order. |
+| A logged line from inside a tree lands a frame later | The chat is a widget tree. A [line](log.md) from a `Draw` handler, a control's notification or a gesture is held and posted by the next step, whole and in order. |
 
 ## Nothing blocks
 
-No `sleep`, no waiting on a reply, no joining a thread: schedule a callback and return. A handler that runs long is a dropped frame; one that never returns would stop the client, so two limits catch it: an instruction budget per entry into your Lua (one apiece for two callbacks running at once) and a sustained per-frame time budget that disables the addon ([budgets and the watchdog](../runtime.md#budgets-and-the-watchdog)).
+No `sleep`, no waiting on a reply, no joining a thread: schedule a callback and return. A handler that runs long is a dropped frame. One that never returns would stop the client. The limits that catch it are on [budgets and the watchdog](../runtime.md#budgets-and-the-watchdog). One is an instruction budget per entry into your Lua, one apiece for two callbacks running at once. The other is a sustained per-frame time budget that disables the addon.
 
 ---
 
@@ -118,6 +118,6 @@ No `sleep`, no waiting on a reply, no joining a thread: schedule a callback and 
 
 - [Conventions](conventions.md) — the grammar every reference page assumes.
 - [`hafen.client()`](client/README.md#where-your-code-is-running) — `stepping()`, which of the two you are in.
-- [The message streams](event/streams.md) — the two handlers that do not run on the step.
+- [The message streams](event/streams.md) — the handlers that do not run on the step.
 - [Events and timers](../guides/events-and-timers.md) — choosing between an event, a timer and `Update`.
 - [Custom windows](ui/custom.md) — `Update` and `Draw`, and what each may reach.

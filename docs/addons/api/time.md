@@ -23,11 +23,11 @@ if hafen.time():night() then hafen.log():write("it's dark out") end
 | Rule | Detail |
 |---|---|
 | The clock belongs to the world | One world however many characters are logged in: the verbs answer from any session the client holds, and tabbing between characters never blanks them. `nil` when the client holds no session, the login screen. |
-| When they answer | `clock()` as soon as a session is up; the astronomy readers `nil` until the first astronomy update from the server, a beat after entering the world. |
-| Read together with `:info()` | Each verb asks the client afresh and the server replaces the whole reading at once, so two verbs on one line can land either side of an update. `:info()` takes one reading. |
-| `clock()` is not a stopwatch | Each login runs its own copy forward and steers towards what the server last said: two logins are a fraction of a second apart, and the number can go backwards on a resync or the client's first word from the server. Label a moment with it; measure with [`hafen.timer`](timer.md) or `os.clock()`. |
+| When they answer | `clock()` as soon as a session is up. The astronomy readers answer `nil` until the first astronomy update from the server, shortly after entering the world. |
+| Read together with `:info()` | Each verb asks the client afresh, and the server replaces the whole reading at once. Two verbs on one line can land either side of an update. `:info()` takes one reading. |
+| `clock()` is not a stopwatch | Each login runs its own copy forward and steers towards what the server last said. Two logins are a fraction of a second apart. The number can go backwards on a resync or the client's first word from the server. Label a moment with it. Measure with [`hafen.timer`](timer.md) or `os.clock()`. |
 | The fractions are the server's | Passed straight through, neither clamped nor checked: `0..1` is what they mean, not a range anything enforces. Guard a value you index or multiply with. |
-| Part of the update | The astronomy update carries more (where the sun stands) and the client keeps every field; the verbs above are what this API names of it. |
+| Part of the update | The astronomy update carries more (where the sun stands) and the client keeps every field. The verbs above are what this API names of it. |
 | `season()` | Names the season, so `== "winter"` reads as it looks. Anything outside the four answers `nil`, as does a server that publishes no season. |
 | Reads only | Passing an argument to any verb raises: the one thing on this page that throws. Nothing is protected. |
 | No `TimeChanged` | The clock moves every frame: read it when you need it, or poll on a [timer](timer.md). |
