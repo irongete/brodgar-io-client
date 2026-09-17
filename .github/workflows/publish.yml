@@ -69,7 +69,8 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          $arguments = @('-Yes', $(if ($env:EVENT -eq 'push') { '-Beta' } else { '-Release' }))
-          if ($env:VERSION) { $arguments += @('-Version', $env:VERSION) }
+          $arguments = @{ Yes = $true }
+          if ($env:EVENT -eq 'push') { $arguments.Beta = $true } else { $arguments.Release = $true }
+          if ($env:VERSION) { $arguments.Version = $env:VERSION }
           ./publish.ps1 @arguments
           "Published $(git tag --points-at HEAD 'v*') from $(git rev-parse --short HEAD)." | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
