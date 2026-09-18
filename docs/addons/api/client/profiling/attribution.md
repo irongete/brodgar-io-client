@@ -22,14 +22,14 @@ One row per Lua owner (every loaded addon, plus `(console)` for the `:lua` promp
 | `ms` | Its Lua time in the last completed frame. |
 | `msAvg` / `msPeak` | Mean and worst frame since the switch was armed, or since `reset()`. |
 | `share` | `ms` as a fraction of that frame. Absent until a frame has been sampled. |
-| `calls` | How many calls, by category: `events`, `timers`, `draw`, `hooks`, `widgets`. |
+| `calls` | How many calls, by category: `events`, `timers`, `draw`, `hooks`, `widgets`, `exports`. |
 | `cost` | The same split in milliseconds. |
 | `scopes` | This addon's [named scopes](#custom-scopes), keyed by name. |
 
 | Rule | Detail |
 |---|---|
 | `total` | A key after the array, `{ms=, share=}`, the same number `frame().addons` reports: both read the addon CPU watchdog's accounting. Folded a fraction of a frame apart: `frame()` closes with the frame, these rows on the tick after. Lua run in between is in the frame these rows close and not yet in `frame()`'s. Iterate the rows with `ipairs`. `total` is not part of the array. |
-| Categories describe what your Lua was doing | `draw`: overlay and widget paint callbacks, a grid's cell paint included. `widgets`: the rest of a widget's life (mouse input, tick, drop, close, destroy, a container's item events, a control's own key). `hooks`: hotkeys, console commands, a mouse grab's move and release. `events`: the event bus and the two message streams. `timers`: timer callbacks. |
+| Categories describe what your Lua was doing | `draw`: overlay and widget paint callbacks, a grid's cell paint included. `widgets`: the rest of a widget's life (mouse input, tick, drop, close, destroy, a container's item events, a control's own key). `hooks`: hotkeys, console commands, a mouse grab's move and release. `events`: the event bus and the two message streams. `timers`: timer callbacks. `exports`: calls into this addon's export from other addons, and callbacks they handed it. |
 | Re-entrancy | A callback that calls back into the client, which calls your Lua again, is charged to both brackets, as the watchdog charges it. So `cost` can add up to slightly more than `ms`. `ms` is the number to trust. |
 
 ## Custom scopes

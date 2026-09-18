@@ -61,7 +61,7 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 
 ## A key names the action, not the target
 
-The client holds several logins, and a protected verb is addressed at one (`session:kin():add` adds a kin to the character `session` names, drawn or not). The key you declared covers every one of them. A verb is protected because it starts something the player could have performed, and the player could have tabbed to that character. Read every line of the table across the whole client. What the user approves is a capability. The character it is pointed at is your addon's to choose. `gob.click` is the one key not named for the section its verb sits under. It names the action, clicking an object. The verb, [`session:world():click`](../api/world.md#write-protected), sits on the world of the character clicking.
+The client holds several logins, and a protected verb is addressed at one (`session:kin():add` adds a kin to the character `session` names, drawn or not). The key you declared covers every one of them. A verb is protected because it starts something the player could have performed, and the player could have tabbed to that character. Read every line of the table across the whole client. What the user approves is a capability. The character it is pointed at is your addon's to choose. `gob.click` is the one key not named for the section its verb sits under. It names the action, clicking an object. The verb, [`session:world():click`](../api/world.md#write-protected), sits on the world of the character clicking. A library's exported function runs under the library's own keys, whoever called it; a callback you hand a library runs under yours ([addons](../api/client/addons.md#what-a-call-does)).
 
 ## Groups
 

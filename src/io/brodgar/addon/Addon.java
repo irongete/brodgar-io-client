@@ -883,6 +883,8 @@ public final class Addon {
     volatile LuaTable export;
     /** This addon's copies of other addons' exports, by the library's id — minted once, held for this addon's life. */
     final Map<String, LuaValue> apiViews = new java.util.HashMap<String, LuaValue>();
+    /** The wrappers this addon holds over other addons' functions, by the raw function: the same function, the same wrapper. */
+    final Interned<LuaValue, LuaValue> crossWrappers = Interned.identity();
     /** This addon's Addon handles, by id (156.1). */
     final Interned<String, LuaValue> addonHandles = Interned.keyed();
     /** The metatable of those handles, built once per owner (its methods close over the owner). */
@@ -1471,9 +1473,9 @@ public final class Addon {
      * was spent <b>doing</b>, which the single {@code tickLuaNanos} total cannot say. Every call site passes
      * one; the argument is mandatory precisely so a new one cannot be added without choosing.
      */
-    public static final int C_EVENT = 0, C_TIMER = 1, C_DRAW = 2, C_HOOK = 3, C_WIDGET = 4;
+    public static final int C_EVENT = 0, C_TIMER = 1, C_DRAW = 2, C_HOOK = 3, C_WIDGET = 4, C_EXPORT = 5;
     /** The category names, in {@link #C_EVENT}… order — the keys of the {@code calls}/{@code cost} tables. */
-    public static final String[] CATS = {"events", "timers", "draw", "hooks", "widgets"};
+    public static final String[] CATS = {"events", "timers", "draw", "hooks", "widgets", "exports"};
 
     /* Current frame, written by callLua only while armed. tickLuaNanos above stays byte-for-byte what it
      * was: the D-018 watchdog must keep auto-disabling at exactly the same point, so the split is an

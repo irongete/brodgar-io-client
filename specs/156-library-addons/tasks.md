@@ -191,7 +191,7 @@ hafen.console():on("t156", function() run() end)
       five `needs …` sentences, the `>=` refusal, the cycle and the cascade are the `jshell` transcript's
       (the cascade by reading `autoDisable`: the loop is three lines).
 
-- [ ] **156.3 — The export door.** Criteria 7, 8, 9 and 10.
+- [x] **156.3 — The export door.** Criteria 7, 8, 9 and 10.
 
       **Edits, in order**
       1. `src/io/brodgar/addon/Addon.java` — `crossWrappers` (`plan.md` §2.4); `C_EXPORT = 5` and `"exports"`

@@ -249,7 +249,9 @@ PER_FILE = {
     # MaterialSlot, whose closedIndex is the one literal in LuaMaterialSlot.java.
     "materials.md": {"slot": "materialslot", "chest": "gob", "cupboard": "gob"},
     # 156.1: the collection hafen.client():addons() mints, and the Addon handle it mints per id.
-    "client/addons.md": {"addons": "@collection", "addon": "addon"},
+    # 156.3: "handle" is a second name the page uses for that same Addon handle -- the global map default
+    # ("handle" -> font, a face/keybindings handle on other pages) is wrong here.
+    "client/addons.md": {"addons": "@collection", "addon": "addon", "handle": "addon"},
 }
 
 def per_file(rel):

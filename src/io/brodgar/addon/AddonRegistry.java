@@ -448,7 +448,7 @@ public final class AddonRegistry {
         //   156.3, since nothing writes either field until the export door opens; placed here because THIS
         //   task fixes the teardown order (reverse load order: a dependant's Disable still reaches its
         //   library). 156.3 also clears the wrapper cache it adds, on this same line.
-        new Step("exports", a -> { a.export = null; a.apiViews.clear(); }),
+        new Step("exports", a -> { a.export = null; a.apiViews.clear(); a.crossWrappers.clear(); }),
         // 150: where every remembered widget stands goes into the CLIENT's file first -- a place the addon
         //   wrote itself lands in no gesture, and the widgets are about to go. The client's rows, so a step of
         //   their own, apart from the addon's vars below.

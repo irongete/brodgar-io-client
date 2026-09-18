@@ -47,6 +47,7 @@ The addon system is its own layer above the sessions. It is loaded once for the 
 | `os` | The clock half: `time`, `clock`, `date`, `difftime`. | The process and filesystem half: `execute`, `exit`, `getenv`, `remove`, `rename`, `tmpname`, `setlocale`. |
 | `io`, `debug`, `coroutine`, the Java bridge | — | Never installed, so `type(io)` is `"nil"`. |
 | The globals | `hafen`. `ADDON` (`ADDON.id`, `ADDON.dir`, informational). | — |
+| Another addon's code | Through [`hafen.client():addons()`](api/client/addons.md): its export, as a copy, and its functions through the client. | `require`. |
 
 | Rule | Detail |
 |---|---|
@@ -66,7 +67,7 @@ An addon that never returned would freeze the client. The limits below make that
 | Limit | Detail |
 |---|---|
 | Per entry: ten million instructions | Every entry into your Lua (a handler, a timer, a draw, a file body) gets a fresh budget. Exhausting it aborts the call with an error naming the runaway. It counts instructions, not time, so a loop over a few hundred `hafen.*` calls burns a frame without nearing it. |
-| An entry inside an entry | Two callbacks running at once on the [two threads that can be inside your Lua](api/threading.md) each spend their own. A callback your callback calls into is an entry too and hands the budget back on the way out. |
+| An entry inside an entry | Two callbacks running at once on the [two threads that can be inside your Lua](api/threading.md) each spend their own. A callback your callback calls into is an entry too and hands the budget back on the way out. A call into another addon's exported function, or a callback it calls back, is an entry into that addon. |
 | Per tick: 10 ms, sustained | An addon whose total Lua time in one tick exceeds the budget for thirty consecutive ticks is auto-disabled. The reason is on its [AddOns manager](panel.md) row and in the console. One heavy load or a stalled frame resets the count. |
 
 An auto-disable lasts until the next load: fix it, then `:reload`. A library's auto-disable takes its loaded hard dependants with it, each reading `auto-disabled (needs <id>)`. The enable state is untouched. [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame.

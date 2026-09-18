@@ -4669,19 +4669,62 @@ public final class AddonManager {
             contain(owner, t);
         } finally {
             Sandbox.disarm(owner.env, budget);   // 126.2: released where it was claimed, on every path out
-            long d = System.nanoTime() - t0;
-            owner.tickLuaNanos.add(d);   // soft per-tick CPU-budget accounting (D-018 layer 2)
-            // 019.4: the SAME measurement, split by what the addon was doing. Deliberately an addition
-            // inside this finally and not a second timer: tickLuaNanos above must stay byte-for-byte what
-            // it was, or the watchdog would start auto-disabling at a different point. When profiling is
-            // off this is one branch on a static field.
-            if(io.brodgar.prof.Prof.on) {
-                owner.catNanos[cat].add(d);
-                owner.catCalls[cat].increment();
-                io.brodgar.prof.Overhead.hAddon++;   // 019.7: one probe hit, for the modelled addon-tier cost
-            }
+            account(owner, cat, t0);
         }
         return LuaValue.NIL;
+    }
+
+    /** The one accounting every entry pays, on every path out — {@link #called}'s finally, and {@link #callThrough}'s. */
+    private static void account(Addon owner, int cat, long t0) {
+        long d = System.nanoTime() - t0;
+        owner.tickLuaNanos.add(d);   // soft per-tick CPU-budget accounting (D-018 layer 2)
+        // 019.4: the SAME measurement, split by what the addon was doing. Deliberately an addition
+        // inside this finally and not a second timer: tickLuaNanos above must stay byte-for-byte what
+        // it was, or the watchdog would start auto-disabling at a different point. When profiling is
+        // off this is one branch on a static field.
+        if(io.brodgar.prof.Prof.on) {
+            owner.catNanos[cat].add(d);
+            owner.catCalls[cat].increment();
+            io.brodgar.prof.Overhead.hAddon++;   // 019.7: one probe hit, for the modelled addon-tier cost
+        }
+    }
+
+    /**
+     * Enter {@code owner}'s Lua for ANOTHER addon's call (156.3): the same door as {@link #callLua} — the
+     * lock, the running-addon stack, the instruction budget, the accounting — but an error is the CALLER's,
+     * re-raised as {@code "<label>: <reason>"} instead of logged here, and a declined entry is a refusal
+     * rather than a {@code NIL}.
+     */
+    static Varargs callThrough(Addon owner, int cat, LuaValue fn, LuaValue[] args, String label) {
+        if(quiet())
+            return LuaValue.NIL;
+        String id = owner.manifest.id;
+        if(!enterLua(owner))
+            throw new LuaError(label + ": " + id + " is busy on another thread");
+        try {
+            long t0 = System.nanoTime();
+            long budget = Sandbox.arm(owner.env);
+            try {
+                return fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
+            } catch(LuaError e) {
+                throw new LuaError(label + ": " + Refusal.reason(e));
+            } catch(RuntimeException e) {
+                throw new LuaError(label + ": " + e);
+            } catch(Throwable t) {
+                if((t instanceof ThreadDeath) || Thread.currentThread().isInterrupted()) {
+                    if(t instanceof Error)
+                        throw (Error)t;
+                    throw new RuntimeException(t);
+                }
+                contain(owner, t);
+                throw new LuaError(label + ": " + id + " failed fatally and is quarantined");
+            } finally {
+                Sandbox.disarm(owner.env, budget);   // released where it was claimed, on every path out
+                account(owner, cat, t0);
+            }
+        } finally {
+            leaveLua(owner);
+        }
     }
 
     /**

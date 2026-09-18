@@ -14,6 +14,21 @@ final class LuaAddon {
     public String toString() { return "Addon(" + id + ")"; }
 
     static LuaValue collection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        extra.set("export", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                LuaCollection.receiver(me, COLL, "export");
+                Args.only(a, 1, COLL + ":export");
+                LuaValue t = Args.required(a, 2, COLL + ":export", "t");
+                if(!t.istable())
+                    throw new LuaError(COLL + ":export(t): t must be a table, got " + t.typename());
+                if(owner.export != null)
+                    throw new LuaError(COLL + ":export(t): already exported — an addon exports once, in its file body");
+                owner.export = Crossing.snapshot(t.checktable(), COLL + ":export(t)");
+                return me;
+            }
+        });
         return LuaCollection.create(COLL, new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
@@ -30,7 +45,7 @@ final class LuaAddon {
                 return of(owner, key.tojstring());
             }
             public LuaCollection.Missing missing() { return LuaCollection.Missing.MINT; }
-        }, null);
+        }, extra);
     }
 
     static LuaValue of(final Addon owner, final String id) {
@@ -89,7 +104,13 @@ final class LuaAddon {
             String id = handle(Args.only(a, 0, "addon:api"), "api").id;
             Addon lib = AddonRegistry.loaded(id);
             if((lib == null) || (lib.export == null)) return LuaValue.NIL;
-            return LuaValue.NIL; } });
+            if(!Crossing.minimumMet(owner, lib)) return LuaValue.NIL;
+            LuaValue view = owner.apiViews.get(id);
+            if(view == null) {
+                view = Crossing.copy(lib.export, lib, owner, id, Crossing.Direction.EXPORT, 0);
+                owner.apiViews.put(id, view);
+            }
+            return view; } });
         return m;
     }
 }

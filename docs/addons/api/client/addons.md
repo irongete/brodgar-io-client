@@ -19,6 +19,7 @@ if api then api.show("Hello") else hafen.log():write("Hello") end
 | `addons:count(filter)` | `number` | Unprotected | How many. |
 | `addons:find(filter)` | `Addon \| nil` | Unprotected | The first that matches. |
 | `addons:get(id)` | `Addon` | Unprotected | Always a handle, the same object per id. `:exists()` is the question a `nil` would answer. |
+| `addons:export(t)` | the collection | Unprotected | Publish `t` as your export, once — [below](#exporting). |
 
 `pairs`, `#` and `[n]` are refused naming `:list()`, as on every [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many). Everything here answers as of the last load: a folder that appears or goes mid-session is seen at the next reload, like the [AddOns manager](../../panel.md).
 
@@ -29,7 +30,7 @@ if api then api.show("Hello") else hafen.log():write("Hello") end
 | `addon:id()` | `string` | Unprotected | The id, as you addressed it. |
 | `addon:exists()` | `boolean` | Unprotected | A folder with a `manifest.json` at the last load. |
 | `addon:info()` | [`Addon`](../types/client.md#addon) `\| nil` | Unprotected | The snapshot: id, name, version, author, description, `status`, `reason`. `nil` for an id that does not exist. |
-| `addon:api()` | `table \| nil` | Unprotected | Your copy of its export. `nil` when it is not loaded or exported nothing. |
+| `addon:api()` | `table \| nil` | Unprotected | Your copy of its export — [below](#reading-an-export). `nil` when it is not loaded, exported nothing, or is below the minimum you declared. |
 
 | Rule | Detail |
 |---|---|
@@ -60,9 +61,73 @@ local function notify(text)
 end
 ```
 
+## Exporting
+
+`hafen.client():addons():export(t)` reads `t` once, at the call, and keeps a copy. Call it in your file body, so every addon that names you in a dependency list finds it. A second call refuses `already exported`.
+
+| `t` may hold | Rule |
+|---|---|
+| Functions | Each runs as yours when called — [below](#what-a-call-does). |
+| Strings, numbers, booleans | Copied. A value that changes is a function that answers it: the copy never updates. |
+| Tables of the same | Copied, recursively. |
+| Anything else | Refused naming the key: `export: 'icon' is a Widget — export functions and plain values`. A handle of yours is not a value another addon can hold. |
+
+```lua
+local open = 0
+local function show(text)
+  open = open + 1
+  local box = hafen.ui():widget():size(240, 28):position(400, 40 + open * 32)
+  hafen.ui():label():text(text):parent(box):position(8, 6)
+  hafen.timer():after(3, function() box:destroy(); open = open - 1 end)
+  return open
+end
+hafen.client():addons():export({ show = show, count = function() return open end })
+```
+
+## Reading an export
+
+`handle:api()` hands you **your own copy** of the library's export, the same table on every call while the library is loaded.
+
+| Rule | Detail |
+|---|---|
+| Read-only | A write refuses: `toast's export is read-only — it is your copy; a change belongs in the library, through a function it exports`. `pairs` and `#` work; it is a table. |
+| Functions are wrappers | `api.show == api.show`, and `rawequal(api.show, f)` is false for the library's own `f`. Every call enters the library. |
+| `nil` | The library does not exist, is not loaded, exported nothing, or is below the minimum your manifest names. |
+| After a teardown | The copy you hold stays a table; a function in it refuses `toast.show: toast is disabled`. |
+
+## What a call does
+
+A call through an export — and a callback the library calls back — enters the **owner's** door.
+
+| Rule | Detail |
+|---|---|
+| Runs as its owner | The library's code runs under the library's [consent](../../guides/permissions.md), with the library's environment and store, whoever called it. A callback you hand a library runs under yours. |
+| Budgets | The call is an entry into the owner's Lua: a fresh [instruction budget](../../runtime.md#budgets-and-the-watchdog). Its time is charged to the owner under `exports` and to the caller's own entry. |
+| An error | Reaches the caller as `toast.show: <reason>`; the library keeps running. `pcall` catches it. |
+| Busy | From a handler that holds a tree's monitor ([threading](../threading.md)), a library busy on another thread refuses: `toast.show: toast is busy on another thread`. |
+
+### What crosses, and how
+
+Arguments and return values follow one rule in both directions.
+
+| Value | Crosses as |
+|---|---|
+| A string, number, boolean, `nil` | Itself. |
+| A function | A wrapper entering its owner's door. The same function crosses as the same wrapper. |
+| A table | A read-only copy, recursive, cycles kept; the write refusal names the addon it came from. A metatable does not cross. |
+| A bridge handle (a widget, a timer, a session, a store table, a collection…) | Refused: `toast.show: argument 2 is a Widget — a handle does not cross to another addon; hand it a function`. |
+
+```lua
+-- lend a capability, not a handle: the library can only do what your functions do
+local settings = hafen.store():var("settings")
+api.bind({ get = function(key) return settings[key] end,
+           set = function(key, value) settings[key] = value end })
+```
+
 ---
 
 ## See Also
 
 - [The manifest](../../manifest.md) — the two dependency lists.
+- [Attribution](profiling/attribution.md) — the `exports` category.
 - [Data types](../types/client.md) — the `Addon` shape.
