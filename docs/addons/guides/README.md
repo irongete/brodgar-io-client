@@ -15,4 +15,4 @@ One page per task, start to finish. Each shows the shape of a solution and links
 | [Translating](translating.md) | Change what the client says, and ship a translation as a file. |
 | [Debugging](debugging.md) | The reload loop, the inspector, the log and the profiling surface. |
 
-Written to be read in that order, each ending by pointing at the next. Beside them, [the manifest](../manifest.md) says what names an addon and the API version it declares. [The runtime](../runtime.md) covers the sandbox and the console commands. [The maintainer's addons](../examples.md) says where the addons are and which are tools.
+Written to be read in that order, each ending by pointing at the next. Beside them, [the manifest](../manifest.md) says what names an addon and the API version it declares. [The runtime](../runtime.md) covers the sandbox and the console commands. [Dev tools](../examples.md) names the three addons to point at your own while you write it.

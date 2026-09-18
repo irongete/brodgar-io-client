@@ -191,4 +191,4 @@ The addon uses a manifest, a lifecycle event and a read. It has a surface of its
 | [The manifest](manifest.md) | The manifest in full, and the API version it declares. |
 | [The runtime](runtime.md) | The sandbox, the budgets and the console commands. |
 | [The AddOns manager](panel.md) | Enabling what you installed, and searching the hub. |
-| [The maintainer's addons](examples.md) | Where the addons are, and the tools among them. |
+| [Dev tools](examples.md) | Three addons to point at your own while you write it. |

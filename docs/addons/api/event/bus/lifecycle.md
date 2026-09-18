@@ -24,6 +24,7 @@ Your addon's own keys, each about the addon rather than a character.
 |---|---|
 | Once for the client | One addon, one Lua state, however many sessions are logged in. |
 | `Update` cost | Runs on the [step](../../threading.md) once per frame, not once per session. Keep it cheap. |
+| `Disable` at the close of the client | Shares one budget with every other addon's ([the runtime](../../../runtime.md#what-quitting-writes)). An addon whose turn comes after it is spent gets none, and its vars are written anyway. |
 
 ## Sessions
 

@@ -80,7 +80,7 @@ A theme dresses that surface by naming it, without the addon knowing the theme:
 
 ```json
 { "rules": {
-    "[name^=actionbars/slot]": { "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" } }
+    "[name^=myaddon/slot]": { "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" } }
 } }
 ```
 

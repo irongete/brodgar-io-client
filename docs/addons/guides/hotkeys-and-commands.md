@@ -86,6 +86,6 @@ end)
 | Once, then leaves it alone | [A setting](#a-setting-of-your-own). |
 | Continuously, while watching something | [A window](custom-ui.md). |
 
-The [maintainer's addons](../examples.md) share one shape. A hotkey toggles the window, a command with subcommands does the rest, and anything set and forgotten is on the options page. An addon that draws and does nothing until its key or command is used adds nothing to a login. Wire the work behind the trigger rather than behind `SessionEnteredWorld`.
+The [dev tools](../examples.md) share one shape. A hotkey toggles the window, a command with subcommands does the rest, and anything set and forgotten is on the options page. An addon that draws and does nothing until its key or command is used adds nothing to a login. Wire the work behind the trigger rather than behind `SessionEnteredWorld`.
 
 **Next:** [permissions](permissions.md) — the one tier that needs more than a declaration.

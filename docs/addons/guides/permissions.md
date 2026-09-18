@@ -147,7 +147,7 @@ end)
 |---|---|
 | Your manifest answers "may I act" | A declared, running addon was granted the key: nothing to test at run time. A file shipping either way reads its own `manifest.json` rather than provoking the error. |
 | Act from `SessionEnteredWorld` onwards | Every verb here needs a live map view or object and throws before one exists. A verb at a character not yet in the world says so and sends nothing. |
-| Make the user ask | Bind actions to a [hotkey, a command or a setting](hotkeys-and-commands.md), not a timer. An addon acting on its own at load is what a dialog cannot warn about. The switcher among [the maintainer's addons](../examples.md) is built the other way round. |
+| Make the user ask | Bind actions to a [hotkey, a command or a setting](hotkeys-and-commands.md), not a timer. An addon acting on its own at load is what a dialog cannot warn about. |
 | Declare the narrowest set | The dialog is the user's whole view of what you do. A group asked for out of convenience reads as every capability in it. |
 
 ## What the permission does not buy

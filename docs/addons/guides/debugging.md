@@ -106,4 +106,4 @@ Arm the client's profiler: Options ▸ Game ▸ Client, or [`hafen.client():opti
 
 The client [auto-disables](../runtime.md#budgets-and-the-watchdog) an addon that sustains the overrun. The warning on its panel row names the cause.
 
-**Next:** [the API reference](../api/README.md) for the verb you are reaching for, or [the maintainer's addons](../examples.md) for the tools that answer these questions.
+**Next:** [the API reference](../api/README.md) for the verb you are reaching for, or [the dev tools](../examples.md) for the addons that answer these questions.

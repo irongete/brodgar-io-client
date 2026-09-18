@@ -19,7 +19,7 @@ screen** and never a game session, so a client with none draws that, `UILoop.lay
 **The login screen is a place to go to, not only where you are left.** `Client.Main.run` builds a fresh
 `Bootstrap` the instant it hands a `RemoteUI` to `Sessions.adopt`, so it is live in `UILoop.ui` behind every
 session — waiting on a login nobody is looking at. `Control.take(null)` gives it the screen, which is
-`hafen.session():current(nil)` and the switcher window's *New session* button, and nothing takes it back on
+`hafen.session():current(nil)` from the addon layer, and nothing takes it back on
 its own: `reclaim` returns while it holds the anchor, and `adopt` anchors the session it logs in precisely
 because none does. That makes it the only door for an account with **no saved token** — `Sessions.add`
 reads `Bootstrap.gettoken` and can reach nothing else — and the sessions behind it go on being ticked by
@@ -29,7 +29,7 @@ member.
 
 **One session per account, on both doors.** `Sessions.adopt` and `Sessions.add` refuse a login for an
 account already live through one `Sessions.claim`, because the account *is* the address above this layer:
-two members of one name share a row in the switcher and a `Session` object in every addon, and the server
+two members of one name share a `Session` object in every addon, and the server
 ends one of the two connections a moment later regardless. `adopt` closes the session it refuses and
 throws, which `Client.Main.run` catches to put the login screen back up. The reason travels in
 `Sessions.denial` and is shown by `Bootstrap.run` on the next `LoginScreen`, since `Sessions.say` delivers
@@ -45,7 +45,7 @@ view behaves exactly as it does without any of this.
 
 **It owns no input and draws nothing.** Naming a character with the mouse was `Control.mousedown`, showing
 who is named was `Control.draw`, and cycling and centring were `Control.keydown` — all four are the addon
-layer's now, and `session-manager` is what carries them. They reach Java through the API like anything
+layer's now, and an addon is what carries them. They reach Java through the API like anything
 else: `hafen.session():current(s)` (which is `Control.take`), `hafen.ui():mouse():cursor(name)`, `ev:gob()`
 and `s:world():focus(p)`. What is left here is the part no addon can hold — the selection, and the one
 click the mode re-addresses.
@@ -79,7 +79,7 @@ anchor and the pan lands a whole offset away; a session with no offset falls to 
 | `cam-reset` (Home), `cam-left`, `cam-right`, `cam-in`, `cam-out` | follow the drawn character again; rotate and zoom, since `FreeCam` has no keyboard of its own. These are the camera's own, so they answer with the mode off too |
 
 **The mode has no keys of its own.** `rts-next-anchor` and `rts-focus` are gone with the gestures: cycling
-and centring are `session-manager` hotkeys, listed in `OptWnd.BindingPanel` under the addon's own name by
+and centring are an addon's hotkeys, listed in `OptWnd.BindingPanel` under the addon's own name by
 the generic per-addon loop rather than by a hand-written **Multi session** section. An addon hotkey ships
 unbound for the same reason a client one would have to: `KeyBinding.get` runs none of `set`'s exclusivity
 pass, so two *defaults* sharing a key leave both firing, and neither is repairable afterwards

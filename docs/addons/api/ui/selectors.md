@@ -82,15 +82,15 @@ local bar = hafen.ui():widget():name("bar")                  -- in the addon, on
 
 ```json
 { "rules": {
-    "[name=actionbars/bar]":   { "bg": {"color": [9, 13, 22, 214]} },
-    "[name^=actionbars/slot]": { "bg": {"asset": "themes/cyberpunk/slot.png"} }
+    "[name=myaddon/bar]":   { "bg": {"color": [9, 13, 22, 214]} },
+    "[name^=myaddon/slot]": { "bg": {"asset": "themes/cyberpunk/slot.png"} }
 } }
 ```
 
 | Rule | Detail |
 |---|---|
-| The addon's id is written in front | `:name("bar")` is `[name=actionbars/bar]`. Two addons naming a bar cannot collide. |
-| Weight 16 | Above `[res=]`'s 8: the only part an author chose. `[name^=…]` and `[name=…]` weigh the same and a JSON theme has no key order, so an exception is a chain, which sums: `[name=actionbars/bar] [name=actionbars/slot7]` is 32. |
+| The addon's id is written in front | `:name("bar")` is `[name=myaddon/bar]`. Two addons naming a bar cannot collide. |
+| Weight 16 | Above `[res=]`'s 8: the only part an author chose. `[name^=…]` and `[name=…]` weigh the same and a JSON theme has no key order, so an exception is a chain, which sums: `[name=myaddon/bar] [name=myaddon/slot7]` is 32. |
 | Operators | Every one, so `slot1`…`slot12` are dressed as a group by `^=` and one of them by `=`. Naming twelve surfaces the same is legal and buys nothing the prefix does not. |
 | Written once | A name is identity, not state. The states a surface enters are [inside a rule's value](style/chrome.md#a-face-per-state). |
 | Owned only | Naming a client widget is refused, naming [`widget:rule()`](style/README.md#restyle-one-widget). A name nobody answers to matches nothing and is not an error. |

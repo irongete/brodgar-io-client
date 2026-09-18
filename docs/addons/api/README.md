@@ -18,6 +18,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 
 | Page | Holds |
 |---|---|
+| [The client](types/client.md) | An addon the client discovered: its manifest fields, its status, and the reason behind one that is not running. |
 | [The session and the world](types/world.md) | One login, an object in it, the people beside you, the ground, a place, your own things standing there. |
 | [The item and what holds it](types/items.md) | One item, and what a container states about its inside. |
 | [The character sheet](types/character.md) | Attributes, food, learning, movement speed, quests, wounds, buffs. |

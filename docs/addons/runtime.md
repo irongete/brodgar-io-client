@@ -69,6 +69,7 @@ An addon that never returned would freeze the client. The limits below make that
 | Per entry: ten million instructions | Every entry into your Lua (a handler, a timer, a draw, a file body) gets a fresh budget. Exhausting it aborts the call with an error naming the runaway. It counts instructions, not time, so a loop over a few hundred `hafen.*` calls burns a frame without nearing it. |
 | An entry inside an entry | Two callbacks running at once on the [two threads that can be inside your Lua](api/threading.md) each spend their own. A callback your callback calls into is an entry too and hands the budget back on the way out. A call into another addon's exported function, or a callback it calls back, is an entry into that addon. |
 | Per tick: 10 ms, sustained | An addon whose total Lua time in one tick exceeds the budget for thirty consecutive ticks is auto-disabled. The reason is on its [AddOns manager](panel.md) row and in the console. One heavy load or a stalled frame resets the count. |
+| On the way out: one budget for every `Disable` together | The client leaves when it is spent, whatever a handler is still doing. Stated with [what quitting writes](#what-quitting-writes). |
 
 An auto-disable lasts until the next load: fix it, then `:reload`. A library's auto-disable takes its loaded hard dependants with it, each reading `auto-disabled (needs <id>)`. The enable state is untouched. [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame.
 
@@ -125,7 +126,7 @@ Press `:` to open the client's command line.
 |---|---|
 | Vars first | Closing the window or `:q` writes every logged-in character's own vars and your addon's own to your file, whatever the timer or `flush()` did. A row a table or statement wrote is in the file already, and the quit closes it. |
 | `Disable` fires first | An addon computing its state at teardown has that write picked up by the flush that follows. |
-| `Disable` cannot hold the exit open | The addons share one wall-clock budget on the way out. A handler still running when it is spent is abandoned with a terminal line naming the addon. The flush runs no code of yours and happens either way. |
+| `Disable` cannot hold the exit open | The addons share one wall-clock budget of two seconds on the way out, spent in reverse load order. A handler still running when it is spent is abandoned, with a terminal line; an addon whose turn comes after that gets no `Disable`, with a terminal line naming it. The flush runs no code of yours and happens either way. |
 | A crash or a kill | The client runs nothing. The automatic save every thirty seconds is the whole of what covers it. |
 
 ---
@@ -138,4 +139,4 @@ Press `:` to open the client's command line.
 - [Debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log.
 - [`hafen.store`](api/store/README.md) — your addon's file, which a quit writes and closes.
 - [Permissions](guides/permissions.md) — the permission the manifest declares.
-- [The maintainer's addons](examples.md) — where the addons are, and the tools among them.
+- [Dev tools](examples.md) — three addons to point at your own while you write it.

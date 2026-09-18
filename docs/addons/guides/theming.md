@@ -98,8 +98,8 @@ An addon that [names](../api/ui/custom.md#naming-and-dressing-your-own-surfaces)
 
 ```json
 { "rules": {
-    "[name=actionbars/bar]":   { "border": { "box": "gfx/hud/wnd", "mode": "tile" } },
-    "[name^=actionbars/slot]": { "bg": { "asset": "img/slot.png", "mode": "stretch" } }
+    "[name=otheraddon/bar]":   { "border": { "box": "gfx/hud/wnd", "mode": "tile" } },
+    "[name^=otheraddon/slot]": { "bg": { "asset": "img/slot.png", "mode": "stretch" } }
 } }
 ```
 
@@ -108,8 +108,8 @@ An addon that [names](../api/ui/custom.md#naming-and-dressing-your-own-surfaces)
 | `[name=…]` | [The one refiner an addon owns](../api/ui/selectors.md#the-one-refiner-an-addon-owns), written `<addon>/<name>`. It outranks every other part of a selector. |
 | One step is enough | What an addon declares for itself is a stock beneath every rule, so your rule wins without chaining. |
 | No site key falls into it | `["*"]` reaches the places the client draws. An addon's surface is reached only by a rule naming it. |
-| `^=` reaches a group | `[name^=actionbars/slot]` dresses `slot1`…`slot12`. `[name=actionbars/slot7]` dresses one of them. The two weigh the same, so an exception is a chain, `[name=actionbars/bar] [name=actionbars/slot7]`. |
-| Finding names | Ask the addon, or point the `widgetstack` addon at it ([the maintainer's addons](../examples.md)). A name nobody answers to matches nothing. |
+| `^=` reaches a group | `[name^=otheraddon/slot]` dresses `slot1`…`slot12`. `[name=otheraddon/slot7]` dresses one of them. The two weigh the same, so an exception is a chain, `[name=otheraddon/bar] [name=otheraddon/slot7]`. |
+| Finding names | Ask the addon, or point the `widgetstack` addon at it ([the dev tools](../examples.md)). A name nobody answers to matches nothing. |
 
 ## Where it stops
 
