@@ -9,6 +9,7 @@ One page per task, start to finish. Each shows the shape of a solution and links
 | [Custom UI](custom-ui.md) | A window, a panel of controls, an overlay, painting your own pixels. |
 | [Saved data](saved-data.md) | Keep settings and layouts across sessions. |
 | [Hotkeys, commands and settings](hotkeys-and-commands.md) | Let the user drive your addon by hand. |
+| [Libraries](libraries.md) | Export functions for other addons, and use another addon's. |
 | [Permissions](permissions.md) | Drive the character: the catalogue of keys, and what declaring one costs. |
 | [Theming](theming.md) | Restyle the client's own surfaces, and ship a theme as a file. |
 | [Translating](translating.md) | Change what the client says, and ship a translation as a file. |

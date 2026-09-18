@@ -94,3 +94,4 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 - [`hafen.store`](api/store/README.md) — your addon's file, named by the id.
 - [Permissions](guides/permissions.md) — the permission keys the manifest declares.
 - [`hafen.asset`](api/asset/README.md) — the files your addon ships beside the manifest.
+- [Libraries](guides/libraries.md) — a library is an addon others name in these lists.

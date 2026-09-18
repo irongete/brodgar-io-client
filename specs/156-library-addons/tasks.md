@@ -278,7 +278,7 @@ hafen.console():on("t156", function() run() end)
       the first three folded into one line). `busy on another thread`, the teardown refusal and the
       two-`Globals` path are the `jshell` half. No `[manual]`.
 
-- [ ] **156.4 — Writing a library: the guide.** Criterion 11.
+- [x] **156.4 — Writing a library: the guide.** Criterion 11.
 
       **Edits, in order**
       1. `docs/addons/guides/libraries.md` — new, `plan.md` §4.3 whole, typed as drafted. A guide is one task

@@ -38,7 +38,7 @@ end)
 
 ## Store data, not objects
 
-The tables are written as JSON: tables, strings, numbers and booleans survive. A function or a handle comes back as a placeholder string. Keys become strings unless the table is a plain `1..n` array. A `nil` value is an absent key. Keep the description of a thing and rebuild the live objects on load. A colour is three numbers, a layout a table of positions, a chosen action [a resource name](../api/ui/custom.md#drop-makes-a-widget-a-drop-target). Anything positional is a [Position](../api/position.md), since a raw `x, y` is meaningless next session.
+The tables are written as JSON: tables, strings, numbers and booleans survive. A function or a handle comes back as a placeholder string. Keys become strings unless the table is a plain `1..n` array. A `nil` value is an absent key. Keep the description of a thing and rebuild the live objects on load. A colour is three numbers, a layout a table of positions, a chosen action [a resource name](../api/ui/custom.md#drop-makes-a-widget-a-drop-target). Anything positional is a [Position](../api/position.md), since a raw `x, y` is meaningless next session. A value belongs in the file of the addon it describes: a [library](libraries.md) keeps its own state and lends functions, never its file.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(session)

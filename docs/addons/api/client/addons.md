@@ -128,6 +128,7 @@ api.bind({ get = function(key) return settings[key] end,
 
 ## See Also
 
+- [Libraries](../../guides/libraries.md) — writing one and using one, end to end.
 - [The manifest](../../manifest.md) — the two dependency lists.
 - [Attribution](profiling/attribution.md) — the `exports` category.
 - [Data types](../types/client.md) — the `Addon` shape.
