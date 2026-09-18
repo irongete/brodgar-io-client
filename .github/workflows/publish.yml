@@ -1,5 +1,8 @@
 # A push to master publishes the next beta; the Run workflow button the next release. Both run publish.ps1.
 name: Publish
+# The run's title, fixed when the run is created: beta on a push, release from the button, the number when one
+# is given. The version itself is counted inside the run, so it is in the step summary, never here.
+run-name: brodgar-io-client-${{ github.event_name == 'push' && 'beta' || (inputs.version && format('v{0}', inputs.version) || 'release') }}
 
 on:
   push:
