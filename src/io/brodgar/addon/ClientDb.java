@@ -75,20 +75,14 @@ public final class ClientDb {
     static final Config.Variable<Path> savedatadir = Config.Variable.propp("haven.savedatadir", (Path)null);
 
     /**
-     * The {@code savedata/} folder beside the client: {@link #savedatadir}; else {@code savedata} beside the
-     * folder {@link AddonRegistry#addondir} names, so that the two move as one; else the jar's own sibling,
-     * and a bare {@code savedata} where the jar has no location. Every addon's folder and the client's own
-     * file live in it.
+     * The {@code savedata/} folder: {@link #savedatadir}; else the jar's own sibling, and a bare
+     * {@code savedata} where the jar has no location. Independent of {@link AddonRegistry#addondir}: another
+     * addons folder never moves the data. Every addon's folder and the client's own file live in it.
      */
     static File dir() {
         Path override = savedatadir.get();
         if(override != null)
             return override.toFile();
-        Path addons = AddonRegistry.addondir.get();
-        if(addons != null) {
-            Path parent = addons.getParent();
-            return new File((parent != null) ? parent.toFile() : new File("."), "savedata");
-        }
         try {
             return Utils.srcpath(ClientDb.class).resolveSibling("savedata").toFile();
         } catch(RuntimeException e) {

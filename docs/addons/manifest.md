@@ -16,7 +16,7 @@ What names an addon: the folder it lives in, the `manifest.json` that makes the 
 
 ## Where an addon lives
 
-The client reads addons from the `addons/` folder beside it: one folder per addon, an addon when it holds a `manifest.json`. Anything else is ignored. Another folder (a checkout of your own) is `haven.addondir=<path>` in the `haven-config.properties` beside the client. The launcher's Options write that line from its *Addons folder* field. `-Dhaven.addondir=<path>` on the command line wins over the file. The client's `savedata/` then sits beside that folder, unless `haven.savedatadir` names its own.
+The client reads addons from the `addons/` folder beside it: one folder per addon, an addon when it holds a `manifest.json`. Anything else is ignored. Another folder (a checkout of your own) is `haven.addondir=<path>` in the `haven-config.properties` beside the client. The launcher's Options write that line from its *Addons folder* field. `-Dhaven.addondir=<path>` on the command line wins over the file. The client's `savedata/` stays beside the client whatever that folder is; `haven.savedatadir=<path>`, the same way, moves it.
 
 ```text
 addons/
