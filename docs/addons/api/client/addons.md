@@ -3,8 +3,8 @@
 `hafen.client():addons()` is every addon the client discovered, one handle per id. An addon that exports a table is a **library**: another addon reads it with `addon:api()` and calls into it through the client.
 
 ```lua
-local toast = hafen.client():addons():get("toast")     -- a handle, whether or not toast is installed
-local api = toast:api()                                -- its export, or nil
+local library = hafen.client():addons():get("mylib")   -- a handle, whether or not mylib is installed
+local api = library:api()                              -- its export, or nil
 if api then api.show("Hello") else hafen.log():write("Hello") end
 ```
 
@@ -35,7 +35,7 @@ if api then api.show("Hello") else hafen.log():write("Hello") end
 | Rule | Detail |
 |---|---|
 | `status` | `loaded`, `disabled`, `not loaded`, `error`, `outdated`, `auto-disabled` or `manifest error`: the words the [Installed tab](../../panel.md#installed) shows. `reason` is the sentence behind an `error`, `outdated`, `auto-disabled` or `manifest error`, absent otherwise. |
-| Interned | `addons:get("toast") == addons:get("toast")`, from the first call, whether or not the folder exists. `tostring` is `Addon(toast)`. |
+| Interned | `addons:get("mylib") == addons:get("mylib")`, from the first call, whether or not the folder exists. `tostring` is `Addon(mylib)`. |
 | Closed | An unknown verb raises naming the verbs a handle answers. |
 
 ## Dependencies and load order
@@ -45,18 +45,18 @@ Your manifest's `dependencies` and `optional_dependencies` list ids, each as `<i
 | Rule | Detail |
 |---|---|
 | Order | Every addon runs after the installed, loading addons its two lists name, ties by id. A dependency's `export` and `Load` precede your file body. |
-| A hard dependency missing | Your addon is a load error, its row reading `error: needs toast, which is not installed` (`is disabled`, `is out of date`, `has a manifest error`, `failed to load`). Nothing of yours runs. |
-| A minimum | `toast>=1.2.0` compares the library's manifest `version` as the hub orders versions. Not met on a hard dependency: `error: needs toast >= 1.2.0, 1.0.0 installed`. On an optional one: the library is, to you, absent — `:api()` is `nil`, `:exists()` and `:info()` still answer. A library whose `version` is not a version is below every minimum. |
+| A hard dependency missing | Your addon is a load error, its row reading `error: needs mylib, which is not installed` (`is disabled`, `is out of date`, `has a manifest error`, `failed to load`). Nothing of yours runs. |
+| A minimum | `mylib>=1.2.0` compares the library's manifest `version` as the hub orders versions. Not met on a hard dependency: `error: needs mylib >= 1.2.0, 1.0.0 installed`. On an optional one: the library is, to you, absent — `:api()` is `nil`, `:exists()` and `:info()` still answer. A library whose `version` is not a version is below every minimum. |
 | An optional dependency absent | Nothing happens. Ask `:api()` when you need it. |
 | A cycle | Hard dependencies that close a cycle are a load error on each member: `depends in a cycle: a -> b -> a`. An optional dependency that would close one is not ordered, with a log line. |
-| Mid-session | A library the [CPU budget](../../runtime.md#budgets-and-the-watchdog) stops takes its loaded hard dependants with it, each reading `auto-disabled (needs toast)`. An optional dependant keeps running and its `:api()` turns `nil`. |
+| Mid-session | A library the [CPU budget](../../runtime.md#budgets-and-the-watchdog) stops takes its loaded hard dependants with it, each reading `auto-disabled (needs mylib)`. An optional dependant keeps running and its `:api()` turns `nil`. |
 | Tearing down | In reverse load order: a dependant's `Disable` handler still reaches its library. |
 
 ```lua
 -- optional: ask at the moment of use, and nothing breaks without it
-local toast = hafen.client():addons():get("toast")
+local library = hafen.client():addons():get("mylib")
 local function notify(text)
-  local api = toast:api()
+  local api = library:api()
   if api then api.show(text) else hafen.log():write(text) end
 end
 ```
@@ -90,10 +90,10 @@ hafen.client():addons():export({ show = show, count = function() return open end
 
 | Rule | Detail |
 |---|---|
-| Read-only | A write refuses: `toast's export is read-only — it is your copy; a change belongs in the library, through a function it exports`. `pairs` and `#` work; it is a table. |
+| Read-only | A write refuses: `mylib's export is read-only — it is your copy; a change belongs in the library, through a function it exports`. `pairs` and `#` work; it is a table. |
 | Functions are wrappers | `api.show == api.show`, and `rawequal(api.show, f)` is false for the library's own `f`. Every call enters the library. |
 | `nil` | The library does not exist, is not loaded, exported nothing, or is below the minimum your manifest names. |
-| After a teardown | The copy you hold stays a table; a function in it refuses `toast.show: toast is disabled`. |
+| After a teardown | The copy you hold stays a table; a function in it refuses `mylib.show: mylib is disabled`. |
 
 ## What a call does
 
@@ -103,8 +103,8 @@ A call through an export — and a callback the library calls back — enters th
 |---|---|
 | Runs as its owner | The library's code runs under the library's [consent](../../guides/permissions.md), with the library's environment and store, whoever called it. A callback you hand a library runs under yours. |
 | Budgets | The call is an entry into the owner's Lua: a fresh [instruction budget](../../runtime.md#budgets-and-the-watchdog). Its time is charged to the owner under `exports` and to the caller's own entry. |
-| An error | Reaches the caller as `toast.show: <reason>`; the library keeps running. `pcall` catches it. |
-| Busy | From a handler that holds a tree's monitor ([threading](../threading.md)), a library busy on another thread refuses: `toast.show: toast is busy on another thread`. |
+| An error | Reaches the caller as `mylib.show: <reason>`; the library keeps running. `pcall` catches it. |
+| Busy | From a handler that holds a tree's monitor ([threading](../threading.md)), a library busy on another thread refuses: `mylib.show: mylib is busy on another thread`. |
 
 ### What crosses, and how
 
@@ -115,7 +115,7 @@ Arguments and return values follow one rule in both directions.
 | A string, number, boolean, `nil` | Itself. |
 | A function | A wrapper entering its owner's door. The same function crosses as the same wrapper. |
 | A table | A read-only copy, recursive, cycles kept; the write refusal names the addon it came from. A metatable does not cross. |
-| A bridge handle (a widget, a timer, a session, a store table, a collection…) | Refused: `toast.show: argument 2 is a Widget — a handle does not cross to another addon; hand it a function`. |
+| A bridge handle (a widget, a timer, a session, a store table, a collection…) | Refused: `mylib.show: argument 2 is a Widget — a handle does not cross to another addon; hand it a function`. |
 
 ```lua
 -- lend a capability, not a handle: the library can only do what your functions do
