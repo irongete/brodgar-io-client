@@ -1,0 +1,4 @@
+{ "id": "156-library-addons.2", "name": "156.2 suite", "version": "0.1.0", "author": "brodgar",
+  "api_version": "1.0", "files": ["main.lua"],
+  "description": "dependencies mean what they say",
+  "optional_dependencies": ["156-absent>=1.0.0"] }

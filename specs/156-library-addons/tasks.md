@@ -132,7 +132,7 @@ hafen.console():on("t156", function() run() end)
 
       Expected: sixteen `[pass]` lines and `[summary] 16 pass, 0 fail, 0 manual`. No `[manual]`.
 
-- [ ] **156.2 — Dependencies mean what they say.** Criteria 3, 4, 5 and 6.
+- [x] **156.2 — Dependencies mean what they say.** Criteria 3, 4, 5 and 6.
 
       **Edits, in order**
       1. `src/io/brodgar/addon/Manifest.java` — `Dependency`, `allDependencies()`, `deplist`, the two fields'

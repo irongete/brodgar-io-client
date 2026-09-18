@@ -135,12 +135,102 @@ public final class AddonRegistry {
     static Addon loaded(String id) { return findLoaded(id); }
     /** Whether {@code a} is the loaded addon of its id right now (a torn-down one is not). */
     static boolean isLoaded(Addon a) { return (a != null) && (a.manifest != null) && (findLoaded(a.manifest.id) == a); }
+    /** The loaded addons whose HARD dependencies name {@code id}. */
+    static List<Addon> hardDependants(String id) {
+        List<Addon> out = new ArrayList<Addon>();
+        for(Addon a : addons)
+            if(a.manifest != null)
+                for(Manifest.Dependency d : a.manifest.dependencies)
+                    if(d.id.equals(id)) { out.add(a); break; }
+        return out;
+    }
+
+    /** The order the manifests in {@code loading} run in, and the members of every hard cycle. Pure. */
+    static final class LoadPlan {
+        final List<String> order = new ArrayList<String>();
+        final Map<String, String> errors = new LinkedHashMap<String, String>();    // hard-cycle members
+        final List<String> notes = new ArrayList<String>();                        // dropped optional edges
+    }
+
+    /** The order the manifests in {@code loading} run in, and the members of every hard cycle. Pure. */
+    static LoadPlan plan(Map<String, Manifest> loading) {
+        LoadPlan out = new LoadPlan();
+        Map<String, java.util.TreeSet<String>> dependants = new java.util.HashMap<String, java.util.TreeSet<String>>();
+        Map<String, Integer> indegree = new java.util.HashMap<String, Integer>();
+        for(String id : loading.keySet()) { dependants.put(id, new java.util.TreeSet<String>()); indegree.put(id, 0); }
+        for(Manifest m : loading.values())
+            for(Manifest.Dependency d : m.allDependencies())
+                if(loading.containsKey(d.id) && !d.id.equals(m.id) && dependants.get(d.id).add(m.id))
+                    indegree.put(m.id, indegree.get(m.id) + 1);
+        java.util.TreeSet<String> ready = new java.util.TreeSet<String>();
+        for(Map.Entry<String, Integer> e : indegree.entrySet()) if(e.getValue() == 0) ready.add(e.getKey());
+        java.util.TreeSet<String> left = new java.util.TreeSet<String>(loading.keySet());
+        while(!left.isEmpty()) {
+            if(!ready.isEmpty()) {
+                String id = ready.pollFirst();
+                left.remove(id);
+                out.order.add(id);
+                for(String d : dependants.get(id)) { int n = indegree.get(d) - 1; indegree.put(d, n); if(n == 0) ready.add(d); }
+                continue;
+            }
+            // Stalled: everything left waits on something left. First an OPTIONAL edge that closes a cycle is
+            // dropped (smallest dependant id, its first such entry) — ordering it is impossible, refusing it is
+            // not asked for.
+            boolean dropped = false;
+            for(String id : left) {
+                for(Manifest.Dependency d : loading.get(id).optionalDependencies) {
+                    if(left.contains(d.id) && dependants.get(d.id).remove(id)) {
+                        int n = indegree.get(id) - 1; indegree.put(id, n);
+                        out.notes.add("optional dependency " + d.id + " of " + id + " closes a cycle and is not ordered");
+                        if(n == 0) ready.add(id);
+                        dropped = true; break;
+                    }
+                }
+                if(dropped) break;
+            }
+            if(dropped) continue;
+            // Only hard edges remain among what is left, so a hard cycle exists: every id that walks back to
+            // itself along hard edges is a member, each with its own path.
+            List<String> members = new ArrayList<String>();
+            for(String id : left) {
+                List<String> path = cyclePath(id, left, loading);
+                if(path != null) { members.add(id); out.errors.put(id, "depends in a cycle: " + String.join(" -> ", path)); }
+            }
+            if(members.isEmpty()) throw new IllegalStateException("stalled without a cycle: " + left);   // cannot happen
+            for(String id : members) left.remove(id);
+            for(String id : members)
+                for(String d : dependants.get(id))
+                    if(left.contains(d)) { int n = indegree.get(d) - 1; indegree.put(d, n); if(n == 0) ready.add(d); }
+        }
+        return out;
+    }
+
+    /** start -> … -> start along HARD dependencies among {@code left}, or null when start is on no such cycle. */
+    private static List<String> cyclePath(String start, Set<String> left, Map<String, Manifest> loading) {
+        java.util.ArrayDeque<String> path = new java.util.ArrayDeque<String>();
+        return walk(start, start, left, loading, path, new java.util.HashSet<String>()) ? new ArrayList<String>(path) : null;
+    }
+    private static boolean walk(String at, String target, Set<String> left, Map<String, Manifest> loading,
+                                java.util.ArrayDeque<String> path, Set<String> visiting) {
+        path.addLast(at); visiting.add(at);
+        for(Manifest.Dependency d : loading.get(at).dependencies) {
+            if(!left.contains(d.id)) continue;
+            if(d.id.equals(target)) { path.addLast(target); return true; }
+            if(!visiting.contains(d.id) && walk(d.id, target, left, loading, path, visiting)) return true;
+        }
+        path.removeLast();
+        return false;
+    }
 
     /**
      * Discover the enabled addons, run their files and fire {@code Load} for each — <b>once for the client</b>
      * since 074.2, at boot and on a {@code :reload}. It is handed no session and asks for none: an addon is
      * loaded before any character is, outlives every one of them, and reaches a session through the API rather
      * than by having been loaded into it.
+     *
+     * <p>Three phases (156.2): discover every folder (what {@link #discovered}/{@link #status} read); decide
+     * who loads and in what order ({@link #plan}, pure over the manifests); then run each in that order,
+     * behind its hard dependencies ({@link #unmetDependency}).
      */
     static void loadAll() {
         loadGen++;
@@ -152,26 +242,12 @@ public final class AddonRegistry {
         File dir = addonDir();
         log("addons dir: " + dir);
         File[] subs = dir.listFiles(File::isDirectory);
+        Map<String, Discovered> found = new java.util.TreeMap<String, Discovered>();
         if(subs == null) {
             log("no addons/ directory");
-            discovered = Collections.emptyMap();
+            discovered = Collections.unmodifiableMap(found);
             return;
         }
-        // 156.1: every folder with a manifest, enabled or not, parsed or not -- what hafen.client():addons()
-        // and :status() read. 156.2 folds this into the load's own phase 1; today's loop below still parses
-        // each manifest again to decide who loads.
-        Map<String, Discovered> found = new java.util.TreeMap<String, Discovered>();
-        for(File sub : subs) {
-            if(!new File(sub, "manifest.json").isFile())
-                continue;
-            String id = sub.getName();
-            try {
-                found.put(id, new Discovered(id, sub, Manifest.load(sub.toPath()), null));
-            } catch(Exception e) {
-                found.put(id, new Discovered(id, sub, null, Refusal.reason(e)));
-            }
-        }
-        discovered = Collections.unmodifiableMap(found);
         // D-006: honor the persisted enabled set (skip disabled). A permission-declaring addon is disabled by default
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
         // it loads like any other addon (there is no global switch to also satisfy — D-028).
@@ -186,43 +262,78 @@ public final class AddonRegistry {
         // call, so the two halves of one consent came from two sources and a widened key list was caught
         // only by the enable-time scan.
         Map<String, Consent> consented = consentedMap();
+        // ---- 1. discover: every folder with a manifest, enabled or not, parsed or not -- what
+        //   hafen.client():addons() and :status() read.
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
-            if(disabled.contains(sub.getName())) {
-                log("skipping disabled addon '" + sub.getName() + "'");
+            String id = sub.getName();
+            try {
+                found.put(id, new Discovered(id, sub, Manifest.load(sub.toPath()), null));
+            } catch(Exception e) {
+                String why = Refusal.reason(e);
+                found.put(id, new Discovered(id, sub, null, why));
+                log("failed to load '" + id + "': " + why);
+            }
+        }
+        discovered = Collections.unmodifiableMap(found);
+        // ---- 2. who loads, and in what order
+        Map<String, Manifest> loading = new java.util.TreeMap<String, Manifest>();
+        for(Discovered d : found.values()) {
+            if(d.manifest == null)
+                continue;
+            if(disabled.contains(d.id)) {
+                log("skipping disabled addon '" + d.id + "'");
+                continue;
+            }
+            // 141.1: AN ADDON OUT OF DATE IS NOT RUN. The manifest says which API it was written against
+            // and ApiVersion.why says whether this client implements it; where it does not, the addon is
+            // left out here -- before a sandbox is built for it -- with its row, :addons and the log all
+            // saying so. It is a state and not an error: nothing threw, the enabled bit stands, and the
+            // record here is what liveStatus and listAddons read for it until the next load.
+            // 141.2: UNLESS THE PLAYER SAID TO LOAD IT ANYWAY. With the box on, the addon falls through to
+            // the same sandbox a current one gets and nothing below tells them apart -- its row reads
+            // `loaded v…` because findLoaded answers, and the consent gate still asks for what it declared.
+            // The log is the one place the bypass is written down, naming the addon and the why, so a
+            // player who meets a breakage mid-play has the line that says which addon ran on their say-so.
+            String why = ApiVersion.why(d.manifest.apiVersion);
+            if(why != null) {
+                if(!loadOutdated) {
+                    outdated.put(d.id, ApiVersion.label(d.manifest.apiVersion));
+                    log("skipping out of date addon '" + d.id + "': " + why);
+                    continue;
+                }
+                log("loading out of date addon '" + d.id + "': " + why);
+            }
+            loading.put(d.id, d.manifest);
+        }
+        LoadPlan plan = plan(loading);
+        for(String note : plan.notes)
+            log(note);
+        for(Map.Entry<String, String> e : plan.errors.entrySet()) {
+            loadErrors.put(e.getKey(), e.getValue());
+            log("error in " + e.getKey() + ": " + e.getValue());
+        }
+        // ---- 3. run, in order, each behind its hard dependencies
+        for(String id : plan.order) {
+            Discovered d = found.get(id);
+            Manifest m = d.manifest;
+            String unmet = unmetDependency(m, found, disabled);
+            if(unmet != null) {
+                loadErrors.put(id, unmet);
+                log("error in " + id + ": " + unmet);
                 continue;
             }
             try {
-                Manifest m = Manifest.load(sub.toPath());
-                // 141.1: AN ADDON OUT OF DATE IS NOT RUN. The manifest says which API it was written against
-                // and ApiVersion.why says whether this client implements it; where it does not, the addon is
-                // left out here -- before a sandbox is built for it -- with its row, :addons and the log all
-                // saying so. It is a state and not an error: nothing threw, the enabled bit stands, and the
-                // record here is what liveStatus and listAddons read for it until the next load.
-                // 141.2: UNLESS THE PLAYER SAID TO LOAD IT ANYWAY. With the box on, the addon falls through to
-                // the same sandbox a current one gets and nothing below tells them apart -- its row reads
-                // `loaded v…` because findLoaded answers, and the consent gate still asks for what it declared.
-                // The log is the one place the bypass is written down, naming the addon and the why, so a
-                // player who meets a breakage mid-play has the line that says which addon ran on their say-so.
-                String why = ApiVersion.why(m.apiVersion);
-                if(why != null) {
-                    if(!loadOutdated) {
-                        outdated.put(sub.getName(), ApiVersion.label(m.apiVersion));
-                        log("skipping out of date addon '" + sub.getName() + "': " + why);
-                        continue;
-                    }
-                    log("loading out of date addon '" + sub.getName() + "': " + why);
-                }
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
-                Consent c = consented.get(sub.getName());
-                Addon addon = new Addon(m, sub.toPath(), g,
+                Consent c = consented.get(id);
+                Addon addon = new Addon(m, d.dir.toPath(), g,
                                         (c == null) ? Collections.<String>emptyList() : c.hosts,
                                         (c == null) ? EnumSet.<Permission>noneOf(Permission.class) : c.keys);
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
                 ad.set("id", LuaValue.valueOf(m.id));
-                ad.set("dir", LuaValue.valueOf(sub.getAbsolutePath()));
+                ad.set("dir", LuaValue.valueOf(d.dir.getAbsolutePath()));
                 g.set("ADDON", ad);
                 addon.run();
                 // audit2 B14 (lc-04): AN ADDON WHOSE FILE BODY THREW IS NOT LOADED. It used to be added to
@@ -239,14 +350,36 @@ public final class AddonRegistry {
                     log("loaded " + m.id + " v" + m.version);
                 } else {
                     log("error in " + m.id + ": " + addon.error);
-                    loadErrors.put(sub.getName(), addon.error);   // ...the panel still says what threw
+                    loadErrors.put(id, addon.error);   // ...the panel still says what threw
                     teardown(addon);
                 }
             } catch(Exception e) {
-                log("failed to load '" + sub.getName() + "': " + Refusal.reason(e));
+                log("failed to load '" + id + "': " + Refusal.reason(e));
             }
         }
         log(addons.size() + " addon(s) loaded");
+    }
+
+    /** The first hard dependency of {@code m} that is not standing, as the error the dependant carries; null when all stand. */
+    static String unmetDependency(Manifest m, Map<String, Discovered> found, Set<String> disabled) {
+        for(Manifest.Dependency dep : m.dependencies) {
+            Discovered d = found.get(dep.id);
+            if(d == null) return "needs " + dep.id + ", which is not installed";
+            if(d.manifestError != null) return "needs " + dep.id + ", which has a manifest error";
+            if(disabled.contains(dep.id)) return "needs " + dep.id + ", which is disabled";
+            if(outdated.containsKey(dep.id)) return "needs " + dep.id + ", which is out of date";
+            Addon loaded = findLoaded(dep.id);
+            if((loaded == null) || loadErrors.containsKey(dep.id)) return "needs " + dep.id + ", which failed to load";
+            if(dep.min != null) {
+                String v = loaded.manifest.version;
+                if(!io.brodgar.addon.registry.Semver.valid(v))
+                    return dep.id + "'s version '" + v + "' is not a version (a version is MAJOR.MINOR.PATCH, such as 1.2.0,"
+                        + " with an optional pre-release such as 1.2.0-beta.1)";
+                if(io.brodgar.addon.registry.Semver.compare(v, dep.min) < 0)
+                    return "needs " + dep.id + " >= " + dep.min + ", " + v + " installed";
+            }
+        }
+        return null;
     }
 
     /**
@@ -311,6 +444,11 @@ public final class AddonRegistry {
                 fireTo(a, "Disable");
             }
         }),
+        // 156.2: what this addon exported goes, and its copies of other addons' exports -- harmless before
+        //   156.3, since nothing writes either field until the export door opens; placed here because THIS
+        //   task fixes the teardown order (reverse load order: a dependant's Disable still reaches its
+        //   library). 156.3 also clears the wrapper cache it adds, on this same line.
+        new Step("exports", a -> { a.export = null; a.apiViews.clear(); }),
         // 150: where every remembered widget stands goes into the CLIENT's file first -- a place the addon
         //   wrote itself lands in no gesture, and the widgets are about to go. The client's rows, so a step of
         //   their own, apart from the addon's vars below.
@@ -1319,16 +1457,22 @@ public final class AddonRegistry {
         public final String staged;
         /** Whether the folder is marked for removal (145.3): the next reload deletes it, and nothing replaces it. */
         public final boolean removing;
+        /** This addon's own {@code dependencies}/{@code optional_dependencies}, each as {@code <id>} or {@code <id>>=<min>} (156.2). */
+        public final List<String> needs, optional;
+        /** Every other discovered addon that names this id, sorted by id, {@code " (optional)"} appended for an optional user (156.2). */
+        public final List<String> usedBy;
 
         AddonInfo(String id, String name, String version, String author, String description,
                   String outdated, boolean enabled, boolean loaded, PermissionSet permissions,
                   List<String> networkHosts, String error, String manifestError, String warning,
-                  String hub, String staged, boolean removing) {
+                  String hub, String staged, boolean removing,
+                  List<String> needs, List<String> optional, List<String> usedBy) {
             this.id = id; this.name = name; this.version = version; this.author = author;
             this.description = description; this.outdated = outdated; this.enabled = enabled;
             this.loaded = loaded; this.permissions = permissions;
             this.networkHosts = networkHosts; this.error = error; this.manifestError = manifestError;
             this.warning = warning; this.hub = hub; this.staged = staged; this.removing = removing;
+            this.needs = needs; this.optional = optional; this.usedBy = usedBy;
         }
 
         /** Whether this addon declared any protected permission (it is then opt-in, behind the consent dialog). */
@@ -1357,16 +1501,26 @@ public final class AddonRegistry {
             return out;
         java.util.Arrays.sort(subs, (x, y) -> x.getName().compareToIgnoreCase(y.getName()));
         Set<String> disabled = disabledSet();
+        // Every manifest that parses, read once, both for this row's own needs/optional and for every OTHER
+        // row's usedBy (156.2) — the tooltip's three lists come off the same pass this method already pays for.
+        Map<String, Manifest> parsed = new LinkedHashMap<String, Manifest>();
+        Map<String, String> mferrs = new LinkedHashMap<String, String>();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
             String id = sub.getName();
-            Manifest m = null;
-            String mferr = null;
+            try { parsed.put(id, Manifest.load(sub.toPath())); } catch(Exception e) { mferrs.put(id, Refusal.reason(e)); }
+        }
+        Map<String, List<String>> usedBy = usedBy(parsed);
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            String id = sub.getName();
+            Manifest m = parsed.get(id);
             // Keep the parser's OWN message: it is the only place the reason exists (an unknown permission key
             // lists the whole vocabulary), and the panel is where the author reads it — the terminal log is not
             // an answer to "why is this row broken".
-            try { m = Manifest.load(sub.toPath()); } catch(Exception e) { mferr = Refusal.reason(e); }
+            String mferr = mferrs.get(id);
             Addon loaded = findLoaded(id);
             String error = (loaded != null) ? loaded.error
                 : ((mferr != null) ? mferr : loadErrors.get(id));
@@ -1385,8 +1539,38 @@ public final class AddonRegistry {
                 autoDisabledWarn.get(id),
                 hubVersion(id),
                 stagedVersion(id),
-                removing(id)));
+                removing(id),
+                (m != null) ? depStrings(m.dependencies) : java.util.Collections.<String>emptyList(),
+                (m != null) ? depStrings(m.optionalDependencies) : java.util.Collections.<String>emptyList(),
+                usedBy.containsKey(id) ? usedBy.get(id) : java.util.Collections.<String>emptyList()));
         }
+        return out;
+    }
+
+    /** {@code deps}, each as {@link Manifest.Dependency#toString()} (156.2, {@link #describeAddons}). */
+    private static List<String> depStrings(List<Manifest.Dependency> deps) {
+        List<String> out = new ArrayList<String>();
+        for(Manifest.Dependency d : deps)
+            out.add(d.toString());
+        return out;
+    }
+
+    /**
+     * Every other manifest in {@code parsed} that names an id, by that id: the hard dependants first, then
+     * the optional ones with {@code " (optional)"} appended, each group sorted by the dependant's own id
+     * (156.2, {@link #describeAddons}) — the Installed tooltip's {@code Used by:} line.
+     */
+    private static Map<String, List<String>> usedBy(Map<String, Manifest> parsed) {
+        Map<String, java.util.TreeMap<String, String>> byTarget = new java.util.HashMap<String, java.util.TreeMap<String, String>>();
+        for(Manifest other : parsed.values()) {
+            for(Manifest.Dependency d : other.dependencies)
+                byTarget.computeIfAbsent(d.id, k -> new java.util.TreeMap<String, String>()).put(other.id, other.id);
+            for(Manifest.Dependency d : other.optionalDependencies)
+                byTarget.computeIfAbsent(d.id, k -> new java.util.TreeMap<String, String>()).put(other.id, other.id + " (optional)");
+        }
+        Map<String, List<String>> out = new java.util.HashMap<String, List<String>>();
+        for(Map.Entry<String, java.util.TreeMap<String, String>> e : byTarget.entrySet())
+            out.put(e.getKey(), new ArrayList<String>(e.getValue().values()));
         return out;
     }
 

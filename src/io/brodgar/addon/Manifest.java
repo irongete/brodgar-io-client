@@ -21,7 +21,38 @@ public final class Manifest {
      * wrong shape is refused in {@link #load} like every other malformed field.
      */
     public final ApiVersion apiVersion;
-    public final List<String> files, dependencies, optionalDependencies;
+    public final List<String> files;
+    /** One entry of dependencies/optional_dependencies: an id, and the minimum version it names or null. */
+    public static final class Dependency {
+        public final String id, min;
+        Dependency(String id, String min) { this.id = id; this.min = min; }
+        public String toString() { return (min == null) ? id : (id + ">=" + min); }
+    }
+    public final List<Dependency> dependencies, optionalDependencies;
+
+    /** Both lists, hard first — what the load order reads. */
+    public List<Dependency> allDependencies() {
+        List<Dependency> out = new ArrayList<Dependency>(dependencies);
+        out.addAll(optionalDependencies);
+        return out;
+    }
+
+    private static List<Dependency> deplist(Map<String, Object> m, String key) {
+        List<Dependency> out = new ArrayList<Dependency>();
+        for(String entry : strlist(m, key)) {
+            int at = entry.indexOf(">=");
+            String id = (at < 0) ? entry : entry.substring(0, at);
+            String min = (at < 0) ? null : entry.substring(at + 2);
+            boolean ok = !id.isEmpty() && (id.indexOf('/') < 0) && (id.indexOf('\\') < 0)
+                && !id.contains(">") && !id.contains("=") && (id.trim().equals(id))
+                && ((min == null) || io.brodgar.addon.registry.Semver.valid(min));
+            if(!ok)
+                throw new IllegalArgumentException("'" + entry + "' is not a dependency — write \"<id>\" or"
+                    + " \"<id>>=MAJOR.MINOR.PATCH\" (1.2.0, with an optional pre-release such as 1.2.0-beta.1)");
+            out.add(new Dependency(id, min));
+        }
+        return out;
+    }
     /**
      * Declared permissions (spec 12 / D-027) — the protected verbs this addon asks for, one key per verb from
      * the {@link Permission} catalogue ({@code "permissions": ["item.*", "player.move"]}), or a
@@ -200,8 +231,8 @@ public final class Manifest {
     }
 
     private Manifest(String id, String name, String version, String author, String description,
-                     ApiVersion apiVersion, List<String> files, List<String> dependencies,
-                     List<String> optionalDependencies,
+                     ApiVersion apiVersion, List<String> files, List<Dependency> dependencies,
+                     List<Dependency> optionalDependencies,
                      PermissionSet permissions, List<String> network, boolean internal) {
         this.internal = internal;
         this.id = id;
@@ -223,6 +254,7 @@ public final class Manifest {
      */
     static Manifest internal(String id) {
         List<String> none = Collections.emptyList();
+        List<Dependency> noDeps = Collections.<Dependency>emptyList();
         // The engine-internal owner (the :lua REPL) is the trusted operator console → it declares every
         // permission, so every protected verb is granted to it (D-027; D-028 — per-addon, no global switch).
         // Built from the catalogue rather than from a bare "*", which parses nowhere: the allow-all shape has
@@ -230,14 +262,15 @@ public final class Manifest {
         PermissionSet allperms = PermissionSet.all();
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", ApiVersion.CURRENT, none, none, none,
-                            allperms, allnet, true);
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", ApiVersion.CURRENT, none, noDeps,
+                            noDeps, allperms, allnet, true);
     }
 
     /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
     static Manifest test(String id) {
         List<String> none = Collections.emptyList();
-        return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, none, none,
+        List<Dependency> noDeps = Collections.<Dependency>emptyList();
+        return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, noDeps, noDeps,
                             PermissionSet.NONE, none, false);
     }
 
@@ -282,7 +315,7 @@ public final class Manifest {
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), ApiVersion.parse(m.get("api_version")),
-                            files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
+                            files, deplist(m, "dependencies"), deplist(m, "optional_dependencies"),
                             perms, hosts, false);
     }
 

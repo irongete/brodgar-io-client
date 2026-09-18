@@ -53,13 +53,13 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | `description` | `string` | The panel row's tooltip. |
 | `permissions` | `string[]` | One key per protected verb you call, or a `<prefix>.*` group ([permissions](guides/permissions.md)). |
 | `network` | `object` | `{"hosts": [...]}`, the argument of the network keys `http.get`, `http.post`, `websocket.connect` and `voice.connect`: a key says whether, this says where. Declaring it with none of them is a load error ([`hafen.http`](api/http.md), [`hafen.websocket`](api/websocket.md), [`hafen.voice`](api/voice/README.md)). |
-| `dependencies` | `string[]` | Addon ids, recorded. The loader neither orders nor requires them. |
-| `optional_dependencies` | `string[]` | The same. |
+| `dependencies` | `string[]` | Addon ids this addon needs, each `<id>` or `<id>>=MAJOR.MINOR.PATCH`. They run before it; a missing one is a load error naming it ([addons](api/client/addons.md#dependencies-and-load-order)). |
+| `optional_dependencies` | `string[]` | The same form. They run before it when installed; a missing one changes nothing. |
 
 | Rule | Detail |
 |---|---|
-| Nothing to import | Each addon runs in an environment of its own and cannot see another's globals. Two that cooperate do it through the client (a container, a marker, a console command). |
-| A manifest the client cannot read | A load error naming what is wrong. Bad JSON. A missing `id` or `files`. An id not matching the folder. An `api_version` not a string of the form `"X.Y"`. A non-string entry in `files`, `permissions` or a dependency list. A `permissions` entry neither a key nor a group. A `network` block that is not an object with a `hosts` array, or whose hosts no network key reaches. A `hosts` entry of `"*"`. |
+| Nothing to import | Each addon runs in an environment of its own. Another addon's export is read through [`hafen.client():addons()`](api/client/addons.md); its state is never yours. |
+| A manifest the client cannot read | A load error naming what is wrong. Bad JSON. A missing `id` or `files`. An id not matching the folder. An `api_version` not a string of the form `"X.Y"`. A non-string entry in `files`, `permissions` or a dependency list. A `permissions` entry neither a key nor a group. A `network` block that is not an object with a `hosts` array, or whose hosts no network key reaches. A `hosts` entry of `"*"`. A dependency entry that is not `<id>` or `<id>>=MAJOR.MINOR.PATCH`. |
 | A file outside your folder | A `files` entry that is not a file inside it is the same error, raised as the client goes to run it. That is an absolute path, a `..` that climbs out, or a link pointing out. |
 | What a load error does | The addon shows an error row in the panel and runs nothing. The others are unaffected. |
 

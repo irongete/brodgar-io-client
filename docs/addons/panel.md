@@ -6,17 +6,17 @@
 
 ## Installed
 
-Every addon the client discovered, sorted by id: a checkbox, the name, version and author, a live status. The description is the tooltip. With nothing in `addons/` the list says `No addons installed`.
+Every addon the client discovered, sorted by id: a checkbox, the name, version and author, a live status. The description is the tooltip. The tooltip also lists `Needs:`, `Optional:` and `Used by:` when the manifests name them. With nothing in `addons/` the list says `No addons installed`.
 
 | Row shows | Meaning |
 |---|---|
 | `loaded v<version>` | Running. |
 | `disabled` | Switched off, not loaded. |
 | `not loaded` | Enabled but not running: an enable no reload has applied yet. |
-| `error: …` | Its manifest or its Lua failed. The message says how. |
+| `error: …` | Its manifest or its Lua failed, or a dependency is missing: `error: needs toast, which is not installed`. The message says how. |
 | `manifest error (hover)` | The manifest does not parse. The tooltip opens with the reason. |
 | `outdated (…)` | Not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements (`outdated (API 9.0, client 1.0)`) or it declares none (`outdated (no api_version, client 1.0)`). |
-| `auto-disabled (…)` | The [CPU budget](runtime.md#budgets-and-the-watchdog) or a [fatal failure](runtime.md#when-a-failure-is-fatal) stopped it. |
+| `auto-disabled (…)` | The [CPU budget](runtime.md#budgets-and-the-watchdog) or a [fatal failure](runtime.md#when-a-failure-is-fatal) stopped it, or stopped a library it needs: `auto-disabled (needs toast)`. |
 | `update <version>` | The hub publishes a newer version. **Update** stands beside it. |
 | `downloading <n>%` | An update's package is on its way, against the size the hub advertised. |
 | `staged <version> - Reload UI to apply` | A version [installed from the hub](#how-an-install-lands) waits to replace this folder at the next reload. |

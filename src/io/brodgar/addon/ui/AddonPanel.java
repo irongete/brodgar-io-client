@@ -377,9 +377,11 @@ public class AddonPanel extends OptWnd.Panel {
      * reason, or an out-of-date sentence, because a row has room for a state and the tip for the why — then
      * the description, then exactly which permissions it asked for and which hosts it may reach (§5.3), so what
      * an addon wants to do and the servers it talks to are read BEFORE it is enabled or installed, where the
-     * row itself has room for how many. {@code null} when there is nothing to say.
+     * row itself has room for how many. {@code needs}/{@code optional}/{@code usedBy} are the manifest's
+     * dependency lists (156.2). {@code null} when there is nothing to say.
      */
-    static String tip(String lead, String description, String permissions, List<String> hosts) {
+    static String tip(String lead, String description, String permissions, List<String> hosts,
+                      List<String> needs, List<String> optional, List<String> usedBy) {
         StringBuilder tip = new StringBuilder();
         if(lead != null)
             tip.append(lead);
@@ -394,6 +396,18 @@ public class AddonPanel extends OptWnd.Panel {
         if((hosts != null) && !hosts.isEmpty()) {
             if(tip.length() > 0) tip.append("\n\n");
             tip.append("Network hosts: ").append(String.join(", ", hosts));
+        }
+        if((needs != null) && !needs.isEmpty()) {
+            if(tip.length() > 0) tip.append("\n\n");
+            tip.append("Needs: ").append(String.join(", ", needs));
+        }
+        if((optional != null) && !optional.isEmpty()) {
+            if(tip.length() > 0) tip.append("\n\n");
+            tip.append("Optional: ").append(String.join(", ", optional));
+        }
+        if((usedBy != null) && !usedBy.isEmpty()) {
+            if(tip.length() > 0) tip.append("\n\n");
+            tip.append("Used by: ").append(String.join(", ", usedBy));
         }
         return (tip.length() > 0) ? tip.toString() : null;
     }
@@ -509,7 +523,7 @@ public class AddonPanel extends OptWnd.Panel {
             // disabled row too, where the status cannot.
             rowTip(nm, tip(broken ? ai.manifestError : ((ai.outdated != null) ? "Out of date: " + ai.outdated : null),
                            ai.description, ai.declaresPermissions() ? ai.permissions.toString() : null,
-                           ai.networkHosts));
+                           ai.networkHosts, ai.needs, ai.optional, ai.usedBy));
             status = add(new Label(""), new Coord(UI.scale(STATUS_X), nm.c.y));
             this.id = rid;
             this.hub = ai.hub;

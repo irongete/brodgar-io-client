@@ -69,7 +69,7 @@ An addon that never returned would freeze the client. The limits below make that
 | An entry inside an entry | Two callbacks running at once on the [two threads that can be inside your Lua](api/threading.md) each spend their own. A callback your callback calls into is an entry too and hands the budget back on the way out. |
 | Per tick: 10 ms, sustained | An addon whose total Lua time in one tick exceeds the budget for thirty consecutive ticks is auto-disabled. The reason is on its [AddOns manager](panel.md) row and in the console. One heavy load or a stalled frame resets the count. |
 
-An auto-disable lasts until the next load: fix it, then `:reload`. The enable state is untouched. [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame.
+An auto-disable lasts until the next load: fix it, then `:reload`. A library's auto-disable takes its loaded hard dependants with it, each reading `auto-disabled (needs <id>)`. The enable state is untouched. [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame.
 
 ## When a failure is fatal
 

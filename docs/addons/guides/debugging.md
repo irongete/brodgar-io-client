@@ -77,7 +77,7 @@ end)
 | Status | Look at |
 |---|---|
 | Not listed | The folder is not under `addons/`, or has no `manifest.json`. |
-| `error: …` | The message: bad JSON, a missing `id` or `files`, an id that is not the folder name. |
+| `error: …` | The message: bad JSON, a missing `id` or `files`, an id that is not the folder name, or `needs <id>, which …`, a [dependency](../api/client/addons.md#dependencies-and-load-order) missing. |
 | `outdated (…)` | The `api_version` line names a [version](../manifest.md#the-api-version) this client does not implement, or there is no such line. To run it as it stands, tick **Load out of date AddOns** on the [Installed tab](../panel.md#installed) and reload. |
 | `disabled` | The checkbox. A write addon is disabled the first time it is seen. |
 | `not loaded` | An enable no `:reload` has applied yet. |

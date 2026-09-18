@@ -1860,6 +1860,11 @@ public final class AddonManager {
         autoDisabledWarn.put(id, reason);
         AddonRegistry.teardown(a);
         addons.remove(a);
+        // 156.2: a library's loaded HARD dependants go with it, in the same sweep, each naming it
+        if(a.manifest != null)
+            for(Addon d : AddonRegistry.hardDependants(a.manifest.id))
+                if(addons.contains(d))
+                    autoDisable(d, "needs " + a.manifest.id);
     }
 
     /**
