@@ -1,0 +1,3 @@
+{ "id": "156-library-addons.1", "name": "156.1 suite", "version": "0.1.0", "author": "brodgar",
+  "api_version": "1.0", "files": ["main.lua"],
+  "description": "hafen.client():addons(): the collection and the handle" }

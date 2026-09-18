@@ -19,6 +19,7 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 
 | Page | Holds |
 |---|---|
+| [The client](client.md) | An addon the client discovered. |
 | [The session and the world](world.md) | One login and an object in it. The people beside you, and the ones a voice link relates you to. The ground, a place, your own things standing there. |
 | [The item and what holds it](items.md) | One item, and what a container states about its inside. |
 | [The character sheet](character.md) | Attributes, food with its FEP and hunger halves, learning, movement speed, quests, wounds, buffs. |
@@ -31,6 +32,7 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 | Shape | Page |
 |---|---|
 | `ActionbarSlot` | [The widget layer](ui.md#actionbarslot) |
+| `Addon` | [The client](client.md#addon) |
 | `Attr` | [The character sheet](character.md#attr) |
 | `Buff` | [The character sheet](character.md#buff) |
 | `Channel` | [The widget layer](ui.md#channel) |

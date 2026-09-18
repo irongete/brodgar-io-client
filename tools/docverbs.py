@@ -248,6 +248,8 @@ PER_FILE = {
     # A gob's material slots (152). `slot` is an action-bar slot on the pages that skip it; here it is the
     # MaterialSlot, whose closedIndex is the one literal in LuaMaterialSlot.java.
     "materials.md": {"slot": "materialslot", "chest": "gob", "cupboard": "gob"},
+    # 156.1: the collection hafen.client():addons() mints, and the Addon handle it mints per id.
+    "client/addons.md": {"addons": "@collection", "addon": "addon"},
 }
 
 def per_file(rel):

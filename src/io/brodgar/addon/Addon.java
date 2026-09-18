@@ -834,7 +834,7 @@ public final class Addon {
      * {@link #addonOptions} and which dies with the addon in exactly the same way.
      */
     LuaValue clientOpts, clientInterface, clientVideo, clientAudio, clientCamera, clientClient,
-             clientKeybindings, clientAddonOpts, clientProfiling;
+             clientKeybindings, clientAddonOpts, clientProfiling, clientAddons;
 
     /**
      * This addon's <b>declared options</b> ({@code hafen.client():options():addon()}, 115.2), keyed by the
@@ -878,6 +878,15 @@ public final class Addon {
      * process-global and deliberately outlives the addon, which is how the user's assignment survives.
      */
     final LuaBinding.Cache bindings = new LuaBinding.Cache(this);
+
+    /** What this addon exported, read once at export(t): a validated deep copy nobody writes; null until then. */
+    volatile LuaTable export;
+    /** This addon's copies of other addons' exports, by the library's id — minted once, held for this addon's life. */
+    final Map<String, LuaValue> apiViews = new java.util.HashMap<String, LuaValue>();
+    /** This addon's Addon handles, by id (156.1). */
+    final Interned<String, LuaValue> addonHandles = Interned.keyed();
+    /** The metatable of those handles, built once per owner (its methods close over the owner). */
+    LuaValue addonMeta;
 
     /**
      * This addon's <b>event-object metatables</b> ({@link LuaEvent}), one per shape, each built on the first

@@ -102,6 +102,40 @@ public final class AddonRegistry {
         }
     }
 
+    /** One folder the last load found: its manifest, or why it could not be read. */
+    static final class Discovered {
+        final String id; final File dir; final Manifest manifest; final String manifestError;
+        Discovered(String id, File dir, Manifest manifest, String manifestError) {
+            this.id = id; this.dir = dir; this.manifest = manifest; this.manifestError = manifestError;
+        }
+    }
+    private static volatile Map<String, Discovered> discovered = Collections.emptyMap();   // by id, sorted
+    /** Every folder with a manifest.json as of the last load, by id. */
+    static Map<String, Discovered> discovered() { return discovered; }
+
+    /** The load state of one id, as a word and the sentence behind it; null for an id the last load did not find. */
+    static final class Status {
+        final String word, reason;
+        Status(String word, String reason) { this.word = word; this.reason = reason; }
+    }
+    static Status status(String id) {
+        Discovered d = discovered.get(id);
+        if(d == null) return null;
+        String warn = AddonManager.autoDisabledWarn.get(id);
+        if(warn != null) return new Status("auto-disabled", warn);
+        if(findLoaded(id) != null) return new Status("loaded", null);
+        String err = loadErrors.get(id);
+        if(err != null) return new Status("error", err);
+        if(d.manifestError != null) return new Status("manifest error", d.manifestError);
+        if(outdated.containsKey(id)) return new Status("outdated", ApiVersion.why(d.manifest.apiVersion));
+        if(!isEnabled(id)) return new Status("disabled", null);
+        return new Status("not loaded", null);
+    }
+    /** findLoaded, for the package: the loaded Addon of {@code id}, or null. */
+    static Addon loaded(String id) { return findLoaded(id); }
+    /** Whether {@code a} is the loaded addon of its id right now (a torn-down one is not). */
+    static boolean isLoaded(Addon a) { return (a != null) && (a.manifest != null) && (findLoaded(a.manifest.id) == a); }
+
     /**
      * Discover the enabled addons, run their files and fire {@code Load} for each — <b>once for the client</b>
      * since 074.2, at boot and on a {@code :reload}. It is handed no session and asks for none: an addon is
@@ -120,8 +154,24 @@ public final class AddonRegistry {
         File[] subs = dir.listFiles(File::isDirectory);
         if(subs == null) {
             log("no addons/ directory");
+            discovered = Collections.emptyMap();
             return;
         }
+        // 156.1: every folder with a manifest, enabled or not, parsed or not -- what hafen.client():addons()
+        // and :status() read. 156.2 folds this into the load's own phase 1; today's loop below still parses
+        // each manifest again to decide who loads.
+        Map<String, Discovered> found = new java.util.TreeMap<String, Discovered>();
+        for(File sub : subs) {
+            if(!new File(sub, "manifest.json").isFile())
+                continue;
+            String id = sub.getName();
+            try {
+                found.put(id, new Discovered(id, sub, Manifest.load(sub.toPath()), null));
+            } catch(Exception e) {
+                found.put(id, new Discovered(id, sub, null, Refusal.reason(e)));
+            }
+        }
+        discovered = Collections.unmodifiableMap(found);
         // D-006: honor the persisted enabled set (skip disabled). A permission-declaring addon is disabled by default
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
         // it loads like any other addon (there is no global switch to also satisfy — D-028).

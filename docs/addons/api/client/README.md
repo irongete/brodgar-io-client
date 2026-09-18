@@ -1,6 +1,6 @@
-# hafen.client: Settings
+# hafen.client: The Client
 
-`hafen.client():options()` opens the settings the client's Options window edits, one handle per panel, plus the hotkey registry and your addon's own options. Reading is unprotected. Every write into the client's own settings needs `client.settings`. Your addon's own options need nothing.
+`hafen.client():options()` opens the settings the client's Options window edits, one handle per panel, plus the hotkey registry and your addon's own options, and the addons it discovered. Reading is unprotected. Every write into the client's own settings needs `client.settings`. Your addon's own options need nothing.
 
 ```lua
 local options = hafen.client():options()
@@ -20,6 +20,7 @@ options:interface():angGran(15)                       -- write: needs client.set
 | `options:keybindings()` | Declare, inspect and remap hotkeys. | [Keybindings](keybindings.md) |
 | `options:addon()` | Options of your own, and the page the window shows them on. | [Addon options](addon.md) |
 | `hafen.client():profiling()` | The frame profiler. | [Profiling](profiling/README.md) |
+| `hafen.client():addons()` | Every addon installed, its export, and yours. | [Addons and libraries](addons.md) |
 
 | Rule | Detail |
 |---|---|

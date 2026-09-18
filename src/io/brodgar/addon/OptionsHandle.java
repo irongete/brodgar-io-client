@@ -78,6 +78,19 @@ public final class OptionsHandle {
                 return LuaValue.valueOf(AddonManager.onStep());
             }
         });
+        // hafen.client():addons() — every addon the client discovered, and the export door (156). One collection
+        // per owner, like options(): the handles it mints are interned per owner.
+        client.set("addons", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "addons");
+                if(a.narg() > 1)
+                    throw new LuaError("hafen.client():addons() takes no arguments — it is the collection of every addon"
+                        + " the client discovered; :get(id) addresses one");
+                if(owner.clientAddons == null)
+                    owner.clientAddons = LuaAddon.collection(owner);
+                return owner.clientAddons;
+            }
+        });
         Section.install(hafen, "client", client,
                         "hafen.client:options() is now hafen.client():options()");
     }
