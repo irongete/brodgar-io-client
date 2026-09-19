@@ -1,0 +1,47 @@
+# A push to master that touches docs/ publishes docs/ as the GitHub Pages site; the Run workflow button
+# publishes it from master as it stands. The pages are built by Jekyll from a copy of docs/ in which every
+# `{{` and `{%` is escaped, so that a page may show a Lua table literal such as `{{r, g, b}}` without Liquid
+# reading it as a template tag. Nothing under docs/ is written for Jekyll's sake: docs/_config.yml names the
+# site, docs/_layouts and docs/assets carry the theme switch, and the pages are the documentation as it is.
+name: Pages
+run-name: brodgar-io-client-pages
+
+on:
+  push:
+    branches: [master]
+    paths: [docs/**, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy docs/ and escape Liquid
+        run: |
+          cp -r docs _pages
+          find _pages -name '*.md' -exec sed -i 's/{{/{{ "{{" }}/g; s/{%/{{ "{%" }}/g' {} +
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: _pages
+          destination: _site
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

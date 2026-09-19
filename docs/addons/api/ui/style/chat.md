@@ -1,4 +1,3 @@
-{% raw %}
 # hafen.ui: The Chat Window and Its Kinds of Line
 
 The chat is one [site key](keys.md#site-keys), `chat`. Other keys refine it by kind of line, walk a colour, or dress its decoration. Colour is how the client tells one kind from another, so a `color` on `chat` alone paints them all alike.
@@ -97,5 +96,3 @@ sheet:rule("chat"):color{150, 225, 240}
 - [Surfaces](surfaces.md) — the other surfaces the client draws at.
 - [Style](README.md) — installing the sheet.
 - [`session:chat`](../../chat.md) — the same words from the reading side.
-
-{% endraw %}
