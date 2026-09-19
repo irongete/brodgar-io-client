@@ -1,0 +1,9 @@
+{
+  "name": "157.1 — hafen.ui():mirror()",
+  "id": "157-mirror.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 157.1: a mirror shows another widget's picture, reads it back, sizes to it, refuses what it must, and leaves the source untouched.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

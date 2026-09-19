@@ -666,6 +666,12 @@ public final class LuaWidget {
                             else if(content instanceof CImg) {    // 139.4: a picture's is its own box again
                                 synchronized(monitor(w)) { ((CImg)content).unpin(); }
                                 Layout.moved(w);
+                            } else if(content instanceof MirrorWidget) {   // 157.1: a mirror's is its source's again
+                                MirrorWidget mirror = (MirrorWidget)content;
+                                Coord box = mirror.unpin();               // the SOURCE's tree, held alone...
+                                if(box != null)
+                                    synchronized(monitor(w)) { mirror.fit(box); }   // ...then the mirror's, alone
+                                Layout.moved(w);
                             } else
                                 UiApi.releaseMoved(owner, w, false);
                         }

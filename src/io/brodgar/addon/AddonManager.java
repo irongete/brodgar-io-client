@@ -3687,6 +3687,21 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Draw every mirror's source into that mirror's texture</b> (157.1) — the facade behind the other
+     * {@code // addon:} line in {@code UILoop.display}, beside {@link #drawSurfaces}: the same moment in the
+     * frame, holding no tree monitor, so each mirror may take its own source's. {@code drawn} and {@code layer}
+     * are the two trees the frame has already ticked; a source in any other tree is ticked by the pass.
+     * Never throws into the frame loop.
+     */
+    public static void drawMirrors(UI drawn, UI layer, haven.render.Render out) {
+        try {
+            MirrorWidget.renderAll(drawn, layer, out);
+        } catch(RuntimeException e) {
+            log("mirror pass error: " + e);
+        }
+    }
+
+    /**
      * <b>The root a popup opens into</b> (044.5) — the facade behind {@code haven.Widget.popuproot()}. A widget
      * standing in the 3D world is hosted by a {@link WidgetSurface}, which is a real root in every sense the
      * client resolves things against; a widget that is not standing has {@code ui.root} above it and nothing

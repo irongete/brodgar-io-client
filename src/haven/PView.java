@@ -324,7 +324,20 @@ public abstract class PView extends Widget {
 	ticklist.gtick(out);
     }
 
+    /* addon: (157.1) the frame's Render this view last rendered its scene into. A mirror of a widget
+     * (io.brodgar.addon.MirrorWidget) draws the view AGAIN in the same frame, ahead of the traversal that
+     * draws it on screen -- and GLDrawList.draw is once per frame by construction: its settingbuf double
+     * buffer waits for the previous submission to run on the GL thread, so a second draw in one frame waits
+     * for ever, holding the tree's monitor. UILoop makes one Render per frame (env.render()), so its
+     * identity is the frame: the second draw composes what the first rendered and renders nothing. */
+    private Render lastout = null;
+
     public void draw(GOut g) {
+	if((g.out == lastout) && (back != null) && (fragsamp != null)) {   // addon: (157.1) drawn already this frame -- see lastout
+	    resolve(g);
+	    return;
+	}
+	lastout = g.out;   // addon: before the render, so a draw that throws Loading half-way is not repeated either
 	if((back == null) || !g.out.env().compatible(back)) {
 	    if(env != null) {
 		envdispose();

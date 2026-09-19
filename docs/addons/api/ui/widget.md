@@ -29,7 +29,7 @@ end
 | `hafen.ui():tipAt(x, y)` | The widget whose tooltip the client shows at that point, or `nil` — [tooltips](#tooltips-and-focus). | Unprotected |
 | `hafen.ui():mouse()` | The pointer, which is not a Widget — [mouse](mouse.md). | Unprotected |
 
-`session` is a [Session](../session.md): `hafen.session():current()` for the character on screen, `hafen.session():get(user)` for any other. A widget the client put up belongs to one character. A session nobody is looking at keeps its whole tree, so its windows stay findable from another character. What you built is in no character's tree: hold the handle the builder gave you.
+`session` is a [Session](../session.md): `hafen.session():current()` for the character on screen, `hafen.session():get(user)` for any other. A widget the client put up belongs to one character. A session nobody is looking at keeps its whole tree, so its windows stay findable from another character, and a [mirror](mirror.md) shows any widget of it. What you built is in no character's tree: hold the handle the builder gave you.
 
 ### Identity
 

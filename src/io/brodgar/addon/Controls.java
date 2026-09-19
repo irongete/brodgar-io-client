@@ -1119,6 +1119,10 @@ final class Controls {
      * is no BufferedImage round trip to pay for what {@link CtlIButton} needs and this does not.
      */
     static void source(Addon owner, Widget w, Owned c, LuaValue v) {
+        if(c instanceof MirrorWidget) {
+            mirrorSource(w, (MirrorWidget)c, v);
+            return;
+        }
         if(!(c instanceof CImg))
             throw new LuaError("widget:source(h) sets the PICTURE of a control you built, and hafen.ui():image()"
                 + " is the builder that takes one — " + LuaWidget.typeName(w) + " has no picture to set.");
@@ -1127,6 +1131,40 @@ final class Controls {
         img.setimg(tex);
         img.source(v);
         WidgetSurface.touch(w);       // 044.1: ...nor the picture a control shows
+    }
+
+    /**
+     * {@code mirror:source(w)} (157.1) — the WIDGET a mirror shows, where a picture control takes art. Any
+     * widget of any tree, live: a stale handle, a non-widget, the mirror inside its own picture and a source
+     * past the texture ceiling are refused here, and {@link MirrorWidget#source(LuaValue)} takes what is left.
+     */
+    private static void mirrorSource(Widget w, MirrorWidget m, LuaValue v) {
+        LuaWidget h = LuaWidget.resolve(v);
+        if(h == null)
+            throw new LuaError("mirror:source(w) takes a Widget — the one whose picture this mirror shows, from"
+                + " session:ui():match(selector), hafen.ui():hit(x, y) or a builder of your own. Got "
+                + v.typename() + (v.isstring() ? " (a picture control, hafen.ui():image(), is what takes a"
+                + " resource name or an asset handle)" : ""));
+        Widget src = LuaWidget.live(h);
+        if(src == null)
+            throw new LuaError("mirror:source(w): that widget is not in its tree any more (widget:exists() is"
+                + " false) — there is nothing to draw. Name a live one");
+        if((src == w) || w.hasparent(src))
+            throw new LuaError("mirror:source(w): " + LuaWidget.typeName(src) + " is this mirror, or holds it —"
+                + " a mirror inside its own picture would draw itself drawing itself. Name a widget it does"
+                + " not stand in");
+        Coord box = src.sz;
+        if((box != null) && ((box.x > MirrorWidget.MAX_SIDE) || (box.y > MirrorWidget.MAX_SIDE)))
+            throw new LuaError("mirror:source(w): " + LuaWidget.typeName(src) + " is " + box.x + "x" + box.y
+                + " device pixels, and a mirror's picture is at most " + MirrorWidget.MAX_SIDE + " on a side —"
+                + " past that the texture is the cost and nothing in it is readable. Mirror a widget inside it");
+        m.source(v);
+        if((box != null) && !m.pinned()) {
+            synchronized(LuaWidget.monitor(w)) {   // the MIRROR's tree, after the source's was given up
+                m.fit(box);
+            }
+            Layout.moved(w);          // 036.3: the box followed the source's; whatever hangs off it follows
+        }
     }
 
     /** {@code widget:source(h)}'s handle → a {@link Tex}. Same two doors {@link #face} resolves, minus the plural. */

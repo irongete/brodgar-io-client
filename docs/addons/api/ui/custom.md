@@ -34,6 +34,7 @@ A surface you build stands in the **addon layer**. That is a widget tree of its 
 | `hafen.ui():window()` | [`Widget`](widget.md) | Unprotected | A draggable, titled window wrapping your content. 200x140 at (100, 100) by default, no caption. |
 | `hafen.ui():widget()` | [`Widget`](widget.md) | Unprotected | A bare content rectangle, no chrome. Same defaults. |
 | `hafen.ui():column()`, `hafen.ui():row()` | [`Widget`](widget.md) | Unprotected | The bare rectangle with an axis: it [lays its children out](column.md) and sizes itself to them. |
+| `hafen.ui():mirror()` | [`Widget`](widget.md) | Unprotected | The bare rectangle showing [another widget's picture](mirror.md), any tree, drawn or not. |
 
 None takes an argument. Every property is a setter on the Widget. Every setter chains and has a bare read.
 

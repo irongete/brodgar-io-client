@@ -203,9 +203,9 @@ minimap:position(8, 8)
 
 | Rule | Detail |
 |---|---|
-| A move, not a copy | The widget stays the client's: it ticks, draws itself, answers its clicks and tooltips, and a bound one keeps filling. This is the reach for a surface whose value is its picture — the minimap, the portrait, a meter's fill — which [`replace`](replace.md) cannot redraw. |
+| A move, not a copy | The widget stays the client's: it ticks, draws itself, answers its clicks and tooltips, and a bound one keeps filling. This is the reach for a surface whose value is its picture — the minimap, the portrait, a meter's fill — which [`replace`](replace.md) cannot redraw. To show that picture somewhere the widget cannot go, a [mirror](mirror.md) draws it again and moves nothing. |
 | Painting order | Your surface's `bg` is a field under the client's widget and its `border` a frame over both — [naming and dressing](custom.md#naming-and-dressing-your-own-surfaces). Your surface does not resize around it. |
-| The surface must be in that character's tree | A client widget reads the login behind it. The [addon layer](custom.md#your-windows-live-in-the-layer) has none, so a widget taken there would go dark. Build the surface into the HUD (`hafen.ui():widget():parent(session:ui():match("@GameUI"))`). The refusal says so. |
+| The surface must be in that character's tree | A client widget reads the login behind it. The [addon layer](custom.md#your-windows-live-in-the-layer) has none, so a widget taken there would go dark. Build the surface into the HUD (`hafen.ui():widget():parent(session:ui():match("@GameUI"))`). The refusal says so. A [mirror](mirror.md) in the layer shows the widget's picture instead. |
 | One widget hangs in one place | A widget another addon holds is refused naming it, and so is one [standing in the 3D world](../virtual/widgets.md). `hafen.virtual():widget():add` refuses one you hold here. |
 | A destination that has left the tree | Moves nothing: the client's widget stays where it is, the call chains, nothing is recorded. A non-widget raises, naming the two surface builders. |
 | The parent it left keeps its box | A parent that packs around its children is not told a child walked out. The room stays reserved until the client adds the next one. |

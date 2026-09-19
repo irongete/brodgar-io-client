@@ -639,6 +639,20 @@ final class UiApi {
                 return Controls.image(owner, a);
             }
         });
+        //   :mirror() — 157.1, A SURFACE WHOSE PICTURE IS ANOTHER WIDGET'S. :source(w) names any widget of any
+        // tree, drawn or not, and the mirror shows it re-drawn every frame, scaled into its own box — the one
+        // reach to the portrait of a character nobody is looking at, which no re-home can bring into the layer
+        // (MirrorWidget). The same :source verb a picture control takes, with a Widget where that takes art.
+        m.set("mirror", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "mirror");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.ui():mirror() takes no arguments — it is built bare and configured"
+                        + " by chained setters: hafen.ui():mirror():source(w):size(w, h):position(x, y)");
+                UI u = requireUi("mirror");
+                return attach(u, owner, new MirrorWidget(owner));
+            }
+        });
         //   :separator() has no verb of its own — a plain rule, :size(w, h) the only thing that shapes it.
         m.set("separator", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -1419,7 +1433,7 @@ final class UiApi {
      * built, so a bare {@code hafen.ui():window()} reads back this very pair at every UI scale and looks the
      * same size beside the client's own windows.
      */
-    private static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
+    static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
 
     // 073.2: the arming queue is ONE TREE'S ({@code SessionState.unarmed}) — what is waiting is a widget
     // already attached to that session's root, and what arms it is that session's own tick. Every writer

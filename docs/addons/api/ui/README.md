@@ -38,6 +38,7 @@ Both trees take the same [selector](selectors.md), which is also the key of a [s
 |---|---|
 | [custom](custom.md) | Your own windows and bare canvases: setters, events, packing, resizing. |
 | [overlay](overlay.md) | Painting over the screen or over one widget: the keyed collection and its draw order. |
+| [mirror](mirror.md) | A surface showing another widget's live picture, any tree, drawn or not. |
 | [controls](controls/README.md) | The client's own controls, built and owned by your addon. |
 | [column](column.md) | A column or a row that lays its children out and sizes itself to them. |
 | [lists](lists.md) | Listbox, dropdown, menu, grid and table: the row-source controls. |

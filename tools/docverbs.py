@@ -89,7 +89,7 @@ RECEIVERS = {
     "row": "widget", "control": "widget", "inventory": "widget", "root": "widget", "node": "widget",
     "hovered": "widget", "entry": "widget", "check": "widget", "slider": "widget", "radio": "widget",
     "listbox": "widget", "table": "widget", "menu": "widget", "button": "widget", "scrollbar": "widget",
-    "label": "widget", "picture": "widget", "bar": "widget", "group": "widget",
+    "label": "widget", "picture": "widget", "bar": "widget", "group": "widget", "mirror": "widget",
     # An event object. Three files register verbs under `ev` -- the UI's shapes, a connection's and a voice
     # link's -- and their union is what a spelling resolves against: a verb no event of any kind answers is
     # caught, a verb from another kind's shape is not. The shorthand stays None: `ev` was also a local for

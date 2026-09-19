@@ -462,6 +462,10 @@ public abstract class UILoop implements Console.Directory {
 	// sample it in this same frame's Render. One stream, in order: same frame, never one frame stale. Off
 	// (nothing standing), it is one empty-list check.
 	io.brodgar.addon.AddonManager.drawSurfaces(ui, buf);
+	// addon: (157.1) and every MIRROR's source into that mirror's texture, at the same moment and for the
+	// same reason -- written ahead of the traversal that samples it. Holding no monitor: a mirror's source is
+	// in some other tree, a background session's included, and the pass takes that tree's monitor alone.
+	io.brodgar.addon.AddonManager.drawMirrors(ui, layer, buf);
 	// addon: the "ui2d" named pass (spec 019, task 019.6). It brackets the WHOLE widget draw, of which
 	// the 3D scene is a part (the MapView is a widget) -- so shadow/scene nest inside it and are
 	// subtracted out at snapshot time, leaving ui2d meaning what its name says. try/finally because a

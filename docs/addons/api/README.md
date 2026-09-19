@@ -84,6 +84,7 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 | [`hafen.ui`](ui/README.md) | The hub: what is on screen, and the reading order. |
 | [Custom](ui/custom.md) | Your own windows and bare rectangles. |
 | [Overlays](ui/overlay.md) | Painting over the screen, or over one widget, without owning either. |
+| [Mirror](ui/mirror.md) | A surface showing another widget's live picture: a character nobody is looking at, seen from the layer. |
 | [Controls](ui/controls/README.md) | What a control is, the roster, the reading order. |
 | [Display controls](ui/controls/display.md) | A label, a picture, a separator, a progress bar. |
 | [Interactive controls](ui/controls/interactive.md) | A button, a text entry, a checkbox, a radio, a slider, a scroll, a scrollbar. |
