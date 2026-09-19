@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # to dispatch the Pages workflow after a release
 
 concurrency:
   group: publish
@@ -77,3 +78,11 @@ jobs:
           if ($env:VERSION) { $arguments.Version = $env:VERSION }
           ./publish.ps1 @arguments
           "Published $(git tag --points-at HEAD 'v*') from $(git rev-parse --short HEAD)." | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+
+      # a release event raised with this token starts no workflow, so the Pages one is dispatched by name;
+      # a beta leaves the site alone
+      - name: Publish the docs of the release
+        if: steps.tagged.outputs.skip != 'true' && github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref master -f "tag=$(git tag --points-at HEAD 'v*')"

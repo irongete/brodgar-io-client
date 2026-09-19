@@ -1,16 +1,25 @@
-# A push to master that touches docs/ publishes docs/ as the GitHub Pages site; the Run workflow button
-# publishes it from master as it stands. The pages are built by Jekyll from a copy of docs/ in which every
-# `{{` and `{%` is escaped, so that a page may show a Lua table literal such as `{{r, g, b}}` without Liquid
-# reading it as a template tag. Nothing under docs/ is written for Jekyll's sake: docs/_config.yml names the
-# site, docs/_layouts and docs/assets carry the theme switch, and the pages are the documentation as it is.
+# The GitHub Pages site is docs/ as of the newest release: a release published by hand (publish.ps1) fires
+# the release event here, and one published by the Publish workflow dispatches this one with its tag, since
+# an event raised with the workflow's own token starts no other workflow. A beta publishes nothing: the
+# site follows the Release channel. The Run workflow button republishes the newest release, or the tag it
+# is given.
+#
+# The pages are built by Jekyll from a copy of docs/ in which every `{{` and `{%` is escaped, so that a page
+# may show a Lua table literal such as `{{r, g, b}}` without Liquid reading it as a template tag. Nothing
+# under docs/ is written for Jekyll's sake: docs/_config.yml names the site, docs/_layouts and docs/assets
+# carry the theme switch, and the pages are the documentation as it is.
 name: Pages
-run-name: brodgar-io-client-pages
+run-name: brodgar-io-client-pages-${{ github.event.release.tag_name || inputs.tag || 'latest' }}
 
 on:
-  push:
-    branches: [master]
-    paths: [docs/**, .github/workflows/pages.yml]
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to publish the docs of; the newest when empty"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -23,9 +32,32 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ubuntu-latest
     steps:
+      - name: The release to publish
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${EVENT_TAG:-$INPUT_TAG}"
+          if [ -z "$tag" ]; then
+            tag="$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          if [ -z "$tag" ]; then
+            tag="$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          if [ -z "$tag" ]; then
+            echo "nothing is released yet: name a tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Publishing the docs of $tag." | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
       - name: Copy docs/ and escape Liquid
         run: |
           cp -r docs _pages
