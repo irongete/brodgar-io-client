@@ -1,6 +1,6 @@
 # hafen.client: Keybindings
 
-`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and read, remap or reset any binding, yours or the client's own. Declaring and reading are unprotected. A remap needs [`client.settings`](../../guides/permissions.md).
+`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, read, remap or reset any binding, yours or the client's own, and take a section of the client's own off the keybindings panel. Declaring, reading and hiding are unprotected. A remap needs [`client.settings`](../../guides/permissions.md).
 
 ```lua
 local keybindings = hafen.client():options():keybindings()
@@ -15,6 +15,7 @@ end)
 |---|---|---|---|
 | `keybindings:on(name, fn)` | [`Sub`](../event/README.md#subscribe) | Unprotected | Declare a hotkey owned by your addon. `fn` runs when it fires. |
 | `keybindings:binding()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [Binding](#the-binding-object) | Unprotected | Every binding the client knows: yours, other addons' and its own. Takes no arguments. |
+| `keybindings:section(id)` | [Section](#the-section-object) | Unprotected | One of the client's own sections of the panel, by [id](#hiding-a-client-section). An unknown id raises, naming them. |
 
 | Rule | Detail |
 |---|---|
@@ -100,6 +101,43 @@ end)
 | Matched as pressed | Taking up or letting go of `Shift` after the key went down neither makes nor breaks the match. |
 | Unbound reads `false` | So does an undeclared binding. |
 | Focus loss lets go of everything | A key held through an alt-tab has its release delivered elsewhere, so the client drops the whole set. Come back with it held and it reads up until pressed again. |
+
+## Hiding a client section
+
+Options ▸ Game ▸ Keybindings paints the client's own sections first and one section per addon after them. An addon that stands in for a piece of the client, its own action bars with hotkeys of its own, leaves the user two sections of the same keys, and the client's is the one they find first. `keybindings:section(id):visible(false)` takes the client's section off the panel while your addon runs.
+
+```lua
+local keybindings = hafen.client():options():keybindings()
+keybindings:section("actionbar"):visible(false)   -- at load: the client's "Action bar" rows are gone
+```
+
+| id | Section |
+|---|---|
+| `menu` | Main menu |
+| `map` | Map options |
+| `camera` | Camera control |
+| `mapwnd` | Map window |
+| `speed` | Walking speed |
+| `actionbar` | Action bar |
+| `combat` | Combat actions |
+
+| Rule | Detail |
+|---|---|
+| The rows go, the bindings stay | Nothing under a hidden section is unbound or remapped. Its keys keep firing: the action bar's buttons and pages press the character's bar whether or not the client's own bar is drawn. Assign the same keys to your hotkeys and yours shadow them; leave them and they still answer, with no row to say so. State it in your README. |
+| A hold, held while your addon is | Hiding persists nothing. Disabling or deleting your addon, `:reload`, or the CPU watchdog disabling it paints the section again. Hide at load, as you declare hotkeys. |
+| Painted while nobody holds it | Two addons can hold one section. `visible(true)` releases yours; while another addon still holds it, the section stays hidden and reads `false`. |
+| Rebuilt on the next visit | The panel is built each time its button is pressed, so a section hidden or shown while it stands on screen changes on the next press. |
+
+### The Section object
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `section:id()` | `string` | Unprotected | The id it was addressed by. |
+| `section:visible()` | `boolean` | Unprotected | Whether the panel paints it: `false` while any addon holds it. |
+| `section:visible(flag)` | the section | Unprotected | `false` takes your hold on it, `true` releases it. |
+| `section:info()` | `table` | Unprotected | `{id=, visible=}`. |
+
+`keybindings:section("actionbar") == keybindings:section("actionbar")`: one object per id for your addon.
 
 ## Key strings
 

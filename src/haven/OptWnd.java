@@ -603,6 +603,22 @@ public class OptWnd extends Window {
 		   + UI.scale(2));
 	}
 
+	/* addon: a section heading. The first section sits at the top of the port and every later one a gap
+	 * below the rows before it. "First" is read off y rather than counted, so a section hidden below leaves
+	 * the next one at the top rather than a gap down from nothing. */
+	private int addhead(Widget cont, String nm, int y) {
+	    return(cont.adda(new Label(nm), cont.sz.x / 2, (y == 0) ? 0 : y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y);
+	}
+
+	/* addon: whether the client's own section `id` is painted. An addon standing in for a piece of the client
+	 * (its own action bars, with hotkeys of its own) takes the client's rows off this panel
+	 * (keybindings:section(id):visible(false)) so the user finds the addon's rows instead. The bindings under
+	 * a hidden section are untouched and keep firing; only the rows are gone, and they are back when no addon
+	 * holds them. The ids are LuaKeybindSection.IDS, in the order the sections stand below. */
+	private boolean shown(String id) {
+	    return(!io.brodgar.addon.AddonManager.keybindSectionHidden(id));
+	}
+
 	public BindingPanel() {
 	    super();
 	    /* addon: (115.5) the port is the page box less what stands under it, so this page fills the box
@@ -613,58 +629,72 @@ public class OptWnd extends Window {
 	    Widget cont = scroll.cont;
 	    Widget prev;
 	    int y = 0;
-	    y = cont.adda(new Label("Main menu"), cont.sz.x / 2, y, 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Inventory", GameUI.kb_inv, y);
-	    y = addbtn(cont, "Equipment", GameUI.kb_equ, y);
-	    y = addbtn(cont, "Character sheet", GameUI.kb_chr, y);
-	    y = addbtn(cont, "Map window", GameUI.kb_map, y);
-	    y = addbtn(cont, "Kith & Kin", GameUI.kb_bud, y);
-	    y = addbtn(cont, "Options", GameUI.kb_opt, y);
-	    y = addbtn(cont, "Search actions", GameUI.kb_srch, y);
-	    y = addbtn(cont, "Toggle chat", GameUI.kb_chat, y);
-	    y = addbtn(cont, "Quick chat", ChatUI.kb_quick, y);
-	    y = addbtn(cont, "Take screenshot", GameUI.kb_shoot, y);
-	    y = addbtn(cont, "Minimap icons", GameUI.kb_ico, y);
-	    y = addbtn(cont, "Toggle UI", GameUI.kb_hide, y);
-	    y = addbtn(cont, "Log out", GameUI.kb_logout, y);
-	    y = addbtn(cont, "Switch character", GameUI.kb_switchchr, y);
-	    y = cont.adda(new Label("Map options"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Display claims", GameUI.kb_claim, y);
-	    y = addbtn(cont, "Display villages", GameUI.kb_vil, y);
-	    y = addbtn(cont, "Display realms", GameUI.kb_rlm, y);
-	    y = addbtn(cont, "Display grid-lines", MapView.kb_grid, y);
-	    y = cont.adda(new Label("Camera control"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Rotate left", MapView.kb_camleft, y);
-	    y = addbtn(cont, "Rotate right", MapView.kb_camright, y);
-	    y = addbtn(cont, "Zoom in", MapView.kb_camin, y);
-	    y = addbtn(cont, "Zoom out", MapView.kb_camout, y);
-	    y = addbtn(cont, "Reset", MapView.kb_camreset, y);
-	    y = cont.adda(new Label("Map window"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Reset view", MapWnd.kb_home, y);
-	    y = addbtn(cont, "Place marker", MapWnd.kb_mark, y);
-	    y = addbtn(cont, "Toggle markers", MapWnd.kb_hmark, y);
-	    y = addbtn(cont, "Compact mode", MapWnd.kb_compact, y);
-	    y = cont.adda(new Label("Walking speed"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Increase speed", Speedget.kb_speedup, y);
-	    y = addbtn(cont, "Decrease speed", Speedget.kb_speeddn, y);
-	    for(int i = 0; i < 4; i++)
-		y = addbtn(cont, String.format("Set speed %d", i + 1), Speedget.kb_speeds[i], y);
+	    if(shown("menu")) {
+		y = addhead(cont, "Main menu", y);
+		y = addbtn(cont, "Inventory", GameUI.kb_inv, y);
+		y = addbtn(cont, "Equipment", GameUI.kb_equ, y);
+		y = addbtn(cont, "Character sheet", GameUI.kb_chr, y);
+		y = addbtn(cont, "Map window", GameUI.kb_map, y);
+		y = addbtn(cont, "Kith & Kin", GameUI.kb_bud, y);
+		y = addbtn(cont, "Options", GameUI.kb_opt, y);
+		y = addbtn(cont, "Search actions", GameUI.kb_srch, y);
+		y = addbtn(cont, "Toggle chat", GameUI.kb_chat, y);
+		y = addbtn(cont, "Quick chat", ChatUI.kb_quick, y);
+		y = addbtn(cont, "Take screenshot", GameUI.kb_shoot, y);
+		y = addbtn(cont, "Minimap icons", GameUI.kb_ico, y);
+		y = addbtn(cont, "Toggle UI", GameUI.kb_hide, y);
+		y = addbtn(cont, "Log out", GameUI.kb_logout, y);
+		y = addbtn(cont, "Switch character", GameUI.kb_switchchr, y);
+	    }
+	    if(shown("map")) {
+		y = addhead(cont, "Map options", y);
+		y = addbtn(cont, "Display claims", GameUI.kb_claim, y);
+		y = addbtn(cont, "Display villages", GameUI.kb_vil, y);
+		y = addbtn(cont, "Display realms", GameUI.kb_rlm, y);
+		y = addbtn(cont, "Display grid-lines", MapView.kb_grid, y);
+	    }
+	    if(shown("camera")) {
+		y = addhead(cont, "Camera control", y);
+		y = addbtn(cont, "Rotate left", MapView.kb_camleft, y);
+		y = addbtn(cont, "Rotate right", MapView.kb_camright, y);
+		y = addbtn(cont, "Zoom in", MapView.kb_camin, y);
+		y = addbtn(cont, "Zoom out", MapView.kb_camout, y);
+		y = addbtn(cont, "Reset", MapView.kb_camreset, y);
+	    }
+	    if(shown("mapwnd")) {
+		y = addhead(cont, "Map window", y);
+		y = addbtn(cont, "Reset view", MapWnd.kb_home, y);
+		y = addbtn(cont, "Place marker", MapWnd.kb_mark, y);
+		y = addbtn(cont, "Toggle markers", MapWnd.kb_hmark, y);
+		y = addbtn(cont, "Compact mode", MapWnd.kb_compact, y);
+	    }
+	    if(shown("speed")) {
+		y = addhead(cont, "Walking speed", y);
+		y = addbtn(cont, "Increase speed", Speedget.kb_speedup, y);
+		y = addbtn(cont, "Decrease speed", Speedget.kb_speeddn, y);
+		for(int i = 0; i < 4; i++)
+		    y = addbtn(cont, String.format("Set speed %d", i + 1), Speedget.kb_speeds[i], y);
+	    }
 	    // addon: the action bar's own keys. They were raw key codes inside the two belt widgets' globtype
 	    // overrides, so they were in no panel and could not be moved off the row they claimed.
-	    y = cont.adda(new Label("Action bar"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    for(int i = 0; i < GameUI.kb_belt.length; i++)
-		y = addbtn(cont, String.format("Button %d", i + 1), GameUI.kb_belt[i], y);
-	    for(int i = 0; i < GameUI.kb_beltpg.length; i++)
-		y = addbtn(cont, String.format("Go to page %d", i + 1), GameUI.kb_beltpg[i], y);
-	    y = cont.adda(new Label("Combat actions"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    for(int i = 0; i < Fightsess.kb_acts.length; i++)
-		y = addbtn(cont, String.format("Combat action %d", i + 1), Fightsess.kb_acts[i], y);
-	    y = addbtn(cont, "Switch targets", Fightsess.kb_relcycle, y);
+	    if(shown("actionbar")) {
+		y = addhead(cont, "Action bar", y);
+		for(int i = 0; i < GameUI.kb_belt.length; i++)
+		    y = addbtn(cont, String.format("Button %d", i + 1), GameUI.kb_belt[i], y);
+		for(int i = 0; i < GameUI.kb_beltpg.length; i++)
+		    y = addbtn(cont, String.format("Go to page %d", i + 1), GameUI.kb_beltpg[i], y);
+	    }
+	    if(shown("combat")) {
+		y = addhead(cont, "Combat actions", y);
+		for(int i = 0; i < Fightsess.kb_acts.length; i++)
+		    y = addbtn(cont, String.format("Combat action %d", i + 1), Fightsess.kb_acts[i], y);
+		y = addbtn(cont, "Switch targets", Fightsess.kb_relcycle, y);
+	    }
 	    // addon: dynamic per-addon hotkey sections (WoW-style; Phase 2e-3). One section per addon that
 	    // registered a hotkey (keybindings:register; none registered -> no section); the client's SetButton captures
 	    // and persists each re-map exactly like a built-in binding, so nothing else is needed here.
 	    for(io.brodgar.addon.AddonManager.KeyBindGroup grp : io.brodgar.addon.AddonManager.describeKeyBinds()) {
-		y = cont.adda(new Label(grp.addon), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+		y = addhead(cont, grp.addon, y);
 		for(io.brodgar.addon.AddonManager.KeyBindEntry e : grp.binds)
 		    y = addbtn(cont, e.name, e.binding, y);
 	    }

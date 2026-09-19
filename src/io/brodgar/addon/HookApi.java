@@ -65,6 +65,12 @@ final class HookApi {
     // keypress. Package-private so AddonManager.describeKeyBinds (the OptWnd panel facade) can read it.
     static final List<LuaKeyBind> keyBinds = new CopyOnWriteArrayList<LuaKeyBind>();
 
+    // -- hidden keybind-panel sections: section id -> the live addons holding it off the panel
+    // (keybindings:section(id):visible(false), LuaKeybindSection). Global like keyBinds, because the panel
+    // asks about a SECTION and not about an addon: it is painted while no addon holds it. A hold is
+    // released by its own addon's visible(true) or by teardownKeyBinds, never by another addon.
+    static final Map<String, Set<Addon>> hiddenKeybindSections = new ConcurrentHashMap<String, Set<Addon>>();
+
     // Named-key table for parseKeyMatch (F1..F12, arrows, Home/End/…). Built once (VK_* are compile-time consts).
     private static final Map<String, Integer> KEYCODES = new HashMap<String, Integer>();
     static {
@@ -535,6 +541,36 @@ final class HookApi {
             h.binding.release();                  // ...and the key it held goes back to whoever else wants it
         }
         a.keybinds.clear();
+        for(Set<Addon> holders : hiddenKeybindSections.values())   // ...and every panel section it was
+            holders.remove(a);                                     //   holding off is painted again
+    }
+
+    /**
+     * Take or release {@code owner}'s hold on a keybind-panel section — the body of
+     * {@code section:visible(flag)}. Idempotent both ways: a second {@code visible(false)} is the same one
+     * hold, and {@code visible(true)} with no hold is nothing. The section id has been checked against
+     * {@link LuaKeybindSection#IDS} by the caller.
+     */
+    static void hideKeybindSection(Addon owner, String id, boolean hidden) {
+        Set<Addon> holders = hiddenKeybindSections.get(id);
+        if(holders == null) {
+            if(!hidden)
+                return;
+            Set<Addon> fresh = ConcurrentHashMap.newKeySet();
+            holders = hiddenKeybindSections.putIfAbsent(id, fresh);
+            if(holders == null)
+                holders = fresh;
+        }
+        if(hidden)
+            holders.add(owner);
+        else
+            holders.remove(owner);
+    }
+
+    /** Whether any live addon holds keybind-panel section {@code id} off the panel. */
+    static boolean keybindSectionHidden(String id) {
+        Set<Addon> holders = hiddenKeybindSections.get(id);
+        return (holders != null) && !holders.isEmpty();
     }
 
     /**

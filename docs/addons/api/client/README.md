@@ -17,7 +17,7 @@ options:interface():angGran(15)                       -- write: needs client.set
 | `options:audio()` | Volumes and output latency. | [Below](#audio) |
 | `options:camera()` | The camera in force, and drag inversion. | [Below](#camera) |
 | `options:client()` | Client-wide toggles, remembered ground. | [Below](#client) |
-| `options:keybindings()` | Declare, inspect and remap hotkeys. | [Keybindings](keybindings.md) |
+| `options:keybindings()` | Declare, inspect and remap hotkeys; hide a section of the client's own from the panel. | [Keybindings](keybindings.md) |
 | `options:addon()` | Options of your own, and the page the window shows them on. | [Addon options](addon.md) |
 | `hafen.client():profiling()` | The frame profiler. | [Profiling](profiling/README.md) |
 | `hafen.client():addons()` | Every addon installed, its export, and yours. | [Addons and libraries](addons.md) |
@@ -165,7 +165,7 @@ if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 ## See Also
 
 - [Your addon's own options](addon.md) — a setting the client stores and answers reads for, and its page.
-- [Keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding.
+- [Keybindings](keybindings.md) — declaring your addon's hotkeys, remapping any binding, and hiding a client section of the panel.
 - [Profiling](profiling/README.md) — the frame profiler this panel arms.
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels.
 - [Events](../event/bus/lifecycle.md#sessions) — `SessionEnteredWorld`, the guard for the options not up yet.

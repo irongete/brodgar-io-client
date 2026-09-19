@@ -26,10 +26,12 @@ import org.luaj.vm2.lib.VarArgFunction;
  * addon can never be shadowed by a client binding that happens to share its name. That resolution lives on
  * the collection ({@link LuaBinding#collection}), which is what addresses a binding now.
  *
- * <p><b>Two verbs, and each is a whole surface.</b> {@code on} declares a hotkey and hands back a
+ * <p><b>Three verbs, and each is a whole surface.</b> {@code on} declares a hotkey and hands back a
  * {@link LuaSub}; {@code binding()} is the collection of every {@link KeyBinding} the client knows, whose
  * members carry the read and the write. There is no address-plus-value form beside it — {@code key(name, k)}
- * was one, and a collection plus an object says the same thing with one way to write it.
+ * was one, and a collection plus an object says the same thing with one way to write it. {@code section(id)}
+ * is one of the client's own sections of the keybind panel ({@link LuaKeybindSection}), whose one write takes
+ * the section off the panel while this addon runs.
  */
 public final class KeybindingsOptions {
     private KeybindingsOptions() {}
@@ -106,6 +108,19 @@ public final class KeybindingsOptions {
                     throw new LuaError("keybindings:binding() takes no arguments — it IS the collection:"
                         + " :get(id) addresses one binding and :list(filter) / :find(filter) search them");
                 return bindings;
+            }
+        });
+
+        // section(id) — one of the CLIENT's own sections of the keybind panel ("menu", "actionbar", …), as
+        // a Section object whose one write is visible(flag): an addon standing in for a piece of the client
+        // takes the client's rows off the panel so the user finds the addon's. Addressed by name rather
+        // than through a collection: the population is seven fixed rows, and the refusal lists them. The
+        // bindings under a hidden section are untouched and keep firing; the hold is this addon's and
+        // goes with its hotkeys at teardown (HookApi.teardownKeyBinds).
+        final LuaKeybindSection.Cache sections = new LuaKeybindSection.Cache(owner);
+        m.set("section", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaKeybindSection.address(sections, a);
             }
         });
         return m;

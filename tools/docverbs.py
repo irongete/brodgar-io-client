@@ -101,7 +101,7 @@ RECEIVERS = {
     "conn": "connection", "connection": "connection", "opened": "connection", "sheet": "sheet",
     "voice": "voice", "link": "voice", "peer": "peer",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
-    "binding": "binding", "b": None, "sound": "sound", "bell": "sound", "timer": "timer",
+    "binding": "binding", "b": None, "section": "section", "sound": "sound", "bell": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "option": "option", "rows": "option", "pl": "placing", "placing": "placing",
     "target": "opponent", "grab": "grab", "scope": "scope", "profiling": "profiling", "declaration": "declaration",
     "mouse": "hafen.ui():mouse()",

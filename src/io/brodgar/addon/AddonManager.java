@@ -7000,6 +7000,19 @@ public final class AddonManager {
     }
 
     /**
+     * Whether the client keybind panel leaves out its own section {@code id} ("menu", "actionbar", … —
+     * {@link LuaKeybindSection#IDS}), because a live addon asked it to
+     * ({@code keybindings:section(id):visible(false)}). Read beside {@link #describeKeyBinds} on the UI
+     * thread, at panel build: an addon standing in for a piece of the client, with hotkeys of its own for
+     * it, takes the client's rows off the panel so the user finds the addon's. The bindings under a hidden
+     * section are untouched — they keep their keys and keep firing; only the rows are gone, and they are
+     * back the moment no addon holds them (a hold dies with its addon's other hotkey state).
+     */
+    public static boolean keybindSectionHidden(String id) {
+        return HookApi.keybindSectionHidden(id);
+    }
+
+    /**
      * One addon's <b>page</b> of the AddOns tab of the settings window (spec
      * {@code 140-the-options-page-is-the-addons}, 140.1). Immutable; built by {@link #describePages()}. Its
      * {@link #addon} is the row the tab's list draws, and {@link #id}
