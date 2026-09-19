@@ -1890,7 +1890,13 @@ public final class LuaWidget {
          *   WRITE-ONCE. A name is identity, not state: the four states a surface enters ride inside a VALUE
          * (bg = {..., hover = ...}), and renaming to express a fifth would be a per-state selector by the back
          * door, which the stylesheet's own page rules out. A second name would also leave every rule pointing
-         * at the first naming nothing, silently, which is the worst way for a theme to break. */
+         * at the first naming nothing, silently, which is the worst way for a theme to break.
+         *   THE NAME LANDS AT ONCE, LAYOUT INCLUDED (158.2). A name is a selector step, so every installed rule
+         * naming the word starts matching this widget -- and a chain rule whose inner step it is starts
+         * matching below it. The subtree's cached resolution goes with the write (Sheet.named), so the drawing
+         * half lands on the next draw; the layout half is enforced, not drawn, so it is applied before the
+         * verb returns (Layout.applySubtree, below the monitor block as every fold is). Written under the
+         * widget's own monitor, it refuses from a handler holding another tree's, like every write (112.2). */
         m.set("name", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaWidget h = handle(a.arg1(), "name");
@@ -1909,11 +1915,15 @@ public final class LuaWidget {
                     throw new LuaError("widget:name(\"" + n + "\"): a name is one word of your own, with no"
                         + " space, no \"]\" (a selector step ends on one) and no \"/\" — the engine writes"
                         + " your addon's id there, so that two addons naming a bar cannot collide");
-                if(!nameSet(w, owner.manifest.id + "/" + n))
-                    throw new LuaError("widget:name(\"" + n + "\"): this widget is already called \""
-                        + nameOf(w) + "\". A name is written once: it is the identity a theme's [name=...]"
-                        + " points at, and a second one would leave every rule naming the first pointing at"
-                        + " nothing at all");
+                synchronized(monitor(w)) {                 // 158.2: the write and what it invalidates, as one
+                    if(!nameSet(w, owner.manifest.id + "/" + n))
+                        throw new LuaError("widget:name(\"" + n + "\"): this widget is already called \""
+                            + nameOf(w) + "\". A name is written once: it is the identity a theme's [name=...]"
+                            + " points at, and a second one would leave every rule naming the first pointing at"
+                            + " nothing at all");
+                    Sheet.named(w);                        // the subtree's resolution is stale: a step was added
+                }
+                Layout.applySubtree(w);                    // 112.6: the fold below the block -- see :position
                 return a.arg1();
             }
         });

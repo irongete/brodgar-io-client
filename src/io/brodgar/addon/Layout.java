@@ -44,10 +44,14 @@ import java.util.WeakHashMap;
  * <ul>
  *   <li>a sheet is installed, replaced or dropped, and at teardown ({@link #sweep} over the live tree);</li>
  *   <li>a widget is placed into the tree ({@link #placed}, off the same seam {@code s:ui():on} uses — plus
- *       030.2's bounded re-check, because a {@code [title=]} caption arrives by {@code uimsg} a tick late);</li>
+ *       030.2's bounded re-check, because a {@code [title=]} caption arrives by {@code uimsg} a tick late) —
+ *       or a surface of yours is armed ({@code UiApi.armPending}, 158.2: the tick after the statement that
+ *       built it, name, box and parent configured) or named after that ({@link #applySubtree}, from
+ *       {@code widget:name});</li>
  *   <li>a verb is called or undone ({@link #apply} on that one widget);</li>
  *   <li>the geometry an {@link Anchor} <i>derives from</i> changed (036.3, event-driven since 042.10/D-181) —
- *       the screen was resized, the widget it hangs off resized or packed itself ({@link #dispatchResized},
+ *       the screen was resized, the widget it hangs off resized or packed itself, or the anchored widget
+ *       itself resized (158.2: its own corner is a term of its own anchor) ({@link #dispatchResized},
  *       the {@code Widget.resize} core tap — {@code move()} is never hooked, and is not a chokepoint anyway:
  *       a drag writes {@code c} directly), or was dragged ({@link #installDragListener}, a {@code Widget.listen}
  *       on that one target — a zero-edit seam, not the client's hottest path), or left the tree
@@ -1001,7 +1005,41 @@ final class Layout {
         UI u = w.ui;   // 073.2: "is this the SCREEN?" is a question about the widget's own tree, not about
         if((u != null) && (w == u.root))   //   whether it is the DRAWN one's root, which a background
             rederiveScreenAnchored();      //   session's root never is however often it resizes
-        moved(w);
+        // 158.2: a widget's OWN anchor reads its own box -- "bottomright" is corner ON corner, so a widget
+        // that grew by the verb, a rule's size, a pack or the client's grip has its corner off the target's
+        // until it is re-derived. Where derived holds it, the whole fold runs over it (apply is idempotent,
+        // so the resize the size half may make is the last, and its followers cascade below apply's block);
+        // otherwise only what hangs off it follows, as before.
+        if(isDerived(w))
+            apply(w);
+        else
+            moved(w);
+    }
+
+    /** Is {@code w}'s own place derived from geometry that can change under it? One map read at rest. */
+    private static boolean isDerived(Widget w) {
+        synchronized(Layout.class) {
+            return !derived.isEmpty() && derived.containsKey(w);
+        }
+    }
+
+    /**
+     * <b>Lay {@code w} and everything below it out</b> (158.2) — the layout half of {@code widget:name(word)},
+     * which lands before the verb returns: a name is a selector step, so a rule naming the word starts
+     * matching {@code w}, and a chain rule whose inner step it is starts matching below it. The subtree is
+     * collected under {@code w}'s monitor and applied one widget at a time holding none, the shape
+     * {@link #sweep(UI)} has: a follower anchored across the layer/session boundary is a second tree, and
+     * each widget takes its own. Gated as {@link #placed} is — no rule and nothing held, nothing to enforce.
+     */
+    static void applySubtree(Widget w) {
+        if((w == null) || !active())
+            return;
+        List<Widget> all = new ArrayList<Widget>();
+        synchronized(LuaWidget.monitor(w)) {
+            collect(w, all);
+        }
+        for(int i = 0; i < all.size(); i++)
+            apply(all.get(i));
     }
 
     /** Re-apply every widget anchored to the SCREEN (never the tree, never a WIDGET target) — the screen half

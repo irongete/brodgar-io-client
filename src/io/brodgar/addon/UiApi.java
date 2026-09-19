@@ -1450,6 +1450,13 @@ final class UiApi {
      * built" ({@code hafen.ui():hit}, {@code :matchAll}, a selector subscription), which is a capability, to buy a
      * guarantee about painting that skipping the draw already gives in full. What the draw skips is the
      * <b>whole</b> surface, chrome included, which is why {@link #newUi} builds an anonymous {@code Window}.
+     *
+     * <p><b>And a layout rule naming the surface lands here</b> (158.2) — the tick after the building
+     * statement, its name, box and parent all configured, which is the moment {@link Layout#placed} is for a
+     * widget the client placed. Gated as that seam is: no rule and nothing held, no fold. The two ticks that
+     * call this hold no tree monitor, so {@code Layout.apply} takes the surface's own — a surface
+     * {@code :parent(w)} re-homed into a character's window is in that character's tree, and this is still
+     * the layer's queue — and a follower in any tree cascades below its block.
      */
     static void armPending(SessionState st) {
         List<Owned> queue = st.unarmed;
@@ -1460,8 +1467,11 @@ final class UiApi {
             due = new ArrayList<Owned>(queue);
             queue.clear();
         }
-        for(Owned c : due)
+        for(Owned c : due) {
             c.armed();
+            if(Layout.active())
+                Layout.apply(c.rootw());
+        }
     }
 
     /** Queue one just-built surface for the arming tick of the tree it was attached to (073.2). */

@@ -38,7 +38,7 @@
            (the picture's and the mirror's size rows), docs/addons/api/ui/edit.md (`:pack()` is a
            level: the borrowed pack, which stays one) -->
 
-- [ ] **158.2 — A rule lands on a surface of yours when it is armed, named or resized.**
+- [x] **158.2 — A rule lands on a surface of yours when it is armed, named or resized.**
       `UiApi.armPending` runs `Layout.apply(c.rootw())` after `c.armed()`, gated on
       `Layout.active()`; `Layout.dispatchResized` applies `w`'s own anchor when `derived` holds `w`,
       before its followers; the `name` verb calls `Sheet.named(w)` (the subtree's cached resolution

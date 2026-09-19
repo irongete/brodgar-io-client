@@ -854,6 +854,32 @@ final class Sheet {
         }
     }
 
+    /**
+     * <b>{@code w} was just named</b> (158.2, from {@code widget:name(word)}): its cached resolution and
+     * every one below it go, so the next fold — the draw's, or {@link Layout#applySubtree}'s a moment
+     * later — reads the rules again. {@link #stockChanged}'s narrow path widened to the subtree, because a
+     * name is what a stock is not: a <b>selector step</b>. A rule naming the word starts matching {@code w},
+     * and a chain rule whose inner step it is starts matching a descendant — so a negative answer settled
+     * anywhere under it is stale, and {@code treegen}, which would invalidate every widget in every tree for
+     * one name, still has nothing to say. It owes {@link Fonts} nothing for the same reason
+     * {@link #stockChanged} does not: the rules did not change, only who they name.
+     *
+     * <p>Takes the widget's own monitor first and {@code Sheet.class} under it — {@code ui -> Sheet.class},
+     * the order {@link #styleOf} and {@link #drainCaptionInvalidation} take — so a handler holding another
+     * tree's monitor is refused at the acquisition, as every write is.
+     */
+    static void named(Widget w) {
+        if(w == null)
+            return;
+        synchronized(LuaWidget.monitor(w)) {
+            synchronized(Sheet.class) {
+                if(!anyStyle && !anyStock)
+                    return;                                   // nothing is cached: hold nothing, exactly as styleOf
+                invalidateSubtree(w);
+            }
+        }
+    }
+
     /** Drop every stock {@code owner} declared (its teardown). Caller holds {@code Sheet.class}. */
     private static boolean dropStocks(Addon owner) {
         boolean rm = false;

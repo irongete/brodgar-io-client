@@ -47,7 +47,7 @@ None takes an argument. Every property is a setter on the Widget. Every setter c
 | `:position(x, y)` / `:position()` | `self` / `{x=, y=}` | Unprotected | Place within the parent, in [design pixels](pixels.md). Your level of the [cascade](style/geometry.md#position-and-size), above any rule naming the surface. `:position(nil)` drops it: the rule, else the default place. A surface the layer or the HUD holds is clamped like a client window, 100 design pixels staying on screen. A child of a surface of yours goes where it is sent. |
 | `:size(w, h)` / `:size()` | `self` / `{w=, h=}` | Unprotected | The content box, in design pixels. A window's chrome refits around it. The read answers the same content box. The frame is [`:chrome().frame`](widget.md#read-methods). The same level as `:position`: `:size(nil)` lands on a rule's `size`, else on the default box. A [control](controls/README.md#sizing) lands no lower than its art. |
 | `:font(handle)` / `:font()` | `self` / `FontHandle \| nil` | Unprotected | The default font of this widget's `g:text`/`g:atext`, not of its caption. A [font handle](../font.md). |
-| `:name(word)` / `:name()` | `self` / `string \| nil` | Unprotected | What your addon calls it. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back as `<addon>/<word>`. One word, no space, `]` or `/`. Written once. |
+| `:name(word)` / `:name()` | `self` / `string \| nil` | Unprotected | What your addon calls it. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back as `<addon>/<word>`. One word, no space, `]` or `/`. Written once. Every rule naming it lands [at once](#naming-and-dressing-your-own-surfaces). |
 | `:stock(t)` / `:stock()` | `self` / `table \| nil` | Unprotected | Its look when no rule names it — [below](#naming-and-dressing-your-own-surfaces). |
 | `:resizable(true)` / `:resizable()` | `self` / `boolean \| Widget \| nil` | Unprotected | The client's corner grip on a window of yours — [below](#letting-the-user-resize-a-window-of-yours). `false` removes it. |
 | `:draggable(h)`, `:resizable(h)`, `:remember(name)` / the same, bare | `self` / `Widget \| nil`, `boolean \| Widget \| nil`, `string \| nil` | Unprotected | Dragging, resizing and the saved place — [native](native.md#letting-the-user-drag-it-unprotected). |
@@ -95,6 +95,7 @@ A theme dresses that surface by naming it, without the addon knowing the theme:
 | Rule | Detail |
 |---|---|
 | `:name` enables, `:stock` starts | Neither is required. A surface with neither is a bare rectangle. |
+| A name lands at once | Every installed rule naming the word reaches the surface before `:name` returns, the [layout properties](style/geometry.md#position-and-size) included, and its subtree with it: a chain rule whose inner step the word is starts matching below. It lands on a [pending](#a-surface-never-paints-half-configured) surface too; what is configured after the name — a `:parent(w)` a chain rule matches through — lands on the arming tick. A handler holding another tree's monitor — `Draw`, a control's notification, a gesture — refuses it, like every write: name the surface on the step, from a timer or an `Update` handler. |
 | Client-built widgets need neither | `:window()`, `:button()`, `:label()`, `:entry()` and the rest are client widgets, so the [site keys](style/keys.md#site-keys) already reach them. This section is about `hafen.ui():widget()`. |
 | The stock is the bottom of the [cascade](style/README.md#the-cascade) | Every rule beats it, per property: a theme naming only `bg` leaves your `border` standing. A `widget:rule()` would sit at the top, out of every theme's reach. A tree rule of your own would tie with the theme's. |
 | Properties | The same a [rule](style/README.md#properties) carries, minus the layout three (`position`, `anchor`, `size`), which are refused naming [`widget:position(x, y)`](native.md). `{}` drops the declaration. `:stock()` reads back what you wrote, or `nil`. |
@@ -192,6 +193,7 @@ A surface is in the layer's tree the instant it is built: `:parent()`, `:childre
 | Rule | Detail |
 |---|---|
 | Build and destroy in one statement | The surface never appears. |
+| A rule lands on that tick | A sheet rule naming the surface's `position`, `anchor` or `size` [applies](style/geometry.md#position-and-size) as it arms, for a window, a bare widget, a column, a control and a mirror alike, in the layer or a character's tree. |
 | `:parent(w)` is a building verb | It answers while the surface is pending and refuses once it is on screen, naming `:position(x, y)`. |
 | A parent that has left the tree | The build stops: nothing is placed, the rest of the chain runs inert, and the handle answers `:exists()` false. An icon handed to you by a subscription may be destroyed on the client's step before your call runs. No `:exists()` of yours sits inside that instant. |
 | A value that is not a Widget | Raises, naming what a Widget is. |

@@ -1,0 +1,9 @@
+{
+  "name": "158.2 — a rule lands on a surface of yours when it is armed, named or resized",
+  "id": "158-own-layout.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 158.2: a layout rule installed before a surface is built lands on its arming tick (a widget, a window, a control, a mirror, a chain), a surface's own anchor is re-derived when it resizes, and :name written late lands its rule at once and refuses from another tree's handler.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}
