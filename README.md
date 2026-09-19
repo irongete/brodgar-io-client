@@ -3,9 +3,10 @@
 [![Download the launcher](https://img.shields.io/github/v/release/irongete/brodgar-io-client-launcher?label=Download%20the%20launcher)](https://github.com/irongete/brodgar-io-client-launcher/releases/latest)
 
 A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
-[dolda2000/hafen-client](https://github.com/dolda2000/hafen-client).
+[dolda2000/hafen-client](https://github.com/dolda2000/hafen-client), documented
+[here](https://irongete.github.io/brodgar-io-client/).
 
-- **AddOns** — a Lua addon system, [documented here](https://irongete.github.io/brodgar-io-client/).
+- **AddOns** — a Lua addon system.
 - **Multi-session** — log in several characters and control them at once.
 - **Proximity voice chat** — voice chat with the players near you.
 

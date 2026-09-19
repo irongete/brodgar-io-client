@@ -1,9 +1,10 @@
 # brodgar.io client
 
 A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
-[dolda2000/hafen-client](https://github.com/dolda2000/hafen-client).
+[dolda2000/hafen-client](https://github.com/dolda2000/hafen-client), documented
+[here](https://irongete.github.io/brodgar-io-client/).
 
-- **AddOns** — a Lua addon system, documented below.
+- **AddOns** — a Lua addon system.
 - **Multi-session** — log in several characters and control them at once.
 - **Proximity voice chat** — voice chat with the players near you.
 
