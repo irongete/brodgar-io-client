@@ -27,17 +27,17 @@ for you; the pre-releases are the Beta channel) ·
 
 The documentation is organized into two distinct sections:
 
-- **[AddOns](addons/README.md)**: Developer documentation for creating client addons in Lua. Covers the `hafen.*` API, manifest configuration, UI creation, event handling, and examples.
-- **[Client Internals](client/README.md)**: Technical reference for the underlying Java client engine, subsystems, rendering pipeline, and architecture.
+- **[AddOns](https://irongete.github.io/brodgar-io-client/addons/)**: Developer documentation for creating client addons in Lua. Covers the `hafen.*` API, manifest configuration, UI creation, event handling, and examples.
+- **[Client Internals](https://irongete.github.io/brodgar-io-client/client/)**: Technical reference for the underlying Java client engine, subsystems, rendering pipeline, and architecture.
 
 ### Creating Addons
-- **[Getting Started](addons/getting-started.md)**: Build your first addon in 5 minutes.
-- **[Addon Guides](addons/guides/README.md)**: Step-by-step guides for UI, world interaction, events, timers, data persistence, and permissions.
-- **[API Reference](addons/api/README.md)**: Complete reference for all `hafen.*` namespaces, methods, parameters, and events.
-- **[Manifest Specification](addons/manifest.md)**: Configuration reference for `manifest.json`.
-- **[Runtime & Sandbox](addons/runtime.md)**: Execution environment, watchdog limits, lifecycle hooks, and console commands.
+- **[Getting Started](https://irongete.github.io/brodgar-io-client/addons/getting-started.html)**: Build your first addon in 5 minutes.
+- **[Addon Guides](https://irongete.github.io/brodgar-io-client/addons/guides/)**: Step-by-step guides for UI, world interaction, events, timers, data persistence, and permissions.
+- **[API Reference](https://irongete.github.io/brodgar-io-client/addons/api/)**: Complete reference for all `hafen.*` namespaces, methods, parameters, and events.
+- **[Manifest Specification](https://irongete.github.io/brodgar-io-client/addons/manifest.html)**: Configuration reference for `manifest.json`.
+- **[Runtime & Sandbox](https://irongete.github.io/brodgar-io-client/addons/runtime.html)**: Execution environment, watchdog limits, lifecycle hooks, and console commands.
 
 ### Modifying the Client
-- **[Architecture Overview](client/README.md)**: Subsystem map of the Java client codebase.
-- **[Render Pipeline](client/render-gl.md)**: OpenGL rendering architecture.
-- **[State Management](client/state.md)**: Engine state tracking and synchronization.
+- **[Architecture Overview](https://irongete.github.io/brodgar-io-client/client/)**: Subsystem map of the Java client codebase.
+- **[Render Pipeline](https://irongete.github.io/brodgar-io-client/client/render-gl.html)**: OpenGL rendering architecture.
+- **[State Management](https://irongete.github.io/brodgar-io-client/client/state.html)**: Engine state tracking and synchronization.
