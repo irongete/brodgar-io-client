@@ -16,6 +16,7 @@ and a feature is built on a branch of its own (see *Branches and releases*).
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
 | `tools/` | The checkers that hold `docs/` to `src/`: every documented verb resolved against its own **receiver's** vocabulary, and every verb a refusal offers as a replacement. Run them when either side moves — they exit non-zero, and they state their own blind spots |
+| `docs/README.md` · `docs/_config.yml` · `docs/_layouts/` · `docs/assets/` · `.github/workflows/pages.yml` | The site, `irongete.github.io/brodgar-io-client`: `docs/` as of the newest release, built by Jekyll. The front page (*How to play*, the downloads, the index), the theme and its light/dark switch, and the workflow — `/plan` and `/implement` never touch them; a page under `docs/` is written for the reader, never for Jekyll |
 | `publish.ps1` · `etc/release-addons` · `.github/workflows/publish.yml` | The release: the script that builds, tags and publishes from `master` — the maintainer runs it, or CI does on a push to `master`; no command does — the list of addons a release ships, and the workflow |
 | `DOCUMENTATION.md` | How a page under `docs/` is written |
 
