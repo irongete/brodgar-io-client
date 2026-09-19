@@ -32,8 +32,8 @@ stamina_label:text(("%d%%"):format(percent))      -- resizes the label to fit
 | `hafen.ui():image()` | `Widget` | Unprotected | A static picture with no interaction. |
 | `picture:source(h)` | `self` | Unprotected | Its content: an [asset](../../asset/README.md) handle or a string naming a client resource, the two doors a button's [face](interactive.md#a-caption-or-a-picture) resolves. Not building-only: it may replace the picture at any time, on screen or not. |
 | `picture:source()` | `userdata \| string \| nil` | Unprotected | What was named. `nil` before the first write. |
-| `picture:size(w, h)` | `self` | Unprotected | Scales the picture into the box. A later `:source(h)` keeps that box. |
-| `picture:size(nil)` | `self` | Unprotected | Gives the box back to the picture's own. |
+| `picture:size(w, h)` | `self` | Unprotected | Scales the picture into the box. A later `:source(h)` keeps that box. A rule's [`size`](../style/geometry.md#position-and-size) naming the picture is inert. |
+| `picture:size(nil)` | `self` | Unprotected | Gives the box back to the picture's own, whatever a rule says. |
 | `picture:size(w)` | — | — | Refused: there is no art to answer for the height. |
 
 | Rule | Detail |

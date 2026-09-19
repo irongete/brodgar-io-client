@@ -23,8 +23,8 @@ end
 | `hafen.ui():mirror()` | [`Widget`](widget.md) | Unprotected | A mirror showing nothing yet, 200x140 at (100, 100) in the addon layer. No arguments. |
 | `mirror:source(w)` | `self` | Unprotected | The widget it shows: any [Widget](widget.md), the client's or an addon's, in any tree. Not building-only: it may name another widget at any time. |
 | `mirror:source()` | `Widget \| nil` | Unprotected | The widget named, the same object (`==` holds). `nil` before the first write, and once that widget has left its tree. |
-| `mirror:size(w, h)` | `self` | Unprotected | Scales the picture into the box. A later `:source(w)` keeps that box. |
-| `mirror:size(nil)` | `self` | Unprotected | Gives the box back to the source's own. |
+| `mirror:size(w, h)` | `self` | Unprotected | Scales the picture into the box. A later `:source(w)` keeps that box. A rule's [`size`](style/geometry.md#position-and-size) naming the mirror is inert. |
+| `mirror:size(nil)` | `self` | Unprotected | Gives the box back to the source's own, whatever a rule says. |
 | `mirror:size(w)` | — | — | Refused: there is no art to answer for the height. |
 
 `:parent(w)`, `:position(x, y)`, `:visible(b)`, `:name(word)`, `:stock(t)`, `:tooltip(s)`, `:enabled(b)` and `:destroy()` answer as on any [surface of yours](custom.md). `:type()` reads `MirrorWidget`; a [selector](selectors.md) reaches it as `@MirrorWidget` or by its `[name=]`.

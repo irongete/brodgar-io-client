@@ -2277,6 +2277,23 @@ final class UiApi {
     }
 
     /**
+     * <b>{@code widget:pack()} on a surface of yours forgets this addon's size half</b> (158.1) — the level
+     * {@code widget:size(w, h)} named <i>and</i> the stock box the fold recorded under it, with no fold run:
+     * the box is the content's from here on ({@link AddonWidget#packed}), the size half of the cascade skips a
+     * packed surface, and the {@code :size(w, h)} that takes the box back records the packed box as the stock
+     * it later gives back. A record with nothing left is dropped. Caller holds {@code w}'s monitor.
+     */
+    static void forgetSize(Addon owner, Widget w) {
+        LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
+        if(m == null)
+            return;
+        m.wantSize = null;
+        m.size = null;
+        if(m.idle() && owner.movedNative.remove(m))
+            LuaWidget.recountMoved();
+    }
+
+    /**
      * The live undo behind {@code widget:text(nil)} / {@code widget:title(nil)} (061.5): drop this addon's text
      * level and let {@link Layout#applyText} say what happens next — another addon's level takes the widget back
      * at once, and only when nothing names its caption at all does the stock one return and the record's half go

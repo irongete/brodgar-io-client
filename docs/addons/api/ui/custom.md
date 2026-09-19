@@ -44,15 +44,15 @@ None takes an argument. Every property is a setter on the Widget. Every setter c
 |---|---|---|---|
 | `:title(caption)` / `:title()` | `self` / `string \| nil` | Unprotected | The window caption. A bare widget has no chrome and refuses. Answers on [a client window](edit.md#what-a-window-says) too. |
 | `:parent(w)` / `:parent()` | `self` / `Widget \| nil` | Unprotected | What it hangs under. The layer by default. Naming [a client window](edit.md#your-own-controls-inside-one-of-the-clients-windows) puts it in that character's tree, where it ends with the window. Legal while the surface is [pending](#a-surface-never-paints-half-configured). The same verb [takes a client widget into a surface of yours](native.md#taking-one-into-a-surface-of-your-own-unprotected). |
-| `:position(x, y)` / `:position()` | `self` / `{x=, y=}` | Unprotected | Place within the parent, in [design pixels](pixels.md). |
-| `:size(w, h)` / `:size()` | `self` / `{w=, h=}` | Unprotected | The content box, in design pixels. A window's chrome refits around it. The read answers the same content box. The frame is [`:chrome().frame`](widget.md#read-methods). |
+| `:position(x, y)` / `:position()` | `self` / `{x=, y=}` | Unprotected | Place within the parent, in [design pixels](pixels.md). Your level of the [cascade](style/geometry.md#position-and-size), above any rule naming the surface. `:position(nil)` drops it: the rule, else the default place. A surface the layer or the HUD holds is clamped like a client window, 100 design pixels staying on screen. A child of a surface of yours goes where it is sent. |
+| `:size(w, h)` / `:size()` | `self` / `{w=, h=}` | Unprotected | The content box, in design pixels. A window's chrome refits around it. The read answers the same content box. The frame is [`:chrome().frame`](widget.md#read-methods). The same level as `:position`: `:size(nil)` lands on a rule's `size`, else on the default box. A [control](controls/README.md#sizing) lands no lower than its art. |
 | `:font(handle)` / `:font()` | `self` / `FontHandle \| nil` | Unprotected | The default font of this widget's `g:text`/`g:atext`, not of its caption. A [font handle](../font.md). |
 | `:name(word)` / `:name()` | `self` / `string \| nil` | Unprotected | What your addon calls it. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back as `<addon>/<word>`. One word, no space, `]` or `/`. Written once. |
 | `:stock(t)` / `:stock()` | `self` / `table \| nil` | Unprotected | Its look when no rule names it — [below](#naming-and-dressing-your-own-surfaces). |
 | `:resizable(true)` / `:resizable()` | `self` / `boolean \| Widget \| nil` | Unprotected | The client's corner grip on a window of yours — [below](#letting-the-user-resize-a-window-of-yours). `false` removes it. |
 | `:draggable(h)`, `:resizable(h)`, `:remember(name)` / the same, bare | `self` / `Widget \| nil`, `boolean \| Widget \| nil`, `string \| nil` | Unprotected | Dragging, resizing and the saved place — [native](native.md#letting-the-user-drag-it-unprotected). |
 | `:visible(shown)` / `:visible()` | `self` / `boolean` | Unprotected | Drawn or hidden. |
-| `:pack()` | `self` | Unprotected | Sized to what is inside it — [below](#packing-a-surface-around-what-is-inside-it). |
+| `:pack()` | `self` | Unprotected | Sized to what is inside it — [below](#packing-a-surface-around-what-is-inside-it). Forgets your size level. |
 | `:destroy()` | `self` | Unprotected | Removed with everything in it. |
 
 | Rule | Detail |
@@ -116,7 +116,8 @@ harvest_window:pack()                          -- the window is now exactly that
 | Rule | Detail |
 |---|---|
 | `:pack()` | Sizes a window or a bare widget to the controls inside it. Chains. From then on the surface follows its content. A child that enters, leaves, moves, resizes, hides or shows re-packs it before the call that changed it returns. |
-| `:size(w, h)` after a pack | Takes the box back. The surface keeps that size until the next `:pack()`. |
+| `:size(w, h)` after a pack | Takes the box back. The surface keeps that size until the next `:pack()`, and the packed box is the stock `:size(nil)` then gives back. |
+| `:size(nil)` after a pack | Changes nothing: the pack forgot your size level, and a rule's `size` on a packed surface is inert. |
 | A [column](column.md) | Packed by construction: `:pack()` refuses on it, and `:size(w)` pins its width alone. |
 
 ---

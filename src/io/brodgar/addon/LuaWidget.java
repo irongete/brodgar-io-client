@@ -591,6 +591,12 @@ public final class LuaWidget {
         // top of the same fold a sheet's `pos` rule feeds, so it wins over every rule that merely matched the
         // widget -- and position(nil) drops back to THE RULE when one still names it, reaching the stock value
         // only when no level does. Layout.apply is what decides; this verb only says what this addon wants.
+        //
+        // ON A SURFACE OF YOURS IT IS THE SAME LEVEL (158.1). The owned branch used to move the widget outright
+        // and name nothing, so a rule reaching it at a sweep had no verb above it and position(nil) found
+        // nothing to drop. Now owned and borrowed run one line: the level is recorded here and the fold is the
+        // write -- which is what makes the stock the builder's default place, read by the fold at its first
+        // touch before anything moved the widget. A write here would have made the verb's own place the stock.
         // position() — DESIGN PIXELS within the parent, and deliberately NOT a Position (spec 039 §2.7): the verb asks
         // "where is this thing, in the space it lives in", and a widget lives on the screen. Now that a place in
         // the world is a TYPE, handing this to s:player():move throws instead of walking you somewhere wrong.
@@ -613,25 +619,15 @@ public final class LuaWidget {
                 }
                 Coord to = pixels(a, "widget:position", "x", "y");          // DESIGN pixels, as written
                 if(w != null) {
-                    boolean own;
                     synchronized(monitor(w)) {
-                        own = ownedContent(owner, w) != null;
-                        if(!own) {
-                            Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
-                            rec.wantPos = Layout.Anchor.at(to);    // 036.3: the parent's top-left, plus (x, y)
-                            rec.posSeq = Layout.nextSeq();         // 058.3: the level speaks the sheet's own space,
-                        } else {                                   //   and Anchor.resolve is where it converts
-                            w.move(Px.in(to));                     // your own widget: no layer, no cascade...
-                            Column.childChanged(w);                // 139.4: ...and the packed surface it stands in follows
-                            levelFollows(owner, w, true);          // 153.1: ...and a remembered place follows the write
-                        }
-                    }
+                        Moved rec = recordMoved(owner, w);         // name the level, then resolve it
+                        rec.wantPos = Layout.Anchor.at(to);        // 036.3: the parent's top-left, plus (x, y)
+                        rec.posSeq = Layout.nextSeq();             // 058.3: the level speaks the sheet's own space,
+                    }                                              //   and Anchor.resolve is where it converts
                     // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
-                    // into another tree, and that is a second monitor while this one is still held.
-                    if(!own)
-                        Layout.apply(w);
-                    else
-                        Layout.moved(w);                           // ...but an anchor may still hang off it (036.3)
+                    // into another tree, and that is a second monitor while this one is still held. The
+                    // fold ends in Column.applied, so the packed surface it stands in follows (139.4).
+                    Layout.apply(w);
                 }
                 return self;
             }
@@ -650,6 +646,13 @@ public final class LuaWidget {
         // the width is the addon's and the height is Owned.minsz()'s, and a two-number write UNDER that minimum
         // RAISES naming both the number and this arity — rather than clamping up to it, which would leave a
         // meaningless integer in the source, or silently clipping, which is what happens today.
+        //
+        // ON A SURFACE OF YOURS BOTH WRITES ARE THE LEVEL :position writes (158.1): recorded here, written by
+        // the fold, whose size half floors a control at its art (Layout.applyHalf) -- so the exact-minimum
+        // write and :size(w)'s {w, art} both land the art's own device height, as the direct write used to.
+        // THREE BOXES STAY THEIR OWN and never enter the record: a column's (the pins), a picture's and a
+        // mirror's (the pin, and :size(nil) is their unpin). A rule's size on them is inert, as the fold skips
+        // them; :size(w, h) on a packed surface takes the box back (packed = false) before the level is named.
         m.set("size", new VarArgFunction() {
             public Varargs invoke(Varargs a) {  // w:size() → narg 1 · w:size(nil)/(w) → narg 2 · w:size(w,h) → narg 3
                 LuaValue self = a.arg1();
@@ -697,25 +700,31 @@ public final class LuaWidget {
                     if(width < dmin.x)
                         throw tooSmall(w, "widget:size(w)", width, dmin.x, "wide");
                     synchronized(monitor(w)) {
-                        // The DEVICE height, not Px.in of the design one: in(out(d)) may land a device pixel
-                        // under the art's own box, and a pixel under is a border that does not draw.
-                        content.widget().resize(Coord.of(Px.in(width), min.y));
-                        if(content.widget() != w)         // a control that is a small tree: refit what wraps it
-                            w.pack();
+                        // The level is {w, art} in design pixels; the fold's floor lands the art's own DEVICE
+                        // height, since in(out(d)) may round a pixel to either side of the art's box, and a
+                        // pixel under is a border that does not draw.
+                        Moved rec = recordMoved(owner, w);
+                        rec.wantSize = Coord.of(width, dmin.y);
+                        rec.sizeSeq = Layout.nextSeq();
                     }
-                    // 036.3: a corner anchor reads the box that just changed — and 112.6: below the
-                    // block, since that anchor's own widget may stand in another tree.
-                    Layout.moved(w);
+                    Layout.apply(w);                      // 112.6: below the block — see :position above
                     return self;
                 }
                 Coord to = pixels(a, "widget:size", "w", "h");              // DESIGN pixels, as written
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
-                    Coord dev = Px.in(to);
                     AddonWidget col = column(owner, w);   // 139.1: both axes pinned; the content no longer decides
                     if(col != null) {
+                        Coord dev = Px.in(to);
                         pin(col, dev.x, dev.y);
                         Layout.moved(w);
+                        return self;
+                    }
+                    if((content instanceof CImg) || (content instanceof MirrorWidget)) {
+                        // 139.4/157.1: a picture's and a mirror's box is the source's, and this write is the
+                        // PIN that outlives the next :source(h) -- their own level, outside the record.
+                        synchronized(monitor(w)) { content.widget().resize(Px.in(to)); }
+                        Layout.moved(w);                  // 036.3: a corner anchor reads the box that just changed
                         return self;
                     }
                     if(content != null) {
@@ -726,28 +735,16 @@ public final class LuaWidget {
                                 throw tooSmall(w, "widget:size(w, h)", to.y, dmin.y, "tall");
                             if(to.x < dmin.x)
                                 throw tooSmall(w, "widget:size(w, h)", to.x, dmin.x, "wide");
-                            if(to.y == dmin.y)            // exactly the minimum ⇒ exactly the art's own height
-                                dev = Coord.of(dev.x, min.y);
                         }
                     }
                     synchronized(monitor(w)) {
-                        if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
-                            Moved rec = recordMoved(owner, w);
-                            rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
-                            rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
-                        } else {
-                            if(content instanceof AddonWidget)   // 139.4: the box is yours again, and follows nothing
-                                ((AddonWidget)content).packed = false;
-                            content.widget().resize(dev);
-                            if(content.widget() != w)     // a window: refit the chrome around the resized content
-                                w.pack();
-                            levelFollows(owner, w, false); // 153.1: a remembered box follows the write
-                        }
+                        if(content instanceof AddonWidget)   // 139.4: the box is yours again, and follows nothing
+                            ((AddonWidget)content).packed = false;
+                        Moved rec = recordMoved(owner, w);   // the layer remembers, then the fold resizes
+                        rec.wantSize = to;                // 036.2: ...and the resize is the cascade's to make
+                        rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
                     }
-                    if(content == null)                   // 112.6: below the block — see :position above
-                        Layout.apply(w);
-                    else
-                        Layout.moved(w);                  // 036.3: a corner anchor reads the box that just changed
+                    Layout.apply(w);                      // 112.6: below the block — see :position above
                 }
                 return self;
             }
@@ -1135,6 +1132,10 @@ public final class LuaWidget {
         // window refuses: what a control's box is is the client's to choose, and the window around it is what
         // refits. A window that packs itself around its own contents makes the call INERT, never an error —
         // the rule :size(w, h) already carries on those same windows.
+        //   158.1: ON A SURFACE OF YOURS IT IS NOT A LEVEL -- it FORGETS this addon's size half, level and
+        // stock alike (UiApi.forgetSize), and runs no fold. The box is the content's from here on, the fold's
+        // size half skips a packed surface (Layout.applyHalf), :size(nil) after it changes nothing, and the
+        // :size(w, h) that takes the box back records the packed box as the stock it gives back.
         m.set("pack", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -1149,6 +1150,7 @@ public final class LuaWidget {
                         throw Column.packed(role(w));
                     synchronized(monitor(w)) {
                         Widget cw = content.widget();
+                        UiApi.forgetSize(owner, w);    // 158.1: the box is the content's; no level, no stock
                         packSurface(w, cw);
                         // 139.4: ...AND FROM HERE ON THE BOX FOLLOWS WHAT IS INSIDE IT. A surface packed once
                         // and left behind is the panel that clips the row added after it -- so the flag
@@ -2479,12 +2481,18 @@ public final class LuaWidget {
     // ---- the moved-native restore list (036.1, feature E) ------------------------------------------
 
     /**
-     * One native widget an addon has <b>moved or resized</b> — {@link Hidden}'s shape one property along:
+     * One widget an addon has <b>moved or resized</b> — {@link Hidden}'s shape one property along:
      * <i>what it was before we touched it</i>. Minted at the first touch, it carries the two halves
      * independently, because they are touched by different verbs and dropped by different calls: {@link #pos}
      * is the widget's {@code c} before the first {@code widget:position(x,y)}, {@link #size} is the argument that
      * reproduces its size through {@link Widget#resize(Coord)} before the first {@code widget:size(w,h)}. A
      * {@code null} half means <i>this addon never touched that</i> and there is nothing there to give back.
+     *
+     * <p><b>A surface the addon built takes the same record</b> (158.1): its verbs name the level exactly as
+     * they do on a borrowed widget and {@link Layout#apply} makes the write, so its stock halves are the
+     * builder's default place and box, read by the fold before anything moved it. Three boxes never enter
+     * the size half — a column's, a picture's and a mirror's, which are their own — and a packed surface's
+     * size half is forgotten by the pack ({@link UiApi#forgetSize}).
      *
      * <p><b>Why the size half is not simply {@code sz}.</b> {@code Window.resize} takes the CONTENT size and
      * derives the outer {@code sz} from the deco around it, so the value that restores a window is its
@@ -2851,23 +2859,23 @@ public final class LuaWidget {
             Widget w = e.getValue();
             Moved rec = findMoved(a, w);
             // 144.3: A WINDOW THIS ADDON BUILT STANDS WHERE IT STANDS, level or no level. widget:position(x, y)
-            // on an owned widget moves it outright and names no level ("your own widget: no layer"), and the
-            // chrome's own title-bar drag names none either -- so gating the place on a hand-named level, which
-            // is the right question for a BORROWED widget an addon is layering over, made an owned window's place
-            // unrecordable: nothing ever created the level, the record was never written, and the window came
-            // back at the stock place however often the user dragged it. Where an owned widget stands is this
-            // addon's own by construction, so its place is read from `c` whenever it is remembered. The size
-            // half keeps its gate: a packed window's box is what its rows measure, not a size the user chose.
+            // on an owned widget names a level (158.1), but the chrome's own title-bar drag names none where
+            // none stands -- so gating the place on a hand-named level, which is the right question for a
+            // BORROWED widget an addon is layering over, would leave an owned window the user only ever
+            // dragged unrecordable, coming back at the stock place however often they moved it. Where an owned
+            // widget stands is this addon's own by construction, so its place is read from `c` whenever it is
+            // remembered. The size half keeps its gate: a packed window's box is what its rows measure, not a
+            // size the user chose.
             Owned own = ownedContent(a, w);
             if((rec == null) && (own == null))
                 continue;                             // nothing of ours is standing on it: nothing to record
             boolean placed = (own != null) || (rec.wantPos != null);
             Coord pos = (!placed || (w.c == null)) ? null : Px.out(w.c);
-            // 153.1: an OWNED window's box is its own by construction too -- widget:size(w, h) writes it outright
-            // and names no level, and so does the client's grip -- so it is read from the box whenever it is
-            // remembered, the one gate being a PACKED surface, whose box is what its rows measure rather than
-            // a size anyone chose. A borrowed widget keeps the level gate: a box this addon never named is
-            // not this addon's to pin.
+            // 153.1: an OWNED window's box is its own by construction too -- the client's grip sizes it and
+            // names no level where none stands -- so it is read from the box whenever it is remembered, the
+            // one gate being a PACKED surface, whose box is what its rows measure rather than a size anyone
+            // chose. A borrowed widget keeps the level gate: a box this addon never named is not this
+            // addon's to pin.
             boolean sized = (own != null) ? !((own instanceof AddonWidget) && ((AddonWidget)own).packed)
                                           : ((rec != null) && (rec.wantSize != null));
             Coord size = (!sized || (w.sz == null)) ? null : Px.out(sizeArg(w));
@@ -2878,12 +2886,13 @@ public final class LuaWidget {
     /**
      * <b>The chrome of a window this addon built was dragged</b> (144.3, from {@link UiApi}'s window). The
      * drag moved {@code c} through {@code Window.mousemove} and told the layer nothing, so a hand-named position
-     * level standing on the window -- the one {@link #rememberApply} writes to put a remembered place back --
-     * still named where the window WAS, and the next {@link Layout#apply} over it (a rule, a re-remember)
-     * snapped the window back there. The level follows the hand, the way {@link Gesture} writes one for
-     * {@code widget:draggable}: parent-local, in design pixels, with a fresh {@code seq}. No level is minted
-     * where none stands -- an owned window is moved outright and layered over by nothing, and
-     * {@link #rememberCapture} reads its place from {@code c} regardless.
+     * level standing on the window -- {@code widget:position(x, y)}'s (158.1), or the one {@link #rememberApply}
+     * writes to put a remembered place back -- still named where the window WAS, and the next
+     * {@link Layout#apply} over it (a rule, a sweep, a re-remember) snapped the window back there. The level
+     * follows the hand, the way {@link Gesture} writes one for {@code widget:draggable}: parent-local, in
+     * design pixels, with a fresh {@code seq}. No level is minted where none stands -- a window never
+     * positioned by its addon stands where the user put it, and {@link #rememberCapture} reads its place from
+     * {@code c} regardless.
      */
     static void chromeDragged(Addon owner, Widget w) {
         if((owner == null) || (w == null) || (w.c == null))
@@ -2896,8 +2905,8 @@ public final class LuaWidget {
     /**
      * <b>The chrome of a window this addon built was resized by the client's own grip</b> (153.1, from
      * {@link haven.Window#resizedByHand} through {@link UiApi}'s window): the size twin of
-     * {@link #chromeDragged}, for the same reason — a level standing on the window would put the old box back
-     * on the next fold.
+     * {@link #chromeDragged}, for the same reason — a level standing on the window, {@code widget:size(w, h)}'s
+     * (158.1) or a remembered box, would put the old box back on the next fold.
      */
     static void chromeResized(Addon owner, Widget w) {
         if((owner == null) || (w == null) || (w.sz == null))
@@ -2908,11 +2917,13 @@ public final class LuaWidget {
     }
 
     /**
-     * A hand-named level standing on an OWNED widget follows what was just written to the widget outright
-     * (153.1): {@code widget:position(x, y)} and {@code widget:size(w, h)} on one of the addon's own move and
-     * size it with no level, and the two chrome gestures do the same — so a level that {@link #rememberApply}
-     * put there, naming where the widget WAS, is re-pointed at where it is, rather than left to snap it back
-     * on the next {@link Layout#apply}. No level is minted where none stands. Caller holds {@code w}'s monitor.
+     * A hand-named level standing on a window this addon built follows what the user's hand just wrote to it
+     * outright (153.1): the two chrome gestures move and size the window through the client's own
+     * {@code Window} and name nothing — so a level standing there, {@code widget:position(x, y)}'s or
+     * {@code :size(w, h)}'s (158.1) or one {@link #rememberApply} put there, naming where the widget WAS, is
+     * re-pointed at where it is, rather than left to snap it back on the next {@link Layout#apply}. The verbs
+     * themselves never come here: they record the level and the fold writes. No level is minted where none
+     * stands. Caller holds {@code w}'s monitor.
      */
     private static void levelFollows(Addon owner, Widget w, boolean pos) {
         Moved rec = findMoved(owner, w);

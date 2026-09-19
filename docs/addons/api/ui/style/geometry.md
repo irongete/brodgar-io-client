@@ -23,10 +23,10 @@ sheet:install()
 |---|---|
 | Tree keys only | A site key names a place the client draws text, which has no position to move: `:position()` or `:size()` there raises naming the fix. `*` is the default site, not "every widget". Select widgets with `["window"]` or a refiner. |
 | `widget:rule()` refuses them | The hand-named level of the layout cascade is the verb, [`widget:position(x, y)`](../native.md). |
-| One cascade | The verb outranks any rule. `widget:position(nil)` drops your level and falls back to a rule that still names the widget, reaching the stock value when none does. |
+| One cascade | The verb outranks any rule. `widget:position(nil)` drops your level and falls back to a rule that still names the widget, reaching the stock value when none does. A [surface of yours](../custom.md) runs the same cascade: its stock is the builder's default place and box, and a `size` under a [control](../controls/README.md#sizing)'s art lands on the art's box. |
 | When it applies | When the sheet is installed and when a widget appears, a window whose caption lands a moment after it opens included. Never per frame. |
 | Dropping the rule | Restores the exact numbers it found. The client's own saved positions stay [the user's](../native.md). |
-| `size` on a self-packing window | Honoured and re-packed before the call returns, as [the verb](../native.md): inert, never an error. Read `:size()` back. |
+| `size` on a box that is its own | A window that packs itself is honoured and re-packed before the call returns, as [the verb](../native.md): inert, never an error. A [column](../column.md), a [packed](../custom.md#packing-a-surface-around-what-is-inside-it) surface of yours, a [picture](../controls/display.md#picture) and a [mirror](../mirror.md) take no `size` from a rule: inert. Read `:size()` back. |
 
 ```lua
 local equipment_window = hafen.session():current():ui():match("window[title=Equipment]")

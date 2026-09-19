@@ -380,10 +380,11 @@ final class Layout {
     }
 
     /**
-     * A widget was moved or resized <b>outside</b> the layer (036.3): an addon's own window, which the verbs write
-     * directly because nothing is layered over it. Whatever hangs off it still follows, in the same call — an
-     * anchor's target is any widget, and a target the API itself just wrote is the one case that has a moment to
-     * hang the re-derive on.
+     * A widget was moved or resized <b>outside</b> the layer (036.3): a box that is the widget's own and takes no
+     * level — a column's pins, a picture's or a mirror's pin, a pack (158.1) — written directly because the
+     * cascade has no say in it. Whatever hangs off it still follows, in the same call — an anchor's target is
+     * any widget, and a target the API itself just wrote is the one case that has a moment to hang the
+     * re-derive on.
      *
      * <p><b>It takes no monitor of its own</b> (112.6): the snapshot below takes {@link Layout#class}, and each
      * follower takes its own tree's inside {@link #apply}. There is nothing left here for {@code w}'s to guard,
@@ -463,14 +464,22 @@ final class Layout {
      * geometry, and a size right here, on its way into {@link Widget#resize}. The <b>stock</b> values are the
      * client's own and stay device throughout ({@link LuaWidget.Moved}), so a restore never round-trips through
      * design and back.
+     *
+     * <p><b>Owned or borrowed, this is the ONE write</b> (158.1). {@code widget:position(x, y)} and
+     * {@code widget:size(w, h)} on a surface the addon built record the same hand-named level a borrowed widget
+     * takes and leave the write to this fold, so the stock a surface of yours gives back on {@code :position(nil)}
+     * is the builder's default place and box — read off the widget here, at the layer's first touch, before
+     * anything has moved it. A verb that wrote the widget first would make its own place the stock.
      */
     private static void applyHalf(UI u, Widget w, Sheet.Resolved r, boolean pos) {
         // 139.1: a child a column lays out has no position of its own -- its place is its order, so a rule's
-        // position/anchor on it is inert and nothing of it is tracked; and a column's box is its content's, so a
-        // rule's size on the column is inert too (the pin is the verb, widget:size). Both skip the fold whole:
-        // neither ever records a stock value, which is why widget:position(nil) on a child has nothing to
-        // restore and refuses like the write does.
-        if(pos ? Column.stacked(w) : Column.stacks(w)) {
+        // position/anchor on it is inert and nothing of it is tracked; and a box that is the widget's OWN --
+        // a column's (its content's), a packed surface's (158.1: its content's too, until :size(w, h) takes it
+        // back), a picture's and a mirror's (the source's, and the pin is their level) -- takes no size from
+        // the cascade, so a rule's size on it is inert. Each skips the fold whole: none ever records a stock
+        // value, which is why widget:position(nil) on a child has nothing to restore and refuses like the
+        // write does, and why :size(nil) on a packed surface changes nothing.
+        if(pos ? Column.stacked(w) : ownBox(w)) {
             if(pos)
                 track(w, null);
             return;
@@ -498,7 +507,7 @@ final class Layout {
                 want = fit(u, w, want);               // ...and the client's own clamp has the last word
             }
         } else if(want != null) {
-            want = Px.in(want);                       // design → device, where a rule's size meets Widget.resize
+            want = artFloor(w, want, Px.in(want));    // design → device, where a rule's size meets Widget.resize
         }
         if(want != null) {
             LuaWidget.Moved rec = LuaWidget.recordMoved(owner, w);
@@ -524,6 +533,49 @@ final class Layout {
         } else if(!stock.equals(LuaWidget.sizeArg(w))) {
             resize(w, stock);
         }
+    }
+
+    /**
+     * <b>Is {@code w}'s box its own</b> (158.1) — measured from what it holds or what it shows, never from the
+     * cascade? A column's is its content's ({@link Column#stacks}); so is a surface of yours once
+     * {@code :pack()} ran on it ({@link AddonWidget#packed}, read through the chrome for a window), until
+     * {@code :size(w, h)} takes it back; a picture's ({@link CImg}) and a mirror's ({@link MirrorWidget}) is the
+     * source's, re-read on every {@code :source(h)}, and {@code :size(w, h)} on them is a pin of their own. None
+     * of the four enters the layout record, and the size half of the fold skips them whole.
+     */
+    private static boolean ownBox(Widget w) {
+        if(Column.stacks(w))
+            return true;
+        Owned o = Owned.of(w);
+        if(o instanceof AddonWidget)
+            return ((AddonWidget)o).packed;
+        return (o instanceof CImg) || (o instanceof MirrorWidget);
+    }
+
+    /**
+     * <b>A control's box will not fit under its art</b> (158.1, the size half's floor): {@code dev} is the
+     * cascade's size in device pixels, and each axis is floored at {@link Owned#minsz()} — {@code 0} in an axis
+     * is <i>unconstrained</i>, and a widget with no art to ask ({@code null}) takes {@code dev} as it is. An
+     * axis written at <b>exactly</b> the art's design size lands the art's own device pixel (058.4's rule for
+     * {@code widget:size(w)}): {@code Px.in(Px.out(d))} may round a pixel to either side of {@code d}, and a
+     * pixel under is a bottom border that does not draw. So a rule's {@code size} under a button's art lands
+     * on the art's box rather than clipping it, and {@code :size(w)}'s recorded {@code {w, art}} lands the
+     * height the art gives.
+     */
+    private static Coord artFloor(Widget w, Coord design, Coord dev) {
+        Owned o = Owned.of(w);
+        Coord min = (o == null) ? null : o.minsz();
+        if(min == null)
+            return dev;
+        return Coord.of(artAxis(design.x, dev.x, min.x), artAxis(design.y, dev.y, min.y));
+    }
+
+    private static int artAxis(int design, int dev, int min) {
+        if(min <= 0)
+            return dev;
+        if(design == Px.out(min))
+            return min;
+        return Math.max(dev, min);
     }
 
     /**

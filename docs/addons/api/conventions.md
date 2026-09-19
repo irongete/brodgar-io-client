@@ -122,7 +122,7 @@ An explicit `nil` argument raises: a value that arrived as `nil` would otherwise
 
 | `nil` means | Where |
 |---|---|
-| Undo your layer, back to the client's own | `widget:position(nil)`, `widget:size(nil)`, `widget:text(nil)`, `widget:title(nil)`, `widget:replace(nil)`. A [font](font.md) variant's `handle:size(nil)` and `handle:aa(nil)`. |
+| Undo your layer, back to the rule beneath, else to the stock: the client's own, or your builder's default | `widget:position(nil)`, `widget:size(nil)`, `widget:text(nil)`, `widget:title(nil)`, `widget:replace(nil)`. A [font](font.md) variant's `handle:size(nil)` and `handle:aa(nil)`. |
 | End the hold | `slot:hold(nil)`. |
 | Withdraw the page | [`options:panel(nil)`](client/addon.md#the-page). |
 | Unbind the control | [`widget:bind(nil)`](client/addon.md#binding-a-control-shows-the-option). |

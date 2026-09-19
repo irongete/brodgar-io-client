@@ -1,0 +1,9 @@
+{
+  "name": "158.1 — the verb is a level on a surface of yours",
+  "id": "158-own-layout.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 158.1: widget:position(x, y) and :size(w, h) on a widget, a window and a button of yours outrank a [name=] rule's position/size through a sheet:install(); :position(nil)/:size(nil) land the rule and sheet:release() the builder's stock place and box; :size(w) under a rule reads {w, art}; a rule's size under a button's art lands the art and the exact-minimum write survives a sweep; a packed widget keeps its packed box under a size rule and after :size(nil); a picture keeps its own box under a size rule, a pin through a sweep, its own again on nil; nil on a widget never positioned changes nothing; a column's child refuses naming its order; the clamp at the root and none inside a surface of yours; a borrowed window untouched.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

@@ -24,7 +24,7 @@ inventory:remember("bag")          -- and have it come back there next session
 |---|---|---|---|
 | `widget:position(x, y)` | `self` | Unprotected | Moves it, writing the field the user's own drag writes: what you place is what you click. |
 | `widget:size(w, h)` | `self` | Unprotected | Resizes its content. A window's chrome refits. |
-| `widget:position(nil)`, `widget:size(nil)` | `self` | Unprotected | Give that half back to what the client recorded on your first touch. |
+| `widget:position(nil)`, `widget:size(nil)` | `self` | Unprotected | Drop your level of that half. The widget lands on a rule that still names it, else on the stock: what the client recorded on your first touch, or the builder's default place and box on a [surface of yours](custom.md). |
 | `widget:position()` | `{x=, y=}` | Unprotected | Within the parent, in [design pixels](pixels.md). The HUD is not the root, so [`:rootPos()`](widget.md#read-methods) is the screen coordinate. |
 | `widget:size()` | `{w=, h=}` | Unprotected | The box `:size(w, h)` writes — a window's content area — so writing a size back is a no-op. The frame is [`:chrome().frame`](widget.md#read-methods). |
 
@@ -34,7 +34,7 @@ inventory:remember("bag")          -- and have it come back there next session
 | The disk is the user's | The client persists a few window positions of its own: inventory, equipment, character sheet, kin, map, windows tracked by id. It always writes what the user last placed, never your level. Uninstalling your addon leaves the HUD as its owner arranged it. |
 | A position always lands. A size may not | A window that packs itself around its contents (the main inventory) honours `:size(w, h)` and undoes it before the call returns: inert, never an error. Read `:size()` back to tell. The sheet's [`padding`](style/chrome.md#padding) follows the same rule. |
 | Two addons | Each may hold a layer on one widget. The last write wins on screen, each restores what it found. |
-| The cascade | The verb is the top level over a sheet's [`position` and `size` rules](style/geometry.md). `:position(nil)` drops your level and falls back to a rule that still names the widget. It reaches the stock value only when none does. |
+| The cascade | The verb is the top level over a sheet's [`position` and `size` rules](style/geometry.md). `:position(nil)` drops your level and falls back to a rule that still names the widget. It reaches the stock value only when none does. A [surface of yours](custom.md) runs the same cascade, its stock the builder's default place and box. |
 
 ---
 
