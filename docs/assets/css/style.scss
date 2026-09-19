@@ -1,0 +1,64 @@
+---
+---
+
+@import "jekyll-theme-primer";
+
+/* The theme switch: the page carries data-theme="light" or "dark" on <html>,
+   set before the stylesheet loads so a dark visitor never sees a white flash. */
+
+#theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  color: #24292e;
+  background: #fafbfc;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#theme-toggle .when-dark { display: none; }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  body { background: #0d1117; color: #c9d1d9; }
+
+  #theme-toggle { color: #c9d1d9; background: #21262d; border-color: #30363d; }
+  #theme-toggle .when-light { display: none; }
+  #theme-toggle .when-dark { display: inline; }
+
+  .markdown-body {
+    color: #c9d1d9;
+    a { color: #58a6ff; }
+    h1, h2, h3, h4, h5, h6 { color: #c9d1d9; }
+    h1, h2 { border-bottom-color: #21262d; }
+    hr { background-color: #30363d; }
+    blockquote { color: #8b949e; border-left-color: #3b434b; }
+    code, tt { background-color: rgba(110, 118, 129, 0.4); color: #c9d1d9; }
+    pre, .highlight pre { background-color: #161b22; color: #c9d1d9; }
+    pre code { background: transparent; }
+    table th, table td { border-color: #30363d; }
+    table tr { background-color: #0d1117; border-top-color: #21262d; }
+    table tr:nth-child(2n) { background-color: #161b22; }
+    img { background-color: transparent; }
+    kbd { color: #c9d1d9; background-color: #161b22; border-color: #3b434b; box-shadow: inset 0 -1px 0 #3b434b; }
+    .footer { color: #8b949e; border-top-color: #21262d !important; }
+  }
+
+  /* Rouge syntax colours, on a dark ground */
+  .highlight {
+    .c, .cm, .c1, .cs { color: #8b949e; }
+    .k, .kd, .kn, .kr, .kt, .o, .ow { color: #ff7b72; }
+    .s, .s1, .s2, .sb, .sc, .sd, .se, .sh, .si, .sx { color: #a5d6ff; }
+    .m, .mf, .mh, .mi, .mo, .il { color: #79c0ff; }
+    .n, .nb, .nv, .nx, .p, .w { color: #c9d1d9; }
+    .nf, .fm { color: #d2a8ff; }
+    .nc, .nn, .nt { color: #7ee787; }
+    .err { color: #f85149; background: transparent; }
+  }
+}
