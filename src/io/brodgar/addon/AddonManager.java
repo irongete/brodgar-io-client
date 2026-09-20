@@ -1139,6 +1139,7 @@ public final class AddonManager {
         AddonRegistry.applyStaged(true);                   // 145.2: what the hub staged and no reload could move
                                                            //   (a held file) goes in now, before anything holds one
         AddonRegistry.loadAll();                           // discover + run addons, fire Load for each
+        BootPrepare.done();                                // what it compiled and nobody asked for goes
     }
 
     /**

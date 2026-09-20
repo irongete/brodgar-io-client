@@ -11,6 +11,7 @@ import haven.Widget;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Prototype;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -1675,8 +1676,15 @@ public final class Addon {
             for(String file : manifest.files) {
                 try {
                     Path fp = Inside.inside(dir, file, "manifest 'files'");
-                    String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
-                    LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
+                    byte[] bytes = Files.readAllBytes(fp);
+                    String chunkname = "@" + manifest.id + "/" + file;
+                    // The prototype BootPrepare compiled for these very bytes, closed over this environment
+                    // through the loader the sandbox installed -- what env.load does after compiling -- or
+                    // the compile itself, when the file changed since, or on a :reload.
+                    Prototype prepared = BootPrepare.prototype(fp, bytes);
+                    LuaValue chunk = (prepared != null)
+                        ? env.loader.load(prepared, chunkname, env)
+                        : env.load(new String(bytes, StandardCharsets.UTF_8), chunkname);
                     // watchdog the file body too (D-018) — a full budget per file. 126.2: paired with a
                     // release, because loading runs off the frame's thread and an unreleased claim would be
                     // a holder left behind on a Loader thread that is about to end.

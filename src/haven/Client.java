@@ -568,7 +568,11 @@ public class Client implements Console.Directory {
 	Config.cmdline(args);
 	haven.error.ErrorHandler.addiprops(Utils.useragent);
 	setupres();
-	Client cl = new Client(Toolkit.instance());
+	// addon: the part of the addon boot that runs the same on any thread, started now, while the window is made.
+	io.brodgar.addon.BootPrepare.start();
+	Toolkit tk = Toolkit.instance();
+	io.brodgar.addon.BootPrepare.toolkitReady();   // addon: the widget classes may be initialised from here on
+	Client cl = new Client(tk);
 	try {
 	    UI.Runner main = null;
 	    if(Bootstrap.replay.get() != null) {
