@@ -560,6 +560,34 @@ public class Resource implements Serializable {
 	private final Map<String, Queued> queued = new HashMap<String, Queued>();
 	private final Pool parent;
 
+	// DEBUG(temp): how full the queue really is. `busy` counts loaders handling a resource right now;
+	// debugsample() prints queue depth / in-flight / loader count every 250 ms for `seconds`, then a summary.
+	private final java.util.concurrent.atomic.AtomicInteger busy = new java.util.concurrent.atomic.AtomicInteger();
+	public void debugsample(int seconds) {
+	    Thread th = new HackThread(() -> {
+		    int n = 0, ge1 = 0, ge3 = 0, maxq = 0, maxin = 0, inflightge3 = 0;
+		    long t0 = System.currentTimeMillis();
+		    try {
+			while(System.currentTimeMillis() - t0 < seconds * 1000L) {
+			    int q, l, in = busy.get();
+			    synchronized(queue) { q = queue.size(); }
+			    synchronized(loaders) { l = loaders.size(); }
+			    n++; if(q >= 1) ge1++; if(q >= 3) ge3++; if(in >= 3) inflightge3++;
+			    maxq = Math.max(maxq, q); maxin = Math.max(maxin, in);
+			    if((q > 0) || (in > 0))
+				System.err.println(String.format("[res-debug] t=%.2fs queue=%d inflight=%d loaders=%d", (System.currentTimeMillis() - t0) / 1000.0, q, in, l));
+			    Thread.sleep(250);
+			}
+		    } catch(InterruptedException e) {
+			return;
+		    }
+		    System.err.println(String.format("[res-debug] sampler summary: %d samples over %ds; queue>=1 in %.0f%%, queue>=3 in %.0f%%; inflight>=3 in %.0f%%; max queue=%d, max inflight=%d",
+						     n, seconds, 100.0 * ge1 / Math.max(n, 1), 100.0 * ge3 / Math.max(n, 1), 100.0 * inflightge3 / Math.max(n, 1), maxq, maxin));
+		}, "Resource queue sampler");
+	    th.setDaemon(true);
+	    th.start();
+	}
+
 	public Pool(Pool parent, ResSource... sources) {
 	    this.parent = parent;
 	    for(ResSource source : sources)
@@ -855,7 +883,12 @@ public class Resource implements Serializable {
 				    return;
 			    }
 			}
-			handle(cur);
+			busy.incrementAndGet(); // DEBUG(temp)
+			try {
+			    handle(cur);
+			} finally {
+			    busy.decrementAndGet(); // DEBUG(temp)
+			}
 			cur = null;
 		    }
 		} catch(InterruptedException e) {
@@ -997,6 +1030,7 @@ public class Resource implements Serializable {
 	if(isbrodgarcache(uri)) {
 	    remote().nloaders = BRODGAR_CACHE_LOADERS;
 	    System.err.println("[res-debug] resurl " + uri + " is the brodgar.io resource cache: sources = [cache " + uri + ", proxy " + BRODGAR_CACHE_FALLBACK + "], loaders = " + BRODGAR_CACHE_LOADERS); // DEBUG(temp)
+	    remote().debugsample(120); // DEBUG(temp)
 	    addsrc(new BrodgarCacheSource(uri));
 	    addsrc(new HttpSource(BRODGAR_CACHE_FALLBACK));
 	} else {
