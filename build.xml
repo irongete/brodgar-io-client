@@ -96,7 +96,7 @@
     <!-- addon engine: fetch the LuaJ runtime into lib/brodgar/ (not committed; specs D-014). -->
     <mkdir dir="lib/brodgar" />
     <get src="https://repo1.maven.org/maven2/org/luaj/luaj-jse/3.0.1/luaj-jse-3.0.1.jar"
-	 dest="lib/brodgar/luaj-jse-3.0.1.jar" usetimestamp="true" />
+	 dest="lib/brodgar/luaj-jse-3.0.1.jar" skipexisting="true" />
   </target>
 
   <!-- addon: the two third-party halves of the voice engine (src/io/brodgar/voice/**), fetched like LuaJ and
@@ -105,13 +105,13 @@
   <target name="get-concentus" depends="build-env">
     <mkdir dir="lib/brodgar" />
     <get src="https://jitpack.io/com/github/lostromb/concentus/Concentus/17318837bf/Concentus-17318837bf.jar"
-	 dest="lib/brodgar/Concentus-17318837bf.jar" usetimestamp="true" />
+	 dest="lib/brodgar/Concentus-17318837bf.jar" skipexisting="true" />
   </target>
 
   <target name="get-minimal-json" depends="build-env">
     <mkdir dir="lib/brodgar" />
     <get src="https://repo1.maven.org/maven2/com/eclipsesource/minimal-json/minimal-json/0.9.5/minimal-json-0.9.5.jar"
-	 dest="lib/brodgar/minimal-json-0.9.5.jar" usetimestamp="true" />
+	 dest="lib/brodgar/minimal-json-0.9.5.jar" skipexisting="true" />
   </target>
 
   <!-- addon: the store's engine (src/io/brodgar/addon/SqliteApi.java), fetched like LuaJ and not committed.
@@ -120,7 +120,7 @@
   <target name="get-sqlite" depends="build-env">
     <mkdir dir="lib/brodgar" />
     <get src="https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.53.4.0/sqlite-jdbc-3.53.4.0.jar"
-	 dest="lib/brodgar/sqlite-jdbc-3.53.4.0.jar" usetimestamp="true" />
+	 dest="lib/brodgar/sqlite-jdbc-3.53.4.0.jar" skipexisting="true" />
   </target>
 
   <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, get-luaj, get-concentus, get-minimal-json, get-sqlite">
