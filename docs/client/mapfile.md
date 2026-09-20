@@ -148,3 +148,13 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   prime-then-skip: there is no "first tick after login" to distinguish from a real one anymore.
 - `new MapFile(null, "")` does no I/O, but a read NPEs *inside a `Defer` task* and surfaces wrapped rather
   than clean — give a headless probe a real (in-memory) store.
+- **A zoom grid that is not there is a cascade to find out, and upstream forgets the answer at the next GC.**
+  `ZoomGrid.fetch` misses the store and `from` probes the four cells one level down — recursively, to the
+  grids — so one absent cell over unexplored ground is dozens of store misses (21 at level 3); `from`
+  answers `null`, and `Segment.zcache` holds the `ByZCoord` weakly, so once the map window lets go of it a
+  collection drops it and the next look repeats the probe — thousands of misses per pan on a large map. The
+  fork keeps the `null` answers: `Segment.empties` (`// addon:`) holds those `ByZCoord`s strongly, which
+  keeps their weak entries alive, so `include`'s own loop still relaunches them when a grid lands under the
+  cell — the freshness rule is unchanged, only the lifetime — and the set is cleared whole past 65,536
+  cells, which is upstream's behaviour again. While a relaunched load runs, `get()` answers the previous
+  value without `Loading` (`got`), for a `null` as for a grid: the caller re-asks, as the minimap does each frame.

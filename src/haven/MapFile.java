@@ -1216,6 +1216,15 @@ public class MapFile {
 	private final Map<Long, Cached> cache = new CacheMap<>(CacheMap.RefType.WEAK);
 	private final Map<Coord, ByCoord> ccache = new CacheMap<>(CacheMap.RefType.WEAK);
 	private final Map<ZoomCoord, ByZCoord> zcache = new CacheMap<>(CacheMap.RefType.WEAK);
+	/* addon: the zoom cells known to be EMPTY, held strongly. zcache holds its values weakly so a loaded
+	 * zoom grid's images can go; a null answer weighs nothing, but going with them it costs a whole
+	 * recursive probe of the store (fetch -> from -> the four children, down to the grids) every time the
+	 * map window comes back to the cell after a collection -- thousands of misses per pan on a large map.
+	 * A ByZCoord in this set keeps its zcache entry alive, so include()'s loop below still finds it and
+	 * relaunches its load like any other live entry: the freshness rule is upstream's, unchanged. Capped:
+	 * past EMPTIES_MAX the set is cleared, which is exactly today's behaviour. */
+	private final Set<ByZCoord> empties = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+	private static final int EMPTIES_MAX = 65536;
 
 	public Segment(long id) {
 	    this.id = id;
@@ -1298,6 +1307,13 @@ public class MapFile {
 			loaded = loading.get(0);
 			got = true;
 			loading = null;
+			if(loaded == null) {   // addon: see `empties`
+			    if(empties.size() >= EMPTIES_MAX)
+				empties.clear();
+			    empties.add(this);
+			} else {
+			    empties.remove(this);
+			}
 		    } catch(Loading l) {
 			if(!got)
 			    throw(l);
@@ -1350,6 +1366,7 @@ public class MapFile {
 		    if((zc.c.x == (sc.x & ~((1 << zc.lvl) - 1))) && (zc.c.y == (sc.y & ~((1 << zc.lvl) - 1)))) {
 			ByZCoord zg = ent.getValue();
 			zg.loading = loadzgrid(zc);
+			empties.remove(zg);   // addon: a grid is under it now; the reload decides again
 		    }
 		}
 	    }
