@@ -4,8 +4,8 @@ The drawing is dark purple ink on nothing, and on a grey taskbar it vanished -- 
 rounded tile with a border behind the stones. The tile is a STYLE picked here, not baked into the drawing, so
 the icon can be rebuilt with another one (or with none) from the same source:
 
-    python tools/icon.py                       # parchment tile, writes etc/icon.png
-    python tools/icon.py --style moonlit       # another tile; `none` is the bare drawing
+    python tools/icon.py                       # moonlit tile, writes etc/icon.png
+    python tools/icon.py --style parchment     # another tile (the launcher's); `none` is the bare drawing
     python tools/icon.py --preview             # every style over a dark, a grey and a light taskbar
 
 The drawing arrived as a JPG with the transparency checkerboard baked in (`dolmen-original.jpg`, kept
@@ -46,7 +46,7 @@ STYLES = {
     "meadow": ((182, 200, 146), (120, 150, 92)),
     "amber": ((228, 194, 134), (186, 138, 78)),
 }
-DEFAULT_STYLE = "parchment"
+DEFAULT_STYLE = "moonlit"
 TASKBARS = {"dark": (32, 32, 32), "grey": (76, 76, 76), "light": (243, 243, 243)}
 PREVIEW_SIZES = (32, 24, 16)
 
