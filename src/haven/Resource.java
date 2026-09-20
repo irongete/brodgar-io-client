@@ -422,6 +422,7 @@ public class Resource implements Serializable {
 	}
 
 	public InputStream get(String name, int ver) throws IOException {
+	    System.err.println("[res-debug] proxy GET " + base.resolve(name + ".res") + ((ver >= 0) ? " (v" + ver + ")" : "")); // DEBUG(temp)
 	    return(Http.fetch(encodeuri(base.resolve(name + ".res")).toURL(), c -> {
 			/* Apparently, some versions of Java Web Start has
 			 * a bug in its internal cache where it refuses to
@@ -449,7 +450,14 @@ public class Resource implements Serializable {
 
 	public InputStream get(String name, int ver) throws IOException {
 	    String file = (ver >= 0) ? (name + ".res.v" + ver) : (name + ".res");
-	    return(Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false)));
+	    try { // DEBUG(temp)
+		InputStream ret = Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false));
+		System.err.println("[res-debug] cache GET " + base.resolve(file) + " -> ok");
+		return(ret);
+	    } catch(IOException e) {
+		System.err.println("[res-debug] cache GET " + base.resolve(file) + " -> " + e.getClass().getSimpleName() + ", falling back to the proxy");
+		throw(e);
+	    }
 	}
 
 	public String toString() {
@@ -988,9 +996,11 @@ public class Resource implements Serializable {
     public static void addurl(URI uri) {
 	if(isbrodgarcache(uri)) {
 	    remote().nloaders = BRODGAR_CACHE_LOADERS;
+	    System.err.println("[res-debug] resurl " + uri + " is the brodgar.io resource cache: sources = [cache " + uri + ", proxy " + BRODGAR_CACHE_FALLBACK + "], loaders = " + BRODGAR_CACHE_LOADERS); // DEBUG(temp)
 	    addsrc(new BrodgarCacheSource(uri));
 	    addsrc(new HttpSource(BRODGAR_CACHE_FALLBACK));
 	} else {
+	    System.err.println("[res-debug] resurl " + uri + ": plain source, loaders = " + remote().nloaders); // DEBUG(temp)
 	    addsrc(new HttpSource(uri));
 	}
     }
