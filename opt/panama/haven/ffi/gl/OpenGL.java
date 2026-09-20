@@ -642,6 +642,31 @@ public abstract class OpenGL implements haven.render.gl.GL {
 	    } catch(Throwable e) {throw(new RuntimeException(e));}
 	}
 
+	// addon: the program binary cache (ProgramCache), as in GL. `binary` is a direct buffer, and its segment runs from
+	// its position to its limit; the two out-parameters are copied back from the arena.
+	private final MethodHandle glGetProgramBinary = lookup("glGetProgramBinary", FunctionDescriptor.ofVoid(GLuint, GLsizei, ADDRESS, ADDRESS, ADDRESS), heapdata);
+	public void glGetProgramBinary(int program, int bufsize, int[] length, int[] format, ByteBuffer binary) {
+	    try(Arena st = Arena.ofConfined()) {
+		MemorySegment lbuf = st.allocate(GLsizei), fbuf = st.allocate(GLenum);
+		glGetProgramBinary.invoke(program, bufsize, lbuf, fbuf, bufmem(binary));
+		length[0] = lbuf.get(GLsizei, 0); format[0] = fbuf.get(GLenum, 0);
+	    } catch(Throwable e) {throw(new RuntimeException(e));}
+	}
+
+	private final MethodHandle glProgramBinary = lookup("glProgramBinary", FunctionDescriptor.ofVoid(GLuint, GLenum, ADDRESS, GLsizei), heapdata);
+	public void glProgramBinary(int program, int format, ByteBuffer binary, int length) {
+	    try {
+		glProgramBinary.invoke(program, format, bufmem(binary), length);
+	    } catch(Throwable e) {throw(new RuntimeException(e));}
+	}
+
+	private final MethodHandle glProgramParameteri = lookup("glProgramParameteri", FunctionDescriptor.ofVoid(GLuint, GLenum, GLint), critical);
+	public void glProgramParameteri(int program, int pname, int value) {
+	    try {
+		glProgramParameteri.invoke(program, pname, value);
+	    } catch(Throwable e) {throw(new RuntimeException(e));}
+	}
+
 	private final MethodHandle glGetQueryObjectiv = lookup("glGetQueryObjectiv", FunctionDescriptor.ofVoid(GLuint, GLenum, ADDRESS), critical);
 	public void glGetQueryObjectiv(int id, int pname, int[] params) {
 	    try(Arena st = Arena.ofConfined()) {
