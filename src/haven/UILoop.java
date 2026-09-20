@@ -307,20 +307,33 @@ public abstract class UILoop implements Console.Directory {
 	Tex tex = (tt == null) ? null : tt.get();
 	if(tex != null) {
 	    Coord sz = tex.sz();
-	    Coord pos = ui.mc.sub(sz).sub(curshotspot);
-	    if(pos.x < 0)
-		pos.x = 0;
-	    if(pos.y < 0)
-		pos.y = 0;
-	    Coord br = pos.add(sz);
 	    Coord m = UI.scale(2, 2);
 	    // addon: (065.6) a tip's BOX is the "tooltip" rule's -- its padding widens the room around the text,
 	    // its bg and border paint what fills that box. With no rule the two rects below are what they always
 	    // were, at the coordinates they always had; the tip's own text is placed and drawn unchanged either way.
 	    stocktip();            // addon: (065.17) what a tip's box is made of
 	    Coord[] tpad = Fonts.chromepad("tooltip", null);
-	    Coord tul = pos.sub(m).sub((tpad == null) ? Coord.z : tpad[0]);
-	    Coord tbr = br.add(m).add((tpad == null) ? Coord.z : tpad[1]);
+	    Coord padul = (tpad == null) ? Coord.z : tpad[0], padbr = (tpad == null) ? Coord.z : tpad[1];
+	    /* addon: the tip stands above and to the left of the pointer with its whole BOX inside the window,
+	     * border and padding included -- the text alone used to be held at the edge, and the box's few
+	     * pixels beyond it were lost, more so on a maximised window whose frame overhangs the screen. Where
+	     * the box would run past the left edge the tip stands to the right of the pointer instead, and past
+	     * the top edge, below it; one that fits neither way is held at the edge it would leave by. */
+	    Coord boxul = m.add(padul), boxbr = m.add(padbr);
+	    Coord room = ui.root.sz;
+	    Coord flip = UI.scale(16, 16);
+	    Coord pos = ui.mc.sub(sz).sub(curshotspot);
+	    if(pos.x < boxul.x)
+		pos.x = ui.mc.x + flip.x;
+	    if(pos.x > room.x - sz.x - boxbr.x)
+		pos.x = Math.max(boxul.x, room.x - sz.x - boxbr.x);
+	    if(pos.y < boxul.y)
+		pos.y = ui.mc.y + flip.y;
+	    if(pos.y > room.y - sz.y - boxbr.y)
+		pos.y = Math.max(boxul.y, room.y - sz.y - boxbr.y);
+	    Coord br = pos.add(sz);
+	    Coord tul = pos.sub(boxul);
+	    Coord tbr = br.add(boxbr);
 	    if(!Fonts.drawchrome("tooltip", null, g, tul, tbr.sub(tul))) {
 		g.chcolor(244, 247, 21, 192);
 		g.rect2(tul.sub(1, 1), tbr);
