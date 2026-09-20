@@ -90,6 +90,12 @@ public final class ClientDb {
         }
     }
 
+    /** {@link #dir} for the client's own machine-local caches — the program binary cache under
+     *  {@code savedata/shaders/} ({@code haven.render.gl.ProgramCache}). Path-only: nothing is opened. */
+    public static Path savedata() {
+        return dir().toPath();
+    }
+
     /**
      * The path of {@code name} in the client's folder — the one that holds {@code savedata/}, beside the
      * jar. Path-only: nothing is opened, which is what lets {@code Warning.issue()} name its

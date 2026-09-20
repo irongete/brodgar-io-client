@@ -481,6 +481,8 @@ public class Client implements Console.Directory {
     public static void setupres() {
 	if(ResCache.global != null)
 	    Resource.setcache(ResCache.global);
+	// addon: the program binary cache lives with the client's own data, savedata/shaders/ beside the jar.
+	haven.render.gl.ProgramCache.setroot(io.brodgar.addon.ClientDb.savedata().resolve("shaders"));
 	if(Resource.resurl.get() != null)
 	    Resource.addurl(Resource.resurl.get());
 	if(ResCache.global != null) {

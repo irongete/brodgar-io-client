@@ -139,6 +139,10 @@ public class LWJGLWrap implements GL {
     public String glGetStringi(int name, int index) {return(GL30.glGetStringi(name, index));}
     public void glGetProgramInfoLog(int shader, int maxlength, int[] length, byte[] infolog) {GL30.glGetProgramInfoLog(shader, length, ckbuf(ByteBuffer.wrap(infolog), maxlength));}
     public void glGetProgramiv(int shader, int pname, int[] buf) {GL30.glGetProgramiv(shader, pname, buf);}
+    // addon: ProgramCache. LWJGL takes the sizes from the buffer, so it is sliced to `bufsize`/`length` first.
+    public void glGetProgramBinary(int program, int bufsize, int[] length, int[] format, ByteBuffer binary) {ByteBuffer b = binary.duplicate(); b.limit(b.position() + bufsize); GL41.glGetProgramBinary(program, length, format, b);}
+    public void glProgramBinary(int program, int format, ByteBuffer binary, int length) {ByteBuffer b = binary.duplicate(); b.limit(b.position() + length); GL41.glProgramBinary(program, format, b);}
+    public void glProgramParameteri(int program, int pname, int value) {GL41.glProgramParameteri(program, pname, value);}
     public void glGetQueryObjectiv(int id, int pname, int[] params) {GL30.glGetQueryObjectiv(id, pname, params);}
     public void glGetQueryObjecti64v(int id, int pname, long[] params) {GL33.glGetQueryObjecti64v(id, pname, params);}
     public void glGetShaderInfoLog(int shader, int maxlength, int[] length, byte[] infolog) {GL30.glGetShaderInfoLog(shader, length, ckbuf(ByteBuffer.wrap(infolog), maxlength));}

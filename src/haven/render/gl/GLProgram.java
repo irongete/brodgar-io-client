@@ -29,6 +29,7 @@ package haven.render.gl;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
+import java.nio.ByteBuffer;
 import haven.Disposable;
 import haven.Utils;
 import haven.render.*;
@@ -49,6 +50,10 @@ public class GLProgram implements Disposable {
     private final Map<Uniform, String> unifnms;
     private final Map<Attribute, AttrID> amap;
     private final String[] fragnms;
+    /* addon: the program binary cache (ProgramCache). The key names the program's whole input; `cached` is
+     * the binary found under it at build, handed to ProgOb.create and dropped there. */
+    public final String cachekey;
+    private ProgramCache.Entry cached = null;
     private ProgOb glp;
     boolean disposed = false;
 
@@ -119,7 +124,11 @@ public class GLProgram implements Disposable {
 			return(-1);
 		    if(!a.primary && b.primary)
 			return(1);
-		    return(Utils.idcmp.compare(a, b));
+		    /* addon: by name, not by identity. The order sets the attribute locations the link is given, and
+		     * an identity order made them differ from one run to the next for the same program -- which
+		     * nothing minded, until a cached binary had to match this run's locations (ProgramCache). */
+		    int c = String.valueOf(ctx.symtab.get(a.name)).compareTo(String.valueOf(ctx.symtab.get(b.name)));
+		    return((c != 0) ? c : Utils.idcmp.compare(a, b));
 		});
 	    Map<Attribute, AttrID> amap = new IdentityHashMap<>();
 	    for(int i = 0, loc = 0; i < this.attribs.length; i++) {
@@ -128,6 +137,16 @@ public class GLProgram implements Disposable {
 		loc += attrsize(attr);
 	    }
 	    this.amap = amap;
+	}
+	{
+	    /* addon: ProgramCache -- both sources and every binding the link is given, in a fixed order. */
+	    List<String> bindings = new ArrayList<String>();
+	    for(AttrID attr : amap.values())
+		bindings.add("a:" + attr.name + "=" + attr.id);
+	    for(int i = 0; i < fragnms.length; i++)
+		bindings.add("f:" + fragnms[i] + "=" + i);
+	    Collections.sort(bindings);
+	    this.cachekey = ProgramCache.key(vsrc, fsrc, bindings);
 	}
     }
 
@@ -144,6 +163,7 @@ public class GLProgram implements Disposable {
 	for(ShaderMacro mod : mods)
 	    mod.modify(prog);
 	GLProgram ret = new GLProgram(env, prog);
+	ret.cached = ProgramCache.load(env, ret.cachekey);   // addon: on this thread, never the GL one
 	if(dumpall || prog.dump) {
 	    System.err.println(mods + ":");
 	    System.err.println("---> Vertex shader:");
@@ -331,14 +351,33 @@ public class GLProgram implements Disposable {
 
 	public void create(GL gl) {
 	    this.id = gl.glCreateProgram();
+	    int[] buf = {0};
+	    /* addon: ProgramCache -- a cached binary stands in for the whole link. Its attribute and
+	     * fragment-output locations are the ones baked at the link that produced it, which the key
+	     * guarantees are this run's. One the driver refuses is forgotten, and the link below runs. */
+	    ProgramCache.Entry hit = GLProgram.this.cached;
+	    GLProgram.this.cached = null;
+	    if(hit != null) {
+		gl.glProgramBinary(this.id, hit.format, hit.data, hit.data.limit());
+		gl.glGetProgramiv(this.id, GL.GL_LINK_STATUS, buf);
+		if(buf[0] == 1) {
+		    ProgramCache.hits++;
+		    return;
+		}
+		ProgramCache.rejects++;
+		ProgramCache.forget(env, cachekey);
+		while(gl.glGetError() != 0);   // a refused format raises one; the link below starts clean
+	    }
+	    boolean keep = ProgramCache.active(env);
 	    for(ShaderOb sh : shaders)
 		gl.glAttachShader(this.id, sh.glid());
 	    for(AttrID attr : amap.values())
 		gl.glBindAttribLocation(this.id, attr.id, attr.name);
 	    for(int i = 0; i < fragdata.length; i++)
 		gl.glBindFragDataLocation(this.id, i, fragnms[i]);
+	    if(keep)
+		gl.glProgramParameteri(this.id, GL.GL_PROGRAM_BINARY_RETRIEVABLE_HINT, 1);   // addon: ProgramCache
 	    gl.glLinkProgram(this.id);
-	    int[] buf = {0};
 	    gl.glGetProgramiv(this.id, GL.GL_LINK_STATUS, buf);
 	    if(buf[0] != 1) {
 		String info = null;
@@ -349,6 +388,17 @@ public class GLProgram implements Disposable {
 		    info = new String(logbuf, 0, buf[0]);
 		}
 		throw(new LinkException("Failed to link GL program", GLProgram.this, info));
+	    }
+	    if(keep) {   // addon: ProgramCache -- the binary the driver just made, a memcpy here and a file later
+		ProgramCache.misses++;
+		gl.glGetProgramiv(this.id, GL.GL_PROGRAM_BINARY_LENGTH, buf);
+		if(buf[0] > 0) {
+		    ByteBuffer bin = ByteBuffer.allocateDirect(buf[0]);
+		    int[] len = {0}, fmt = {0};
+		    gl.glGetProgramBinary(this.id, buf[0], len, fmt, bin);
+		    if(len[0] > 0)
+			ProgramCache.store(env, cachekey, fmt[0], bin, len[0]);
+		}
 	    }
 	}
 

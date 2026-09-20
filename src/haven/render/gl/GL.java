@@ -84,6 +84,10 @@ public interface GL {
     public static final int GL_MINOR_VERSION = com.jogamp.opengl.GL3.GL_MINOR_VERSION;
     public static final int GL_NONE = com.jogamp.opengl.GL.GL_NONE;
     public static final int GL_NUM_EXTENSIONS = com.jogamp.opengl.GL3.GL_NUM_EXTENSIONS;
+    // addon: the program binary cache (ProgramCache)
+    public static final int GL_NUM_PROGRAM_BINARY_FORMATS = com.jogamp.opengl.GL2ES2.GL_NUM_PROGRAM_BINARY_FORMATS;
+    public static final int GL_PROGRAM_BINARY_LENGTH = com.jogamp.opengl.GL2ES2.GL_PROGRAM_BINARY_LENGTH;
+    public static final int GL_PROGRAM_BINARY_RETRIEVABLE_HINT = com.jogamp.opengl.GL2ES3.GL_PROGRAM_BINARY_RETRIEVABLE_HINT;
     public static final int GL_ONE = com.jogamp.opengl.GL.GL_ONE;
     public static final int GL_ONE_MINUS_CONSTANT_ALPHA = com.jogamp.opengl.GL3.GL_ONE_MINUS_CONSTANT_ALPHA;
     public static final int GL_ONE_MINUS_CONSTANT_COLOR = com.jogamp.opengl.GL3.GL_ONE_MINUS_CONSTANT_COLOR;
@@ -310,6 +314,10 @@ public interface GL {
     public String glGetStringi(int name, int index);
     public void glGetProgramInfoLog(int shader, int maxlength, int[] length, byte[] infolog);
     public void glGetProgramiv(int shader, int pname, int[] buf);
+    // addon: the program binary cache (ProgramCache). `binary` is a direct buffer; `bufsize` and `length` are in bytes.
+    public void glGetProgramBinary(int program, int bufsize, int[] length, int[] format, ByteBuffer binary);
+    public void glProgramBinary(int program, int format, ByteBuffer binary, int length);
+    public void glProgramParameteri(int program, int pname, int value);
     public void glGetQueryObjectiv(int id, int pname, int[] params);
     public void glGetQueryObjecti64v(int id, int pname, long[] params);
     public void glGetShaderInfoLog(int shader, int maxlength, int[] length, byte[] infolog);

@@ -67,6 +67,7 @@ public abstract class GLEnvironment implements Environment {
 	public final int maxtargets;
 	public final float anisotropy;
 	public final float linemin, linemax;
+	public final int progbinfmts;   // addon: GL_NUM_PROGRAM_BINARY_FORMATS -- 0 where the driver hands out no program binaries (ProgramCache)
 
 	public static int glgeti(GL gl, int param) {
 	    int[] buf = {0};
@@ -122,6 +123,7 @@ public abstract class GLEnvironment implements Environment {
 		this.exts = Arrays.asList(gl.glGetString(GL.GL_EXTENSIONS).split(" "));
 	    }
 	    this.maxtargets = glcondi(gl, GL.GL_MAX_COLOR_ATTACHMENTS, 1);
+	    this.progbinfmts = glcondi(gl, GL.GL_NUM_PROGRAM_BINARY_FORMATS, 0);   // addon: ProgramCache
 	    {
 		int glslver = 0;
 		String slv = glconds(gl, GL.GL_SHADING_LANGUAGE_VERSION);

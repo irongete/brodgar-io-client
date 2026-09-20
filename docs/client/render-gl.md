@@ -33,6 +33,23 @@ backend has no VRAM or program counts at all. Report an **absent** value, never 
 neither is a per-frame count. Instrument the two **dispatch** seams above (`GLDrawList.draw`, `GLRender.draw`);
 the replay loop is far too hot to touch.
 
+## Programs: where a link is paid, and the binary cache
+
+| What | Where |
+|---|---|
+| A program's life | `GLEnvironment.getprog(hash, ShaderMacro[])` looks the macro set up in `ptab` and calls `GLProgram.build` on a miss — on the **calling** thread, which for a slot compile is the UI thread: the macros write the two GLSL sources (`ProgramContext` → `construct`), and `GLProgram`'s constructor derives the uniform, attribute and fragment-output tables from them. The GL objects come later: `GLProgram.glid()` mints the `ProgOb` and its two `ShaderOb`s, each an `env.prepare` into the next `process()`'s prep buffer, where `ShaderOb.create` compiles and `ProgOb.create` attaches, binds the locations and **links** |
+| **What a link costs, and why it is the login's GL thread (fork)** | Measured on a GTX 1660 SUPER (NVIDIA 591.86): `glLinkProgram` 10–35 ms per program, 96 programs in the first second after the first drawn frame — 1.0–1.1 s of the GL thread, which the UI thread waited out on the frame fence (`Frame.syncwait`, two `dwait` stalls of ~300 ms) — and 13–17 ms for every material first seen in play. `glCompileShader` is nothing (180 in 11 ms): the driver compiles at the link. The generated GLSL is **byte-identical from one run to the next** (checked over 97 programs), so the driver's own disk cache should have answered and did not |
+| **The program binary cache (fork)** | `ProgramCache`: a linked program kept in the driver's binary form (`GL_ARB_get_program_binary`, core 4.1) under `savedata/shaders/<driver>/<key>.bin`, one folder per `vendor\|version\|renderer` so a driver update is a fresh folder and never a rejected binary. **Key** = `GLProgram.cachekey`, SHA-256 of both sources plus every `glBindAttribLocation`/`glBindFragDataLocation` the link is given. **Read** in `GLProgram.build`, on the thread that generated the sources, never on the GL thread; **hit** in `ProgOb.create`: `glProgramBinary` + `GL_LINK_STATUS`, no attach, no link, ~0.4 ms; **miss**: `GL_PROGRAM_BINARY_RETRIEVABLE_HINT`, the link as before, `glGetProgramBinary` (a memcpy) and a write on the cache's own thread (`tmp` + atomic move); **reject** (a corrupt file): forgotten, linked as before. Off where `Caps.progbinfmts` (`GL_NUM_PROGRAM_BINARY_FORMATS`) is 0, where `Client.setupres` set no root, or with `-Dhaven.progcache=false`. Measured with it: 97 hits, 0 rejects, 86 creates in 42 ms, no `dwait` stall left |
+| The wrapper entry points | `GL.glGetProgramBinary`/`glProgramBinary`/`glProgramParameteri`, in `JOGLWrap`, `JOGLWrapBackup` (`GL2ES2`) and `LWJGLWrap` (`GL41`, which sizes from the buffer, so the wrapper slices it) |
+
+**Gotcha — the attribute locations used to be a different set every run.** `GLProgram`'s constructor sorts
+the attributes to assign their locations, primary first, and the tie-break was `Utils.idcmp` — identity hash
+order, different for the same program in every JVM. Nothing minded while the locations lived and died with the
+process; a cached binary bakes the locations of the link that produced it and must match this run's, so the
+tie-break is now the attribute's generated name (`ctx.symtab`), which the sources fix. Anything else that
+keys on a program's *input* across runs needs the same care: the sources are stable, the identity of the
+objects behind them is not.
+
 ## The 2D blit path (what `g.image` actually does)
 
 | What | Where |

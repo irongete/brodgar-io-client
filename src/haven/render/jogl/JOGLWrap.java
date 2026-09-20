@@ -114,6 +114,9 @@ public class JOGLWrap implements GL, WrappedJOGL {
     public String glGetStringi(int name, int index) {return(back.glGetStringi(name, index));}
     public void glGetProgramInfoLog(int shader, int maxlength, int[] length, byte[] infolog) {back.glGetProgramInfoLog(shader, maxlength, length, 0, infolog, 0);}
     public void glGetProgramiv(int shader, int pname, int[] buf) {back.glGetProgramiv(shader, pname, buf, 0);}
+    public void glGetProgramBinary(int program, int bufsize, int[] length, int[] format, ByteBuffer binary) {back.glGetProgramBinary(program, bufsize, length, 0, format, 0, binary);}   // addon: ProgramCache
+    public void glProgramBinary(int program, int format, ByteBuffer binary, int length) {back.glProgramBinary(program, format, binary, length);}   // addon: ProgramCache
+    public void glProgramParameteri(int program, int pname, int value) {back.glProgramParameteri(program, pname, value);}   // addon: ProgramCache
     public void glGetQueryObjectiv(int id, int pname, int[] params) {back.glGetQueryObjectiv(id, pname, params, 0);}
     public void glGetQueryObjecti64v(int id, int pname, long[] params) {back.glGetQueryObjecti64v(id, pname, params, 0);}
     public void glGetShaderInfoLog(int shader, int maxlength, int[] length, byte[] infolog) {back.glGetShaderInfoLog(shader, maxlength, length, 0, infolog, 0);}
