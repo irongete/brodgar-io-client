@@ -694,6 +694,12 @@ public abstract class UILoop implements Console.Directory {
 		layer.tick();
 		layer.gtick(out);
 		layerhot = layer.mousehover(layer.mc);
+		/* addon: a tip on a bare surface or a control outside any window is drawn only if the layer is
+		 * hot, and nothing but a Window claims the hover -- so a layer widget answering the tooltip
+		 * query under the pointer makes the layer hot too. Same walk tipAt runs; no other monitor. The
+		 * press still falls through where no handler cancels it (custom.md). */
+		if(!layerhot)
+		    layerhot = (layer.tooltip(layer.mc) != null);
 		if(!layer.root.sz.equals(sz))
 		    layer.root.resize(sz);
 	    }

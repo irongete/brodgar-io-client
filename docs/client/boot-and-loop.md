@@ -66,7 +66,7 @@ thrown exception, but nothing runs for a `SIGKILL` or a hard JVM failure.
 | **Widget-tree tick broadcast** ← per-frame update seam | `ui.tick()` at `UILoop.java` → `UI.tick` → `TickEvent` → `Widget.tick` |
 | **Input, and who gets it first (fork)** | `UILoop.dispatch(UI layer, UI ui)` → `Client.EventQueue.dispatch` — the **layer first**, the session only for what it did not consume. A move goes to both (it is a broadcast, and `MouseMoveEvent.propagation` returns true regardless); a button's **release** goes to whichever tree took its press, or a drag begun on the world and let go over an addon window never ends; the layer is offered `UI.keydown(ev, false)`, the focused half alone, because `RootWidget.globtype` consumes every printable key with a `"gk"` message |
 | Draw + one-shot after-draws | `UI.draw` (afterdraws cleared at) — `Frame.display` draws the session's tree, then the layer's over it, both inside the one `ui2d` pass |
-| Which tree answers the tooltip and the cursor | whichever took the hover: `UI.mousehover(c, hovering)` returns that, `Frame.layerhot` carries it the few lines to `UILoop.display` |
+| Which tree answers the tooltip and the cursor | the layer when it took the hover (`UI.mousehover(c, hovering)` returns that: a window under the pointer) or when a widget of its answers the tooltip query there (`UI.tooltip(c)`: a bare surface or a control outside any window carrying a tip); the session otherwise. `Frame.layerhot` carries it the few lines to `UILoop.display`. A press still falls through a layer widget no handler cancels it on |
 | Register a one-shot overlay | `UI.drawafter` |
 
 ## Profiling and stats (the client's own)
