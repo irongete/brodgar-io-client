@@ -422,6 +422,7 @@ public class Resource implements Serializable {
 	}
 
 	public InputStream get(String name, int ver) throws IOException {
+	    System.err.println("[res-debug] proxy GET " + base.resolve(name + ".res") + ((ver >= 0) ? " (v" + ver + ")" : "")); // DEBUG(temp)
 	    return(Http.fetch(encodeuri(base.resolve(name + ".res")).toURL(), c -> {
 			/* Apparently, some versions of Java Web Start has
 			 * a bug in its internal cache where it refuses to
@@ -449,7 +450,14 @@ public class Resource implements Serializable {
 
 	public InputStream get(String name, int ver) throws IOException {
 	    String file = (ver >= 0) ? (name + ".res.v" + ver) : (name + ".res");
-	    return(Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false)));
+	    try { // DEBUG(temp)
+		InputStream ret = Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false));
+		System.err.println("[res-debug] store GET " + base.resolve(file) + " -> ok");
+		return(ret);
+	    } catch(IOException e) {
+		System.err.println("[res-debug] store GET " + base.resolve(file) + " -> " + e.getClass().getSimpleName() + ", falling back to the proxy");
+		throw(e);
+	    }
 	}
 
 	public String toString() {
@@ -982,9 +990,11 @@ public class Resource implements Serializable {
 
     public static void addurl(URI uri) {
 	if(isstore(uri)) {
+	    System.err.println("[res-debug] resurl " + uri + " is the store: sources = [store " + uri + ", proxy " + STORE_FALLBACK + "]"); // DEBUG(temp)
 	    addsrc(new StoreSource(uri));
 	    addsrc(new HttpSource(STORE_FALLBACK));
 	} else {
+	    System.err.println("[res-debug] resurl " + uri + ": plain source"); // DEBUG(temp)
 	    addsrc(new HttpSource(uri));
 	}
     }
