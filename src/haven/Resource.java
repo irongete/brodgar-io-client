@@ -422,7 +422,6 @@ public class Resource implements Serializable {
 	}
 
 	public InputStream get(String name, int ver) throws IOException {
-	    System.err.println("[res-debug] proxy GET " + base.resolve(name + ".res") + ((ver >= 0) ? " (v" + ver + ")" : "")); // DEBUG(temp)
 	    return(Http.fetch(encodeuri(base.resolve(name + ".res")).toURL(), c -> {
 			/* Apparently, some versions of Java Web Start has
 			 * a bug in its internal cache where it refuses to
@@ -450,14 +449,7 @@ public class Resource implements Serializable {
 
 	public InputStream get(String name, int ver) throws IOException {
 	    String file = (ver >= 0) ? (name + ".res.v" + ver) : (name + ".res");
-	    try { // DEBUG(temp)
-		InputStream ret = Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false));
-		System.err.println("[res-debug] cache GET " + base.resolve(file) + " -> ok");
-		return(ret);
-	    } catch(IOException e) {
-		System.err.println("[res-debug] cache GET " + base.resolve(file) + " -> " + e.getClass().getSimpleName() + ", falling back to the proxy");
-		throw(e);
-	    }
+	    return(Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false)));
 	}
 
 	public String toString() {
@@ -559,34 +551,6 @@ public class Resource implements Serializable {
 	private final PrioQueue<Queued> queue = new PrioQueue<Queued>();
 	private final Map<String, Queued> queued = new HashMap<String, Queued>();
 	private final Pool parent;
-
-	// DEBUG(temp): how full the queue really is. `busy` counts loaders handling a resource right now;
-	// debugsample() prints queue depth / in-flight / loader count every 250 ms for `seconds`, then a summary.
-	private final java.util.concurrent.atomic.AtomicInteger busy = new java.util.concurrent.atomic.AtomicInteger();
-	public void debugsample(int seconds) {
-	    Thread th = new HackThread(() -> {
-		    int n = 0, ge1 = 0, ge3 = 0, maxq = 0, maxin = 0, inflightge3 = 0;
-		    long t0 = System.currentTimeMillis();
-		    try {
-			while(System.currentTimeMillis() - t0 < seconds * 1000L) {
-			    int q, l, in = busy.get();
-			    synchronized(queue) { q = queue.size(); }
-			    synchronized(loaders) { l = loaders.size(); }
-			    n++; if(q >= 1) ge1++; if(q >= 3) ge3++; if(in >= 3) inflightge3++;
-			    maxq = Math.max(maxq, q); maxin = Math.max(maxin, in);
-			    if((q > 0) || (in > 0))
-				System.err.println(String.format("[res-debug] t=%.2fs queue=%d inflight=%d loaders=%d", (System.currentTimeMillis() - t0) / 1000.0, q, in, l));
-			    Thread.sleep(250);
-			}
-		    } catch(InterruptedException e) {
-			return;
-		    }
-		    System.err.println(String.format("[res-debug] sampler summary: %d samples over %ds; queue>=1 in %.0f%%, queue>=3 in %.0f%%; inflight>=3 in %.0f%%; max queue=%d, max inflight=%d",
-						     n, seconds, 100.0 * ge1 / Math.max(n, 1), 100.0 * ge3 / Math.max(n, 1), 100.0 * inflightge3 / Math.max(n, 1), maxq, maxin));
-		}, "Resource queue sampler");
-	    th.setDaemon(true);
-	    th.start();
-	}
 
 	public Pool(Pool parent, ResSource... sources) {
 	    this.parent = parent;
@@ -883,12 +847,7 @@ public class Resource implements Serializable {
 				    return;
 			    }
 			}
-			busy.incrementAndGet(); // DEBUG(temp)
-			try {
-			    handle(cur);
-			} finally {
-			    busy.decrementAndGet(); // DEBUG(temp)
-			}
+			handle(cur);
 			cur = null;
 		    }
 		} catch(InterruptedException e) {
@@ -1029,12 +988,9 @@ public class Resource implements Serializable {
     public static void addurl(URI uri) {
 	if(isbrodgarcache(uri)) {
 	    remote().nloaders = BRODGAR_CACHE_LOADERS;
-	    System.err.println("[res-debug] resurl " + uri + " is the brodgar.io resource cache: sources = [cache " + uri + ", proxy " + BRODGAR_CACHE_FALLBACK + "], loaders = " + BRODGAR_CACHE_LOADERS); // DEBUG(temp)
-	    remote().debugsample(120); // DEBUG(temp)
 	    addsrc(new BrodgarCacheSource(uri));
 	    addsrc(new HttpSource(BRODGAR_CACHE_FALLBACK));
 	} else {
-	    System.err.println("[res-debug] resurl " + uri + ": plain source, loaders = " + remote().nloaders); // DEBUG(temp)
 	    addsrc(new HttpSource(uri));
 	}
     }
