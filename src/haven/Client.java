@@ -479,8 +479,9 @@ public class Client implements Console.Directory {
 
     public static final Config.Variable<Boolean> nopreload = Config.Variable.propb("haven.nopreload", false);
     public static void setupres() {
-	if(ResCache.global != null)
-	    Resource.setcache(ResCache.global);
+	ResCache rescache = io.brodgar.addon.SqliteCache.resources(); // addon: -Dhaven.store=sqlite puts the resource cache in savedata/rescache.sqlite; files is ResCache.global
+	if(rescache != null)
+	    Resource.setcache(rescache);
 	// addon: the program binary cache lives with the client's own data, savedata/shaders/ beside the jar.
 	haven.render.gl.ProgramCache.setroot(io.brodgar.addon.ClientDb.savedata().resolve("shaders"));
 	if(Resource.resurl.get() != null)

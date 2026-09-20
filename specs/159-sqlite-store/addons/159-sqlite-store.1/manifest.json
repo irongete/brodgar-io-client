@@ -1,0 +1,10 @@
+{
+  "name": "159.1 — the SQLite store and the switch",
+  "id": "159-sqlite-store.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 159.1: in sqlite mode :store names the two savedata files, the map writes through map.sqlite, a grid recorded by an earlier run reads back from it, and :store is a name no addon can take.",
+  "api_version": "1.0",
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}

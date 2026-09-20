@@ -37,7 +37,7 @@ public interface ResCache {
     
     public static class StupidJavaCodeContainer {
 	private static ResCache makeglobal() {
-	    return(HashDirCache.create());
+	    return(io.brodgar.addon.SqliteCache.global()); // addon: -Dhaven.store=sqlite puts the map in savedata/map.sqlite; files (the default) is HashDirCache.create()
 	}
     }
 

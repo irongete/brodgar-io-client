@@ -378,6 +378,9 @@
       <!-- addon: the hub the AddOns manager's Browse tab reads from. `ant -Dregistry=http://localhost:3730/addons/api run`
            points a development client at a local hub; unset, the client reads brodgar.io/addons. -->
       <sysproperty if:set="registry" key="haven.addon.registry" value="${registry}" />
+      <!-- addon: the on-disk store. `ant -Dstore=sqlite run` keeps the map and the resource cache in savedata/*.sqlite;
+           unset (or `files`), the client uses HashDirCache under %APPDATA% as upstream does. -->
+      <sysproperty if:set="store" key="haven.store" value="${store}" />
       <!-- addon: the development run's working directory is this folder, not bin/, so the Steamworks SDK
            would not find bin/steam_appid.txt; the environment variable Steam itself sets says the same. -->
       <env key="SteamAppId" value="3051280" />

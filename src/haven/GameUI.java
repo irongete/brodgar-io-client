@@ -1042,7 +1042,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		mapfile = null;
 	    }
 	    ResCache mapstore = ResCache.global;
-	    if(MapFile.mapbase.get() != null)
+	    if((MapFile.mapbase.get() != null) && !io.brodgar.addon.SqliteCache.sqlite()) // addon: haven.mapbase (set by every shipped haven-config.properties) means nothing to the SQLite store: the map is ResCache.global's file
 		mapstore = HashDirCache.get(MapFile.mapbase.get());
 	    if(mapstore != null) {
 		MapFile file;

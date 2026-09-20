@@ -1,0 +1,341 @@
+package io.brodgar.addon;
+
+import haven.Config;
+import haven.Console;
+import haven.HashDirCache;
+import haven.ResCache;
+import haven.Warning;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/**
+ * <b>The SQLite store</b>: a {@link ResCache} over one SQLite file, one blob per entry. Two instances exist
+ * when the client runs with {@code -Dhaven.store=sqlite} — {@code savedata/map.sqlite} behind
+ * {@code ResCache.global} (the recorded map, the minimap icon settings) and {@code savedata/rescache.sqlite}
+ * behind {@code Resource.setcache} (the resource cache) — and none otherwise, when {@code HashDirCache} under
+ * {@code %APPDATA%} stays what it was. Each store keeps its own data: nothing is imported either way.
+ *
+ * <p><b>The switch is here.</b> {@link #global()} and {@link #resources()} answer the two seams in
+ * {@code haven} ({@code ResCache.StupidJavaCodeContainer.makeglobal}, {@code Client.setupres}), and
+ * {@link #sqlite()} the third: {@code GameUI} puts the map in {@code HashDirCache.get(MapFile.mapbase)} when
+ * {@code haven.mapbase} is set — every shipped {@code haven-config.properties} sets it — and in sqlite mode
+ * that variable means nothing, so the map stays {@code ResCache.global}'s. The class loads in both modes and
+ * its static block registers {@code :store} in both — the command that prints the store in force through
+ * {@code cons.out}, which {@code GameUI.added} re-points at the System log.
+ *
+ * <p><b>One connection, under the instance's monitor.</b> A read is ~10 µs and a write ~50–100 µs, so every
+ * thread serialises on it without a queue. A {@code ResultSet} is never held across a return: the bytes are
+ * copied out and a stream over the copy handed back, which keeps the write-ahead log checkpointable. A
+ * {@link #store} stream buffers in memory and writes on its (idempotent) {@code close()}, so a stream never
+ * closed writes nothing — {@code StreamTee.setncwe} closes the fork only after EOF, and an aborted download
+ * leaves no entry. A zero-length blob (the segment tombstone {@code MapFile.segments} writes) is stored and
+ * read back as zero bytes, never as a miss. A miss is {@link FileNotFoundException}, and only a miss.
+ *
+ * <p><b>Unavailable.</b> A file that cannot be opened (no driver or {@code java.sql}, an unwritable folder, a
+ * file a newer client wrote) is one {@link Warning} naming the file and the reason, and a {@code null} store:
+ * the client runs without it, as it does when {@code HashDirCache.create()} answers {@code null}. A shutdown
+ * hook closes the connection, because the client leaves through {@code System.exit} and nothing else would
+ * checkpoint the log and remove the {@code -wal}/{@code -shm} sidecars.
+ */
+public final class SqliteCache implements ResCache {
+    /** The shape of {@code entries}, recorded in the file's {@code user_version}; a higher one is refused. */
+    static final int SCHEMA = 1;
+
+    /** The two files, inside {@link ClientDb#dir()}. */
+    static final String MAP = "map.sqlite", RES = "rescache.sqlite";
+
+    /** How long a statement waits on a lock another connection holds — a second client on the same folder. */
+    private static final int BUSY_MS = 3000;
+
+    /** {@code -Dhaven.store}: {@code files} (the default, and the value when absent) or {@code sqlite}. */
+    public static final Config.Variable<String> mode = Config.Variable.prop("haven.store", "files");
+
+    /** {@link #mode} resolved once: {@code null} until asked. Guarded by the class monitor. */
+    private static Boolean sqlite;
+
+    /** What each of the two seams opened, or why it could not. Guarded by the class monitor. */
+    private static final Slot map = new Slot(MAP), res = new Slot(RES);
+
+    private static final class Slot {
+        final String name;
+        SqliteCache cache;
+        String why;
+        boolean tried;
+
+        Slot(String name) {
+            this.name = name;
+        }
+    }
+
+    static {
+        // :store        print the store in force -- one line per file in sqlite mode, the folder in files mode
+        Console.setscmd("store", (cons, args) -> report(cons.out));
+    }
+
+    // ---- the switch --------------------------------------------------------------------------------
+
+    /** Whether {@link #mode} selects this class. A value that is neither store warns once and means files. */
+    public static synchronized boolean sqlite() {
+        if(sqlite == null) {
+            String v = mode.get();
+            if("sqlite".equals(v)) {
+                sqlite = Boolean.TRUE;
+            } else {
+                if(!"files".equals(v))
+                    new Warning("haven.store=" + v + " names no store: the accepted values are files (the default)"
+                        + " and sqlite; running with files").level(Warning.ERROR).issue();
+                sqlite = Boolean.FALSE;
+            }
+        }
+        return sqlite.booleanValue();
+    }
+
+    /** What {@code ResCache.global} is: {@code map.sqlite} in sqlite mode, else {@code HashDirCache.create()}. */
+    public static ResCache global() {
+        if(!sqlite())
+            return HashDirCache.create();
+        return open(map);
+    }
+
+    /** What {@code Resource.setcache} gets: {@code rescache.sqlite} in sqlite mode, else {@code ResCache.global}. */
+    public static ResCache resources() {
+        if(!sqlite())
+            return ResCache.global;
+        return open(res);
+    }
+
+    private static synchronized SqliteCache open(Slot slot) {
+        if(!slot.tried) {
+            slot.tried = true;
+            Path file = ClientDb.dir().toPath().resolve(slot.name);
+            try {
+                Files.createDirectories(file.getParent());
+                slot.cache = new SqliteCache(file);
+            } catch(Exception | LinkageError e) {
+                // Exception: the driver's own refusals (SQLITE_CANTOPEN, SQLITE_NOTADB, SQLITE_BUSY, a newer
+                // schema) and the folder that could not be made. LinkageError: a runtime without java.sql, or
+                // a native library that could not be loaded -- the constructor is what links both.
+                slot.why = why(e);
+                new Warning(e, file + " could not be opened: " + slot.why
+                    + " — the client runs without this store for the session").level(Warning.ERROR).issue();
+            }
+        }
+        return slot.cache;
+    }
+
+    /** What a failure is reported as: the driver's message, prefixed by the class when it is not the driver's. */
+    private static String why(Throwable e) {
+        String msg = e.getMessage();
+        if((msg == null) || msg.isEmpty())
+            return e.toString();
+        return (e instanceof LinkageError) ? e.getClass().getSimpleName() + ": " + msg : msg;
+    }
+
+    // ---- the instance ------------------------------------------------------------------------------
+
+    /** Where the file is. */
+    public final Path file;
+
+    /** The connection, or {@code null} once the shutdown hook has closed it. Guarded by the instance monitor. */
+    private java.sql.Connection conn;
+    private java.sql.PreparedStatement fetchSt, storeSt;
+
+    /**
+     * Open (or create) {@code file} with the recipe of {@code ClientDb.Conn}: WAL, {@code synchronous=NORMAL},
+     * the busy timeout, {@code user_version} checked and stamped. {@code WITHOUT ROWID} on the name would put a
+     * 1.7 KB blob into the index B-tree's cell and read 5× slower, so the key is a rowid and the name unique.
+     */
+    private SqliteCache(Path file) throws java.sql.SQLException {
+        this.file = file;
+        org.sqlite.SQLiteConfig cfg = new org.sqlite.SQLiteConfig();
+        cfg.setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL);
+        cfg.setSynchronous(org.sqlite.SQLiteConfig.SynchronousMode.NORMAL);
+        cfg.setBusyTimeout(BUSY_MS);
+        java.sql.Connection c = cfg.createConnection("jdbc:sqlite:" + file);
+        try {
+            try(java.sql.Statement st = c.createStatement()) {
+                int have = (int)one(st, "PRAGMA user_version");
+                if(have > SCHEMA)
+                    throw new java.sql.SQLException("written by a newer client (schema " + have
+                        + ", this client writes " + SCHEMA + ")");
+                st.execute("CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,"
+                    + " data BLOB NOT NULL, mtime INTEGER NOT NULL)");
+                if(have < SCHEMA)
+                    st.execute("PRAGMA user_version = " + SCHEMA);
+            }
+            fetchSt = c.prepareStatement("SELECT data FROM entries WHERE name = ?");
+            storeSt = c.prepareStatement("INSERT INTO entries (name, data, mtime) VALUES (?, ?, ?)"
+                + " ON CONFLICT (name) DO UPDATE SET data = excluded.data, mtime = excluded.mtime");
+        } catch(java.sql.SQLException | RuntimeException e) {
+            try {
+                c.close();
+            } catch(java.sql.SQLException x) {
+                /* the open already failed; nothing is held */
+            }
+            throw e;
+        }
+        this.conn = c;
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(this::close, file.getFileName().toString()));
+        } catch(IllegalStateException e) {
+            /* already shutting down: the next open recovers the log the way the engine always does */
+        }
+    }
+
+    /** The one number a {@code PRAGMA} answers. */
+    private static long one(java.sql.Statement st, String sql) throws java.sql.SQLException {
+        try(java.sql.ResultSet rs = st.executeQuery(sql)) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        }
+    }
+
+    /** Close the connection: the log is checkpointed into the file and the sidecars go. The shutdown hook. */
+    private synchronized void close() {
+        java.sql.Connection c = conn;
+        conn = null;
+        if(c != null) {
+            try {
+                c.close();
+            } catch(Exception e) {
+                /* the process is ending; the next open recovers whatever the close left */
+            }
+        }
+    }
+
+    /**
+     * The entry's bytes, as a stream over a copy. A miss is {@link FileNotFoundException}: what
+     * {@code CacheSource}, {@code Pool.handle}, {@code GobIcon.Settings.load} and {@code MapFile}'s callers key
+     * on. Any other failure is an {@link IOException} that is not one.
+     */
+    public InputStream fetch(String name) throws IOException {
+        byte[] data;
+        synchronized(this) {
+            if(conn == null)
+                throw new IOException(file + " is closed");
+            try {
+                fetchSt.setString(1, name);
+                try(java.sql.ResultSet rs = fetchSt.executeQuery()) {
+                    if(!rs.next())
+                        throw new FileNotFoundException(name);
+                    data = rs.getBytes(1);
+                    // data is NOT NULL, so a null here is the driver's spelling of a zero-length blob
+                    if(data == null)
+                        data = new byte[0];
+                }
+            } catch(java.sql.SQLException e) {
+                throw new IOException(file + ": " + name + ": " + why(e), e);
+            }
+        }
+        return new ByteArrayInputStream(data);
+    }
+
+    /**
+     * A stream that buffers in memory and upserts the entry on {@code close()}, once. Nothing is written
+     * until then, and nothing at all for a stream never closed.
+     */
+    public OutputStream store(final String name) throws IOException {
+        synchronized(this) {
+            if(conn == null)
+                throw new IOException(file + " is closed");
+        }
+        return new ByteArrayOutputStream() {
+            private boolean closed = false;
+
+            public void close() throws IOException {
+                if(closed)
+                    return;
+                closed = true;
+                put(name, toByteArray());
+            }
+        };
+    }
+
+    /** UPSERT one entry. Silently nothing once the shutdown hook has closed the file: the process is leaving. */
+    private synchronized void put(String name, byte[] data) throws IOException {
+        if(conn == null)
+            return;
+        try {
+            storeSt.setString(1, name);
+            storeSt.setBytes(2, data);
+            storeSt.setLong(3, System.currentTimeMillis());
+            storeSt.executeUpdate();
+        } catch(java.sql.SQLException e) {
+            throw new IOException(file + ": " + name + ": " + why(e), e);
+        }
+    }
+
+    /** How many entries the file holds, or -1 once closed. */
+    synchronized long count() {
+        if(conn == null)
+            return -1;
+        try(java.sql.Statement st = conn.createStatement()) {
+            return one(st, "SELECT count(*) FROM entries");
+        } catch(java.sql.SQLException e) {
+            return -1;
+        }
+    }
+
+    /** The database's size in bytes as this connection sees it (pages × page size), or -1 once closed. */
+    synchronized long size() {
+        if(conn == null)
+            return -1;
+        try(java.sql.Statement st = conn.createStatement()) {
+            return one(st, "PRAGMA page_count") * one(st, "PRAGMA page_size");
+        } catch(java.sql.SQLException e) {
+            return -1;
+        }
+    }
+
+    /** What {@code CacheSource.cachedesc} puts in every {@code LoadException}. */
+    public String toString() {
+        return "SqliteCache(" + file + ")";
+    }
+
+    // ---- :store ------------------------------------------------------------------------------------
+
+    /**
+     * The store in force, one line each: {@code store: sqlite|files}; in sqlite mode {@code map:} and
+     * {@code res:} with the path, entry count and size (or {@code not open: <why>}) and the sweep's state; in
+     * files mode {@code data:} with the folder and the {@code HashDirCache} identity.
+     */
+    static void report(PrintWriter out) {
+        if(!sqlite()) {
+            line(out, "store: files");
+            Path home = Config.localdir();
+            ResCache g = ResCache.global;
+            java.net.URI mapbase = haven.MapFile.mapbase.get();
+            line(out, "data: " + ((home != null) ? home.resolve("data") : "<no local directory>") + " — "
+                + ((g instanceof HashDirCache) ? "HashDirCache " + ((HashDirCache)g).id : "not open")
+                + ((mapbase != null) ? ", the map in HashDirCache " + mapbase : ""));
+            out.flush();
+            return;
+        }
+        line(out, "store: sqlite");
+        line(out, "map: " + line(map));
+        line(out, "res: " + line(res));
+        line(out, "sweep: none");
+        out.flush();
+    }
+
+    /** One line. Never {@code println}: on Windows it ends in CRLF, and the System-log writer of
+     *  {@code GameUI.added} splits on LF alone, so the CR would reach every reader of the line. */
+    private static void line(PrintWriter out, String text) {
+        out.print(text + "\n");
+    }
+
+    private static synchronized String line(Slot slot) {
+        if(slot.cache == null)
+            return ClientDb.dir().toPath().resolve(slot.name) + " — not open: "
+                + ((slot.why != null) ? slot.why : "never opened");
+        return slot.cache.file + " — " + slot.cache.count() + " entries, "
+            + String.format(java.util.Locale.ROOT, "%.1f MB", slot.cache.size() / 1048576.0);
+    }
+}
