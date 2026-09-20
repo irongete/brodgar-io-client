@@ -26,7 +26,12 @@ import org.luaj.vm2.compiler.LuaC;
  * that a class of this layer extends are initialised once the toolkit exists (their static initialisers are
  * pictures, fonts and {@code UI.scale}, which needs it), on a thread that is not the UI thread — as
  * {@code LoginWarmup} already initialises {@code Text} and {@code RichText} beside the main thread building
- * the login screen. What the boot executes, and in what order, is untouched.
+ * the login screen. (4) The Steam API, which {@code hafen.steam()}'s install initialises for the first addon
+ * that loads (its natives come out of their jar through JOGL's {@code TempJarCache}, made with the toolkit,
+ * and {@code SteamAPI.init} talks to the Steam client: 133 ms warm, ~300 cold, measured on the boot), is made
+ * on a thread of its own the moment the toolkit exists -- the same {@code static synchronized} singleton,
+ * which the boot's own call then finds, or waits the rest of -- and only when an enabled addon is there to
+ * ask for it. What the boot executes, and in what order, is untouched.
  *
  * <p>Started by {@code Client.main2} right after {@code setupres()}; {@link #toolkitReady} from the same
  * method once {@code Toolkit.instance()} has returned. The boot asks {@link #prototype} per file and waits
@@ -38,7 +43,7 @@ public final class BootPrepare {
     private static final CountDownLatch toolkit = new CountDownLatch(1);
     private static final CountDownLatch compiled = new CountDownLatch(1);
     private static final Map<Path, Chunk> chunks = new ConcurrentHashMap<Path, Chunk>();
-    private static volatile boolean started = false, over = false;
+    private static volatile boolean started = false, over = false, enabled = false;
 
     private static final class Chunk {
         final byte[] hash;
@@ -106,6 +111,7 @@ public final class BootPrepare {
             }
             nclasses = loadClasses();
             toolkit.await();
+            startSteam();
             ninit = initWidgetClasses();
         } catch(Throwable e) {
             /* One line, not silence: a preparation that gives up is a boot that does the work itself. */
@@ -178,6 +184,7 @@ public final class BootPrepare {
         File[] subs = dir.listFiles(File::isDirectory);
         if(subs == null)
             return 0;
+        Set<String> disabled = AddonRegistry.disabledSet();
         int n = 0;
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
@@ -188,6 +195,8 @@ public final class BootPrepare {
             } catch(Exception e) {
                 continue;   // the boot reports it
             }
+            if(!disabled.contains(sub.getName()))
+                enabled = true;
             for(String file : m.files) {
                 try {
                     Path fp = Inside.inside(sub.toPath(), file, "manifest 'files'");
@@ -203,7 +212,27 @@ public final class BootPrepare {
         return n;
     }
 
-    /* ---- 3. the client's widget classes this layer builds on, initialised ----------------------------------- */
+    /* ---- 3. the Steam API, made beside the rest, before the first hafen.steam() install asks for it -------- */
+
+    /** {@code Steam.get()} as {@code SteamApi.installSteam} will call it, on a thread of its own: it waits on
+     *  nothing this thread does, and this thread's pictures wait on nothing it does. Null and every failure
+     *  are the boot's to meet again, in its own words. After the toolkit, because the natives come out of
+     *  their jar through JOGL's {@code TempJarCache}, which JOGL initialises with it. */
+    private static void startSteam() {
+        if(!enabled)
+            return;
+        Thread t = new haven.HackThread(() -> {
+                try {
+                    haven.Steam.get();
+                } catch(Throwable e) {
+                }
+            }, "Steam boot preparation");
+        t.setDaemon(true);
+        t.setPriority((Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2);
+        t.start();
+    }
+
+    /* ---- 4. the client's widget classes this layer builds on, initialised ----------------------------------- */
 
     /**
      * Every {@code haven} class that a {@code Widget} of this package extends — {@code Button} under

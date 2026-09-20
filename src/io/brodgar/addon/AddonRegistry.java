@@ -962,7 +962,7 @@ public final class AddonRegistry {
     private static volatile Set<String> disabledCache = null;
 
     /** The persisted set of disabled addon ids (client-scope). An addon runs unless it is in here. */
-    private static Set<String> disabledSet() {
+    static Set<String> disabledSet() {   // BootPrepare reads it too
         Set<String> d = disabledCache;
         if(d == null) {
             List<String> l = Utils.getprefsl(PREF_DISABLED, new String[0]);
