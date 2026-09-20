@@ -93,7 +93,8 @@ Press `:` to open the client's command line.
 | `:addons enable <id>` | Enable an addon, applied on the next `:reload`. |
 | `:addons disable <id>` | Disable one, applied on the next `:reload`. |
 | `:lua <expression>` | Evaluate Lua against the live API and print the result. |
-| `:store` | Print where the client keeps its recorded map and its resource cache: the folder under `%APPDATA%`, or with `-Dhaven.store=sqlite` the two files under `savedata/` with their entry counts and sizes. |
+| `:store` | Print where the client keeps its recorded map and its resource cache: the folder under `%APPDATA%`, or with `-Dhaven.store=sqlite` the two files under `savedata/` with their entry counts and sizes, and the last sweep's `examined` and `dropped` counts. |
+| `:store sweep` | In sqlite mode, drop every cached resource the client's resource pack holds at the same or a newer version, then print the report; it also runs once at start. In files mode nothing is swept. |
 
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")

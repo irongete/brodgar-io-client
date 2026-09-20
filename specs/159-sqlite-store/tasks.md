@@ -46,7 +46,7 @@
       `rescache.md` ≤ 150, `resource-loading.md` and `mapfile.md` at their counts before the task;
       `grep -rn "io.brodgar" docs/client/rescache.md` finds nothing but the one `src/` pointer.
 
-- [ ] **159.3 — The cache follows the pack.** The sweep of `plan.md` in `SqliteCache`: on a daemon
+- [x] **159.3 — The cache follows the pack.** The sweep of `plan.md` in `SqliteCache`: on a daemon
       thread from `resources()` in sqlite mode, and on `:store sweep`; `SELECT id, name, substr(data,
       17, 2)` over `res/%` rows, the pack probed per row through `Resource.class.getResourceAsStream`,
       the little-endian `uint16` compared, `DELETE` when the pack's is ≥; `examined`/`dropped` in

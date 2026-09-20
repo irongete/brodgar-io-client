@@ -44,6 +44,14 @@ import java.nio.file.Path;
  * the client runs without it, as it does when {@code HashDirCache.create()} answers {@code null}. A shutdown
  * hook closes the connection, because the client leaves through {@code System.exit} and nothing else would
  * checkpoint the log and remove the {@code -wal}/{@code -shm} sidecars.
+ *
+ * <p><b>The cache follows the pack.</b> {@code brodgar-res.jar} answers before the cache, so a {@code res/} row
+ * the pack holds at the same or a newer version is dead weight. {@link #sweep()} drops those: it reads every
+ * {@code res/} row's id, name and the two bytes after the 16-byte {@code "Haven Resource 1"} signature — the
+ * little-endian {@code uint16} version, never the blob — probes the pack per row the way {@code JarSource.get}
+ * does, and deletes the row when the pack's version is ≥ the row's. A daemon thread runs it from
+ * {@link #resources()} in sqlite mode, {@code :store sweep} runs it now, and {@code :store} prints the last
+ * run's counts. Files mode never sweeps: enumerating the folder is minutes.
  */
 public final class SqliteCache implements ResCache {
     /** The shape of {@code entries}, recorded in the file's {@code user_version}; a higher one is refused. */
@@ -75,9 +83,29 @@ public final class SqliteCache implements ResCache {
         }
     }
 
+    /** The last finished sweep's counts, {@code -1} while none has finished; whether one runs now. Guarded by
+     *  the class monitor; {@link #SWEEP} serialises the runs themselves. */
+    private static int examined = -1, dropped = -1;
+    private static boolean sweeping = false;
+    private static final Object SWEEP = new Object();
+
     static {
         // :store        print the store in force -- one line per file in sqlite mode, the folder in files mode
-        Console.setscmd("store", (cons, args) -> report(cons.out));
+        // :store sweep  drop every res/ entry the pack holds at the same or a newer version, then print
+        Console.setscmd("store", (cons, args) -> {
+            if(args.length > 1) {
+                if(!"sweep".equals(args[1])) {
+                    line(cons.out, "store: no such argument '" + args[1] + "' — :store, or :store sweep");
+                    cons.out.flush();
+                    return;
+                }
+                if(!sqlite())
+                    line(cons.out, "sweep: files mode never sweeps");
+                else
+                    sweep();
+            }
+            report(cons.out);
+        });
     }
 
     // ---- the switch --------------------------------------------------------------------------------
@@ -109,7 +137,13 @@ public final class SqliteCache implements ResCache {
     public static ResCache resources() {
         if(!sqlite())
             return ResCache.global;
-        return open(res);
+        SqliteCache cache = open(res);
+        if(cache != null) {
+            Thread t = new Thread(SqliteCache::sweep, "rescache-sweep");
+            t.setDaemon(true);
+            t.start();
+        }
+        return cache;
     }
 
     private static synchronized SqliteCache open(Slot slot) {
@@ -299,6 +333,151 @@ public final class SqliteCache implements ResCache {
         return "SqliteCache(" + file + ")";
     }
 
+    // ---- the sweep ---------------------------------------------------------------------------------
+
+    /** The signature every resource blob opens with; the version is the little-endian {@code uint16} after it. */
+    private static final byte[] SIG = "Haven Resource 1".getBytes(haven.Utils.ascii);
+
+    /** One {@code res/} row as the sweep reads it: the id, the name and the version bytes, never the blob. */
+    private static final class Row {
+        final long id;
+        final String name;
+        final byte[] ver;
+
+        Row(long id, String name, byte[] ver) {
+            this.id = id;
+            this.name = name;
+            this.ver = ver;
+        }
+    }
+
+    /**
+     * Drop every {@code res/} entry of the resource store that the pack holds at the same or a newer version.
+     * Runs are serialised on {@link #SWEEP}; the instance monitor is held for the read and for the deletes,
+     * never across the pack probes, so the loaders keep fetching meanwhile. Nothing to do without the store, or
+     * in files mode. One stderr line per run; the counts are {@code :store}'s {@code sweep:} line.
+     */
+    static void sweep() {
+        SqliteCache cache;
+        synchronized(SqliteCache.class) {
+            cache = sqlite() ? res.cache : null;
+        }
+        if(cache == null)
+            return;
+        synchronized(SWEEP) {
+            synchronized(SqliteCache.class) {
+                sweeping = true;
+            }
+            long start = System.currentTimeMillis();
+            int n = 0, m = 0;
+            try {
+                java.util.List<Row> rows = cache.resRows();
+                n = rows.size();
+                java.util.List<Row> dead = new java.util.ArrayList<>();
+                for(Row row : rows) {
+                    int have = version(row.ver);
+                    if((have >= 0) && (packVersion(row.name) >= have))
+                        dead.add(row);
+                }
+                m = cache.drop(dead);
+                System.err.println(cache.file.getFileName() + ": sweep examined " + n + " res/ entries, dropped "
+                    + m + " the pack holds (" + (System.currentTimeMillis() - start) + " ms)");
+            } catch(IOException e) {
+                new Warning(e, cache.file + ": the sweep failed: " + why(e)).issue();
+            } finally {
+                synchronized(SqliteCache.class) {
+                    examined = n;
+                    dropped = m;
+                    sweeping = false;
+                }
+            }
+        }
+    }
+
+    /** The little-endian {@code uint16} in two bytes, or {@code -1} for fewer — a blob no resource parses. */
+    private static int version(byte[] ver) {
+        if((ver == null) || (ver.length < 2))
+            return -1;
+        return (ver[0] & 0xff) | ((ver[1] & 0xff) << 8);
+    }
+
+    /**
+     * The pack's version of {@code name} ({@code res/} stripped): the same lookup as {@code JarSource.get}
+     * over {@code brodgar-res}, reading the signature and the two bytes after it. {@code -1} when the pack
+     * lacks the name, is not on the classpath, or the entry is not a resource.
+     */
+    private static int packVersion(String name) {
+        if(!name.startsWith("res/"))
+            return -1;
+        try(InputStream in = haven.Resource.class.getResourceAsStream("/brodgar-res/" + name.substring(4) + ".res")) {
+            if(in == null)
+                return -1;
+            byte[] head = new byte[SIG.length + 2];
+            int got = 0;
+            while(got < head.length) {
+                int r = in.read(head, got, head.length - got);
+                if(r < 0)
+                    break;
+                got += r;
+            }
+            if(got < head.length)
+                return -1;
+            for(int i = 0; i < SIG.length; i++) {
+                if(head[i] != SIG[i])
+                    return -1;
+            }
+            return version(new byte[] {head[SIG.length], head[SIG.length + 1]});
+        } catch(IOException e) {
+            return -1;
+        }
+    }
+
+    /** Every {@code res/} row's id, name and version bytes, copied out under the monitor. */
+    private synchronized java.util.List<Row> resRows() throws IOException {
+        java.util.List<Row> rows = new java.util.ArrayList<>();
+        if(conn == null)
+            return rows;
+        try(java.sql.Statement st = conn.createStatement();
+            java.sql.ResultSet rs = st.executeQuery("SELECT id, name, substr(data, " + (SIG.length + 1)
+                + ", 2) FROM entries WHERE name LIKE 'res/%'")) {
+            while(rs.next())
+                rows.add(new Row(rs.getLong(1), rs.getString(2), rs.getBytes(3)));
+        } catch(java.sql.SQLException e) {
+            throw new IOException(why(e), e);
+        }
+        return rows;
+    }
+
+    /**
+     * Delete the rows, each only while it still carries the version bytes the sweep judged: a row the tee
+     * rewrote meanwhile holds a version the pack lacked, and stays. One transaction. The count deleted.
+     */
+    private synchronized int drop(java.util.List<Row> dead) throws IOException {
+        if((conn == null) || dead.isEmpty())
+            return 0;
+        int m = 0;
+        try {
+            conn.setAutoCommit(false);
+            try(java.sql.PreparedStatement st = conn.prepareStatement("DELETE FROM entries WHERE id = ? AND substr(data, "
+                + (SIG.length + 1) + ", 2) = ?")) {
+                for(Row row : dead) {
+                    st.setLong(1, row.id);
+                    st.setBytes(2, row.ver);
+                    m += st.executeUpdate();
+                }
+                conn.commit();
+            } catch(java.sql.SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch(java.sql.SQLException e) {
+            throw new IOException(why(e), e);
+        }
+        return m;
+    }
+
     // ---- :store ------------------------------------------------------------------------------------
 
     /**
@@ -321,8 +500,15 @@ public final class SqliteCache implements ResCache {
         line(out, "store: sqlite");
         line(out, "map: " + line(map));
         line(out, "res: " + line(res));
-        line(out, "sweep: none");
+        line(out, "sweep: " + sweepLine());
         out.flush();
+    }
+
+    /** {@code none} before a sweep finished ({@code running} while the first is on), else the last one's counts. */
+    private static synchronized String sweepLine() {
+        if(examined < 0)
+            return sweeping ? "running" : "none";
+        return "examined " + examined + ", dropped " + dropped;
     }
 
     /** One line. Never {@code println}: on Windows it ends in CRLF, and the System-log writer of

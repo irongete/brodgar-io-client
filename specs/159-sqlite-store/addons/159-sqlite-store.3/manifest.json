@@ -1,0 +1,10 @@
+{
+  "name": "159.3 — the cache follows the pack",
+  "id": "159-sqlite-store.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 159.3: in sqlite mode :store reports the sweep's counts, :store sweep runs it now and a second run drops nothing, the counts add up against the entry count, and :store is a name no addon can take.",
+  "api_version": "1.0",
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}
