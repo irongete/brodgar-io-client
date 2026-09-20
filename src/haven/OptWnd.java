@@ -1053,6 +1053,14 @@ public class OptWnd extends Window {
 
 	public void tick(double dt) {
 	    super.tick(dt);
+	    /* addon: only while the view is on screen. This panel ticks hidden -- inside the window GameUI
+	     * builds hidden, from the session's first frame -- and the two counters below start out unequal,
+	     * so that first tick re-read the census, put the first addon's page in the holder and had the
+	     * layer's next step fill it: 200-240 ms of Lua on the UI thread at login, for a page nobody had
+	     * opened. show() takes the census on the way in, so what a :reload leaves stale in a view that is
+	     * not showing is rebuilt by the show() that brings it back. */
+	    if(!tvisible())
+		return;
 	    /* Two counters, one compare each. A :reload rebuilds every Addon under this view, so the options a
 	     * page is drawing and writing through belong to objects nothing holds any more; and a declaration
 	     * is a row this list has not got, whenever in an addon's life it was made. */
