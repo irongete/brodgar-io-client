@@ -58,6 +58,23 @@ source. That is how a served version wins over the jar's: the jar's copy parses 
 or the server produces the one the session named. It is also why a copy dropped into `HAFEN_RESDIR` is
 taken only when its version equals what the server asks for.
 
+**The wanted version travels with the ask.** `Pool.handle` calls `ResSource.get(name, ver)`, a default
+that falls back to `get(name)` for every source but `HttpSource`, which sends it as the
+`X-Brodgar-io-Res-Version` request header when `ver >= 0` (`TeeSource` passes it through to the source
+it wraps). A Brodgar resource proxy holding exactly that version answers from its cache without asking
+the official server; any other server ignores the header, and the parse rule above still judges whatever
+comes back.
+
+**The brodgar.io resource cache (`-U https://res.brodgar.io/`).** `Resource.addurl` recognises that
+host (`Resource.isbrodgarcache`) and appends two network sources instead of one: a
+`BrodgarCacheSource`, which asks the cache for `<name>.res.v<ver>` when the ask names a version and for
+`<name>.res` (the latest the cache knows) when it does not, and behind it a plain `HttpSource` at
+`Resource.BRODGAR_CACHE_FALLBACK` (`http://brodgar.io/res/`), the proxy that fetches from the official
+server and fills the cache. The cache has no logic: a `404` is "not yet", `RetryingInputStream` does not
+retry a `FileNotFoundException`, and `Pool.handle` moves on to the proxy. Both sources are wrapped in the
+same caching tee. The local cache keeps the proxy's identity for a cache `-U` (`HashDirCache.create`,
+`BaseFileCache.create`), so moving a client from the proxy to the cache re-downloads nothing.
+
 An empty stream is `FileNotFoundException("empty file")` on purpose: custom clients have been seen to leave
 zero-length files in the disk cache under a resource's name, and the tee is what wrote them.
 
