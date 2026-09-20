@@ -31,19 +31,41 @@ import java.nio.file.Path;
  * its static block registers {@code :store} in both — the command that prints the store in force through
  * {@code cons.out}, which {@code GameUI.added} re-points at the System log.
  *
- * <p><b>One connection, under the instance's monitor.</b> A read is ~10 µs and a write ~50–100 µs, so every
- * thread serialises on it without a queue. A {@code ResultSet} is never held across a return: the bytes are
- * copied out and a stream over the copy handed back, which keeps the write-ahead log checkpointable. A
- * {@link #store} stream buffers in memory and writes on its (idempotent) {@code close()}, so a stream never
- * closed writes nothing — {@code StreamTee.setncwe} closes the fork only after EOF, and an aborted download
- * leaves no entry. A zero-length blob (the segment tombstone {@code MapFile.segments} writes) is stored and
- * read back as zero bytes, never as a miss. A miss is {@link FileNotFoundException}, and only a miss.
+ * <p><b>One writer, a few readers.</b> Every write — a {@link #store} stream's close, the sweep's deletes —
+ * goes through one connection under the instance's monitor, one transaction each. A read never touches it:
+ * {@link #fetch} borrows one of up to {@value #READERS} reader connections of the file's own, runs its query
+ * and hands it back, and waits only while all of them are out. In WAL mode a reader blocks neither another
+ * reader nor the writer, and each query is its own read transaction, opened after any put's commit — so a
+ * grid one thread has just saved is what the next fetch on any thread reads. The readers open on a daemon
+ * thread as the store is made, never inside the pool's lock, and a reader that fails is dropped. Why a pool
+ * and not the writer: the map's loaders are the {@code Defer} pool, a thread per core, and a fetch queued
+ * behind them on one monitor costs hundreds of microseconds with tails of tens of milliseconds where the
+ * query itself costs ten. Why six and not one per thread: past about a dozen connections reading at once
+ * the log's shared-memory locks contend — on Windows they are {@code LockFileEx} calls on the {@code -shm},
+ * backed off with {@code Sleep} — and the same read costs tens of milliseconds; a wait for a free reader
+ * costs microseconds. A {@code ResultSet} is never held across a return: the bytes are copied out and a
+ * stream over the copy handed back, which keeps the log checkpointable. A {@link #store} stream buffers in
+ * memory and writes on its (idempotent) {@code close()}, so a stream never closed writes nothing —
+ * {@code StreamTee.setncwe} closes the fork only after EOF, and an aborted download leaves no entry. A
+ * zero-length blob (the segment tombstone {@code MapFile.segments} writes) is stored and read back as zero
+ * bytes, never as a miss. A miss is {@link FileNotFoundException}, and only a miss.
+ *
+ * <p><b>One table per world.</b> {@code MapFile} keys its rows under {@code GameUI.mapfilename()}, which puts
+ * the server's genus — the world — first: {@code map/<genus>/grid-…}. A row whose name has that shape lives in
+ * the table {@code map-<genus>}, made by the writer the first time the world is seen; every other row
+ * ({@code res/}, {@code data/}, a {@code map/} key with no genus) lives in {@code entries}. The tables are alike
+ * and the name stays whole, so a world's map is one table to dump, restore or drop with any SQLite tool, and
+ * nothing else changes: a fetch routes by the same rule and answers a miss for a world without a table before
+ * asking. The layout is the file's {@code user_version}: a file at another one, older or newer, is refused —
+ * nothing is released, so nothing converts.
  *
  * <p><b>Unavailable.</b> A file that cannot be opened (no driver or {@code java.sql}, an unwritable folder, a
- * file a newer client wrote) is one {@link Warning} naming the file and the reason, and a {@code null} store:
+ * file at another schema) is one {@link Warning} naming the file and the reason, and a {@code null} store:
  * the client runs without it, as it does when {@code HashDirCache.create()} answers {@code null}. A shutdown
- * hook closes the connection, because the client leaves through {@code System.exit} and nothing else would
- * checkpoint the log and remove the {@code -wal}/{@code -shm} sidecars.
+ * hook closes the readers and then the writer, because the client leaves through {@code System.exit} and
+ * nothing else would checkpoint the log and remove the {@code -wal}/{@code -shm} sidecars — the last
+ * connection to close does that, and a reader still borrowed at that moment closes on its release, after
+ * which the next open recovers the log the way the engine always does.
  *
  * <p><b>The cache follows the pack.</b> {@code brodgar-res.jar} answers before the cache, so a {@code res/} row
  * the pack holds at the same or a newer version is dead weight. {@link #sweep()} drops those: it reads every
@@ -54,8 +76,13 @@ import java.nio.file.Path;
  * run's counts. Files mode never sweeps: enumerating the folder is minutes.
  */
 public final class SqliteCache implements ResCache {
-    /** The shape of {@code entries}, recorded in the file's {@code user_version}; a higher one is refused. */
-    static final int SCHEMA = 1;
+    /** The file's shape, recorded in its {@code user_version}: 0 is a new file, this is the one written, and any
+     *  other — older or newer — is refused, naming it. (1 kept every row in {@code entries}.) */
+    static final int SCHEMA = 2;
+
+    /** The columns every table has. */
+    private static final String COLUMNS = " (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, data BLOB NOT NULL,"
+        + " mtime INTEGER NOT NULL)";
 
     /** The two files, inside {@link ClientDb#dir()}. */
     static final String MAP = "map.sqlite", RES = "rescache.sqlite";
@@ -178,36 +205,52 @@ public final class SqliteCache implements ResCache {
     /** Where the file is. */
     public final Path file;
 
-    /** The connection, or {@code null} once the shutdown hook has closed it. Guarded by the instance monitor. */
+    /** The writer: the one connection that writes, or {@code null} once the shutdown hook has closed it.
+     *  Guarded by the instance monitor. */
     private java.sql.Connection conn;
-    private java.sql.PreparedStatement fetchSt, storeSt;
+    private final java.util.Map<String, java.sql.PreparedStatement> storeSts = new java.util.HashMap<>();
+
+    /** The tables the file has, by name. The writer adds one as it creates it; a reader consults it before
+     *  asking, so a name whose table does not exist is a miss without a query. */
+    private final java.util.Set<String> tables = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** How many reader connections a file keeps: enough for the loaders, few enough that the log's locks
+     *  never contend (the class comment has the measured reasons). */
+    static final int READERS = 6;
+
+    /** The readers not in use. {@link #opened} counts every reader alive, borrowed or not, and {@link #closing}
+     *  is set once by the shutdown hook. All three are guarded by {@code free}'s monitor. */
+    private final java.util.ArrayDeque<Reader> free = new java.util.ArrayDeque<>();
+    private int opened = 0;
+    private boolean closing = false;
 
     /**
-     * Open (or create) {@code file} with the recipe of {@code ClientDb.Conn}: WAL, {@code synchronous=NORMAL},
-     * the busy timeout, {@code user_version} checked and stamped. {@code WITHOUT ROWID} on the name would put a
-     * 1.7 KB blob into the index B-tree's cell and read 5× slower, so the key is a rowid and the name unique.
+     * Open (or create) {@code file} as the writer, with the recipe of {@link #connect}: {@code user_version}
+     * checked (a new file is stamped, any other version refused), {@code entries} made. {@code WITHOUT ROWID} on the name would put a 1.7 KB blob into the
+     * index B-tree's cell and read 5× slower, so the key is a rowid and the name unique. The readers start
+     * opening on their own thread once the writer is up.
      */
     private SqliteCache(Path file) throws java.sql.SQLException {
         this.file = file;
-        org.sqlite.SQLiteConfig cfg = new org.sqlite.SQLiteConfig();
-        cfg.setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL);
-        cfg.setSynchronous(org.sqlite.SQLiteConfig.SynchronousMode.NORMAL);
-        cfg.setBusyTimeout(BUSY_MS);
-        java.sql.Connection c = cfg.createConnection("jdbc:sqlite:" + file);
+        java.sql.Connection c = connect(file);
         try {
             try(java.sql.Statement st = c.createStatement()) {
                 int have = (int)one(st, "PRAGMA user_version");
                 if(have > SCHEMA)
                     throw new java.sql.SQLException("written by a newer client (schema " + have
                         + ", this client writes " + SCHEMA + ")");
-                st.execute("CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,"
-                    + " data BLOB NOT NULL, mtime INTEGER NOT NULL)");
-                if(have < SCHEMA)
+                if((have != 0) && (have < SCHEMA))
+                    throw new java.sql.SQLException("written by an older client (schema " + have
+                        + ", this client writes " + SCHEMA + "); nothing converts it: delete it, or convert it yourself");
+                st.execute("CREATE TABLE IF NOT EXISTS entries" + COLUMNS);
+                if(have == 0)
                     st.execute("PRAGMA user_version = " + SCHEMA);
+                try(java.sql.ResultSet rs = st.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table'"
+                    + " AND (name = 'entries' OR name GLOB 'map-*')")) {
+                    while(rs.next())
+                        tables.add(rs.getString(1));
+                }
             }
-            fetchSt = c.prepareStatement("SELECT data FROM entries WHERE name = ?");
-            storeSt = c.prepareStatement("INSERT INTO entries (name, data, mtime) VALUES (?, ?, ?)"
-                + " ON CONFLICT (name) DO UPDATE SET data = excluded.data, mtime = excluded.mtime");
         } catch(java.sql.SQLException | RuntimeException e) {
             try {
                 c.close();
@@ -222,6 +265,32 @@ public final class SqliteCache implements ResCache {
         } catch(IllegalStateException e) {
             /* already shutting down: the next open recovers the log the way the engine always does */
         }
+        prewarm();
+    }
+
+    /** The one recipe every connection to a file follows, {@code ClientDb.Conn}'s: WAL, {@code synchronous=NORMAL},
+     *  the busy timeout. */
+    private static java.sql.Connection connect(Path file) throws java.sql.SQLException {
+        org.sqlite.SQLiteConfig cfg = new org.sqlite.SQLiteConfig();
+        cfg.setJournalMode(org.sqlite.SQLiteConfig.JournalMode.WAL);
+        cfg.setSynchronous(org.sqlite.SQLiteConfig.SynchronousMode.NORMAL);
+        cfg.setBusyTimeout(BUSY_MS);
+        return cfg.createConnection("jdbc:sqlite:" + file);
+    }
+
+    /** The table {@code name} lives in: {@code map-<genus>} for {@code map/<genus>/…}, else {@code entries}. */
+    static String table(String name) {
+        if(name.startsWith("map/")) {
+            int end = name.indexOf('/', 4);
+            if(end > 4)
+                return "map-" + name.substring(4, end);
+        }
+        return "entries";
+    }
+
+    /** The table as SQL names it: quoted, since a genus is the server's string. */
+    private static String quote(String table) {
+        return "\"" + table.replace("\"", "\"\"") + "\"";
     }
 
     /** The one number a {@code PRAGMA} answers. */
@@ -231,18 +300,138 @@ public final class SqliteCache implements ResCache {
         }
     }
 
-    /** Close the connection: the log is checkpointed into the file and the sidecars go. The shutdown hook. */
-    private synchronized void close() {
-        java.sql.Connection c = conn;
-        conn = null;
-        if(c != null) {
-            try {
-                c.close();
-            } catch(Exception e) {
-                /* the process is ending; the next open recovers whatever the close left */
+    /** The shutdown hook: the idle readers, then the writer. The last connection to close checkpoints the log
+     *  into the file and removes the sidecars; a reader out on loan closes on its release. */
+    private void close() {
+        java.util.List<Reader> idle;
+        synchronized(free) {
+            closing = true;
+            idle = new java.util.ArrayList<>(free);
+            opened -= free.size();
+            free.clear();
+            free.notifyAll();
+        }
+        for(Reader r : idle)
+            r.close();
+        synchronized(this) {
+            java.sql.Connection c = conn;
+            conn = null;
+            if(c != null) {
+                try {
+                    c.close();
+                } catch(Exception e) {
+                    /* the process is ending; the next open recovers whatever the close left */
+                }
             }
         }
     }
+
+    // ---- the readers -------------------------------------------------------------------------------
+
+    /** One reader: a connection of its own and a fetch statement per table, prepared as first asked. Used by
+     *  one thread at a time. */
+    private static final class Reader {
+        final java.sql.Connection conn;
+        private final java.util.Map<String, java.sql.PreparedStatement> fetch = new java.util.HashMap<>();
+
+        Reader(java.sql.Connection conn) {
+            this.conn = conn;
+        }
+
+        java.sql.PreparedStatement fetch(String table) throws java.sql.SQLException {
+            java.sql.PreparedStatement st = fetch.get(table);
+            if(st == null)
+                fetch.put(table, st = conn.prepareStatement("SELECT data FROM " + quote(table) + " WHERE name = ?"));
+            return st;
+        }
+
+        void close() {
+            try {
+                conn.close();
+            } catch(Exception e) {
+                /* dropped, or the process is ending; nothing is held */
+            }
+        }
+    }
+
+    /**
+     * A reader for one query: a free one, else a new one while fewer than {@link #READERS} exist — opened
+     * outside the monitor, since an open takes milliseconds and every other borrow and release would wait
+     * behind it — else the next one released. An {@link IOException} once the shutdown hook has run.
+     */
+    private Reader borrow() throws IOException {
+        synchronized(free) {
+            while(true) {
+                if(closing)
+                    throw new IOException(file + " is closed");
+                Reader r = free.poll();
+                if(r != null)
+                    return r;
+                if(opened < READERS) {
+                    opened++;   // the slot is taken now; the open itself runs without the monitor
+                    break;
+                }
+                try {
+                    free.wait();
+                } catch(InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new java.io.InterruptedIOException(file + ": interrupted waiting for a reader");
+                }
+            }
+        }
+        try {
+            return new Reader(connect(file));
+        } catch(java.sql.SQLException e) {
+            synchronized(free) {
+                opened--;
+                free.notify();
+            }
+            throw new IOException(file + ": no reader: " + why(e), e);
+        }
+    }
+
+    /** Hand a reader back — or close it, when it failed or the store is closing. */
+    private void release(Reader r, boolean ok) {
+        synchronized(free) {
+            if(ok && !closing) {
+                free.push(r);
+                free.notify();
+                return;
+            }
+            opened--;
+        }
+        r.close();
+    }
+
+    /** Open the readers now, on a daemon thread, so that no fetch of the first burst has to: an open costs
+     *  milliseconds, and many times that inside the burst. A fetch that comes first opens its own; the thread
+     *  stops at the cap either way, and at the first open that fails. */
+    private void prewarm() {
+        Thread t = new Thread(() -> {
+            while(true) {
+                synchronized(free) {
+                    if(closing || (opened >= READERS))
+                        return;
+                    opened++;
+                }
+                Reader r;
+                try {
+                    r = new Reader(connect(file));
+                } catch(java.sql.SQLException e) {
+                    synchronized(free) {
+                        opened--;
+                        free.notify();
+                    }
+                    return;
+                }
+                release(r, true);
+            }
+        }, file.getFileName() + "-readers");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    // ---- reading and writing -----------------------------------------------------------------------
 
     /**
      * The entry's bytes, as a stream over a copy. A miss is {@link FileNotFoundException}: what
@@ -251,22 +440,29 @@ public final class SqliteCache implements ResCache {
      */
     public InputStream fetch(String name) throws IOException {
         byte[] data;
-        synchronized(this) {
-            if(conn == null)
-                throw new IOException(file + " is closed");
-            try {
-                fetchSt.setString(1, name);
-                try(java.sql.ResultSet rs = fetchSt.executeQuery()) {
-                    if(!rs.next())
-                        throw new FileNotFoundException(name);
-                    data = rs.getBytes(1);
-                    // data is NOT NULL, so a null here is the driver's spelling of a zero-length blob
-                    if(data == null)
-                        data = new byte[0];
+        String table = table(name);
+        if(!tables.contains(table))
+            throw new FileNotFoundException(name);
+        Reader r = borrow();
+        boolean ok = false;
+        try {
+            java.sql.PreparedStatement st = r.fetch(table);
+            st.setString(1, name);
+            try(java.sql.ResultSet rs = st.executeQuery()) {
+                if(!rs.next()) {
+                    ok = true;   // a miss is an answer; the reader is fine
+                    throw new FileNotFoundException(name);
                 }
-            } catch(java.sql.SQLException e) {
-                throw new IOException(file + ": " + name + ": " + why(e), e);
+                data = rs.getBytes(1);
+                // data is NOT NULL, so a null here is the driver's spelling of a zero-length blob
+                if(data == null)
+                    data = new byte[0];
             }
+            ok = true;
+        } catch(java.sql.SQLException e) {
+            throw new IOException(file + ": " + name + ": " + why(e), e);
+        } finally {
+            release(r, ok);
         }
         return new ByteArrayInputStream(data);
     }
@@ -292,29 +488,57 @@ public final class SqliteCache implements ResCache {
         };
     }
 
-    /** UPSERT one entry. Silently nothing once the shutdown hook has closed the file: the process is leaving. */
+    /** UPSERT one entry, into its table — made now when the world is new. Silently nothing once the shutdown
+     *  hook has closed the file: the process is leaving. */
     private synchronized void put(String name, byte[] data) throws IOException {
         if(conn == null)
             return;
         try {
-            storeSt.setString(1, name);
-            storeSt.setBytes(2, data);
-            storeSt.setLong(3, System.currentTimeMillis());
-            storeSt.executeUpdate();
+            String table = table(name);
+            java.sql.PreparedStatement st = storeSts.get(table);
+            if(st == null) {
+                if(!tables.contains(table)) {
+                    try(java.sql.Statement ddl = conn.createStatement()) {
+                        ddl.execute("CREATE TABLE IF NOT EXISTS " + quote(table) + COLUMNS);
+                    }
+                    tables.add(table);   // after the commit: a reader that sees it will find it
+                }
+                st = conn.prepareStatement("INSERT INTO " + quote(table) + " (name, data, mtime) VALUES (?, ?, ?)"
+                    + " ON CONFLICT (name) DO UPDATE SET data = excluded.data, mtime = excluded.mtime");
+                storeSts.put(table, st);
+            }
+            st.setString(1, name);
+            st.setBytes(2, data);
+            st.setLong(3, System.currentTimeMillis());
+            st.executeUpdate();
         } catch(java.sql.SQLException e) {
             throw new IOException(file + ": " + name + ": " + why(e), e);
         }
     }
 
-    /** How many entries the file holds, or -1 once closed. */
+    /** How many entries the file holds over all its tables, or -1 once closed. */
     synchronized long count() {
+        java.util.Map<String, Long> counts = counts();
+        if(counts == null)
+            return -1;
+        long n = 0;
+        for(Long c : counts.values())
+            n += c;
+        return n;
+    }
+
+    /** The entry count of every table, by name and in name order, or {@code null} once closed. */
+    synchronized java.util.Map<String, Long> counts() {
         if(conn == null)
-            return -1;
+            return null;
+        java.util.Map<String, Long> ret = new java.util.TreeMap<>();
         try(java.sql.Statement st = conn.createStatement()) {
-            return one(st, "SELECT count(*) FROM entries");
+            for(String table : tables)
+                ret.put(table, one(st, "SELECT count(*) FROM " + quote(table)));
         } catch(java.sql.SQLException e) {
-            return -1;
+            return null;
         }
+        return ret;
     }
 
     /** The database's size in bytes as this connection sees it (pages × page size), or -1 once closed. */
@@ -353,8 +577,8 @@ public final class SqliteCache implements ResCache {
 
     /**
      * Drop every {@code res/} entry of the resource store that the pack holds at the same or a newer version.
-     * Runs are serialised on {@link #SWEEP}; the instance monitor is held for the read and for the deletes,
-     * never across the pack probes, so the loaders keep fetching meanwhile. Nothing to do without the store, or
+     * Runs are serialised on {@link #SWEEP}; the read runs on a reader and the deletes hold the instance
+     * monitor, never across the pack probes, so the loaders keep fetching meanwhile. Nothing to do without the store, or
      * in files mode. One stderr line per run; the counts are {@code :store}'s {@code sweep:} line.
      */
     static void sweep() {
@@ -432,18 +656,22 @@ public final class SqliteCache implements ResCache {
         }
     }
 
-    /** Every {@code res/} row's id, name and version bytes, copied out under the monitor. */
-    private synchronized java.util.List<Row> resRows() throws IOException {
+    /** Every {@code res/} row's id, name and version bytes, copied out on a reader: the writer keeps taking
+     *  the tee's puts meanwhile. */
+    private java.util.List<Row> resRows() throws IOException {
         java.util.List<Row> rows = new java.util.ArrayList<>();
-        if(conn == null)
-            return rows;
-        try(java.sql.Statement st = conn.createStatement();
+        Reader r = borrow();
+        boolean ok = false;
+        try(java.sql.Statement st = r.conn.createStatement();
             java.sql.ResultSet rs = st.executeQuery("SELECT id, name, substr(data, " + (SIG.length + 1)
                 + ", 2) FROM entries WHERE name LIKE 'res/%'")) {
             while(rs.next())
                 rows.add(new Row(rs.getLong(1), rs.getString(2), rs.getBytes(3)));
+            ok = true;
         } catch(java.sql.SQLException e) {
             throw new IOException(why(e), e);
+        } finally {
+            release(r, ok);
         }
         return rows;
     }
@@ -482,8 +710,9 @@ public final class SqliteCache implements ResCache {
 
     /**
      * The store in force, one line each: {@code store: sqlite|files}; in sqlite mode {@code map:} and
-     * {@code res:} with the path, entry count and size (or {@code not open: <why>}) and the sweep's state; in
-     * files mode {@code data:} with the folder and the {@code HashDirCache} identity.
+     * {@code res:} with the path, entry count and size (or {@code not open: <why>}), one {@code map-<genus>:}
+     * line per world table between them, and the sweep's state; in files mode {@code data:} with the folder and
+     * the {@code HashDirCache} identity.
      */
     static void report(PrintWriter out) {
         if(!sqlite()) {
@@ -499,6 +728,8 @@ public final class SqliteCache implements ResCache {
         }
         line(out, "store: sqlite");
         line(out, "map: " + line(map));
+        for(String world : worlds(map))
+            line(out, world);
         line(out, "res: " + line(res));
         line(out, "sweep: " + sweepLine());
         out.flush();
@@ -515,6 +746,19 @@ public final class SqliteCache implements ResCache {
      *  {@code GameUI.added} splits on LF alone, so the CR would reach every reader of the line. */
     private static void line(PrintWriter out, String text) {
         out.print(text + "\n");
+    }
+
+    /** One {@code map-<genus>: <n> entries} line per world table of the slot's file; none without the file. */
+    private static synchronized java.util.List<String> worlds(Slot slot) {
+        java.util.List<String> ret = new java.util.ArrayList<>();
+        java.util.Map<String, Long> counts = (slot.cache == null) ? null : slot.cache.counts();
+        if(counts != null) {
+            for(java.util.Map.Entry<String, Long> e : counts.entrySet()) {
+                if(!e.getKey().equals("entries"))
+                    ret.add(e.getKey() + ": " + e.getValue() + " entries");
+            }
+        }
+        return ret;
     }
 
     private static synchronized String line(Slot slot) {
