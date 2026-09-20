@@ -274,17 +274,28 @@ public class Resource implements Serializable {
 
     public static interface ResSource {
 	public InputStream get(String name) throws IOException;
+
+	/* addon: the version the ask names travels with it, so a source that can use it does
+	 * (HttpSource); every other source keeps answering by name alone. -1 is "any". */
+	public default InputStream get(String name, int ver) throws IOException {
+	    return(get(name));
+	}
     }
-    
+
     public static abstract class TeeSource implements ResSource, Serializable {
 	public ResSource back;
-	
+
 	public TeeSource(ResSource back) {
 	    this.back = back;
 	}
-	
+
 	public InputStream get(String name) throws IOException {
-	    StreamTee tee = new StreamTee(back.get(name));
+	    return(get(name, -1));
+	}
+
+	/* addon: the version rides through to the wrapped source */
+	public InputStream get(String name, int ver) throws IOException {
+	    StreamTee tee = new StreamTee(back.get(name, ver));
 	    tee.setncwe();
 	    tee.attach(fork(name));
 	    return(tee);
@@ -386,13 +397,17 @@ public class Resource implements Serializable {
     }
 
     public static class HttpSource implements ResSource, Serializable {
+	/* addon: a Brodgar resource proxy reads the version the ask names from this header and answers
+	 * from its own cache when it holds exactly that version, without asking the official server.
+	 * Any other server ignores it. */
+	public static final String VERSION_HEADER = "X-Brodgar-io-Res-Version";
 	public URI base;
 
 	public HttpSource(URI base) {
 	    this.base = base;
 	}
 
-	private URI encodeuri(URI raw) throws IOException {
+	protected URI encodeuri(URI raw) throws IOException {
 	    /* This is kinda crazy, but it is, actually, how the Java
 	     * documentation recommends that it be done... */
 	    try {
@@ -403,16 +418,42 @@ public class Resource implements Serializable {
 	}
 
 	public InputStream get(String name) throws IOException {
+	    return(get(name, -1));
+	}
+
+	public InputStream get(String name, int ver) throws IOException {
 	    return(Http.fetch(encodeuri(base.resolve(name + ".res")).toURL(), c -> {
 			/* Apparently, some versions of Java Web Start has
 			 * a bug in its internal cache where it refuses to
 			 * reload a URL even when it has changed. */
 			c.setUseCaches(false);
+			/* addon: the wanted version, when the ask names one */
+			if(ver >= 0)
+			    c.addRequestProperty(VERSION_HEADER, Integer.toString(ver));
 		    }));
 	}
 
 	public String toString() {
 	    return("HTTP res source (" + base + ")");
+	}
+    }
+
+    /* addon: the brodgar.io resource cache, a bucket behind a CDN with no logic of its own. Every
+     * version of a resource is an object named after it: <name>.res.v<ver> (immutable) and
+     * <name>.res (the latest the cache knows). A 404 is the cache saying "not yet", and the pool
+     * moves on to the next source, the proxy, which fetches it and fills the cache. */
+    public static class BrodgarCacheSource extends HttpSource {
+	public BrodgarCacheSource(URI base) {
+	    super(base);
+	}
+
+	public InputStream get(String name, int ver) throws IOException {
+	    String file = (ver >= 0) ? (name + ".res.v" + ver) : (name + ".res");
+	    return(Http.fetch(encodeuri(base.resolve(file)).toURL(), c -> c.setUseCaches(false)));
+	}
+
+	public String toString() {
+	    return("brodgar.io resource cache (" + base + ")");
 	}
     }
 
@@ -603,7 +644,7 @@ public class Resource implements Serializable {
 
 	private void handle(Queued res) {
 	    for(ResSource src : sources) {
-		try(InputStream in = src.get(res.name)) {
+		try(InputStream in = src.get(res.name, res.ver)) { // addon: the ask's version goes along
 		    Message msg = new StreamMessage(in);
 		    if(msg.eom()) {
 			/* XXX? This should not be necessary, but for some reason
@@ -928,8 +969,27 @@ public class Resource implements Serializable {
 	return(_remote);
     }
 
+    /* addon: a -U at the brodgar.io resource cache makes the network sources [cache, proxy]: the cache answers
+     * straight from the CDN, the proxy (BRODGAR_CACHE_FALLBACK) fills what the cache has not got yet. The
+     * local cache keeps the proxy's identity (see HashDirCache.create), so switching -U from the
+     * proxy to the cache re-downloads nothing. Any other -U is a plain HttpSource, as before. */
+    public static final String BRODGAR_CACHE_HOST = "res.brodgar.io";
+    public static final URI BRODGAR_CACHE_FALLBACK = Utils.uri("http://brodgar.io/res/");
+
+    public static boolean isbrodgarcache(URI uri) {
+	return((uri != null) && (uri.getHost() != null) && uri.getHost().equalsIgnoreCase(BRODGAR_CACHE_HOST));
+    }
+
     public static void addurl(URI uri) {
-	ResSource src = new HttpSource(uri);
+	if(isbrodgarcache(uri)) {
+	    addsrc(new BrodgarCacheSource(uri));
+	    addsrc(new HttpSource(BRODGAR_CACHE_FALLBACK));
+	} else {
+	    addsrc(new HttpSource(uri));
+	}
+    }
+
+    private static void addsrc(ResSource src) {
 	if(prscache != null) {
 	    class Caching extends TeeSource {
 		private final transient ResCache cache;

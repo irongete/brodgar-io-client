@@ -61,7 +61,9 @@ public class Http {
 
     public static URLConnection open(URL url) throws IOException {
 	URLConnection conn;
-	if(url.getProtocol().equals("https"))
+	/* addon: the built-in trust is the game's own certificate; the brodgar.io resource cache sits behind a
+	 * public CA, so it takes the platform's trust (and its hostname check) instead. */
+	if(url.getProtocol().equals("https") && !Resource.BRODGAR_CACHE_HOST.equalsIgnoreCase(url.getHost()))
 	    conn = ssl.connect(url);
 	else
 	    conn = url.openConnection();
