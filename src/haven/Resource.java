@@ -959,7 +959,7 @@ public class Resource implements Serializable {
 	if(_remote == null) {
 	    synchronized(Resource.class) {
 		if(_remote == null) {
-		    Pool remote = new Pool(local(), new JarSource("res-preload"));
+		    Pool remote = new Pool(local(), new JarSource("res-preload"), new JarSource("brodgar-res")); // addon: brodgar-res.jar, the brodgar.io resource pack, when it is on the classpath
 		    if(prscache != null)
 			remote.add(new CacheSource(prscache));
 		    _remote = remote;;
