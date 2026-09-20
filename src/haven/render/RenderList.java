@@ -68,6 +68,12 @@ public interface RenderList<R> {
 			    break;
 			} catch(Loading l) {
 			    try {
+				/* addon: (terrain loading) this thread -- the UI thread, attaching a draw list to a
+				 * tree already full of terrain -- blocks here on what it waits for, so what it waits
+				 * for (a texture's preparation, queued at 5 behind hundreds of cut builds) is urgent:
+				 * the worker Defer keeps for exactly this takes it next. Measured at login: 720-1167 ms
+				 * of black screen after the camera had its ground, all of it this wait. */
+				l.boostprio(Defer.URGENT);
 				l.waitfor();
 			    } catch(InterruptedException e) {
 				Thread.currentThread().interrupt();

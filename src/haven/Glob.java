@@ -35,6 +35,10 @@ public class Glob {
     public final OCache oc = new OCache(this);
     public final MCache map;
     public final Session sess;
+    /* addon: (terrain loading) the gob this session's map view is bolted to, or -1: set by MapView's
+     * constructor, read by Gob.getc, so the ground under the player is urgent whoever asks for it first --
+     * at login that is a Loader thread placing the player's own gob, well before the camera's first tick. */
+    public volatile long plgob = -1;
     public final Loader loader = new Loader();
     /* addon: (audit2 B06) VOLATILE. Both are written on the ctick and again from the message thread
      * (updgtime/blob), and io.brodgar reads them from every thread that enters an addon's Lua -- so a

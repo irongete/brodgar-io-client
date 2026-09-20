@@ -332,12 +332,14 @@ public abstract class PView extends Widget {
      * identity is the frame: the second draw composes what the first rendered and renders nothing. */
     private Render lastout = null;
 
-    public void draw(GOut g) {
-	if((g.out == lastout) && (back != null) && (fragsamp != null)) {   // addon: (157.1) drawn already this frame -- see lastout
-	    resolve(g);
-	    return;
-	}
-	lastout = g.out;   // addon: before the render, so a draw that throws Loading half-way is not repeated either
+    /* addon: (terrain loading) the environment setup, out of draw() so a view can run it on a frame it does
+     * not draw. envsetup() attaches the instancer to the tree, and attaching walks every slot the tree
+     * already holds, compiling each on this thread and blocking on each texture not yet prepared. Run on the
+     * first frame, the tree is empty and the walk free; run on the first DRAWN frame, as it was, it found the
+     * whole terrain and every object added while the screen was black, and paid for all of it at once:
+     * 720-1170 ms measured at login. Now the slots are compiled one at a time as they are added, during the
+     * black screen, on a thread that was drawing nothing else. */
+    protected void ensureenv(GOut g) {
 	if((back == null) || !g.out.env().compatible(back)) {
 	    if(env != null) {
 		envdispose();
@@ -346,6 +348,15 @@ public abstract class PView extends Widget {
 	    env = g.out.env();
 	    envsetup();
 	}
+    }
+
+    public void draw(GOut g) {
+	if((g.out == lastout) && (back != null) && (fragsamp != null)) {   // addon: (157.1) drawn already this frame -- see lastout
+	    resolve(g);
+	    return;
+	}
+	lastout = g.out;   // addon: before the render, so a draw that throws Loading half-way is not repeated either
+	ensureenv(g);
 	lights();
 	FColor cc = clearcolor();
 	if(cc != null)

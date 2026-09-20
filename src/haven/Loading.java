@@ -86,6 +86,10 @@ public class Loading extends RuntimeException implements Waitable {
     }
 
     public boolean boostprio(int prio) {
+	/* addon: (terrain loading) a Loading wrapping another forwards the boost, as waitfor() below already
+	 * forwards the wait: MapView.draw wraps the camera's Loading and boosted a wrapper that dropped it. */
+	if(rec != null)
+	    return(rec.boostprio(prio));
 	return(false);
     }
 

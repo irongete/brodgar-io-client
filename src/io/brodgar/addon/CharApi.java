@@ -163,7 +163,7 @@ final class CharApi {
      * <p>The state is the whole of the fix, and it is what the adapter was built with all along.
      */
     private abstract static class SessionAdapter implements TreeAdapter {
-        private final SessionState st;
+        final SessionState st;   // the adapters mark themselves dirty on it (EquipAdapter.placed)
 
         SessionAdapter(SessionState st) {
             this.st = st;
@@ -815,9 +815,15 @@ final class CharApi {
             Equipory eq = equipory(user);
             if((eq == null) || (it.parent != eq) || cache.containsKey(it))
                 return;
-            cache.put(it, LuaItem.equipKey(it));
-            resolveInfo(it);
-            fireEquip(user, LuaItem.held(eq));
+            // A worn item's key is read on the NEXT session step, by refresh() -- not here. This runs on the
+            // layer's step, BEFORE the session's own tick in the frame (UILoop.Frame.tick), and equipKey builds
+            // the item's info: at login that is the first build of the tooltip classes and the first rich-text
+            // render of the process, 200-300 ms of the UI thread measured, spent between the map's arrival and
+            // the camera tick that asks for the ground under the player. refresh() runs on the session step,
+            // after that tick, and finds "" -- which no key equals -- so the same EquipChanged fires, one step
+            // later, from the same payload.
+            cache.put(it, "");
+            st.treeDirty.add(this);
         }
 
         public void removed(Widget w) {

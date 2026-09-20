@@ -41,6 +41,27 @@ public class Defer extends ThreadGroup {
     //        can go quietly out of step with this line.
     static final int maxthreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
     private final AtomicInteger busy = new AtomicInteger(0);
+    /* addon: (terrain loading) ONE WORKER IS KEPT FOR URGENT WORK. A future boosted to URGENT or above is
+     * something a thread is blocked on -- the camera's own cut at login, a texture a draw list is waiting
+     * for -- and before this every worker could be taken by ordinary builds for a second at a time (the
+     * first cut meshes of a session run in the interpreter, 500-900 ms each, fifteen at once), so the one
+     * future that unblocks the screen queued behind them. A worker leaves the last free slot to urgent
+     * work: it takes ordinary work only while at least `reserve` slots would remain. `running` is the
+     * count of futures taken and not yet finished, kept under `queue` so the test and the take are one. */
+    public static final int URGENT = 10;
+    private static final int reserve = (maxthreads >= 4) ? 1 : 0;
+    private int running = 0, urgent = 0;
+    /* addon: (terrain loading) and while an urgent future is OUTSTANDING -- queued, running, or thrown
+     * back by a Loading and waiting to be asked for again -- ordinary work waits too, for at most
+     * URGENT_HOLD. The cut under the camera is the last of its neighbours to be ready to build, because it
+     * is the one that discovers its textures a stumble at a time, and by then fourteen ordinary builds had
+     * started around it and it built beside them: 203-250 ms of CPU for a build that costs 47 alone. The
+     * bound is for an urgent future that cannot finish -- a cut whose neighbour grid never comes -- so the
+     * rest of the world still loads. Counted on the future the moment it crosses URGENT (`counted`), and
+     * uncounted when it is done, whichever way. */
+    private int urgentout = 0;
+    private long urgentsince = 0;
+    static final long URGENT_HOLD = 1000;
     
     public interface Callable<T> {
 	public T call() throws InterruptedException;
@@ -122,6 +143,8 @@ public class Defer extends ThreadGroup {
 	private Throwable exc = null;
 	private Loading lastload = null;
 	private volatile Thread running = null;
+	private boolean takenurgent = false;   // addon: (terrain loading) how take() classed it, fixed there
+	private boolean counted = false;       // addon: (terrain loading) in `urgentout` -- see boostprio and chstate
 	
 	private Future(Callable<T> task) {
 	    this.task = task;
@@ -139,9 +162,20 @@ public class Defer extends ThreadGroup {
 	}
 
 	private void chstate(String nst) {
+	    boolean uncount = false;
 	    synchronized(this) {
 		this.state = nst;
 		wq.wnotify();
+		if((nst == "done") && counted) {   // addon: (terrain loading)
+		    counted = false;
+		    uncount = true;
+		}
+	    }
+	    if(uncount) {
+		synchronized(queue) {
+		    if(--urgentout == 0)
+			queue.notifyAll();   // the ordinary work that yielded to it
+		}
 	    }
 	}
 
@@ -222,11 +256,53 @@ public class Defer extends ThreadGroup {
 	}
 	
 	public void boostprio(int prio) {
+	    boolean count = false;
 	    synchronized(this) {
-		if(this.prio < prio)
+		if(this.prio < prio) {
 		    this.prio = prio;
+		    if((prio >= URGENT) && !counted && (state != "done")) {
+			counted = true;
+			count = true;
+		    }
+		}
+	    }
+	    /* addon: (terrain loading) a future that just became urgent is counted outstanding, and wakes the
+	     * reserved worker now rather than at its next one-second poll. Outside the future's monitor. */
+	    if(count) {
+		synchronized(queue) {
+		    if(urgentout++ == 0)
+			urgentsince = System.currentTimeMillis();
+		    queue.notifyAll();
+		}
 	    }
 	}
+    }
+
+    /* addon: (terrain loading) the next future for a worker, or null to keep waiting: the highest priority
+     * queued, unless it is ordinary work and taking it would leave fewer than `reserve` slots free. Called
+     * with `queue` held. */
+    private Future<?> take() {
+	Future<?> f = queue.peek();
+	if(f == null)
+	    return(null);
+	f.takenurgent = f.priority() >= URGENT;
+	if(!f.takenurgent) {
+	    if(running >= maxthreads - reserve)
+		return(null);
+	    /* addon: (terrain loading) and none at all while urgent work runs. Measured at login with the
+	     * code warm: the cut the screen waits for costs 47 ms of CPU built alone and 300-400 built
+	     * beside thirteen others on sixteen logical cores of eight -- the pool's own parallelism was
+	     * multiplying the one build that mattered. The others wait the ~100 ms it takes. */
+	    if(urgent > 0)
+		return(null);
+	    if((urgentout > 0) && (System.currentTimeMillis() - urgentsince < URGENT_HOLD))
+		return(null);
+	} else {
+	    urgent++;
+	}
+	queue.remove(f);   // identity: Future has no equals() of its own
+	running++;
+	return(f);
     }
 
     private static final AtomicInteger threadno = new AtomicInteger(0);
@@ -244,7 +320,7 @@ public class Defer extends ThreadGroup {
 		    try {
 			long start = System.currentTimeMillis();
 			synchronized(queue) {
-			    while((f = queue.poll()) == null) {
+			    while((f = take()) == null) {   // addon: (terrain loading) was queue.poll()
 				if(System.currentTimeMillis() - start > 5000)
 				    return;
 				queue.wait(1000);
@@ -253,7 +329,25 @@ public class Defer extends ThreadGroup {
 		    } catch(InterruptedException e) {
 			return;
 		    }
-		    f.run();
+		    /* addon: (terrain loading) urgent work runs at a normal thread priority and above: the pool
+		     * sits at below-normal (see the constructor), and fifteen interpreted builds on sixteen logical
+		     * cores gave the one build the screen waited for 1.35-2.5 wall-clock seconds per CPU second. */
+		    boolean urg = f.takenurgent;
+		    if(urg)
+			setPriority(Thread.NORM_PRIORITY + 1);
+		    try {
+			f.run();
+		    } finally {
+			if(urg)
+			    setPriority((Thread.NORM_PRIORITY + Thread.MIN_PRIORITY) / 2);
+			synchronized(queue) {
+			    running--;   // addon: (terrain loading)
+			    if(urg) {
+				urgent--;
+				queue.notifyAll();   // the ordinary work that waited on it
+			    }
+			}
+		    }
 		    f = null;
 		}
 	    } finally {

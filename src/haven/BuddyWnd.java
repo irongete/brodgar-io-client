@@ -33,6 +33,21 @@ import static haven.PType.*;
 
 public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
     private List<Buddy> buddies = new ArrayList<Buddy>();
+    /* addon: (login) the list is sorted when it is READ, not on every "add": the server sends the whole kin
+     * list at login as one "add" per kin, on the Loader thread under the UI's own monitor -- and a sort per
+     * message is N sorts of N with every tick of the client, and this fork's addon step, waiting on that
+     * monitor for the duration (200-230 ms measured at login, sampled inside TimSort). One sort, at the
+     * first read after the batch, costs the one that used to be last. */
+    private boolean unsorted = false;
+
+    private void sortifneeded() {
+	synchronized(buddies) {
+	    if(unsorted) {
+		Collections.sort(buddies, bcmp);
+		unsorted = false;
+	    }
+	}
+    }
     private Map<Integer, Buddy> idmap = new HashMap<Integer, Buddy>();
     private BuddyList bl;
     private TextEntry pname, charpass, opass;
@@ -201,6 +216,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
     }
     
     public Iterator<Buddy> iterator() {
+	sortifneeded();   // addon: (login)
 	synchronized(buddies) {
 	    return(new ArrayList<Buddy>(buddies).iterator());
 	}
@@ -411,7 +427,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	    super(sz, margin3);
 	}
 
-	public List<Buddy> allitems() {return(buddies);}
+	public List<Buddy> allitems() {sortifneeded(); return(buddies);}   // addon: (login)
 	public boolean searchmatch(Buddy b, String txt) {return(b.name.toLowerCase().indexOf(txt.toLowerCase()) >= 0);}
 
 	public Widget makeitem(Buddy b, int idx, Coord sz) {
@@ -600,7 +616,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	    synchronized(buddies) {
 		buddies.add(b);
 		idmap.put(b.id, b);
-		Collections.sort(buddies, bcmp);
+		unsorted = true;   // addon: (login) was a sort, here, per message -- see sortifneeded
 	    }
 	    serial++;
 	} else if(msg == "rm") {

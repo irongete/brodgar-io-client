@@ -416,11 +416,14 @@ public class MCache implements MapSource {
 	public abstract class Deferred<T> implements Disposable {
 	    private Defer.Future<T> def;
 	    private T val;
-	    private boolean inited = false;
+	    /* addon: (terrain loading) volatile: invalidate() clears it from the thread that fills a grid, and
+	     * get()'s unlocked fast path below must see that and come in for the rebuild. */
+	    private volatile boolean inited = false;
+	    private boolean disposed = false;
 
 	    public T get() {
 		T ret = this.val;
-		if((ret == null) || (this.def != null)) {
+		if((ret == null) || (this.def != null) || !inited) {
 		    synchronized(this) {
 			if(!inited) {
 			    rebuild();
@@ -463,8 +466,27 @@ public class MCache implements MapSource {
 		}
 	    }
 
+	    /* addon: (terrain loading) what a grid's arrival does to a cut, in place of rebuild(): the next
+	     * get() builds, and nothing builds a cut nobody asks for. rebuild() here scheduled a future for
+	     * every cut of every grid the server sent -- 288 at login for nine grids, before the view had
+	     * asked for its 25 -- and then the first get() scheduled each wanted cut AGAIN, inited being
+	     * false still, so every cut on screen was built twice and the one under the camera queued behind
+	     * the flood. What is already built stays on screen until the rebuild replaces it, as before. */
+	    public void invalidate() {
+		synchronized(this) {
+		    if(disposed)
+			return;
+		    if(this.def != null) {
+			this.def.cancel();
+			this.def = null;
+		    }
+		    inited = false;
+		}
+	    }
+
 	    public void dispose() {
 		synchronized(this) {
+		    disposed = true;   // addon: (terrain loading) and no invalidate() resurrects it
 		    inited = true;
 		    if(this.def != null) {
 			this.def.cancel();
@@ -521,8 +543,8 @@ public class MCache implements MapSource {
 	    }
 
 	    public void invalidate() {
-		mesh.rebuild();
-		fo.rebuild();
+		mesh.invalidate();   // addon: (terrain loading) was rebuild() -- see Deferred.invalidate
+		fo.invalidate();
 	    }
 
 	    public void dispose() {

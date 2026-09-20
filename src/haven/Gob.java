@@ -626,12 +626,21 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public Coord3f getc() {
-	Moving m = getattr(Moving.class);
-	Coord3f ret = (m != null) ? m.getc() : getrc();
-	DrawOffset df = getattr(DrawOffset.class);
-	if(df != null)
-	    ret = ret.add(df.off);
-	return(ret);
+	try {
+	    Moving m = getattr(Moving.class);
+	    Coord3f ret = (m != null) ? m.getc() : getrc();
+	    DrawOffset df = getattr(DrawOffset.class);
+	    if(df != null)
+		ret = ret.add(df.off);
+	    return(ret);
+	} catch(Loading l) {
+	    /* addon: (terrain loading) the player's own ground is what the whole screen waits for: the cut
+	     * mesh this Loading stands for goes to the front of the pool, and ordinary work yields to it
+	     * (Defer.URGENT). Any caller -- the Loader placing this gob at login, the camera later. */
+	    if(id == glob.plgob)
+		l.boostprio(Defer.URGENT);
+	    throw(l);
+	}
     }
 
     public Coord3f getrc() {

@@ -49,6 +49,7 @@ public class LoginScreen extends Widget {
     public LoginScreen(String confname) {
 	super(bg.sz());
 	this.confname = confname;
+	LoginWarmup.start();   // addon: (login) the idle seconds before a session pay its first-time costs
 	setfocustab(true);
 	add(new Img(bg), Coord.z);
 	optbtn = adda(new Button(UI.scale(100), "Options"), pos("cbl").add(10, -10), 0, 1);

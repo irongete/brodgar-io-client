@@ -780,6 +780,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.glob = glob;
 	this.cc = cc;
 	this.plgob = plgob;
+	glob.plgob = plgob;   // addon: (terrain loading) -- see Glob.plgob
 	basic.add(new Outlines(false));
 	this.gobs = new Gobs();
 	this.terrain = new Terrain();
@@ -1230,7 +1231,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    Pipe.Op cs = null;
 			    if(position)
 				cs = Location.xlate(new Coord3f((float)pc.x, -(float)pc.y, 0));
-			    cuts.put(cc, new Pair<>(cut, slot.add(draw, cs)));
+			    RenderTree.Slot added;
+			    try {
+				added = slot.add(draw, cs);
+			    } catch(Loading l) {
+				/* addon: (terrain loading) the add compiles the cut's draw slot, and what stops it is a
+				 * texture not yet prepared -- a small future queued behind every cut build. Urgent: the
+				 * worker Defer keeps for this takes it, and the retry next frame goes through. */
+				l.boostprio(Defer.URGENT);
+				throw(l);
+			    }
+			    cuts.put(cc, new Pair<>(cut, added));
 			    if(cur != null)
 				cur.b.remove();
 			    if(MapRaster.this.liveground())
@@ -2394,6 +2405,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	int sdwres = ui.gprefs.shadowres.val;
 	sdwres = (sdwres < 0) ? (2048 >> -sdwres) : (2048 << sdwres);
 	if(usesdw) {
+	    /* addon: (terrain loading) the list and the map are made BEFORE the camera is asked for its
+	     * ground, not after: attaching the shadow list walks every slot the tree holds, compiling a shadow
+	     * program for each, and done on the first tick with a camera that was the whole terrain at once.
+	     * Done on a black frame it is an empty walk, and the shadow slots compile one by one as the cuts
+	     * arrive. Only the map's placement below needs the camera. */
+	    if(smap == null) {
+		if(instancer == null)
+		    return;
+		slist = new ShadowMap.ShadowList(instancer);
+		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
+	    }
 	    Coord3f dir, cc;
 	    try {
 		dir = new Coord3f(-light.dir[0], -light.dir[1], -light.dir[2]);
@@ -2401,12 +2423,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    } catch(Loading l) {
 		return;
 	    }
-	    if(smap == null) {
-		if(instancer == null)
-		    return;
-		slist = new ShadowMap.ShadowList(instancer);
-		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
-	    } else if(smap.lbuf.w != sdwres) {
+	    if(smap.lbuf.w != sdwres) {
 		smap.dispose();
 		smap = new ShadowMap(new Coord(sdwres, sdwres), 750, 5000, 1);
 		smapcc = null;
@@ -3125,8 +3142,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if((olftimer != 0) && (olftimer < Utils.rtime()))
 	    unflashol();
 	try {
-	    if(camload != null)
+	    ensureenv(g);   // addon: (terrain loading) on the black frames too -- see PView.ensureenv
+	    if(camload != null) {
+		/* addon: (terrain loading) the lighting too: its first compile loads the light-grid classes
+		 * and generates their shaders, and a light state set AFTER the terrain's slots recompiles every
+		 * one of them -- 210-420 ms measured on the first drawn frame. Set here, on a frame that draws
+		 * nothing (the projection is identity until the camera has ground, and lights() recomputes
+		 * every frame anyway), the slots added meanwhile compile against it once. */
+		lights();
 		throw(new Loading(camload));
+	    }
 	    undelay(delayed, g);
 	    super.draw(g);
 	    undelay(delayed2, g);
@@ -3206,7 +3231,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    camoff.z = (float)((Math.random() - 0.5) * shake);
 	    camera.tick(dt);
 	} catch(Loading e) {
-	    e.boostprio(5);
+	    /* addon: (terrain loading) URGENT, not 5: nothing is drawn until the camera has its ground, so
+	     * the cut under it goes before the other forty-eight and gets the worker Defer keeps for it. */
+	    e.boostprio(Defer.URGENT);
 	    camload = e;
 	}
 	basic(Camera.class, camera);
