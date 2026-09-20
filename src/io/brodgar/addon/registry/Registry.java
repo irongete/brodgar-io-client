@@ -69,8 +69,8 @@ public final class Registry {
     static final int MAX_JSON = 8 * 1024 * 1024;
     /** The most a package may be, in bytes — above the hub's own ceiling on what it stores (10 MB by default). */
     public static final int MAX_PACKAGE = 16 * 1024 * 1024;
-    /** Who is asking: the client and its jar version, {@code dev} off a working tree. */
-    public static final String USER_AGENT = "brodgar-client/" + version();
+    /** Who is asking: the client and its jar version, {@code dev} off a working tree ({@link io.brodgar.Build}). */
+    public static final String USER_AGENT = "brodgar-client/" + io.brodgar.Build.version();
 
     private static volatile String base;             // resolved once, on first use (see base())
 
@@ -706,10 +706,5 @@ public final class Registry {
             worker.allowCoreThreadTimeOut(true);
         }
         return worker;
-    }
-
-    private static String version() {
-        Object v = Utils.useragent.get("jar.version");
-        return ((v == null) || v.toString().isEmpty()) ? "dev" : v.toString();
     }
 }
