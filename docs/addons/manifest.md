@@ -27,6 +27,8 @@ addons/
 savedata/
   client.sqlite      the client's own file: its settings, your addon's options and hotkeys among them,
                      and what it keeps about your addon
+  map.sqlite         the client's recorded map with its minimap icon settings, and
+  rescache.sqlite    its resource cache: both only when it runs with -Dhaven.store=sqlite
   myaddon/
     myaddon.sqlite   your addon's own file: everything it saves through hafen.store
 ```
@@ -35,7 +37,7 @@ savedata/
 |---|---|
 | The folder name is the id | The manifest repeats it. A mismatch is a load error. |
 | Files you ship | Read through [`hafen.asset`](api/asset/README.md), which resolves paths inside your folder and rejects everything outside. |
-| Saved data is filed by owner | `client.sqlite` holds everything the client keeps. Every Options setting. The [options](api/client/addon.md) and [hotkeys](api/client/keybindings.md) your addon declares. The permissions consented to. Whether your addon is enabled. What the client remembers about your addon for the user. |
+| Saved data is filed by owner | `client.sqlite` holds everything the client keeps. Every Options setting. The [options](api/client/addon.md) and [hotkeys](api/client/keybindings.md) your addon declares. The permissions consented to. Whether your addon is enabled. What the client remembers about your addon for the user. `map.sqlite` and `rescache.sqlite` are the client's too — the map it records and the resources it downloads, when it is started with `-Dhaven.store=sqlite`; otherwise both live under `%APPDATA%\Haven and Hearth\data`. Neither holds anything of yours. |
 | Your own file | The one under `savedata/` holds what your addon saves through [`hafen.store`](api/store/README.md). The client keeps nothing of its own in it. Both files survive a disable, a `:reload` and a restart. |
 
 ## The manifest

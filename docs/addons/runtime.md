@@ -93,6 +93,7 @@ Press `:` to open the client's command line.
 | `:addons enable <id>` | Enable an addon, applied on the next `:reload`. |
 | `:addons disable <id>` | Disable one, applied on the next `:reload`. |
 | `:lua <expression>` | Evaluate Lua against the live API and print the result. |
+| `:store` | Print where the client keeps its recorded map and its resource cache: the folder under `%APPDATA%`, or with `-Dhaven.store=sqlite` the two files under `savedata/` with their entry counts and sizes. |
 
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
@@ -104,7 +105,7 @@ Press `:` to open the client's command line.
 | `:lua` | Prints its result as JSON prefixed `lua=`, in the console and in full on the terminal. Your own console, not sandboxed: every protected verb answers, the fastest way to try a call and to break something. The instruction watchdog applies. |
 | `:reload` undoes anything typed there | The console owns what it puts up as an addon does: windows, gob labels, overlays, hotkeys, clips. A reload takes it back by the same teardown. |
 | `print` inside `:lua` | Answers in the System channel too, one line per `print`, tab-separated, where `lua=` and `:threads` land. The terminal keeps its copy whole. A line shows once finished, so an `io.write` with no newline waits. Before a HUD is up the terminal is the whole of it. In an addon, `print` goes to the terminal alone. [`hafen.log():write`](api/log.md) reaches the player. |
-| Reserved | `lua`, `addons` and `reload` cannot be taken over. Addons add commands with [`hafen.console`](api/console.md). |
+| Reserved | `lua`, `addons` and `reload` cannot be taken over, and neither can `store` or any other command the client itself owns. Addons add commands with [`hafen.console`](api/console.md). |
 | Saying a line | [`session:console():run(line)`](api/console.md#run-a-line-protected) runs any of these and any client command at the character you address, without the colon (`run("reload")`). `run("lo")` logs out the character it was said at. Needs `console.run`, the widest key, since `:lua` is among the commands it reaches. |
 
 ## What a reload keeps, and what it drops

@@ -94,7 +94,7 @@ receives what the pack lacks — dead weight once the pack is rebuilt. In sqlite
 - `build.xml` (the `run` target) — 1
 - `docs/client/{console,resource-loading}.md` — 1, 2, 3
 - `docs/client/{mapfile,services,README}.md`, `DOCUMENTATION.md` — 2
-- `docs/client/rescache.md` (159.2's) — 3
+- `docs/client/rescache.md` — 3
 - `docs/addons/{manifest,runtime}.md` — 1, 2, 3
 - `docs/addons/api/{console,chat}.md`, `docs/addons/api/resource/README.md` — 1, 3
 - `docs/addons/api/map/grids.md`, `docs/addons/api/{position,player}.md`, `docs/addons/guides/permissions.md` — 1

@@ -28,7 +28,7 @@
       no store warning in either.
       <!-- extra context: the headless pre-check of plan.md runs before the maintainer restarts -->
 
-- [ ] **159.2 — The on-disk store, mapped.** `docs/client/rescache.md` (≤ 150 lines): `ResCache` and
+- [x] **159.2 — The on-disk store, mapped.** `docs/client/rescache.md` (≤ 150 lines): `ResCache` and
       its two implementations; who writes which key family (`Resource` `res/<name>` through the tee,
       `MapFile` `map/<file>/…`, `GobIcon.Settings` `data/mm-icons-2/…`, `Client.setupres`'s dormant
       `tmp/allused`); `HashDirCache`'s mechanics — the identity hash, the `%016x.%d` slots, the header,

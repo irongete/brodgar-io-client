@@ -12,8 +12,8 @@
 - **Who makes one.** `GameUI.addchild` builds it on the `"mapview"` placement:
   `MapFile.load(mapstore, mapfilename())`, where `mapfilename()` is `genus` plus the `mapfile/<chrid>` pref
   **only when that pref exists** — by default it does not, and the `chrmap` console command is what sets it
-  — and `mapstore` is `ResCache.global` unless `MapFile.mapbase` names a directory. So two characters on one
-  server name the same directory unless one of them has been given a name of its own.
+  — and `mapstore` is `HashDirCache.get(MapFile.mapbase)` when `haven.mapbase` names a cache identity and the
+  store is the files one, else `ResCache.global` ([rescache.md](rescache.md)). So two characters on one server name the same database unless one of them has been given a name of its own.
 - **How many there are: one per `(store, filename)`.** `load` memoizes on that pair (`// addon:`) — the
   pair, because `mapbase` is the other half of the identity — so every `GameUI` naming it, and every
   re-placement, gets the **same instance**, and the one lock below is therefore one lock over that
