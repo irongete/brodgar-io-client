@@ -27,6 +27,8 @@
 package haven;
 
 import java.util.*;
+import java.util.jar.*;
+import java.net.*;
 
 /* addon: (login) WHAT THE FIRST SECONDS OF A SESSION PAY FOR THE FIRST TIME, PAID AT THE LOGIN SCREEN
  * INSTEAD, where the client sits idle for seconds before any grid arrives.
@@ -42,6 +44,14 @@ import java.util.*;
  * The text engine: the first rich-text layout of the process initialises Java2D's shaper (HarfBuzz through
  * the foreign-function API since JDK 23), 150-300 ms measured, and at login that render was an item
  * tooltip's, on the UI thread, between the map's arrival and the camera's first tick. One line here.
+ *
+ * The HUD's own art: a widget takes its pictures with Resource.loadtex in its constructor, which waits for
+ * the local pool to decode them -- and at login the Loader builds the server's widget flood holding
+ * synchronized(ui), so the frame waited on the monitor while MapWnd's sixteen toolbar images went through
+ * the pool's two threads (163-223 ms measured, and the same pool is the first hop of every remote load).
+ * Every gfx/hud resource of the local jar is queued here instead, at the background priority the client's
+ * own res-bgload list used, so anything a session asks for goes ahead of it and finds it decoded, or on its
+ * way. What that costs is the art the HUD holds anyway, in a cache of soft references.
  *
  * A failure is a warm-up that did not happen: nothing depends on it. */
 public class LoginWarmup {
@@ -62,6 +72,7 @@ public class LoginWarmup {
     private static void run() {
 	long t0 = System.currentTimeMillis();
 	try {
+	    preloadhud();
 	    RichText.render("warm-up", 100);
 	    MCache mc = new MCache(null);
 	    for(int i = 0; i < tilesets.length; i++)
@@ -93,6 +104,28 @@ public class LoginWarmup {
 	} catch(Throwable e) {
 	    /* One line, not silence: a warm-up that gives up is a login that pays what it was meant to spare. */
 	    System.err.println("Login warm-up gave up after " + (System.currentTimeMillis() - t0) + " ms: " + e);
+	}
+    }
+
+    /* Queue, never wait: the pool's threads decode in priority order, so the session's own requests
+     * overtake whatever of this is still queued. The jar is found through the picture the login screen is
+     * showing, since it carries no directory entries to ask for; a login screen drawn from somewhere else
+     * has no HUD jar to read, and this is then nothing. */
+    private static void preloadhud() throws java.io.IOException {
+	URL anchor = Resource.class.getResource("/res/gfx/loginscr.res");
+	if(anchor == null)
+	    return;
+	URLConnection conn = anchor.openConnection();
+	if(!(conn instanceof JarURLConnection))
+	    return;
+	conn.setUseCaches(false);   // a JarFile of our own to close, not the class loader's
+	Resource.Pool pool = Resource.local();
+	try(JarFile jar = ((JarURLConnection)conn).getJarFile()) {
+	    for(Enumeration<JarEntry> e = jar.entries(); e.hasMoreElements();) {
+		String nm = e.nextElement().getName();
+		if(nm.startsWith("res/gfx/hud/") && nm.endsWith(".res"))
+		    pool.load(nm.substring(4, nm.length() - 4), -1, -10);
+	    }
 	}
     }
 }
