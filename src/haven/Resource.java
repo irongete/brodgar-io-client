@@ -980,8 +980,14 @@ public class Resource implements Serializable {
 	return((uri != null) && (uri.getHost() != null) && uri.getHost().equalsIgnoreCase(BRODGAR_CACHE_HOST));
     }
 
+    /* addon: loader threads of the remote pool when the brodgar.io resource cache is the source. It answers in
+     * ~30 ms, so four in flight roughly double a session's download rate; four stays under Java's pool of
+     * five kept-alive connections per host. Any other source keeps the game's own two. */
+    public static final int BRODGAR_CACHE_LOADERS = 4;
+
     public static void addurl(URI uri) {
 	if(isbrodgarcache(uri)) {
+	    remote().nloaders = BRODGAR_CACHE_LOADERS;
 	    addsrc(new BrodgarCacheSource(uri));
 	    addsrc(new HttpSource(BRODGAR_CACHE_FALLBACK));
 	} else {
