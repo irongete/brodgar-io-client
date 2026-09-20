@@ -13,10 +13,10 @@
   master still holds that beta's code -- then confirmed before the build (-Yes skips the question).
 
   Refuses a dirty tree, a branch other than master (-Branch), a version not above GitHub's newest and a tag
-  that exists anywhere. Runs `ant -Dversion=<v> release`, tags v<v>, pushes the tag and then the branch,
-  and creates the release with the zip. CI (.github/workflows/publish.yml) runs this same script on every
-  push to master (-Beta) and from the Run workflow button (-Release), and skips a commit that carries a
-  tag already. Needs git, ant and gh (`gh auth login`).
+  that exists anywhere. Runs `ant -Dversion=<v> release`, tags v<v>, pushes the tag, creates the release
+  with the zip, and pushes the branch when origin lacks the commit. CI (.github/workflows/publish.yml) runs
+  this same script on every push to master (-Beta) and from the Run workflow button (-Release), and skips a
+  commit that carries a tag already. Needs git, ant and gh (`gh auth login`).
 
 .PARAMETER Beta
   The next beta, vN.X-beta.
@@ -213,9 +213,17 @@ if ($NoPublish) {
     exit 0
 }
 Run git @('push', 'origin', $tag)        # the tag first: CI skips a pushed commit that carries one
-Run git @('push', 'origin', $current)
 $create = @('release', 'create', $tag, $asset, '--repo', $repo, '--title', $title, '--notes-file', $notesFile)
 if ($Beta) { $create += '--prerelease' }
 if ($Draft) { $create += '--draft' }
-Run gh $create
+& gh @create
+if ($LASTEXITCODE -ne 0) {
+    # the tag is on origin and no release names it: every later count lands on this same tag and refuses
+    throw "gh release create failed ($LASTEXITCODE): $tag is pushed without a release -- delete it (git push origin :refs/tags/$tag; git tag -d $tag) and run again"
+}
 Write-Host "Published $title as $tag on the $channel channel."
+# the branch last, and only when origin lacks this commit: CI publishes a commit that origin holds already, and
+# pushing it there while a newer one has landed is rejected -- after the release, so a rejection strands no tag
+Run git @('fetch', 'origin', $current)
+git merge-base --is-ancestor HEAD "origin/$current"
+if ($LASTEXITCODE -ne 0) { Run git @('push', 'origin', $current) }
