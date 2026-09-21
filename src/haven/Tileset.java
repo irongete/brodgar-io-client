@@ -291,6 +291,10 @@ public class Tileset extends Resource.Layer {
 	public final Indir<Resource> res;
 	public final double p;
 
+	/* addon: 160.3 -- whether this flavor's resource carries ambient sound, decided once from the
+	 * resource's own layers; a piece that does is seeded at p whatever the Performance setting. */
+	private Boolean ambient = null;
+
 	public SpriteFlavor(Indir<Resource> res, double p) {
 	    this.res = res;
 	    this.p = p;
@@ -298,6 +302,17 @@ public class Tileset extends Resource.Layer {
 
 	public void flavor(Buffer buf, Terrain trn, Random seed) {
 	    Resource res = this.res.get();
+	    /* addon: 160.3 -- the flavor-objects density. The per-tile draw below reads this local: at
+	     * 100 it is the field and the draw sequence is upstream's bit for bit; lower, ornd is reseeded
+	     * per tile and the first draw decides, so the set is a strict subset of the full one -- the same
+	     * pieces at the same places, fewer of them. */
+	    double p = this.p;
+	    if(io.brodgar.perf.Performance.flavor < io.brodgar.perf.Performance.FLAVOR_MAX) {
+		if(ambient == null)
+		    ambient = io.brodgar.perf.Performance.ambient(res);
+		if(!ambient)
+		    p = p * io.brodgar.perf.Performance.flavor / 100.0;
+	    }
 	    DRandom trnd = new DRandom(new DRandom(seed).randl(res.name.hashCode(), trn.tile));
 	    Random ornd = new Random();
 	    Tileset set = trn.tileset(trn.tile);

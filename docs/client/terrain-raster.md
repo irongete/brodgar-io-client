@@ -66,6 +66,7 @@ already-built cut for free and charge the budget for the rest.
 
 ## See also
 
+- [ground detail](ground-detail.md) — what a cut's `getcut`/`getfo` answers: the two `Deferred` halves, how one is rebuilt and swapped, and the flavor pass
 - [the 3D world](world-3d.md) — the scene these rasters put their cuts into, and the ground overlays over them
 - [the camera](camera.md) — what a camera-centred `area` is centred on, and the frustum that is not a cap
 - [the map database](mapfile.md) — the recorded map a second cache is filled from

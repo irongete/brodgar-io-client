@@ -1,0 +1,10 @@
+{
+  "name": "160.3 — Performance: flavor objects",
+  "id": "160-performance.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 160.3: flavor(0) draws fewer slots on a meadow, flavor(100) draws them again, flavor(50) sits between, and the setting survives a reload.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

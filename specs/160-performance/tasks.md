@@ -178,7 +178,7 @@ client, anywhere.
       loses its seasonal tint. A scent trail keeps its smoke at `smoke(false)`.
       <!-- extra context: the "rts:" comment in Gob.ctick's overlay loop states the contract an overlay in no tree is not ticked; RUtils.multiadd/multirem; the resource names are served under exactly those spellings (checked with haven.Resource find-updates) -->
 
-- [ ] **160.3 — Flavor objects.** `flavor` acts, and the lazy rebuild of a cut's flavor
+- [x] **160.3 — Flavor objects.** `flavor` acts, and the lazy rebuild of a cut's flavor
       objects exists.
       *The pass.* `Performance.ambient(Resource res)`: `true` when `res.layer(ClipAmbiance.Desc.class)
       != null`, or `res.layer(Audio.clip, "amb") != null` (`Audio.Clip extends

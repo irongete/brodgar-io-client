@@ -199,6 +199,8 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `docs/client/prefs-and-options.md` — 1
 - `docs/client/published-code.md` — 2, 5
 - `docs/client/terrain-raster.md` — 3, 4
+- `docs/client/ground-detail.md` — 4 (written by 3: the flavor pass and the cut lifecycle; 4 adds the blend and transition rows)
+- `src/haven/Defer.java` — 3, 4 (`Future.run`: a `Loading` out of a cut build parks the future as `resched`, re-queued on the next `done()`)
 - `docs/client/gob-sprites.md` — 5
 - `doc/resource-code` — 5
 - `tools/docverbs.py` — 1

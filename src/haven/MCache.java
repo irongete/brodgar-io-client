@@ -514,6 +514,9 @@ public class MCache implements MapSource {
 	     * "already built" test, because makeol answers null for a cut the mask does not reach and that
 	     * null is a legal, cached answer. It is dropped wherever the pair it stamps is dropped. */
 	    public final Map<OverlayInfo, Integer> olstamp = new HashMap<>();
+	    /* addon: 160.3 -- the flavor-objects generation this cut's fo was last asked at. Compared in
+	     * getfo, volatile because the compare takes no lock of its own. */
+	    volatile int flavorstamp = io.brodgar.perf.Performance.flavorGeneration();
 
 	    public Cut(Coord cc) {
 		this.cc = cc;
@@ -680,7 +683,17 @@ public class MCache implements MapSource {
 	}
 
 	public RenderTree.Node getfo(Coord cc) {
-	    return(geticut(cc).fo.get());
+	    Cut cut = geticut(cc);
+	    /* addon: 160.3 -- a flavor-objects setting that moved since this cut's pieces were last asked
+	     * for invalidates them lazily: the get() below schedules one build and keeps answering the old
+	     * Flavobjs until it is done, MapRaster.Grid.tick swaps the scene slot when the answer changes,
+	     * and Deferred.get disposes the old one after the swap. Only cuts the scene asks for rebuild. */
+	    int gen = io.brodgar.perf.Performance.flavorGeneration();
+	    if(cut.flavorstamp != gen) {
+		cut.flavorstamp = gen;
+		cut.fo.invalidate();
+	    }
+	    return(cut.fo.get());
 	}
 
 	private Cut geticut(Coord cc) {

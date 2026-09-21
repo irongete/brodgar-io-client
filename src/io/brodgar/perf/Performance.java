@@ -3,8 +3,11 @@ package io.brodgar.perf;
 import java.util.ArrayList;
 import java.util.List;
 
+import haven.Audio;
+import haven.ClipAmbiance;
 import haven.Gob;
 import haven.OCache;
+import haven.RenderLink;
 import haven.Resource;
 import haven.UI;
 import haven.Utils;
@@ -17,9 +20,10 @@ import io.brodgar.session.Sessions;
  * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on the panel and a write from
  * {@code hafen.client():options():performance()} are the same act.
  *
- * <p>{@code flavorGeneration()} and {@code groundGeneration()} are bumped by their setters but consumed
- * by nobody until 160.3 and 160.4 compare a cut's stamp against them. {@code crops} and {@code forage}
- * likewise have no follower until 160.5 gives them {@code replant()}. Every setting is an exact no-op
+ * <p>{@code flavorGeneration()} is what {@link haven.MCache.Grid#getfo} compares a cut's stamp against
+ * (160.3); {@code groundGeneration()} is bumped by its setters but consumed by nobody until 160.4 does
+ * the same for the mesh. {@code crops} and {@code forage} likewise have no follower until 160.5 gives
+ * them {@code replant()}. Every setting is an exact no-op
  * at its default, which is what lets this feature ship its whole surface before a single frame draws
  * differently.
  */
@@ -146,6 +150,22 @@ public final class Performance {
      * on the resource), in which case it is not a plume this decides. */
     public static boolean withheldPlume(String ownerRes, String overlayRes) {
         return(!smoke && PLUME.equals(overlayRes) && !CLUE.equals(ownerRes));
+    }
+
+    /* 160.3: does this flavor object's resource carry ambient sound? A piece that does is seeded at the
+     * tileset's own probability whatever the flavor setting (a summer meadow at 0 keeps its crickets):
+     * a ClipAmbiance.Desc layer ("clamb"), an Audio.Clip layer with id "amb", or a render link whose
+     * target is an AmbientLink. Answered once per Tileset.SpriteFlavor and cached there. */
+    public static boolean ambient(Resource res) {
+        if(res.layer(ClipAmbiance.Desc.class) != null)
+            return(true);
+        if(res.layer(Audio.clip, "amb") != null)
+            return(true);
+        for(RenderLink.Res link : res.layers(RenderLink.Res.class)) {
+            if(link.l instanceof RenderLink.AmbientLink)
+                return(true);
+        }
+        return(false);
     }
 
     /* 160.2: re-decide every live plume against the setting just written -- symmetric with
