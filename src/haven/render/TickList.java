@@ -161,17 +161,21 @@ public class TickList implements RenderList<TickList.TickNode> {
 	} else {
 	    Collection<Render> subs = new ArrayList<>();
 	    ThreadLocal<Render> subv = new ThreadLocal<>();
-	    copy.parallelStream().forEach(ent -> {
-		    Render sub = subv.get();
-		    if(sub == null) {
-			sub = g.env().render();
-			synchronized(subs) {
-			    subs.add(sub);
+	    try {
+		copy.parallelStream().forEach(ent -> {
+			Render sub = subv.get();
+			if(sub == null) {
+			    sub = g.env().render();
+			    synchronized(subs) {
+				subs.add(sub);
+			    }
+			    subv.set(sub);
 			}
-			subv.set(sub);
-		    }
-		    task.accept(ent, sub);
-		});
+			task.accept(ent, sub);
+		    });
+	    } finally {
+		subv.remove();   /* perf: as OCache.gtick -- the caller's entry outlived the call */
+	    }
 	    for(Render sub : subs)
 		g.submit(sub);
 	}

@@ -142,19 +142,31 @@ public class OCache implements Iterable<Gob> {
 	} else {
 	    Collection<Render> subs = new ArrayList<>();
 	    ThreadLocal<Render> subv = new ThreadLocal<>();
-	    copy.parallelStream().forEach(ob -> {
-		    Render sub = subv.get();
-		    if(sub == null) {
-			sub = g.env().render();
-			synchronized(subs) {
-			    subs.add(sub);
+	    /* perf: the ThreadLocal lives for this call alone, so the caller's entry is removed on the way out
+	     * (the pool's workers are innocuous and erase their own maps after every task; only the caller's
+	     * survives). Left behind, the UI thread's ThreadLocalMap gained one dead entry per gtick -- two a
+	     * frame with TickList's -- each still holding its disposed sub-Render, and under ZGC nothing ever
+	     * cleared them: an hour AFK put 67k in a 2^18 table, packed into one 49k-slot run that began right
+	     * after the slot of MapFile.lock's own read-hold ThreadLocal, so every contended read-unlock of the
+	     * map file walked the run in expungeStaleEntry (hundreds of ms a frame), and the walk's own
+	     * Reference.get() kept the keys alive through every concurrent mark. 364 of 527 live MB hung off it. */
+	    try {
+		copy.parallelStream().forEach(ob -> {
+			Render sub = subv.get();
+			if(sub == null) {
+			    sub = g.env().render();
+			    synchronized(subs) {
+				subs.add(sub);
+			    }
+			    subv.set(sub);
 			}
-			subv.set(sub);
-		    }
-		    synchronized(ob) {
-			ob.gtick(sub);
-		    }
-		});
+			synchronized(ob) {
+			    ob.gtick(sub);
+			}
+		    });
+	    } finally {
+		subv.remove();
+	    }
 	    for(Render sub : subs)
 		g.submit(sub);
 	}
