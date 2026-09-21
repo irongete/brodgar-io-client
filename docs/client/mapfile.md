@@ -158,3 +158,15 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   cell — the freshness rule is unchanged, only the lifetime — and the set is cleared whole past 65,536
   cells, which is upstream's behaviour again. While a relaunched load runs, `get()` answers the previous
   value without `Loading` (`got`), for a `null` as for a grid: the caller re-asks, as the minimap does each frame.
+- **An `SMarker` whose icon no resource source has kills the UI thread at draw, and only an import can
+  record one.** `MiniMap.MarkerIcon.ckload` reads its `Loader` future with `Future.get`, which rethrows a
+  failed load as a plain `RuntimeException` (`NoSuchResourceException`), and every caller of `icon()`
+  catches `Loading` alone. The game never records such a marker; an export from another client does — that
+  client's own icons (`gfx/icons/…`) travel in its `.hmap`. The fork's `Importer.hasres` (`// addon:`)
+  leaves those markers out and tells the filter through `ImportFilter.skipmark` (`MapWnd.importmap` counts
+  them into one `ui.msg` line). The verdict is `NoSuchResourceException` alone — every source said "not
+  found" — asked **once per name per import**: the pool re-walks every source (two HTTP 404s a walk, two
+  walks a `Saved.get`) on each ask for a name it has already failed, and an export repeats one icon on
+  hundreds of markers. A resource that exists but fails to load now (`LoadFailedException`: a broken file,
+  no network — the HTTP sources throw a non-`FileNotFound` `IOException`, which sets `found`) is imported
+  like any other marker, so an offline import drops nothing.

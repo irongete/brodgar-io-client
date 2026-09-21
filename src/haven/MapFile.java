@@ -1886,6 +1886,9 @@ public class MapFile {
 	public boolean includegrid(ImportedGrid grid, boolean hasprev);
 	public boolean includemark(Marker mark, Marker prev);
 	public default void handleerror(RuntimeException exc, String ctx) {throw(exc);}
+	/* addon: told of a marker the importer left out because no resource source has its icon -- another
+	 * client's own icon, saved into the export. The importer warns once per name; the default adds nothing. */
+	public default void skipmark(SMarker mark) {}
 
 	public static ImportFilter all = new ImportFilter() {
 		public boolean includegrid(ImportedGrid grid, boolean hasprev) {return(true);}
@@ -2017,7 +2020,31 @@ public class MapFile {
 	    return(null);
 	}
 
-	void importmark(Message data) {
+	/* addon: whether any resource source has the marker's icon, asked once per name per import: the pool
+	 * re-walks every source (two HTTP 404s a walk, two walks a Saved.get) on each ask for a name it has
+	 * already failed, and an export repeats one icon on hundreds of markers. Only NoSuchResourceException
+	 * -- every source said "not found" -- is a no: a resource that exists but fails to load now (a broken
+	 * file, no network) is imported like any other marker, for MiniMap to ask again. */
+	final Map<String, Boolean> reshave = new HashMap<>();
+
+	boolean hasres(SMarker mark) throws InterruptedException {
+	    Boolean have = reshave.get(mark.res.name);
+	    if(have == null) {
+		try {
+		    Loading.waitforint(mark.res);
+		    have = true;
+		} catch(Resource.NoSuchResourceException e) {
+		    warn("marker icon %s exists in no resource source: its markers are not imported (first seen on \"%s\")", mark.res.name, mark.nm);
+		    have = false;
+		} catch(Resource.LoadFailedException e) {
+		    have = true;
+		}
+		reshave.put(mark.res.name, have);
+	    }
+	    return(have);
+	}
+
+	void importmark(Message data) throws InterruptedException {
 	    Marker mark = loadmarker(data);
 	    ImportedSegment seg = segs.get(mark.seg);
 	    if((seg == null) || (seg.noff == null))
@@ -2028,6 +2055,10 @@ public class MapFile {
 	    mark.tc = mark.tc.add(soff.mul(cmaps));
 	    mark.seg = seg.nseg;
 	    if(filter.includemark(mark, prevmark(mark))) {
+		if((mark instanceof SMarker) && !hasres((SMarker)mark)) {   // addon: see hasres
+		    filter.skipmark((SMarker)mark);
+		    return;
+		}
 		add(mark);
 	    }
 	}

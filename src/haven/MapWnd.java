@@ -1097,7 +1097,20 @@ public class MapWnd extends Window implements Console.Directory {
 			file.reimport(new Updater(new BufferedInputStream(Channels.newInputStream(fp))), MapFile.ImportFilter.readonly);
 			prog.prog("Importing map data");
 			fp.position(0);
-			file.reimport(new Updater(new BufferedInputStream(Channels.newInputStream(fp))), MapFile.ImportFilter.all);
+			/* addon: the markers left out because this client has no source for their icon (another
+			 * client's own), counted by icon name, so the player is told in one line what the import skipped */
+			Map<String, Integer> skipped = new TreeMap<>();
+			file.reimport(new Updater(new BufferedInputStream(Channels.newInputStream(fp))), new MapFile.ImportFilter() {
+				public boolean includegrid(MapFile.ImportedGrid grid, boolean hasprev) {return(MapFile.ImportFilter.all.includegrid(grid, hasprev));}
+				public boolean includemark(MapFile.Marker mark, MapFile.Marker prev) {return(MapFile.ImportFilter.all.includemark(mark, prev));}
+				public void skipmark(MapFile.SMarker mark) {skipped.merge(mark.res.name, 1, Integer::sum);}
+			    });
+			if(!skipped.isEmpty()) {
+			    int n = 0;
+			    for(int c : skipped.values())
+				n += c;
+			    ui.msg(String.format("Map imported without %d marker%s: no resource source has the icon%s %s", n, (n == 1) ? "" : "s", (skipped.size() == 1) ? "" : "s", String.join(", ", skipped.keySet())));
+			}
 		    }
 		} catch(InterruptedException e) {
 		} catch(Exception e) {
