@@ -1,0 +1,10 @@
+{
+  "name": "161.2 — Cliffs as standing walls",
+  "id": "161-flat-terrain.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 161.2: on a flat world every cliff keeps its shape and height standing on the plane, the flat world draws, and the relief returns.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

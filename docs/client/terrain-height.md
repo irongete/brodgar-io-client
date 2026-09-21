@@ -2,7 +2,8 @@
 
 > The height chain — from the `z` array a grid arrives with, through the one tile-corner read every
 > drawn height goes through, to the mesh, the surfaces the tilers hand out, the placers every object
-> stands on, the camera and the record. Which cuts are drawn at all is
+> stands on, the camera and the record — and the ridge model that turns a height step into a cliff, or
+> into a wall. Which cuts are drawn at all is
 > [terrain-raster.md](terrain-raster.md); what a cut's mesh is made of is
 > [ground-detail.md](ground-detail.md).
 
@@ -32,6 +33,40 @@ every drawn cut re-meshes lazily, and tells every session's `MCache` its heights
 (`MCache.heightschanged`), so a placer that caches on `MCache.chseq` re-reads the ground on its next
 tick.
 
+## The ridge model: where it lives
+
+| What | Where |
+|---|---|
+| A cliff tile | `TerrainTile.RidgeTile` (factory `trn-r`): a `TerrainTile` implementing `Ridges.RidgeTile`, whose `breakz()` is the tileset's `rthres` (default `20`), with `rcons`, a `Ridges.TexCons` over the tileset's `rmat` material and its `texh` |
+| The per-cut model | `Ridges`, one per `MapMesh` through `MapMesh.DataID Ridges.id` (`m.data(Ridges.id)`), a `ConsHooks`. Its constructor runs `breaks()` once over the cut and allocates `edges`, `edgec`, `gnd` and `ridge` |
+| Which edges are broken | `Ridges.breaks()`: for every tile corner of the cut plus one, the north edge (`eo(c, 0)`) and the west edge (`eo(c, 3)`) are broken when the height difference exceeds `breakz` (plus `EPSILON`) of **both** tiles beside the edge — `bz` is `+∞` for a tile that is no `RidgeTile` — so a broken edge always lies between two ridge tiles and both call `model`. `breaks(Coord tc)` answers a tile's four edges in the order N, E, S, W |
+| Which two edges a tile owns | `eo(tc, e)` indexes a cut-wide edge array: `eo(tc, 1)` is `eo(tc + (1, 0), 3)` and `eo(tc, 2)` is `eo(tc + (0, 1), 0)`, so a tile's east and south edges are its neighbours' west and north, and an edge on the cut's east or south border belongs to the next cut's tile `(0, y)` or `(x, 0)`. `makeedge` folds `e == 1` and `e == 2` onto the neighbour the same way |
+| The five shapes | `Ridges.model(Coord tc)`: no broken edge answers `false`; one (`isend`) is `modelcap`; two opposite is `modelstraight`; two adjacent (`isdiag`) is `modeldiag1`; all four with one diagonal under the threshold (`isdiag2`) is `modeldiag2`; anything else is `modelcomplex`, whose `ArrayIndexOutOfBoundsException`/`NegativeArraySizeException` is caught and issued as the `ridge crash` `Warning`. Each stores the split ground in `gnd[ts.o(tc)]` and the cliff faces in `ridge[ts.o(tc)]` and answers `true` |
+| The columns | `makeedge(tc, e)` builds one column of `Vertex` up a broken edge, `segh` (`8`) units per segment, jittered by the cut's `grnd` and bent by `cfac` toward the low side (`edgelc(tc, e)`: whether corner `e` is lower than corner `e + 1`); `ensureedge` caches it in `edges[eo]` and its two column ends as **copies** in `edgec[eo]` |
+| The cliff faces | `connect(tc, l, r)`: two columns bottom-to-top become one `RPart`, faces added to the `MapSurface` through `mkfaces`; it fills `rcx` (0 for `l`, 1 for `r`), `rcy` (0..1 up the column), `rn`, `rh` (the column heights), `ledge` and `uedge`. `RPart(RPart...)` merges parts through `mapvertices`/`mapridges`; `MPart(MPart...)` needs at least one part |
+| What the faces wear | `Ridges.TexCons.faces(MapMesh, MPart)`: the tile's `rmat` material, texture coordinates `(rcx, rcy × tiles)` with the tiles counted from `rh` over `texh`, tangent and bitangent for the bump map. `testcons` colours by `rcx`/`rcy` instead |
+| Laying | `RidgeTile.model` calls `super.model` when `Ridges.model` answers `false` (plain ground). `RidgeTile.lay(m, lc, gc, cons, cover)` lays `gnd` through `laygnd` or falls back to `super.lay`, and lays the ridge under a cover's `cons` only when `laygnd` answered; `RidgeTile.lay(m, rnd, lc, gc)` calls `super.lay` then `layridge(lc, rcons)` unconditionally — `layridge` answers `false` on a `null` entry |
+| After the build | `Ridges.clean()` (from `ConsHooks`) keeps only `edgeo`, the column ends' jitter per edge, and drops `edges`/`edgec`; `edgeoff(MCache, tc, edge, hi)` reads it for served code; `getrdesc(tc)` answers a tile's `RPart` or `null` |
+| The minimap's cliff lines | `Ridges.brokenp(MapSource, Coord)`: a tile with any edge over the smallest `breakz` around it, read off the `MapSource` it is handed — the record, for the minimap |
+| The cliff's lip | A served flavor, `gfx/tiles/flavor/ridge-edge` (`RidgeEdge`, referenced by the `ridges/edge-*` resources a tileset lists): in the cut's flavor pass it takes each tile's `RPart` through `Ridges.getrdesc` off `MCache.Grid.getcut`, follows its `uedge` rows and builds a tube along them, offset by `trn.map.getfz(area.ul)` — the drawn read — under a `GridObj` placed by `mapplace`. It is a flavor object, so it lives in `Cut.fo`, not in the mesh |
+
+**Fork.** `hz(Coord)` is `m.map.getrealfz` and is every height `breaks`, `edgelc`, `makeedge`, `tczs`
+and `isdiag2` read, so cliffs are found where the streamed heights put them whatever the ground draws;
+with the switch off it equals `getfz`. `Ridges.flat` reads the switch once per build. Flat, the cliff
+keeps upstream's shape and height and stands on the plane: `makeedge` puts a column's base at `0`
+instead of its low corner (the column's jitter, bend and segments are upstream's, its height the real
+drop), `tczs` answers the complex tile's corners relative to their lowest so its centre column stands
+on the plane too, the five shapes skip their split ground part (`gnd` stays `null`, `model` answers
+`false`, so `RidgeTile.model` lays plain ground and `laygnd` falls through), and every ridge part goes
+through `wall(tc, l, r)`: upstream's `connect` part plus, flat, the same two columns handed the other
+way round from `back(column)` copies — one back copy per column, kept in `backs` and dropped by
+`clean` — because the scene culls back faces and the plane has no low side for the wall to face.
+`layridge` draws it in the tileset's cliff texture, tiled by the real drop. The back part's `ledge`
+and `uedge` are emptied, so the lip is drawn once. The switch bumps the flavor stamp as well as the
+ground stamp, and `Cut.fo`'s build calls `Deferred.current()` on the cut's mesh first — `get()`, but
+throwing the pending rebuild's `NotDoneException` while one is in flight, so the flavor pass
+reschedules behind the mesh it reads instead of reading the one about to be replaced.
+
 ## Gotchas
 
 - **`MCache.getfz` is on the `Loading` path, so the flattened read reaches the grid first.** The comment
@@ -55,6 +90,24 @@ tick.
   keep their `z` until `chseq` moves, the position moves or the angle moves, and only `mapdata2` — a
   grid's arrival — bumps `chseq`. A height that moves without a grid arriving is invisible to a
   stationary building until `MCache.heightschanged` is called.
+- **A wall's back face is built from copies, never the front column's own vertices.** `MapSurface`
+  averages a vertex's normal over the faces it is in; one vertex in both faces of a wall would average
+  to nothing. `ensureedge` copies its column ends into `edgec` for the same reason. Positions coincide,
+  so there is no crack.
+- **The lip is built from the mesh the flavor pass finds, and `Deferred.get` hands out the old one
+  while a rebuild is pending.** `Cut.invalidate` at a grid's arrival and the lazy stamps in `getcut`/
+  `getfo` both queue the two builds together; at load the flavor's `getcut` blocks on the first mesh,
+  but on a re-mesh it reads the old `RPart` and the lip floats where the old ridge top was, one offset
+  per cut. `Deferred.current()` in `fo.build` is what orders them; anything else that reads a cut's
+  mesh from a deferred build wants the same call.
+- **A complex tile's wall is per column, not per tile.** An edge column is shared by the two tiles
+  beside it and stands at `0` from its own low corner; the centre column stands at `0` from the tile's
+  lowest corner. Where an edge's low corner is above the tile's lowest, the wall between them slants
+  by the difference. Every other shape connects edge columns only and is exact.
+- **A wall on a cut border is the owning cut's, from heights that may sit in the next grid.** `breaks`
+  reads one corner past the cut on every side, so a border edge's wall is built by the cut whose tile
+  owns it from `getrealfz` reads that may miss and throw `Loading` — the same `Loading` the ridge
+  model always risked, caught by the cut's `Deferred` and retried.
 - **`MCache` implements `MapSource`.** A helper written over `MapSource` and handed the cache reads the
   drawn height; handed `MCache.Grid` or `MapFile.View`, the streamed one. Say which one a caller holds.
 

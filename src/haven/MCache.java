@@ -454,6 +454,18 @@ public class MCache implements MapSource {
 		return(this.val);
 	    }
 
+	    /* addon: 161.2 -- get(), but never the value a pending rebuild is about to replace: while
+	     * one is in flight it throws the build's own NotDoneException, so a Defer task calling this
+	     * reschedules behind it. The flavor build reads the cut's mesh (a served flavor reads its
+	     * ridge parts), and a stale mesh read there is a lip floating over the rebuilt ridge. */
+	    public T current() {
+		synchronized(this) {
+		    if((this.def != null) && !this.def.done())
+			this.def.get();
+		}
+		return(get());
+	    }
+
 	    public void rebuild() {
 		synchronized(this) {
 		    Defer.Future<T> prev = this.def;
@@ -541,6 +553,7 @@ public class MCache implements MapSource {
 		    };
 		this.fo = new Deferred<Flavobjs>() {
 			public Flavobjs build() {
+			    mesh.current(); // addon: 161.2 -- the pieces are built over the mesh they will stand with
 			    return(makeflavor(cc));
 			}
 			public String message() {

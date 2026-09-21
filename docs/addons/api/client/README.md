@@ -72,7 +72,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | `forage()` / `forage(percent)` | `number` | read Unprotected / write `client.settings` | The same for forageables that grow as a clump. Whole `1`..`100`, default `100`. |
 | `groundBlend()` / `groundBlend(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the ground blends its texture variants by noise. Default `true`. |
 | `transitions()` / `transitions(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the skirts between two tile types are drawn. Default `true`. |
-| `flatTerrain()` / `flatTerrain(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the terrain flat: every tile corner at one height, objects standing on that plane, cliffs as walls one tile high, water keeping its depth. Default `false`. |
+| `flatTerrain()` / `flatTerrain(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the terrain flat: every tile corner at one height, objects standing on that plane, cliffs standing on that plane at their real height, water keeping its depth. Default `false`. |
 | `treeEffects()` / `treeEffects(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether trees and bushes sway in the wind. Default `true`. |
 | `smoke()` / `smoke(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether smoke plumes are drawn: kilns, furnaces, ovens, chimneys, fires. Default `true`. |
 | `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | Cloud shadows moving over the ground. Default `true`. |

@@ -49,6 +49,19 @@ public class Ridges implements MapMesh.ConsHooks {
     private Vertex[][] edges, edgec;
     private float[] edgeo;
     private final MPart[] gnd, ridge;
+    /* addon: 161.2 -- flat terrain, read once per build so one cut is modelled one way. Flat, a
+     * cliff keeps its shape and its height: every column makeedge builds stands on the plane instead
+     * of at its low corner, the tile is laid as plain ground (no split ground part), and every ridge
+     * part gets a back face from copies of its columns, since the scene culls back faces and the
+     * plane has no low side to face. */
+    private final boolean flat;
+    private Map<Vertex[], Vertex[]> backs;
+
+    /* addon: 161.2 -- cliffs are detected from the STREAMED height, whatever the ground draws. With
+     * the switch off getrealfz equals getfz. brokenp reads its MapSource (the record) and is untouched. */
+    private double hz(Coord gc) {
+	return(m.map.getrealfz(gc));
+    }
 
     public interface RidgeTile {
 	public double breakz();
@@ -177,11 +190,11 @@ public class Ridges implements MapMesh.ConsHooks {
 	for(c.y = 0; c.y <= m.sz.y; c.y++) {
 	    for(c.x = 0; c.x <= m.sz.x; c.x++) {
 		Coord tc = m.ul.add(c);
-		double ul = m.map.getfz(tc);
-		double xd = Math.abs(ul - m.map.getfz(tc.add(1, 0)));
+		double ul = hz(tc);
+		double xd = Math.abs(ul - hz(tc.add(1, 0)));
 		if((xd > bz[ts.o(c.x, c.y)]) && (xd > bz[ts.o(c.x, c.y - 1)]))
 		    breaks[eo(c, 0)] = true;
-		double yd = Math.abs(ul - m.map.getfz(tc.add(0, 1)));
+		double yd = Math.abs(ul - hz(tc.add(0, 1)));
 		if((yd > bz[ts.o(c.x, c.y)]) && (yd > bz[ts.o(c.x - 1, c.y)]))
 		    breaks[eo(c, 3)] = true;
 	    }
@@ -200,7 +213,7 @@ public class Ridges implements MapMesh.ConsHooks {
     private static final Coord[] tccs = {new Coord(0, 0), new Coord(1, 0), new Coord(1, 1), new Coord(0, 1)};
     private boolean edgelc(Coord tc, int e) {
 	Coord gc = tc.add(m.ul);
-	return(m.map.getfz(gc.add(tccs[e])) < m.map.getfz(gc.add(tccs[(e + 1) % 4])));
+	return(hz(gc.add(tccs[e])) < hz(gc.add(tccs[(e + 1) % 4])));
     }
 
     private Vertex[] makeedge(Coord tc, int e) {
@@ -211,12 +224,12 @@ public class Ridges implements MapMesh.ConsHooks {
 	float eds = edgelc(tc, e)?1:-1;
 	float lo, hi; {
 	    Coord gc = tc.add(m.ul);
-	    float z1 = (float)m.map.getfz(gc.add(tccs[e])), z2 = (float)m.map.getfz(gc.add(tccs[(e + 1) % 4]));
+	    float z1 = (float)hz(gc.add(tccs[e])), z2 = (float)hz(gc.add(tccs[(e + 1) % 4]));
 	    lo = Math.min(z1, z2); hi = Math.max(z1, z2);
 	}
 	int nseg = Math.max((int)Math.round((hi - lo) / segh), 2) - 1;
 	Vertex[] ret = new Vertex[nseg + 1];
-	Coord3f base = new Coord3f(tc.add(tccs[e]).add(tc.add(tccs[(e + 1) % 4])).mul(tilesz).mul(1, -1)).div(2); base.z = lo;
+	Coord3f base = new Coord3f(tc.add(tccs[e]).add(tc.add(tccs[(e + 1) % 4])).mul(tilesz).mul(1, -1)).div(2); base.z = flat ? 0 : lo; /* addon: 161.2 -- flat: the column stands on the plane */
 	float segi = (hi - lo) / nseg;
 	Random rnd = m.grnd(m.ul.add(tc));
 	rnd.setSeed(rnd.nextInt() + e);
@@ -250,6 +263,8 @@ public class Ridges implements MapMesh.ConsHooks {
     public Ridges(MapMesh m) {
 	this.m = m;
 	this.ms = m.data(MapMesh.gnd);
+	this.flat = io.brodgar.perf.Performance.flatTerrain; // addon: 161.2
+	this.backs = flat ? new IdentityHashMap<Vertex[], Vertex[]>() : null;
 	this.breaks = breaks();
 	this.edges = new Vertex[(m.sz.x + 1) * (m.sz.y + 1) * 2][];
 	this.edgec = new Vertex[(m.sz.x + 1) * (m.sz.y + 1) * 2][];
@@ -269,7 +284,12 @@ public class Ridges implements MapMesh.ConsHooks {
     private float[] tczs(Coord tc) {
 	float[] ret = new float[4];
 	for(int i = 0; i < 4; i++)
-	    ret[i] = (float)m.map.getfz(tc.add(m.ul).add(tccs[i]));
+	    ret[i] = (float)hz(tc.add(m.ul).add(tccs[i]));
+	if(flat) { /* addon: 161.2 -- the complex tile's centre column stands on the plane too */
+	    float min = Math.min(Math.min(ret[0], ret[1]), Math.min(ret[2], ret[3]));
+	    for(int i = 0; i < 4; i++)
+		ret[i] -= min;
+	}
 	return(ret);
     }
 
@@ -293,9 +313,9 @@ public class Ridges implements MapMesh.ConsHooks {
 	if(b[0] && b[1] && b[2] && b[3]) {
 	    Coord gc = tc.add(m.ul);
 	    double bz = ((RidgeTile)m.map.tiler(m.map.gettile(gc))).breakz() + EPSILON;
-	    if(Math.abs(m.map.getfz(gc) - m.map.getfz(gc.add(1, 1))) <= bz)
+	    if(Math.abs(hz(gc) - hz(gc.add(1, 1))) <= bz)
 		return(0);
-	    if(Math.abs(m.map.getfz(gc.add(0, 1)) - m.map.getfz(gc.add(1, 0))) <= bz)
+	    if(Math.abs(hz(gc.add(0, 1)) - hz(gc.add(1, 0))) <= bz)
 		return(1);
 	}
 	return(-1);
@@ -347,11 +367,41 @@ public class Ridges implements MapMesh.ConsHooks {
 	return(new RPart(tc, tc.add(this.m.ul), va, tcx, tcy, fa, rcx, rcy, rn, rhs, ledge, uedge));
     }
 
+    /* addon: 161.2 -- flat: the back copy of a column, one per column so a column two tiles share
+     * (an edge's) gives the back face smooth normals across the tile border too. Copies, never the
+     * front column's own vertices: MapSurface averages a vertex's normal over its faces, and one
+     * vertex in both faces of a wall would average to nothing. */
+    private Vertex[] back(Vertex[] col) {
+	Vertex[] ret = backs.get(col);
+	if(ret == null) {
+	    ret = new Vertex[col.length];
+	    for(int i = 0; i < col.length; i++)
+		ret[i] = ms.new Vertex(col[i]);
+	    backs.put(col, ret);
+	}
+	return(ret);
+    }
+
+    /* addon: 161.2 -- every ridge part goes through here: upstream's part, plus, flat, the same two
+     * columns handed the other way round so the wall is seen from both sides. */
+    private RPart wall(Coord tc, Vertex[] l, Vertex[] r) {
+	RPart front = connect(tc, l, r);
+	if(!flat)
+	    return(front);
+	RPart rear = connect(tc, back(r), back(l));
+	/* The lip a served flavor draws along uedge (gfx/tiles/flavor/ridge-edge) is the front's; a second
+	 * row at the same place would be drawn twice. */
+	rear.ledge = new int[0][];
+	rear.uedge = new int[0][];
+	return(new RPart(front, rear));
+    }
+
     private void modelcap(Coord tc, int dir) {
 	ensureedge(tc, dir);
 	Coord3f close = ms.fortile(tc.add(tccs[(dir + 2) % 4]))
 	    .add(ms.fortile(tc.add(tccs[(dir + 3) % 4])))
 	    .div(2);
+	if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 	Vertex[] gv = {
 	    ms.fortile(tc.add(tccs[dir])),
 	    ms.fortile(tc.add(tccs[(dir + 3) % 4])),
@@ -371,17 +421,19 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	mkfaces(gv, srfi);
 	gnd[ms.ts.o(tc)] = new MPart(tc, tc.add(m.ul), gv, tcx, tcy, srfi);
+	}
 
 	Vertex[] cls = new Vertex[] {ms.new Vertex(close)};
 	if(edgelc(tc, dir))
-	    ridge[ms.ts.o(tc)] = connect(tc, edges[eo(tc, dir)], cls);
+	    ridge[ms.ts.o(tc)] = wall(tc, edges[eo(tc, dir)], cls);
 	else
-	    ridge[ms.ts.o(tc)] = connect(tc, cls, edges[eo(tc, dir)]);
+	    ridge[ms.ts.o(tc)] = wall(tc, cls, edges[eo(tc, dir)]);
     }
 
     private static final int[] srfi = {0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7};
     private void modelstraight(Coord tc, int dir) {
 	ensureedge(tc, dir); ensureedge(tc, dir + 2);
+	if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 	Vertex[] gv = {
 	    ms.fortile(tc.add(tccs[dir])),
 	    ms.fortile(tc.add(tccs[(dir + 3) % 4])),
@@ -401,16 +453,18 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	mkfaces(gv, srfi);
 	gnd[ms.ts.o(tc)] = new MPart(tc, tc.add(m.ul), gv, tcx, tcy, srfi);
+	}
 
 	if(edgelc(tc, dir))
-	    ridge[ms.ts.o(tc)] = connect(tc, edges[eo(tc, dir)], edges[eo(tc, dir + 2)]);
+	    ridge[ms.ts.o(tc)] = wall(tc, edges[eo(tc, dir)], edges[eo(tc, dir + 2)]);
 	else
-	    ridge[ms.ts.o(tc)] = connect(tc, edges[eo(tc, dir + 2)], edges[eo(tc, dir)]);
+	    ridge[ms.ts.o(tc)] = wall(tc, edges[eo(tc, dir + 2)], edges[eo(tc, dir)]);
     }
 
     private static final int[] d1rfi = {0, 1, 2, 3, 4, 7, 7, 4, 6, 6, 4, 5};
     private void modeldiag1(Coord tc, int dir) {
 	ensureedge(tc, dir); ensureedge(tc, (dir + 1) % 4);
+	if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 	Vertex[] gv = {
 	    ms.fortile(tc.add(tccs[(dir + 1) % 4])),
 	    edgec[eo(tc, dir)][edgelc(tc, dir)?1:0],
@@ -430,16 +484,18 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	mkfaces(gv, d1rfi);
 	gnd[ms.ts.o(tc)] = new MPart(tc, tc.add(m.ul), gv, tcx, tcy, d1rfi);
+	}
 
 	if(edgelc(tc, dir))
-	    ridge[ms.ts.o(tc)] = connect(tc, edges[eo(tc, dir)], edges[eo(tc, (dir + 1) % 4)]);
+	    ridge[ms.ts.o(tc)] = wall(tc, edges[eo(tc, dir)], edges[eo(tc, (dir + 1) % 4)]);
 	else
-	    ridge[ms.ts.o(tc)] = connect(tc, edges[eo(tc, (dir + 1) % 4)], edges[eo(tc, dir)]);
+	    ridge[ms.ts.o(tc)] = wall(tc, edges[eo(tc, (dir + 1) % 4)], edges[eo(tc, dir)]);
     }
 
     private static final int[] d2rfi = {0, 1, 2, 3, 4, 5, 6, 7, 11, 7, 8, 11, 11, 8, 10, 8, 9, 10};
     private void modeldiag2(Coord tc, int dir) {
 	for(int i = 0; i < 4; i++) ensureedge(tc, i);
+	if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 	Vertex[] gv = {
 	    ms.fortile(tc.add(tccs[dir + 1])),
 	    edgec[eo(tc, dir)][edgelc(tc, dir)?1:0],
@@ -464,16 +520,17 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	mkfaces(gv, d2rfi);
 	gnd[ms.ts.o(tc)] = new MPart(tc, tc.add(m.ul), gv, tcx, tcy, d2rfi);
+	}
 
 	RPart r1, r2;
 	if(edgelc(tc, dir))
-	    r1 = connect(tc, edges[eo(tc, dir)], edges[eo(tc, dir + 1)]);
+	    r1 = wall(tc, edges[eo(tc, dir)], edges[eo(tc, dir + 1)]);
 	else
-	    r1 = connect(tc, edges[eo(tc, dir + 1)], edges[eo(tc, dir)]);
+	    r1 = wall(tc, edges[eo(tc, dir + 1)], edges[eo(tc, dir)]);
 	if(edgelc(tc, dir + 2))
-	    r2 = connect(tc, edges[eo(tc, dir + 2)], edges[eo(tc, (dir + 3) % 4)]);
+	    r2 = wall(tc, edges[eo(tc, dir + 2)], edges[eo(tc, (dir + 3) % 4)]);
 	else
-	    r2 = connect(tc, edges[eo(tc, (dir + 3) % 4)], edges[eo(tc, dir + 2)]);
+	    r2 = wall(tc, edges[eo(tc, (dir + 3) % 4)], edges[eo(tc, dir + 2)]);
 	ridge[ms.ts.o(tc)] = new RPart(r1, r2);
     }
 
@@ -567,6 +624,7 @@ public class Ridges implements MapMesh.ConsHooks {
 	    if(breaks[d]) {
 		ensureedge(tc, (d + 3) % 4);
 		ensureedge(tc, d);
+		if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 		Vertex[] gv = {
 		    ms.fortile(tc.add(tccs[d])),
 		    edgec[eo(tc, (d + 3) % 4)][edgelc(tc, (d + 3) % 4)?1:0],
@@ -575,10 +633,11 @@ public class Ridges implements MapMesh.ConsHooks {
 		};
 		mkfaces(gv, cg1rfi);
 		gnd[n] = new MPart(tc, gc, gv, mktcx(gv, pc), mktcy(gv, pc), cg1rfi);
+		}
 		if(edgelc(tc, d))
-		    rdg[n] = connect(tc, edges[eo(tc, d)], colzmatch(col, tczs[d], tczs[(d + 1) % 4]));
+		    rdg[n] = wall(tc, edges[eo(tc, d)], colzmatch(col, tczs[d], tczs[(d + 1) % 4]));
 		else
-		    rdg[n] = connect(tc, colzmatch(col, tczs[(d + 1) % 4], tczs[d]), edges[eo(tc, d)]);
+		    rdg[n] = wall(tc, colzmatch(col, tczs[(d + 1) % 4], tczs[d]), edges[eo(tc, d)]);
 		n++;
 		d = (d + 1) % 4;
 	    } else {
@@ -586,6 +645,7 @@ public class Ridges implements MapMesh.ConsHooks {
 		ensureedge(tc, (d + 3) % 4);
 		ensureedge(tc, (d + 1) % 4);
 		float mz = (tczs[d] + tczs[(d + 1) % 4]) / 2.0f;
+		if(!flat) { /* addon: 161.2 -- flat: plain ground under the wall */
 		Vertex[] gv = {
 		    ms.fortile(tc.add(tccs[(d + 1) % 4])),
 		    ms.fortile(tc.add(tccs[d])),
@@ -595,10 +655,11 @@ public class Ridges implements MapMesh.ConsHooks {
 		};
 		mkfaces(gv, cg2rfi);
 		gnd[n] = new MPart(tc, gc, gv, mktcx(gv, pc), mktcy(gv, pc), cg2rfi);
+		}
 		if(edgelc(tc, (d + 1) % 4))
-		    rdg[n] = connect(tc, edges[eo(tc, (d + 1) % 4)], colzmatch(col, mz, tczs[(d + 2) % 4]));
+		    rdg[n] = wall(tc, edges[eo(tc, (d + 1) % 4)], colzmatch(col, mz, tczs[(d + 2) % 4]));
 		else
-		    rdg[n] = connect(tc, colzmatch(col, tczs[(d + 2) % 4], mz), edges[eo(tc, (d + 1) % 4)]);
+		    rdg[n] = wall(tc, colzmatch(col, tczs[(d + 2) % 4], mz), edges[eo(tc, (d + 1) % 4)]);
 		n++;
 		i++;
 		d = (d + 2) % 4;
@@ -606,7 +667,8 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	gnd = Utils.splice(gnd, 0, n);
 	rdg = Utils.splice(rdg, 0, n);
-	this.gnd[ms.ts.o(tc)] = new MPart(gnd);
+	if(!flat) /* addon: 161.2 */
+	    this.gnd[ms.ts.o(tc)] = new MPart(gnd);
 	this.ridge[ms.ts.o(tc)] = new RPart(rdg);
     }
 
@@ -618,19 +680,19 @@ public class Ridges implements MapMesh.ConsHooks {
 	    return(false);
 	} else if((d = isend(b)) >= 0) {
 	    modelcap(tc, d);
-	    return(true);
+	    return(!flat);
 	} else if(b[0] && !b[1] && b[2] && !b[3]) {
 	    modelstraight(tc, 0);
-	    return(true);
+	    return(!flat);
 	} else if(!b[0] && b[1] && !b[2] && b[3]) {
 	    modelstraight(tc, 1);
-	    return(true);
+	    return(!flat);
 	} else if((d = isdiag(b)) >= 0) {
 	    modeldiag1(tc, d);
-	    return(true);
+	    return(!flat);
 	} else if((d = isdiag2(tc, b)) >= 0) {
 	    modeldiag2(tc, d);
-	    return(true);
+	    return(!flat);
 	} else {
 	    try {
 		modelcomplex(tc, b);
@@ -640,7 +702,7 @@ public class Ridges implements MapMesh.ConsHooks {
 		Coord gc = tc.add(m.ul);
 		new Warning(e, String.format("ridge crash at %s in %x", gc, m.map.getgridt(gc).id)).issue();
 	    }
-	    return(true);
+	    return(!flat); /* addon: 161.2 -- flat: false, so RidgeTile.model lays plain ground under the wall */
 	}
     }
 
@@ -730,6 +792,7 @@ public class Ridges implements MapMesh.ConsHooks {
 	}
 	edges = null;
 	edgec = null;
+	backs = null;
 	return(true);
     }
 

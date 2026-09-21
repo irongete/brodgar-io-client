@@ -97,36 +97,35 @@ any other client, anywhere.
       expected to show as nothing yet.
       <!-- extra context: the comment above MCache.getgridt (the Loading and map-request protocol getfz is part of); specs/160-performance/addons/160-performance.1/main.lua for the refusal sentences; docs/addons/api/map/grids.md for grid:height(cell) and how to reach the grid under a position -->
 
-- [ ] **161.2 — Cliffs as standing walls.** On a flat world every cliff is a wall one tile high on
-      its edge, seen from both sides, with plain ground on either side.
+- [x] **161.2 — Cliffs as standing walls.** On a flat world every cliff keeps its shape and its
+      height, standing on the plane, seen from both sides, with plain ground on either side. (The
+      maintainer's ruling at the first run, 2026-09-21: the one-tile wall first built read as a fence
+      of boards and lost the cliff's line — the cliff keeps its form and height.)
       *The real read.* `Ridges`: a private `double hz(Coord gc) { return(m.map.getrealfz(gc)); }`
       and every `m.map.getfz(` in the class replaced by `hz(` — in `breaks()`, `edgelc`,
       `makeedge`, `tczs` and `isdiag2`; not `brokenp`, whose `MapSource` is the record. With the
       switch off `getrealfz` equals `getfz`, so nothing changes; with it on, cliffs are detected
       where they are while the ground is the plane. `// addon: 161.2`.
-      *The wall.* `public static final float FLATWALL = 11f;` (one tile: `MCache.tilesz` is 11 by
-      11) and a private `RPart flatwalls(Coord tc, boolean[] b)`: for each `e` in `{0, 3}` with
-      `b[e]` set — the north edge from corner `tccs[0]` to `tccs[1]`, the west edge from `tccs[3]`
-      to `tccs[0]`, the two edges a tile owns (`eo(tc, 1)` and `eo(tc, 2)` belong to its east and
-      south neighbours, which emit them as their `3` and `0`) — take the ground's corner vertices
-      `Vertex ga = ms.fortile(tc.add(tccs[e]))`, `Vertex gb = ms.fortile(tc.add(tccs[(e + 1) % 4]))`
-      and build **copies**: `Vertex[] l = {ms.new Vertex(ga), ms.new Vertex(ga.x, ga.y, ga.z +
-      FLATWALL)}`, `Vertex[] r = {ms.new Vertex(gb), ms.new Vertex(gb.x, gb.y, gb.z + FLATWALL)}`,
-      `parts.add(connect(tc, l, r))`; then the back face with fresh copies the other way round:
-      `Vertex[] l2 = {ms.new Vertex(gb), …+ FLATWALL}`, `Vertex[] r2 = {ms.new Vertex(ga), …}`,
-      `parts.add(connect(tc, l2, r2))`. Answer `parts.isEmpty() ? null : new RPart(parts.toArray(new
-      RPart[0]))`. Copies, never the ground's own vertices: `MapSurface` averages a vertex's normal
-      over the faces it is in, and `connect` adds the wall's faces through `mkfaces`; `ensureedge`
-      copies its column ends for the same reason. `connect` fills `rcx`, `rcy`, `rn`, `rh`, `ledge`
-      and `uedge` — everything `TexCons.faces` and `RPart.mapridges` read — so the wall wears the
-      tileset's cliff texture, tiled by its height.
-      *The branch.* `Ridges.model(Coord tc)`: after `boolean[] b = breaks(tc);` and before the
-      existing `if(!b[0] && …)`: `if(io.brodgar.perf.Performance.flatTerrain) { ridge[ms.ts.o(tc)] =
-      flatwalls(tc, b); return(false); }`. Answering `false` makes `RidgeTile.model` model the tile
-      as plain ground (`super.model`), `laygnd` answer `false` so `RidgeTile.lay` lays plain ground,
-      and `RidgeTile.lay(m, rnd, lc, gc)` still calls `layridge(lc, rcons)`, which draws the wall
-      when there is one. `clean()` and `edgeoff` need nothing: `edgec` stays empty, `edgeo` fills
-      with zeros. `// addon: 161.2`.
+      *The wall.* `private final boolean flat = Performance.flatTerrain`, read once in the
+      constructor so one cut is modelled one way. Flat, upstream's ridge model runs whole, on the
+      plane: `makeedge` puts a column's base at `0` instead of `lo` (jitter, bend and segments
+      untouched, the height the real drop); `tczs` answers the complex tile's corners relative to
+      their lowest, so its centre column stands on the plane too; the five shapes skip their split
+      ground part (`gnd` stays `null`) and `model` answers `!flat`, so `RidgeTile.model` lays plain
+      ground and `laygnd` falls through; every ridge part goes through `wall(tc, l, r)` — `connect`'s
+      part plus, flat, `connect(tc, back(r), back(l))`, the same columns handed the other way round
+      from `back(column)` copies (one per column, an `IdentityHashMap` `backs` dropped by `clean`),
+      because `MapView` culls back faces and the plane has no low side for the wall to face. Copies,
+      never the front column's own vertices: `MapSurface` averages a vertex's normal over its faces.
+      `connect` fills `rcx`, `rcy`, `rn`, `rh`, `ledge` and `uedge` — everything `TexCons.faces` and
+      `RPart.mapridges` read — so the wall wears the tileset's cliff texture, tiled by its height.
+      *The lip.* The cliff's top lip is a served flavor (`gfx/tiles/flavor/ridge-edge`) built in
+      the cut's flavor pass from `Ridges.getrdesc`'s `uedge` rows: the back part's `ledge`/`uedge`
+      are emptied so it is drawn once; `Performance.flatTerrain` bumps `flavorGeneration` too; and
+      `Cut.fo`'s build calls a new `MCache.Deferred.current()` on the cut's mesh first — `get()`
+      that throws the pending rebuild's `NotDoneException` — so the pass reschedules behind the mesh
+      it reads instead of the one about to be replaced (found at the second run: the lip floated at
+      the old ridge's height, one offset per cut). `// addon: 161.2`.
       *Docs.* `docs/client/terrain-height.md`: the **ridge model** section — `Ridges.RidgeTile`
       and `breakz`, `Ridges.breaks` (an edge is broken when the difference exceeds the threshold of
       both tiles beside it, so a broken edge is always between two ridge tiles), `eo` and which two
@@ -142,9 +141,9 @@ any other client, anywhere.
       two samples are within a fifth of each other and neither is zero, `[pass] the flat world draws
       (N flat, M relief)`; checks no `[fail]` came from a refusal on either write; restores. The
       walls themselves are a picture, so:
-      `[manual]`: standing at a cliff line at `flatTerrain(true)` — expect: a wall one tile high on
-      the edge, in the tileset's cliff texture, flat ground on both sides, no ramp; seen from above
-      and, after walking round, from below; a cliff corner, a cliff end and a diagonal cliff each
+      `[manual]`: standing at a cliff line at `flatTerrain(true)` — expect: the cliff with its own
+      shape and height standing on the plane, in the tileset's cliff texture, flat ground on both
+      sides, no ramp; seen from above and, after walking round, from behind; a cliff corner, a cliff end and a diagonal cliff each
       walled with no gap and no doubled wall; a cliff on a cut border walled once; nothing walled
       on ground with no cliff; caves as before; at `flatTerrain(false)` the real cliffs return; no
       `ridge crash` warning on stderr while walking a cliff line either way.

@@ -6,8 +6,8 @@ The world has relief: hills, valleys, cliffs. The client draws it, and everythin
 at the height the server streams for every tile corner. Relief hides things — a character behind a
 ridge, a boar in a hollow, the far side of a hill — and the camera, bolted to the character, cannot
 look over it. **Flat terrain** draws the whole world at one height: every tile corner at zero, every
-object standing on that plane, water keeping its depth below it, and every cliff drawn as a standing
-wall one tile high so that what cannot be walked across is still seen. Nothing the server knows
+object standing on that plane, water keeping its depth below it, and every cliff standing on that
+plane with its own shape and height so that what cannot be walked across is still seen. Nothing the server knows
 changes and nothing a click reaches changes: the terrain is streamed, recorded and answered to
 addons at its real height; only the picture is flat.
 
@@ -50,8 +50,9 @@ was already reading one number.
 | The recorded map's `grid:height(cell)` | yes | Reads the record. |
 
 **Cliffs.** A tile edge whose real height difference exceeds the tileset's cliff threshold is a
-cliff. Flat, the ridge tile is laid as plain ground and the cliff is a vertical wall one tile high
-standing on that edge, textured with the tileset's own cliff texture and visible from both sides.
+cliff. Flat, the ridge tile is laid as plain ground and the cliff is the game's own ridge — its
+columns, its shapes and its real height — standing on the plane, textured with the tileset's own
+cliff texture and visible from both sides.
 No ramps: the ground on either side is the plane. Cave walls need nothing — they stand on the floor
 at a fixed height already.
 
@@ -90,9 +91,9 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
    stand on it; the camera looks over what a ridge hid; walking and clicking land where the cursor
    is; a placed patch or claim overlay lies on the plane. At `flatTerrain(false)` the relief comes
    back the same way, with no relogin either way.
-4. **Cliffs stand as walls.** `[manual]`: every cliff is a wall one tile high on the tile edge, drawn
-   in the tileset's cliff texture, seen from above and from below, with flat ground on both sides and
-   no ramp; a cliff corner, a cliff end and a diagonal cliff are all walled; nothing is walled where
+4. **Cliffs stand as walls.** `[manual]`: every cliff keeps its shape and its height standing on the
+   plane, drawn in the tileset's cliff texture, seen from above and from behind, with flat ground on
+   both sides and no ramp; a cliff corner, a cliff end and a diagonal cliff are all walled; nothing is walled where
    there is no cliff. `render.drawSlots` does not fall to zero and no warning is issued while
    walking a cliff line flat.
 5. **Water keeps its depth.** `[manual]`: a lake flat is a lake — its bottom below the plane, the
@@ -117,8 +118,9 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
 
 ## Out of scope — the boundary
 
-- **A wall height setting, or hiding cliffs altogether.** One tile is the wall; a dial over it is a
-  line of a later feature if ever wanted, and a cliff that is not drawn is a cliff walked into.
+- **A wall height setting, or hiding cliffs altogether.** The real drop is the wall (ruled at
+  161.2's first run, after a one-tile wall read as a fence); a dial over it is a line of a later
+  feature if ever wanted, and a cliff that is not drawn is a cliff walked into.
 - **Flattening the far ground only, or by distance.** One plane or the relief; a blend of the two is
   a different picture with its own seams.
 - **The minimap and the map window.** Two-dimensional already; they draw cliff lines from the record

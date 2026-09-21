@@ -88,7 +88,7 @@ public class PerformancePanel extends OptWnd.Panel {
                 }
             }, prev.pos("bl").adds(0, 5));
         prev.settip("Draws the whole world at one height, so nothing is hidden behind a hill. Cliffs stand"
-                    + " as walls one tile high; water keeps its depth. Not a performance setting: the same"
+                    + " on the plane at their real height; water keeps its depth. Not a performance setting: the same"
                     + " ground is drawn at another height. Applies live, cut by cut.", true);
 
         prev = add(new Label("Plants"), prev.pos("bl").adds(0, 15));

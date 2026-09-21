@@ -141,12 +141,16 @@ public final class Performance {
      * that cache an object's height (Gob.BasePlace, LinePlace, PlanePlace) key that cache on their
      * map's chseq, which only a grid's arrival bumps -- so every session's map is told the ground
      * moved, and Gob.Placed.autotick puts each object on the plane on its next tick rather than when
-     * the next grid happens to arrive. */
+     * the next grid happens to arrive.
+     * 161.2: the flavor stamp moves too -- the cliff's lip is a served flavor (gfx/tiles/flavor/ridge-edge)
+     * built from the cut's ridge parts, and Tileset.Flavor.Terrain.getfz answers the drawn height; a
+     * flavor built for the relief would float over the flat ridge, and the other way round. */
     public static void flatTerrain(boolean on) {
         boolean changed = on != flatTerrain;
         Utils.setprefb("perf-flatterrain", flatTerrain = on);
         if(changed) {
             groundGeneration++;
+            flavorGeneration++;
             replace();
         }
     }

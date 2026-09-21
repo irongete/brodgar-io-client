@@ -23,9 +23,11 @@ One read flattened, two reads made explicitly real, one wall builder.
 - **The record is untouched by construction**: `MapFile` reads `MCache.Grid.z` and `Grid.getfz`,
   which stay raw; `hafen.map`'s `grid:height` reads the record.
 - **Cliffs become standing walls.** With the switch on, `Ridges.model` builds no ground parts (the
-  tile is laid as plain ground) and, for the broken edges the tile owns, a wall one tile high on
-  the edge line, two-sided, through the existing `connect` so it carries the ridge texture
-  coordinates `TexCons` expects; `RidgeTile.lay` lays it through `layridge` as it lays every ridge.
+  tile is laid as plain ground) and upstream's own ridge — its columns, shapes and real height — is
+  built standing on the plane, two-sided, through the existing `connect` so it carries the ridge
+  texture coordinates `TexCons` expects; `RidgeTile.lay` lays it through `layridge` as it lays
+  every ridge. (Ruled at 161.2's first run: the one-tile wall first built read as a fence of
+  boards and lost the cliff's line.)
 - **The switch** is a thirteenth setting of `Performance`: field, setter bumping
   `groundGeneration` (the mesh stamp 160.4 put on every cut), a box on `PerformancePanel`, a verb
   on `PerformanceOptions`, the `performance()` docs — nothing new in kind.
@@ -156,8 +158,15 @@ Each task ships its suite at `addons/161-flat-terrain.N/`.
 - **Keeping the ridge model and clamping its heights** (the ground parts split at the cliff, the
   walls from zero to a fixed height) — the split ground would ramp from the wall's top down to the
   tile's far corners; a plane with a wall standing on it is what the switch promises.
-- **A wall whose height follows the real drop** — a cliff of sixty units would hide what the
-  switch exists to show; one tile marks the line and hides nothing.
+- **A wall one tile high on the tile edge** (161.2's first build) — seen in-game it was a fence of
+  square boards along the tile grid, the cliff's line and height gone; the maintainer ruled the
+  cliff keeps its shape and height. A tall cliff hides what stands behind it, as it does with
+  relief; the picture is the game's, on a plane.
+- **Shifting a complex tile's shared edge columns to the tile's own lowest corner** — an edge column
+  is one object shared by the two tiles beside it and cannot stand at two heights; per column (its
+  own low corner at the plane) keeps every straight, cap and diagonal cliff exact and continuous
+  across tiles, and slants only the wall between an edge column and the centre column of a complex
+  tile whose corners differ below the edge. Stated as a gotcha on `terrain-height.md`.
 - **One-sided walls facing the low side, as the real cliff does** — flat, there is no low side;
   the wall is a line seen from wherever the camera is.
 - **A separate panel or a Camera-panel switch** — the machinery (statics, panel, handle, the mesh
