@@ -79,6 +79,18 @@ public class PerformancePanel extends OptWnd.Panel {
         prev.settip("Whether the skirts between two tile types are drawn. Off, tile borders are hard edges."
                     + " Ground already on screen is rebuilt as it comes back into view.", true);
 
+        prev = add(new CheckBox("Flat terrain") {
+                {a = Performance.flatTerrain;}
+                public void set(boolean val) {Performance.flatTerrain(val); a = val;}
+                public void tick(double dt) {
+                    super.tick(dt);
+                    a = Performance.flatTerrain;
+                }
+            }, prev.pos("bl").adds(0, 5));
+        prev.settip("Draws the whole world at one height, so nothing is hidden behind a hill. Cliffs stand"
+                    + " as walls one tile high; water keeps its depth. Not a performance setting: the same"
+                    + " ground is drawn at another height. Applies live, cut by cut.", true);
+
         prev = add(new Label("Plants"), prev.pos("bl").adds(0, 15));
 
         Label cropLbl = add(new Label("Crop density"), prev.pos("bl").adds(5, 10));

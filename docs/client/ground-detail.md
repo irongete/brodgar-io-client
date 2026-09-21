@@ -105,6 +105,7 @@ The two generations are separate so a flavor slider's drag never re-meshes the g
 ## See also
 
 - [which ground is drawn](terrain-raster.md) — the rasters that ask for cuts, and what bounds them
+- [terrain height](terrain-height.md) — where the `z` of a mesh vertex comes from, the drawn read and the streamed one
 - [state roots](state.md) — `MCache` and the grids these cuts belong to
 - [resources](resources.md) — reading a resource's layers, which is how an ambient piece is told apart
 - [the boot and the loops](boot-and-loop.md) — the `Defer` pool a cut build runs on

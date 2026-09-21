@@ -14,7 +14,7 @@ import haven.Utils;
 import io.brodgar.session.Sessions;
 
 /**
- * The whole state of the <b>Performance</b> panel (spec 160-performance, task 160.1) — twelve
+ * The whole state of the <b>Performance</b> panel (spec 160-performance, task 160.1) — thirteen
  * {@code public static volatile} fields, each read from its own preference at class init and moved
  * live by one setter that persists it in the same statement (the shape {@link haven.MapView#recallon}
  * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on the panel and a write from
@@ -23,9 +23,10 @@ import io.brodgar.session.Sessions;
  * <p>{@code flavorGeneration()} is what {@link haven.MCache.Grid#getfo} compares a cut's stamp against
  * (160.3) and {@code groundGeneration()} what {@link haven.MCache.Grid#getcut} compares against for the
  * mesh (160.4); {@code crops} and {@code forage} are read by the three adopted plant factories through
- * {@code sprouts} and followed by {@code replant()} (160.5). Every setting is an exact no-op at its
- * default, which is what lets this feature ship its whole surface before a single frame draws
- * differently.
+ * {@code sprouts} and followed by {@code replant()} (160.5); {@code flatTerrain} is read by
+ * {@link haven.MCache#getfz} (161.1), the one tile-corner read every drawn height goes through. Every
+ * setting is an exact no-op at its default, which is what lets this feature ship its whole surface
+ * before a single frame draws differently.
  */
 public final class Performance {
     private Performance() {}
@@ -52,6 +53,7 @@ public final class Performance {
     public static volatile boolean snow = Utils.getprefb("perf-snow", true);
     public static volatile boolean wetGround = Utils.getprefb("perf-wetground", true);
     public static volatile boolean seasonTint = Utils.getprefb("perf-seasontint", true);
+    public static volatile boolean flatTerrain = Utils.getprefb("perf-flatterrain", false);
 
     /* The two generations a lazy cut rebuild compares its own stamp against (160.3, 160.4). Bumped only
      * when the value that feeds it actually changed, so a slider drag that repeats a value -- or a write
@@ -135,6 +137,20 @@ public final class Performance {
         Utils.setprefb("perf-seasontint", seasonTint = on);
     }
 
+    /* 161.1: the drawn cuts re-mesh lazily through the ground stamp, as transitions do. The placers
+     * that cache an object's height (Gob.BasePlace, LinePlace, PlanePlace) key that cache on their
+     * map's chseq, which only a grid's arrival bumps -- so every session's map is told the ground
+     * moved, and Gob.Placed.autotick puts each object on the plane on its next tick rather than when
+     * the next grid happens to arrive. */
+    public static void flatTerrain(boolean on) {
+        boolean changed = on != flatTerrain;
+        Utils.setprefb("perf-flatterrain", flatTerrain = on);
+        if(changed) {
+            groundGeneration++;
+            replace();
+        }
+    }
+
     /* 160.2: is this weather resource withheld right now? Checked by name in Glob.weather() (the draw
      * half) and Glob.ctick() (the simulate half); a name none of the five switches names is never
      * withheld. */
@@ -202,6 +218,17 @@ public final class Performance {
             }
             for(Gob gob : gobs)
                 gob.plumes();
+        }
+    }
+
+    /* 161.1: tell every session's map its heights moved, so a placer that caches on MCache.chseq
+     * re-reads the ground on its next tick. */
+    private static void replace() {
+        for(Sessions.Member m : Sessions.members()) {
+            UI ui = m.ui;
+            if((ui == null) || (ui.sess == null))
+                continue;
+            ui.sess.glob.map.heightschanged();
         }
     }
 

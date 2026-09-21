@@ -109,6 +109,7 @@ if tile then hafen.log():write("standing on " .. (tile.name or tile.id)) end
 | Rule | Detail |
 |---|---|
 | Remembered ground | The client also draws ground it remembers from disk, greyed, wherever the camera looks past the stream. `:tile` and `:height` never read that record: over remembered ground they answer `nil`, as over the void beside it. [`hafen.map`](map/README.md) reads the record, by grid. |
+| `:height` is the streamed height | What the server sent for that ground, whatever the Performance panel's [flat terrain](client/README.md#performance) draws. Nothing in the API reads the drawn height. |
 | Placement settings | Sub-tile divisions and rotation steps are read and written through [`hafen.client():options():interface()`](client/README.md#interface): `posGran()` and `angGran()`. |
 | Addressed reads | `components`, `tileCoord` and `distance` answer for the character `session` names. A [Position](position.md) carries no session, so `position:x()`, `position:tileCoord()` and a bare `position:distance()` resolve in the drawn character's frame. With one login the two agree. With two they differ and nothing raises. |
 | A place that character cannot locate | Recorded in another part of the world, or off its streamed ground while the [base](position.md) it resolves through is unproved: `nil`, as `position:x()` gives. |

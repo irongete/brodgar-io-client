@@ -1,0 +1,10 @@
+{
+  "name": "161.1 — Flat terrain: the switch and the height seam",
+  "id": "161-flat-terrain.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 161.1: performance:flatTerrain reads, writes, chains and refuses; the API height and the recorded height stay the streamed ones; the relief draws what it drew after the restore.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

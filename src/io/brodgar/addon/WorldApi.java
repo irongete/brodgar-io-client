@@ -159,6 +159,9 @@ final class WorldApi {
             }
         });
         // height(p) — terrain height under a Position; nil off-stream.
+        //   161.1: the STREAMED height, whatever the Performance panel draws. MCache.getcz is the drawn
+        // read and answers the plane under flat terrain; getrealcz interpolates the grid's own corners,
+        // so the API says what the server sent however the player has the picture dialled.
         m.set("height", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "height", W);
@@ -167,7 +170,7 @@ final class WorldApi {
                 if((mc == null) || (rc == null) || !mc.groundheld(rc))
                     return LuaValue.NIL;               // off-stream: nil, and nothing asked for (see :tile)
                 try {
-                    return LuaValue.valueOf(mc.getcz(rc.x, rc.y));
+                    return LuaValue.valueOf(mc.getrealcz(rc.x, rc.y));
                 } catch(RuntimeException e) {
                     return LuaValue.NIL;
                 }
@@ -259,7 +262,8 @@ final class WorldApi {
         //   092.2: AT THE POINT'S OWN HEIGHT. MapView.screenxf(Coord2d) fills the z in from getcc(), which is
         // the PLAYER's altitude -- so a place on a hillside answered where it would be if it were level with
         // the player, wrong by an amount that grows with the slope and silently. The Coord3f overload beside
-        // it takes the height, and MCache.getzp is the same read s:world():height(p) already exposes. Off-
+        // it takes the height, and MCache.getzp is the DRAWN height (161.1: the plane under flat terrain,
+        // where s:world():height(p) answers the streamed one -- a projection is of what is on screen). Off-
         // stream ground has no height to project at, so it is nil rather than a number measured from
         // somewhere else -- the same nil this verb already answers for a scene nobody is drawing.
         //   AND A PLACE THAT CHARACTER CANNOT LOCATE IS ONE MORE OF THEM, not a refusal: this is a READ, so

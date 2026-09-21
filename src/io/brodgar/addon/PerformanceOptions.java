@@ -131,6 +131,14 @@ public final class PerformanceOptions {
                 Performance.seasonTint(bool(value, "on", "whether the ground carries its seasonal tint"));
             }
         });
+        m.set("flatTerrain", new OptionsMethod(owner, handle, "performance:flatTerrain") {
+            protected LuaValue onRead() {
+                return LuaValue.valueOf(Performance.flatTerrain);
+            }
+            protected void onWrite(LuaValue value) {
+                Performance.flatTerrain(bool(value, "on", "whether the terrain is drawn flat"));
+            }
+        });
 
         return m;
     }

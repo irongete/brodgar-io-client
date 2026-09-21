@@ -1236,9 +1236,24 @@ public class MCache implements MapSource {
 	return(g.gettile(tc.sub(g.ul)));
     }
 
-    public double getfz(Coord tc) {
+    /* addon: (161.1) the STREAMED tile-corner height, what getfz() answered before the flat-terrain
+     * switch: the grid's own z, reached through getgridt() with its map request and LoadingMap. This is
+     * the read for anything that must know where the ground IS rather than where it is drawn -- the
+     * addon API's world:height, and the cliff detection in Ridges. */
+    public double getrealfz(Coord tc) {
 	Grid g = getgridt(tc);
 	return(g.getz(tc.sub(g.ul)));
+    }
+
+    /* addon: (161.1) the DRAWN tile-corner height, the one read every drawn height goes through: the
+     * mesh's vertices (MapMesh.MapSurface), the height surfaces the tilers hand out (Tiler.MapZSurface,
+     * WaterTile.BottomSurface), getcz()/getzp() and so the placers, the camera and the ground decals.
+     * With Performance.flatTerrain on it answers the plane -- AFTER reaching the grid, so a cut the
+     * camera needs is still requested and still throws LoadingMap exactly as before. The grid's own
+     * Grid.getz/getfz stay raw: MapFile records from them. */
+    public double getfz(Coord tc) {
+	double z = getrealfz(tc);
+	return(io.brodgar.perf.Performance.flatTerrain ? 0.0 : z);
     }
 
     public double getcz(double px, double py) {
@@ -1248,6 +1263,26 @@ public class MCache implements MapSource {
 	double sy = (py - (ul.y * th)) / th;
 	return(((1.0f - sy) * (((1.0f - sx) * getfz(ul)) + (sx * getfz(ul.add(1, 0))))) +
 	       (sy * (((1.0f - sx) * getfz(ul.add(0, 1))) + (sx * getfz(ul.add(1, 1))))));
+    }
+
+    /* addon: (161.1) getcz() over the streamed corners: the interpolated height where the ground IS. */
+    public double getrealcz(double px, double py) {
+	double tw = tilesz.x, th = tilesz.y;
+	Coord ul = Coord.of(Utils.floordiv(px, tw), Utils.floordiv(py, th));
+	double sx = (px - (ul.x * tw)) / tw;
+	double sy = (py - (ul.y * th)) / th;
+	return(((1.0f - sy) * (((1.0f - sx) * getrealfz(ul)) + (sx * getrealfz(ul.add(1, 0))))) +
+	       (sy * (((1.0f - sx) * getrealfz(ul.add(0, 1))) + (sx * getrealfz(ul.add(1, 1))))));
+    }
+
+    /* addon: (161.1) the heights this cache answers have moved without a grid arriving -- the
+     * flat-terrain switch flipped. Bumps chseq, the sequence Gob.BasePlace, LinePlace and PlanePlace
+     * key their cached height on, under the monitor mapdata2 bumps it under, so every placed object
+     * re-reads the ground on its next tick. */
+    public void heightschanged() {
+	synchronized(grids) {
+	    chseq++;
+	}
     }
 
     public double getcz(Coord2d pc) {

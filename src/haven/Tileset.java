@@ -217,7 +217,12 @@ public class Tileset extends Resource.Layer {
 	    }
 
 	    public int gettile(Coord tc) {return(grid.gettile(tc.add(toff)));}
-	    public double getfz(Coord tc) {return(grid.getfz(tc.add(toff)));}
+	    /* addon: (161.1) the terrain a served flavor factory reads agrees with the mesh: flat when
+	     * the ground is drawn flat. The MapSource under it (an MCache.Grid) stays raw. */
+	    public double getfz(Coord tc) {
+		double z = grid.getfz(tc.add(toff));
+		return(io.brodgar.perf.Performance.flatTerrain ? 0.0 : z);
+	    }
 	    public Tileset tileset(int t) {return(grid.tileset(t));}
 	    public Tiler tiler(int t) {return(grid.tiler(t));}
 	}
