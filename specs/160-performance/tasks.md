@@ -229,7 +229,7 @@ client, anywhere.
       the same places, fewer of them, none of them moved.
       <!-- extra context: src/haven/ClipAmbiance.java (Desc, layer name clamb), src/haven/Audio.java (Clip, the clip class constant), src/haven/RenderLink.java (Res.l, AmbientLink) -->
 
-- [ ] **160.4 — Ground blend and tile transitions.** `groundBlend` and `transitions` act, and the
+- [x] **160.4 — Ground blend and tile transitions.** `groundBlend` and `transitions` act, and the
       lazy rebuild of a cut's mesh exists.
       *The blend.* `TerrainTile.Blend(MapMesh m)`: the three steps that compute the variant weights
       — the `lwc` noise loop, `setbase(buf1)` and the `sr` blur passes that end in `buf1 = buf2` —

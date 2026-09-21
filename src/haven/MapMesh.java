@@ -339,7 +339,10 @@ public class MapMesh implements RenderTree.Node, Disposable {
 		Coord gc = c.add(ul);
 		long ns = rnd.nextLong();
 		mc.tiler(mc.gettile(gc)).lay(m, rnd, c, gc);
-		dotrans(m, rnd, c, gc);
+		/* addon: 160.4 -- the transition skirts are laid only while the switch is on; rnd is reseeded
+		 * on the next line, so no other tile's randomness moves either way. */
+		if(io.brodgar.perf.Performance.transitions)
+		    dotrans(m, rnd, c, gc);
 		rnd.setSeed(ns);
 	    }
 	}

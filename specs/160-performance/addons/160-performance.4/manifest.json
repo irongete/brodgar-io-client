@@ -1,0 +1,10 @@
+{
+  "name": "160.4 — Performance: ground blend and tile transitions",
+  "id": "160-performance.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 160.4: groundBlend(false) and transitions(false) each draw fewer slots on mixed ground, each switch back on draws them again, both off draw fewer than either alone, and the settings are restored.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

@@ -64,6 +64,12 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	    this.m = m;
 	    vs = new Scan(Coord.z.sub(sr, sr), m.sz.add(sr * 2 + 1, sr * 2 + 1));
 	    float[][] buf1 = new float[var.length + 1][vs.l];
+	    /* addon: 160.4 -- the variant weights are computed only while ground blending is on: the noise
+	     * table, setbase and the sr blur passes. Off, the base layer takes the whole tile (weight 1) and
+	     * every variant stays at its fresh 0; the post-processing and the `en` loop below are untouched
+	     * and then enable the base alone, opaque, on every tile. The blur would leave 1/0 arrays as they
+	     * are, so skipping it and the noise is the build-time half of the saving. */
+	    if(io.brodgar.perf.Performance.groundBlend) {
 	    float[][] lwc = new float[var.length + 1][vs.l];
 	    for(int i = 0; i < var.length + 1; i++) {
 		for(int y = vs.ul.y; y < vs.br.y; y++) {
@@ -106,6 +112,9 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 		    }
 		}
 		buf1 = buf2;
+	    }
+	    } else {
+		java.util.Arrays.fill(buf1[0], 1f);
 	    }
 	    bv = buf1;
 	    for(int y = vs.ul.y; y < vs.br.y; y++) {

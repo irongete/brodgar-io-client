@@ -517,6 +517,10 @@ public class MCache implements MapSource {
 	    /* addon: 160.3 -- the flavor-objects generation this cut's fo was last asked at. Compared in
 	     * getfo, volatile because the compare takes no lock of its own. */
 	    volatile int flavorstamp = io.brodgar.perf.Performance.flavorGeneration();
+	    /* addon: 160.4 -- the same for the ground generation (blend, transitions) and this cut's mesh.
+	     * Compared in getcut, which runs under no lock: two threads racing it at worst invalidate twice,
+	     * and rebuild() cancels the previous future. */
+	    volatile int groundstamp = io.brodgar.perf.Performance.groundGeneration();
 
 	    public Cut(Coord cc) {
 		this.cc = cc;
@@ -701,7 +705,18 @@ public class MCache implements MapSource {
 	}
 
 	public MapMesh getcut(Coord cc) {
-	    return(geticut(cc).mesh.get());
+	    Cut cut = geticut(cc);
+	    /* addon: 160.4 -- a ground setting that moved since this cut's mesh was last asked for
+	     * invalidates it lazily, exactly as getfo does for the flavor objects: the old mesh stays on
+	     * screen until the rebuild lands, and the rebuilt mesh sets Grid.olseq = -1 through its update,
+	     * so getolcut re-lays every overlay over the new vertices. Remembered ground and another
+	     * session's ground come through this same accessor and follow. */
+	    int gen = io.brodgar.perf.Performance.groundGeneration();
+	    if(cut.groundstamp != gen) {
+		cut.groundstamp = gen;
+		cut.mesh.invalidate();
+	    }
+	    return(cut.mesh.get());
 	}
 	
 	/* addon: (119.2) one cut's mesh for ONE overlay. The grid-wide flush below still answers what
