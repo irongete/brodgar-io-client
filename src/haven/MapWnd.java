@@ -572,7 +572,15 @@ public class MapWnd extends Window implements Console.Directory {
 
 	public Tex icon() {
 	    if(icon == null) {
-		BufferedImage img = spec.get().flayer(Resource.imgc).img;
+		BufferedImage img;
+		try {
+		    img = spec.get().flayer(Resource.imgc).img;
+		} catch(Resource.LoadException e) {
+		    // addon: (PATCH, uncommitted) the icon loads nowhere -- MiniMap.MarkerIcon.ckload has the
+		    // reason -- so the marker list shows the white flag MiniMap draws for it. Loading passes.
+		    icon = new PMarkerType(Color.WHITE).icon();
+		    return(icon);
+		}
 		icon = new TexI(PUtils.uiscale(img, new Coord((iconsz * img.getWidth())/ img.getHeight(), iconsz)));
 	    }
 	    return(icon);

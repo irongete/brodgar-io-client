@@ -5511,6 +5511,14 @@ public final class AddonManager {
      * line is filed and {@link #drainNotices} posts it on the next step, holding none. That is a frame's
      * delay on a line written from inside a painter, and nothing else changes: the stdout half above is
      * already out, in order, at the instant it was written.
+     *
+     * <p><b>Silent.</b> {@code UI.msg(String)} builds an {@code InfoMessage}, whose default clip is
+     * {@code sfx/msg} -- the chime a server notice makes -- and both handlers play it ({@code GameUI.msg} in
+     * the world, {@code RootWidget.msg} on the login screen), so every line here used to blip: the boot's
+     * own "addons dir" / "loaded" / "N addon(s) loaded" were three chimes before a character was chosen. A
+     * log line is read, never heard -- the System channel keeps it for that -- so it is posted as a bare
+     * {@code SimpleMessage} with {@code nosfx}: a {@code null} clip means "the default", not "none". An
+     * addon that wants a chime has {@code hafen.sound()}.
      */
     private static void notice(String line) {
         UI u = screen();
@@ -5522,7 +5530,7 @@ public final class AddonManager {
         }
         try {
             synchronized(LuaWidget.monitorOf(u)) {
-                u.msg(line);
+                u.msg(line, null, UI.SimpleMessage.nosfx);   // read, never heard -- see above
             }
         } catch(RuntimeException e) {
             // audit2 B14 (lg-05): SAID ONCE, rather than swallowed. The expected case really is benign --

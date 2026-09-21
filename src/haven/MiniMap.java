@@ -207,10 +207,32 @@ public class MiniMap extends Widget {
 	    }
 	}
 
+	/* addon: (PATCH, uncommitted) a marker whose icon resource loads nowhere -- another client's own icon
+	 * saved into the map file, a resource the server no longer serves -- is drawn as a white flag with its
+	 * name instead of killing the UI thread: every caller of icon() catches Loading alone, and Future.get
+	 * rethrows a failed load as a RuntimeException. The marker keeps its hover, click and removal. One
+	 * warning per resource name. */
+	private static final Color UNKNOWN = Color.WHITE;
+	private static final Set<String> warned = new HashSet<>();
+	private static void warnicon(Marker m, Throwable e) {
+	    String key = (m instanceof SMarker) ? String.valueOf(((SMarker)m).res.name) : m.getClass().getName();
+	    synchronized(warned) {
+		if(!warned.add(key))
+		    return;
+	    }
+	    // one line, no trace: the cause is the whole chain of sources that lack the name, which the line says
+	    new Warning("marker icon " + key + " could not be loaded (first seen on \"" + m.nm + "\"): shown as a flag").issue();
+	}
+
 	private void ckload() {
 	    /* XXX: Arguably, the loader task should do this part itself. */
 	    if(load.done()) {
-		icon = load.get();
+		try {
+		    icon = load.get();
+		} catch(RuntimeException e) {   // addon: see warnicon
+		    warnicon(m, e);
+		    icon = new Flag(this, UNKNOWN, m.nm);
+		}
 		iseq = lseq;
 		load = null;
 		info = null;

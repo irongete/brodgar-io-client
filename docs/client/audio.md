@@ -44,9 +44,12 @@ heard through overlays the server puts on the musician's gob.
   its `get()` returns `< 0`, and that is the *only* end-of-clip signal: there is no callback and no
   `CS.done()`. So `Mixer.playing(cs)` is how you find out a clip has ended, and asking is also what drains
   the list — a caller that never asks holds a list that never shrinks.
-- **`UI.msg(String)` blips.** It builds an `InfoMessage`, whose `defsfx` is `sfx/msg`, so every console
-  line that prints a value plays a sound. Mistake it for your own clip and you will debug a non-bug: a
-  `:lua` that returns a value is enough, so use the statement form when testing audio.
+- **`UI.msg(String)` blips, and `null` is not "silent".** It builds an `InfoMessage`, whose `defsfx` is
+  `sfx/msg`, and both notice handlers (`GameUI.msg` in the world, `RootWidget.msg` on the login screen)
+  play the notice's clip through `ui.sfxrl` — so a line posted the convenient way chimes like a server
+  notice, with no `GameUI` up too. A `null` clip on a `SimpleMessage` means "use the default", so a silent
+  line is `msg(text, color, UI.SimpleMessage.nosfx)`: the sentinel is the only way to say none. Mistake
+  the chime for your own clip and you will debug a non-bug.
 - **A name that resolves nowhere is silent, not an error.** A clip is a resource like any other, so it
   arrives through `Loading` and a caller that resolves it inline blocks or throws; the loader answers
   later, and a bad name simply never arrives.
