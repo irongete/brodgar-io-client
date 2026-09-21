@@ -1014,6 +1014,8 @@ public class OptWnd extends Window {
 
 	private List<PanelEntry> gamepanels() {
 	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
+	    // addon: 160.1 -- first, so the settings view opens on entries.get(0) and so on this panel.
+	    ret.add(new PanelEntry("Performance", () -> new io.brodgar.ui.PerformancePanel(OptWnd.this)));
 	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
 	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui)));
 	    ret.add(new PanelEntry("Audio settings", () -> new AudioPanel(ui)));

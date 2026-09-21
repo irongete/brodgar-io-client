@@ -117,6 +117,7 @@ RECEIVERS = {
     # Prose the call regex reads as a receiver (`name:find(` is a Lua string method; `and`, `only`, `a` are
     # words), and the client option handles a page names after their panel.
     "name": None, "and": None, "only": None, "a": None, "video": None, "camera": None, "client_options": None,
+    "performance": None,
     # The client's resources (151). `res:` stays the HTTP result; the pages spell the handle `resource:`.
     "resource": "resource", "layer": "layer",
     # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue

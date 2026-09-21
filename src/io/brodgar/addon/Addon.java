@@ -835,7 +835,7 @@ public final class Addon {
      * {@link #addonOptions} and which dies with the addon in exactly the same way.
      */
     LuaValue clientOpts, clientInterface, clientVideo, clientAudio, clientCamera, clientClient,
-             clientKeybindings, clientAddonOpts, clientProfiling, clientAddons;
+             clientKeybindings, clientAddonOpts, clientProfiling, clientAddons, clientPerformance;
 
     /**
      * This addon's <b>declared options</b> ({@code hafen.client():options():addon()}, 115.2), keyed by the

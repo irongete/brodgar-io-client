@@ -8,7 +8,7 @@ One holder, twelve statics, every consumer a no-op at the default.
   initialised from its preference (`Utils.getprefi`/`getprefb`) at class init and written by one
   setter that moves the field and persists it **in one statement** (the shape `MapView.recallon` and
   `Prof.arm` already have, so a click on the panel and a write from Lua are indistinguishable). The
-  bounds of the three percentages are constants on this class (`DECORATION_MIN`/`MAX`,
+  bounds of the three percentages are constants on this class (`FLAVOR_MIN`/`MAX`,
   `PLANT_MIN`/`MAX`), stated once and read by the slider, the Lua refusal and nothing else. The class
   also carries the two **generations** the ground consumers compare against, and the two **walks**
   a write of `smoke` or of a plant amount performs over every live session.
@@ -21,13 +21,13 @@ One holder, twelve statics, every consumer a no-op at the default.
   on `Addon.clientPerformance` like its six siblings.
 - **The consumers** read the statics at the seam where the engine decides, each edit tagged
   `// addon: 160.N`, each an exact no-op when the static holds its default:
-  - `Tileset.SpriteFlavor.flavor` scales the per-tile probability (decoration).
+  - `Tileset.SpriteFlavor.flavor` scales the per-tile probability (flavor objects).
   - `TerrainTile.Blend` gives the base variant the whole tile (ground blend off).
   - `MapMesh.build` skips `dotrans` (transitions off).
   - `MCache.Grid.getcut`/`getfo` compare a stamp on the `Cut` against the generation and
     `Deferred.invalidate()` the half that moved — lazily, so only cuts the scene draws are rebuilt.
   - `Glob.weather()` and `Glob.tick` skip a weather whose resource name is withheld.
-  - `GobSvaj.placestate()` answers `null` while sway is off.
+  - `GobSvaj.placestate()` answers `null` while tree effects are off.
   - `Gob.Overlay` carries a `withheld` flag decided at `init()` and re-decided by a walk.
   - Two adopted copies, `lib/plants` v11 and `lib/gplant` v1, draw a percentage of their sprouts;
     a walk re-creates the drawable of every plant in view on a write.
@@ -36,24 +36,31 @@ One holder, twelve statics, every consumer a no-op at the default.
 
 ## The options
 
-Every setting, with its name in each of the three places it is spelled.
+Every setting, with its name in each of the three places it is spelled, and the option of the
+Replica client's *Performance & simplify* panel it stands in for (its label and its `Config` flag;
+`—` where Replica has none). The correspondence is by intent only — the semantics differ where the
+column says so — and it is recorded here for the maintainer's own cross-reference, nowhere else.
 
-| Panel section · control | API verb on `performance` | Preference key | `Performance` member | Type · range · default | Decided at | A change shows |
-|---|---|---|---|---|---|---|
-| **Ground** · slider *Ground decoration* (`N %`) | `decoration()` / `decoration(percent)` | `perf-decoration` | `int decoration`, setter `decoration(int)`, bumps `decorationGeneration` | whole `0`..`100` · `100` | `Tileset.SpriteFlavor.flavor`: `p × percent/100` per tile, ambient pieces at `p` | decoration of drawn cuts rebuilt lazily |
-| **Ground** · box *Blend ground textures* | `groundBlend()` / `groundBlend(flag)` | `perf-groundblend` | `boolean groundBlend`, setter bumps `groundGeneration` | switch · `true` | `TerrainTile.Blend(MapMesh)`: base weight 1, variants 0, no noise, no blur | mesh of drawn cuts rebuilt lazily |
-| **Ground** · box *Tile transitions* | `transitions()` / `transitions(flag)` | `perf-transitions` | `boolean transitions`, setter bumps `groundGeneration` | switch · `true` | `MapMesh.build`: `dotrans` skipped | mesh of drawn cuts rebuilt lazily |
-| **Plants** · slider *Crop sprouts* (`N %`) | `crops()` / `crops(percent)` | `perf-crops` | `int crops`, setter runs `replant()` | whole `1`..`100` · `100` | `GrowingPlant.create` / `TrellisPlant.create`: `max(1, round(num × percent/100))` parts | plants in view re-created on the write |
-| **Plants** · slider *Forageable sprouts* (`N %`) | `forage()` / `forage(percent)` | `perf-forage` | `int forage`, setter runs `replant()` | whole `1`..`100` · `100` | `GaussianPlant.create`: same over its drawn `num` | plants in view re-created on the write |
-| **Objects** · box *Foliage sway* | `sway()` / `sway(flag)` | `perf-sway` | `boolean sway` | switch · `true` | `GobSvaj.placestate()` → `null` | next tick |
-| **Objects** · box *Smoke plumes* | `smoke()` / `smoke(flag)` | `perf-smoke` | `boolean smoke`, setter runs `plumes()` | switch · `true` | `Gob.Overlay.init` (a new plume) and `Gob.plumes()` (the burning ones) | on the write |
-| **Weather** · box *Cloud shadows* | `clouds()` / `clouds(flag)` | `perf-clouds` | `boolean clouds` | switch · `true` | `Glob.weather()` + `Glob.tick`, resource `gfx/fx/clouds` | next frame |
-| **Weather** · box *Rain* | `rain()` / `rain(flag)` | `perf-rain` | `boolean rain` | switch · `true` | same, `gfx/fx/rain` | next frame |
-| **Weather** · box *Snow* | `snow()` / `snow(flag)` | `perf-snow` | `boolean snow` | switch · `true` | same, `gfx/fx/snow` | next frame |
-| **Weather** · box *Wet ground* | `wetGround()` / `wetGround(flag)` | `perf-wetground` | `boolean wetGround` | switch · `true` | same, `gfx/fx/wet` | next frame |
-| **Weather** · box *Seasonal tint* | `seasonTint()` / `seasonTint(flag)` | `perf-seasontint` | `boolean seasonTint` | switch · `true` | same, `gfx/fx/seasonmap` | next frame |
+| Panel section · control | API verb on `performance` | Preference key | `Performance` member | Type · range · default | Decided at | A change shows | Replica equivalent |
+|---|---|---|---|---|---|---|---|
+| **Ground** · slider *Flavor objects* (`N %`) | `flavor()` / `flavor(percent)` | `perf-flavor` | `int flavor`, setter `flavor(int)`, bumps `flavorGeneration` | whole `0`..`100` · `100` | `Tileset.SpriteFlavor.flavor`: `p × percent/100` per tile, ambient pieces at `p` | flavor objects of drawn cuts rebuilt lazily | *Hide flavor objects* (`hideFlavObjs`) — a switch; ours is an amount, and `0` is its switch |
+| **Ground** · box *Blend ground textures* | `groundBlend()` / `groundBlend(flag)` | `perf-groundblend` | `boolean groundBlend`, setter bumps `groundGeneration` | switch · `true` | `TerrainTile.Blend(MapMesh)`: base weight 1, variants 0, no noise, no blur | mesh of drawn cuts rebuilt lazily | — |
+| **Ground** · box *Tile transitions* | `transitions()` / `transitions(flag)` | `perf-transitions` | `boolean transitions`, setter bumps `groundGeneration` | switch · `true` | `MapMesh.build`: `dotrans` skipped | mesh of drawn cuts rebuilt lazily | *Disable tiles transitions* (`disableTilesTransitions`) — inverted sense |
+| **Plants** · slider *Crop density* (`N %`) | `crops()` / `crops(percent)` | `perf-crops` | `int crops`, setter runs `replant()` | whole `1`..`100` · `100` | `GrowingPlant.create` / `TrellisPlant.create`: `max(1, round(num × percent/100))` parts | plants in view re-created on the write | *Enable simple crops* (`enableSimpleCrops`) — one sprout, first variant, no rotation; ours keeps variant and rotation and is an amount |
+| **Plants** · slider *Forageable density* (`N %`) | `forage()` / `forage(percent)` | `perf-forage` | `int forage`, setter runs `replant()` | whole `1`..`100` · `100` | `GaussianPlant.create`: same over its drawn `num` | plants in view re-created on the write | — |
+| **Objects** · box *Tree effects* | `treeEffects()` / `treeEffects(flag)` | `perf-treeeffects` | `boolean treeEffects` | switch · `true` | `GobSvaj.placestate()` → `null` | next tick | *Disable trees/bushes effects* (`disableTreesBushesEffects`) — also removes the random tilt; ours keeps it |
+| **Objects** · box *Smoke plumes* | `smoke()` / `smoke(flag)` | `perf-smoke` | `boolean smoke`, setter runs `plumes()` | switch · `true` | `Gob.Overlay.init` (a new plume) and `Gob.plumes()` (the burning ones) | on the write | *Disable smoke for tar kilns* (`disableTarKilnSmokeEffect`) — tar kilns only; ours is every plume but a scent trail's |
+| **Weather** · box *Cloud shadows* | `clouds()` / `clouds(flag)` | `perf-clouds` | `boolean clouds` | switch · `true` | `Glob.weather()` + `Glob.tick`, resource `gfx/fx/clouds` | next frame | *Disable clouds effect* (`disableCloudsEffects`) — inverted sense |
+| **Weather** · box *Rain* | `rain()` / `rain(flag)` | `perf-rain` | `boolean rain` | switch · `true` | same, `gfx/fx/rain` | next frame | *Disable rain effect* (`disableRainEffect`) — inverted sense |
+| **Weather** · box *Snow* | `snow()` / `snow(flag)` | `perf-snow` | `boolean snow` | switch · `true` | same, `gfx/fx/snow` | next frame | *Disable snow effect* (`disableSnowEffect`) — inverted sense |
+| **Weather** · box *Wet ground* | `wetGround()` / `wetGround(flag)` | `perf-wetground` | `boolean wetGround` | switch · `true` | same, `gfx/fx/wet` | next frame | *Disable wet ground effect* (`disableWetGroundEffect`) — inverted sense |
+| **Weather** · box *Seasonal tint* | `seasonTint()` / `seasonTint(flag)` | `perf-seasontint` | `boolean seasonTint` | switch · `true` | same, `gfx/fx/seasonmap` | next frame | *Disable season ground effect* (`disableSeasonMapEffect`) — inverted sense |
 
-The `OptionsMethod` verb strings are `performance:decoration`, `performance:crops`, … — the
+Replica's remaining panel entries have no counterpart here by decision: *Disable tiles elevation*
+(the flat terrain, out of scope), the four intoxication effects and *Disable dungeon quake effect*
+(the buff effects, out of scope).
+
+The `OptionsMethod` verb strings are `performance:flavor`, `performance:crops`, … — the
 spelling every refusal starts with. The panel labels above are the exact strings the controls show.
 The five weather resource names and `gfx/fx/ismoke`, `lib/plants`, `lib/gplant` are served today
 under exactly those names (checked against the resource server with `haven.Resource find-updates`).
@@ -74,20 +81,20 @@ under exactly those names (checked against the resource server with `haven.Resou
 - `docs/client/prefs-and-options.md` — a row in *What the Options window writes*
 - `tools/docverbs.py` — `"performance": None` in `RECEIVERS`, beside `"video": None`
 
-**160.2 — weather, sway, smoke**
+**160.2 — weather, tree effects, smoke**
 - `src/haven/Glob.java` — `weather()` and `tick` (`// addon: 160.2`)
 - `src/haven/res/lib/svaj/GobSvaj.java` — one expression in `placestate()`
 - `src/haven/Gob.java` — `Overlay.withheld`, `Overlay.init`, `plumes()` (`// addon: 160.2`)
 - `src/io/brodgar/perf/Performance.java` — `withheldWeather(Resource)`, `plume(Gob, Sprite)`,
   `plumes()`
-- create `docs/client/world-effects.md` (weather, sway, plumes); `docs/client/README.md` — its row
+- create `docs/client/world-effects.md` (weather, tree effects, plumes); `docs/client/README.md` — its row
 - `docs/addons/api/overlay.md` — the withheld-plume rule
 
-**160.3 — ground decoration**
+**160.3 — flavor objects**
 - `src/haven/Tileset.java` — `SpriteFlavor.flavor`, the `ambient` field (`// addon: 160.3`)
-- `src/haven/MCache.java` — `Grid.Cut.decostamp`, the compare in `Grid.getfo` (`// addon: 160.3`)
-- `src/io/brodgar/perf/Performance.java` — `decorationGeneration()`, `ambient(Resource)`
-- create `docs/client/ground-detail.md` (decoration pass, cut lifecycle); `docs/client/README.md` —
+- `src/haven/MCache.java` — `Grid.Cut.flavorstamp`, the compare in `Grid.getfo` (`// addon: 160.3`)
+- `src/io/brodgar/perf/Performance.java` — `flavorGeneration()`, `ambient(Resource)`
+- create `docs/client/ground-detail.md` (flavor pass, cut lifecycle); `docs/client/README.md` —
   its row; `docs/client/terrain-raster.md` — a *See also* line
 
 **160.4 — ground blend and transitions**
@@ -126,8 +133,8 @@ Each task also ships its suite at `addons/160-performance.N/` (`manifest.json`, 
   needed for the swap.
 - **A rebuilt mesh re-lays its overlays for free.** The `mesh` `Deferred`'s `update` sets
   `Grid.olseq = -1`, and `Grid.getolcut` drops and rebuilds every cut's `ols`/`olols` on that.
-- **Two generations, not one.** `HSlider.changed()` fires on every step of a drag; a decoration drag
-  bumps `decorationGeneration` alone, so the ground mesh — two passes over 625 tiles plus `dotrans`
+- **Two generations, not one.** `HSlider.changed()` fires on every step of a drag; a flavor drag
+  bumps `flavorGeneration` alone, so the ground mesh — two passes over 625 tiles plus `dotrans`
   per cut — is never rebuilt for a slider that does not touch it.
 - **`MCache.getfo` takes `synchronized(grids)`; `MCache.getcut` does not.** The stamp compare must
   take no lock of its own: `Deferred.invalidate()` is `synchronized(this)` on the `Deferred` and
@@ -145,7 +152,7 @@ Each task also ships its suite at `addons/160-performance.N/` (`manifest.json`, 
   its first statement, so a `Loading` propagates before any state is touched; the `ambient` flag is
   computed lazily right after it, once per `SpriteFlavor` (they are cached per tileset by
   `Utils.cache` in `Tileset`'s constructor).
-- **Ambient decoration** is a resource with a `ClipAmbiance.Desc` layer (`clamb`), or an
+- **An ambient flavor object** is a resource with a `ClipAmbiance.Desc` layer (`clamb`), or an
   `Audio.Clip` layer with id `"amb"` (`res.layer(Audio.clip, "amb")`; `Audio.Clip extends
   Resource.IDLayer<String>`), or a `RenderLink.Res` whose `l instanceof RenderLink.AmbientLink`
   (`res.layers(RenderLink.Res.class)`).
@@ -198,9 +205,9 @@ Each task also ships its suite at `addons/160-performance.N/` (`manifest.json`, 
 - **Gating each weather inside an adopted copy of its own resource** (`gfx/fx/rain`, `snow`,
   `clouds`, `wet`, `seasonmap`) — five version-pinned copies for five one-line gates, each silently
   inert the day the server bumps that resource, when the client composes every weather in one place.
-- **A decoration switch instead of a percentage** — `0` is the switch, and scaling the per-tile draw
+- **A flavor-objects switch instead of a percentage** — `0` is the switch, and scaling the per-tile draw
   yields a stable subset, so the slider costs nothing a switch does not.
-- **Deciding decoration after building every piece and discarding most** — builds the sprites and
+- **Deciding flavor objects after building every piece and discarding most** — builds the sprites and
   resolves the resources of pieces that are then thrown away, on every cut build.
 - **Keeping the topmost variant when blend is off** — the base is the tileset's own look; the
   variants are what the noise paints over it.
@@ -208,7 +215,7 @@ Each task also ships its suite at `addons/160-performance.N/` (`manifest.json`, 
   re-sends it; withholding is symmetric and costs nothing while withheld.
 - **Exempting plumes by the owner's kind (a list of kiln-like objects)** — the plume's own resource
   names it, and a list of owners goes stale with every new object.
-- **One generation for the mesh and the decoration** — a slider drag would re-mesh the ground it
+- **One generation for the mesh and the flavor objects** — a slider drag would re-mesh the ground it
   does not touch, twenty times.
 - **Eager `rebuild()` of every cut of every loaded grid on a write** — floods the `Defer` pool with
   cuts nobody draws; the terrain-loading comment on `Deferred.invalidate` records the same flood at

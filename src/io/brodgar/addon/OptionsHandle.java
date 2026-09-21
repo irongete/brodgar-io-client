@@ -42,6 +42,10 @@ public final class OptionsHandle {
      * Build {@code hafen.client()} for {@code owner}. From {@code installHafen}. This was the API's one
      * colon-on-the-namespace ({@code hafen.client:options()}) and is now a section like every other one: the
      * table is CALLED and both verbs are colon calls on what it hands back.
+     *
+     * <p>The subsystems behind {@code options()}: {@code performance()}, {@code interface()},
+     * {@code video()}, {@code audio()}, {@code camera()}, {@code client()}, {@code keybindings()},
+     * {@code addon()}.
      */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable client = new LuaTable();
@@ -103,6 +107,16 @@ public final class OptionsHandle {
     static LuaValue create(final Addon owner) {
         LuaValue opts = open("Options");
         LuaTable m = new LuaTable();
+        // performance() -- how much world is drawn (160.1). First of the panels: it is also the first row of
+        // OptWnd.SettingsPanel.gamepanels(), which is why the Options window opens on it.
+        m.set("performance", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                self(a, "performance");
+                if(owner.clientPerformance == null)
+                    owner.clientPerformance = PerformanceOptions.create(owner);
+                return owner.clientPerformance;
+            }
+        });
         m.set("interface", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 self(a, "interface");

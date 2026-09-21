@@ -1,0 +1,10 @@
+{
+  "name": "160.1 — Performance: the store, the panel and options:performance()",
+  "id": "160-performance.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 160.1: the performance options handle's identity, its round trip, chaining, refusals and restore.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

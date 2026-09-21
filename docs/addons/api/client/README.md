@@ -12,6 +12,7 @@ options:interface():angGran(15)                       -- write: needs client.set
 
 | Handle | Covers | Page |
 |---|---|---|
+| `options:performance()` | How much world is drawn: flavor objects, crop and forageable density, ground blending and transitions, tree effects, smoke, weather. | [Below](#performance) |
 | `options:interface()` | UI scale, fine-placement granularity. | [Below](#interface) |
 | `options:video()` | Shadows, render scale, vsync, framerate, lighting. | [Below](#video) |
 | `options:audio()` | Volumes and output latency. | [Below](#audio) |
@@ -59,6 +60,40 @@ options:video():shadows(true):vsync(false):lightLimit(8)
 | An explicit `nil` raises | Not a read: `shadows(value)` with a `nil` value would otherwise read and leave a write nobody made. Test the value first. |
 
 > **Every write into a client panel needs the `client.settings` [permission](../../guides/permissions.md).** These settings persist to the user's own preference stores. [`binding:key(key)`](keybindings.md) reaches the client's own bindings. The consent dialog says *"change your client settings and hotkeys"*. Reading needs nothing.
+
+## `performance()`
+
+How much world is drawn: flavor objects, crop and forageable density, ground blending and transitions, tree effects, smoke, weather. Nothing here changes what the server knows or what a click reaches — every setting is client-local and purely visual.
+
+| Method | Type | Permission | Description |
+|---|---|---|---|
+| `flavor()` / `flavor(percent)` | `number` | read Unprotected / write `client.settings` | How many of the flavor objects a tile seeds are drawn: the tufts, pebbles and flowers a tileset scatters over its ground. Whole `0`..`100`, default `100`. |
+| `crops()` / `crops(percent)` | `number` | read Unprotected / write `client.settings` | How many of a crop tile's sprouts are drawn, field crops and trellis crops alike. Whole `1`..`100`, default `100`. |
+| `forage()` / `forage(percent)` | `number` | read Unprotected / write `client.settings` | The same for forageables that grow as a clump. Whole `1`..`100`, default `100`. |
+| `groundBlend()` / `groundBlend(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the ground blends its texture variants by noise. Default `true`. |
+| `transitions()` / `transitions(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the skirts between two tile types are drawn. Default `true`. |
+| `treeEffects()` / `treeEffects(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether trees and bushes sway in the wind. Default `true`. |
+| `smoke()` / `smoke(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether smoke plumes are drawn: kilns, furnaces, ovens, chimneys, fires. Default `true`. |
+| `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | Cloud shadows moving over the ground. Default `true`. |
+| `rain()` / `rain(flag)` | `boolean` | read Unprotected / write `client.settings` | Rain particles and their splashes. Default `true`. |
+| `snow()` / `snow(flag)` | `boolean` | read Unprotected / write `client.settings` | Snow particles. Default `true`. |
+| `wetGround()` / `wetGround(flag)` | `boolean` | read Unprotected / write `client.settings` | The sheen the ground takes on after rain. Default `true`. |
+| `seasonTint()` / `seasonTint(flag)` | `boolean` | read Unprotected / write `client.settings` | The seasonal tint of the ground. Default `true`. |
+
+| Rule | Detail |
+|---|---|
+| Whole percentages | `flavor`, `crops` and `forage` are whole numbers in the unit the panel shows, never a `0.0`..`1.0` fraction. |
+| The floor differs | `0` is the floor of `flavor`: at `0` a tile still seeds the pieces that carry ambient sound. `1` is the floor of `crops` and `forage`: a plant tile never draws nothing, so its growth stage stays readable. |
+| The defaults draw the upstream picture | Every setting at its default is an exact no-op: the scene is what it has always been. |
+| Applies live | A write takes effect with no relogin. `flavor`, `groundBlend` and `transitions` rebuild the ground lazily, cut by cut, as the scene draws it; `crops` and `forage` re-create the plants already in view; `treeEffects` shows on the next tick; `smoke`, `clouds`, `rain`, `snow`, `wetGround` and `seasonTint` show within a frame. |
+| `smoke` is symmetric | Turning it back on shows a plume already burning without the server re-sending anything. A scent trail's smoke is never withheld: it is information, not decoration. |
+| Answers before the world is up | Its backing is the client's own statics, built with the class — like `interface()`, `camera()` and `client()`. |
+
+```lua
+local performance = hafen.client():options():performance()
+performance:flavor(50):groundBlend(false)                -- needs client.settings
+hafen.log():write("crop density: " .. performance:crops() .. " %")
+```
 
 ## `interface()`
 
@@ -153,7 +188,7 @@ hafen.log():write("remembered ground reaches " .. client_options:recallRange() .
 
 ## Before the client is up
 
-`video()` and `audio()` read `nil` until the client's UI exists, since their backing systems are built with it. A write in that window is ignored after its argument is checked. `interface()`, `camera()` and `client()` always answer. Guard the value, or act from `SessionEnteredWorld`.
+`video()` and `audio()` read `nil` until the client's UI exists, since their backing systems are built with it. A write in that window is ignored after its argument is checked. `performance()`, `interface()`, `camera()` and `client()` always answer. Guard the value, or act from `SessionEnteredWorld`.
 
 ```lua
 local shadows = options:video():shadows()

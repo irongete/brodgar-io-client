@@ -32,12 +32,12 @@ addon, stateless like the other panels, `tostring` reads `Options(performance)`.
 
 | Verb | Type | Range / values | Default | What it decides |
 |---|---|---|---|---|
-| `decoration()` / `decoration(percent)` | number | whole `0`..`100` | `100` | How much of the ground decoration a tile seeds is drawn: the tufts, pebbles and flowers a tileset scatters. `0` keeps only the pieces that emit ambient sound. |
+| `flavor()` / `flavor(percent)` | number | whole `0`..`100` | `100` | How many of the flavor objects a tile seeds are drawn: the tufts, pebbles and flowers a tileset scatters over its ground. `0` keeps only the pieces that emit ambient sound. |
 | `crops()` / `crops(percent)` | number | whole `1`..`100` | `100` | How many of a crop tile's sprouts are drawn, field crops and trellis crops alike. At least one sprout is always drawn, so the growth stage stays readable. |
 | `forage()` / `forage(percent)` | number | whole `1`..`100` | `100` | The same for forageables that grow as a clump. At least one. |
 | `groundBlend()` / `groundBlend(flag)` | boolean | `true` / `false` | `true` | Whether the ground blends its texture variants by noise. Off, every tile draws its tileset's base texture alone: one layer of ground where there were up to several. |
 | `transitions()` / `transitions(flag)` | boolean | `true` / `false` | `true` | Whether the skirts between two tile types are drawn. Off, tile borders are hard edges. |
-| `sway()` / `sway(flag)` | boolean | `true` / `false` | `true` | Whether foliage sways in the wind. Off, trees and bushes stand still; their random tilt stays. |
+| `treeEffects()` / `treeEffects(flag)` | boolean | `true` / `false` | `true` | Whether trees and bushes sway in the wind. Off, they stand still; their random tilt stays. |
 | `smoke()` / `smoke(flag)` | boolean | `true` / `false` | `true` | Whether smoke plumes are drawn: kilns, furnaces, ovens, chimneys, fires. A scent trail's smoke is never withheld: it is information, not decoration. |
 | `clouds()` / `clouds(flag)` | boolean | `true` / `false` | `true` | Cloud shadows moving over the ground. |
 | `rain()` / `rain(flag)` | boolean | `true` / `false` | `true` | Rain particles and their splashes. |
@@ -53,17 +53,17 @@ Every write needs `client.settings`; every read needs nothing. The handle answer
 is up, as `interface()`, `camera()` and `client()` do: its backing is the client's own statics, built
 with the class.
 
-Percentages are **whole numbers** in the unit the panel shows. `decoration` allows `0`; the two plant
+Percentages are **whole numbers** in the unit the panel shows. `flavor` allows `0`; the two plant
 amounts start at `1` because a plant tile that draws nothing would be a crop the player cannot read.
 
 ## How each setting takes effect
 
 | Setting | Where it decides | When a change shows |
 |---|---|---|
-| `decoration` | Where a tileset's decoration is seeded per tile: the per-tile draw against the tileset's own probability is scaled by the percentage, so a lower setting is a strict subset of the full set — the same pieces at the same places, fewer of them — and a piece whose resource carries an ambient-sound layer is seeded at full probability whatever the setting | The decoration of every drawn cut is rebuilt lazily: a change bumps a generation, a cut compares its stamp when the scene asks for it, and only cuts the scene draws are rebuilt. What is on screen stays until its replacement is built. |
+| `flavor` | Where a tileset's flavor objects are seeded per tile: the per-tile draw against the tileset's own probability is scaled by the percentage, so a lower setting is a strict subset of the full set — the same pieces at the same places, fewer of them — and a piece whose resource carries an ambient-sound layer is seeded at full probability whatever the setting | The flavor objects of every drawn cut are rebuilt lazily: a change bumps a generation, a cut compares its stamp when the scene asks for it, and only cuts the scene draws are rebuilt. What is on screen stays until its replacement is built. |
 | `groundBlend`, `transitions` | Where a cut's ground mesh is built: the blend's per-vertex variant weights, and the transition pass per tile | Same lazy generation, over the cut's mesh rather than its decoration. Remembered ground and another session's ground go through the same accessor and follow. |
 | `crops`, `forage` | In the plant sprite factories: the number of parts a plant sprite adds, `max(1, round(count × percent / 100))`, walking the same random sequence so a lower setting draws a prefix of the full set | Plants in view are re-created on the write (their drawable is rebuilt from the resource and state bytes it was built from); plants that come into view later are built at the new setting. |
-| `sway` | In the placement state the sway attribute contributes to a gob | The next tick: the gob's placement is recomposed every tick and a state that went away is a changed placement. |
+| `treeEffects` | In the placement state the sway attribute contributes to a gob | The next tick: the gob's placement is recomposed every tick and a state that went away is a changed placement. |
 | `smoke` | When a smoke overlay is attached to a gob, and on a write, over every gob's overlays | The write walks every session's objects; a plume already burning is withheld from the scene without being removed, so turning smoke back on shows it again without waiting for the server. |
 | `clouds`, `rain`, `snow`, `wetGround`, `seasonTint` | Where the client composes the weather the server sent into the scene, and where it ticks that weather | The next frame. Both halves are gated: a withheld weather is neither drawn nor simulated. |
 
@@ -82,22 +82,22 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
 2. **Reads, writes, chaining, persistence.** Each verb reads back what was written; a write returns
    the handle so `performance:rain(false):snow(false)` chains; a written value survives `:reload`
    (the store is the client's own preference file, read at class init).
-3. **Refusals, each naming why.** `decoration("50")` raises naming the parameter as a number;
-   `decoration(101)`, `decoration(-1)`, `crops(0)`, `forage(0)` raise naming the bounds and the value
-   and leave the setting unchanged; `decoration(50.5)` raises naming a whole number; `rain("no")` and
+3. **Refusals, each naming why.** `flavor("50")` raises naming the parameter as a number;
+   `flavor(101)`, `flavor(-1)`, `crops(0)`, `forage(0)` raise naming the bounds and the value
+   and leave the setting unchanged; `flavor(50.5)` raises naming a whole number; `rain("no")` and
    `rain(0)` raise naming a switch; `rain(nil)` raises rather than reading.
 4. **The panel follows a write and a write follows the panel.** `[manual]`: after
-   `performance:decoration(37):rain(false)`, Options ▸ Game ▸ Performance shows the decoration slider
-   at 37 % and the rain box clear; moving the slider to 60 makes `performance:decoration()` read `60`.
+   `performance:flavor(37):rain(false)`, Options ▸ Game ▸ Performance shows the *Flavor objects* slider
+   at 37 % and the rain box clear; moving the slider to 60 makes `performance:flavor()` read `60`.
    The Options window opens on the Performance panel.
 5. **The defaults draw the upstream picture.** With every setting at its default the scene is
-   unchanged: the same decoration, the same ground, swaying trees, smoke, weather. `[manual]`, and a
+   unchanged: the same flavor objects, the same ground, swaying trees, smoke, weather. `[manual]`, and a
    number: `render.drawSlots` at the defaults before the feature's writes equals `render.drawSlots`
    after every setting has been written back to its default, within the frame-to-frame jitter.
-6. **Decoration density draws less.** `decoration(0)` makes `render.drawSlots` fall, and
-   `decoration(100)` brings it back, both within a bounded poll of a few seconds while standing on
+6. **Flavor objects draw less.** `flavor(0)` makes `render.drawSlots` fall, and
+   `flavor(100)` brings it back, both within a bounded poll of a few seconds while standing on
    grass; the ambient sound emitters are still there at `0` (`[manual]`: crickets and birds are still
-   heard on a summer meadow at `decoration(0)`).
+   heard on a summer meadow at `flavor(0)`).
 7. **Ground blend and transitions draw less.** `groundBlend(false)` and `transitions(false)` each
    make `render.drawSlots` fall within the poll and rise again when turned back on. `[manual]`: at
    `groundBlend(false)` the ground is one texture per tile type with no variant noise; at
@@ -111,8 +111,8 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
    flakes while it snows; at `wetGround(false)` the ground does not shine after rain; at
    `seasonTint(false)` the ground loses its seasonal tint. Turning any of them back on restores it
    within a frame without relogging.
-10. **Sway withheld.** `[manual]`: at `sway(false)` trees and bushes stand still on the next tick and
-    keep their tilt; at `sway(true)` they sway again.
+10. **Tree effects withheld.** `[manual]`: at `treeEffects(false)` trees and bushes stand still on the
+    next tick and keep their tilt; at `treeEffects(true)` they sway again.
 11. **Smoke withheld, symmetrically.** With a burning kiln or furnace in view, `smoke(false)` makes
     `render.drawSlots` fall and `smoke(true)` restores it without the server re-sending anything; the
     plume is still listed by `gob:overlay():find("gfx/fx/ismoke")` while withheld. `[manual]`: a scent
@@ -150,7 +150,7 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
 - `docs/addons/api/README.md` — the `hafen.client` index row enumerates the panels.
 - `docs/addons/api/overlay.md` — one rule: a native plume withheld by the Performance panel is still
   listed.
-- `docs/client/ground-detail.md` — new engine map: the decoration pass (`Tileset.Flavor.Buffer`,
+- `docs/client/ground-detail.md` — new engine map: the flavor pass (`Tileset.Flavor.Buffer`,
   `Tileset.SpriteFlavor.flavor`, `MCache.Grid.makeflavor`, `MCache.Grid.Flavobjs`), the ground blend
   layers (`TerrainTile.Blend`, `TerrainTile.faces`/`_faces`), the transition pass
   (`MapMesh.build` → `MapMesh.dotrans`), the cut lifecycle (`MCache.Deferred.invalidate` vs
@@ -158,7 +158,7 @@ Each is verifiable in-game through the task's own suite, `[manual]` where a prog
   the gotchas met on the way. None of these seams has a page today.
 - `docs/client/world-effects.md` — new engine map: weather (`Glob.wmap`, `Glob.Weather`,
   `Glob.Weather.Factory`, `Glob.weather()`, `Glob.tick`, `MapView.updweather`, `MapView.rweather`),
-  foliage sway (the `lib/svaj` copy, `GobSvaj.placestate`, `Gob.Placed.Placement.mods`), smoke
+  tree effects (the `lib/svaj` copy, `GobSvaj.placestate`, `Gob.Placed.Placement.mods`), smoke
   overlays (`OCache.$overlay`, `OCache.OlSprite`, `Gob.Overlay.init`, `Gob.addol`, what `ISmoke`
   simulates in `autotick`), plant sprites (`lib/plants`, `lib/gplant`, `Sprite.Factory` via
   `Resource.getcode`, `CSprite.addpart`, `ResDrawable`). None of these seams has a page today.
@@ -208,6 +208,7 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/io/brodgar/addon/Args.java` — 1
 - `src/io/brodgar/addon/Addon.java` — 1
 - `src/io/brodgar/ui/ClientPanel.java` — 1
+- `src/io/brodgar/perf/Performance.java` — 2, 3, 4, 5
 - `src/io/brodgar/session/Sessions.java` — 2, 5
 - `src/haven/OptWnd.java` — 1
 - `src/haven/Utils.java` — 1
