@@ -46,6 +46,7 @@ my_gob:overlay():remove("hp")
 | Once the gob is gone | The collection is empty, `:get` answers `nil`, `:remove` is inert (the overlay died with the gob), `:add` raises (nothing left to attach to). |
 | Keys are per addon | Two addons using `"tag"` on one gob do not collide and cannot see each other's. The collection answers yours and the game's. `:add` on a key already there replaces it, leaving one overlay. |
 | The game's own are read-only | Listed with `native = true`, keyed by resource name. `:add` onto such a key raises, so does `:remove`, so does every setter, always naming the key. |
+| A native plume can be withheld client-side | [`hafen.client():options():performance():smoke(false)`](client/README.md#performance) drops a plume from the scene without the server removing it: `:list`/`:get`/`:find` still answer it, with `native = true`, and it draws again the moment `smoke(true)` is written. |
 | A thing you stood at the gob is read-only here | A [sprite](virtual/sprites.md), [object](virtual/models.md) or [ghost](virtual/ghosts.md) anchored to the gob is listed under a generated key (`"virtual#7"`) with `:native()` `false`. Every setter raises on it naming the collection that owns it. Address it through `hafen.virtual():sprite()` / `:object()` / `:ghost()`. |
 | No filter form of `add` | "Every player gets a label" is a [`GobAdded`](event/bus/world.md#world) handler plus a loop over [`session:world():gob():list()`](world.md#objects). |
 

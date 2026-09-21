@@ -1,6 +1,14 @@
 package io.brodgar.perf;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import haven.Gob;
+import haven.OCache;
+import haven.Resource;
+import haven.UI;
 import haven.Utils;
+import io.brodgar.session.Sessions;
 
 /**
  * The whole state of the <b>Performance</b> panel (spec 160-performance, task 160.1) — twelve
@@ -9,11 +17,11 @@ import haven.Utils;
  * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on the panel and a write from
  * {@code hafen.client():options():performance()} are the same act.
  *
- * <p>Nothing here reads a consumer's seam yet: {@code flavorGeneration()} and {@code groundGeneration()}
- * are bumped by their setters but consumed by nobody until 160.3 and 160.4 compare a cut's stamp
- * against them, and the seven remaining setters have no follower at all until 160.2 and 160.5 give
- * {@code smoke}, {@code crops} and {@code forage} one. Every setting is an exact no-op at its default,
- * which is what lets this task ship the whole surface before a single frame draws differently.
+ * <p>{@code flavorGeneration()} and {@code groundGeneration()} are bumped by their setters but consumed
+ * by nobody until 160.3 and 160.4 compare a cut's stamp against them. {@code crops} and {@code forage}
+ * likewise have no follower until 160.5 gives them {@code replant()}. Every setting is an exact no-op
+ * at its default, which is what lets this feature ship its whole surface before a single frame draws
+ * differently.
  */
 public final class Performance {
     private Performance() {}
@@ -22,6 +30,11 @@ public final class Performance {
     public static final int FLAVOR_MAX = 100;
     public static final int PLANT_MIN = 1;
     public static final int PLANT_MAX = 100;
+
+    /* 160.2: the two resource names withholding decides by name rather than by kind (a scent trail's
+     * smoke is a plume of PLUME over an owner other than CLUE, and is never withheld). */
+    public static final String PLUME = "gfx/fx/ismoke";
+    public static final String CLUE = "gfx/terobjs/clue";
 
     public static volatile int flavor = clamp(Utils.getprefi("perf-flavor", 100), FLAVOR_MIN, FLAVOR_MAX);
     public static volatile int crops = clamp(Utils.getprefi("perf-crops", 100), PLANT_MIN, PLANT_MAX);
@@ -84,7 +97,10 @@ public final class Performance {
     }
 
     public static void smoke(boolean on) {
+        boolean changed = on != smoke;
         Utils.setprefb("perf-smoke", smoke = on);
+        if(changed)
+            plumes();
     }
 
     public static void clouds(boolean on) {
@@ -105,5 +121,51 @@ public final class Performance {
 
     public static void seasonTint(boolean on) {
         Utils.setprefb("perf-seasontint", seasonTint = on);
+    }
+
+    /* 160.2: is this weather resource withheld right now? Checked by name in Glob.weather() (the draw
+     * half) and Glob.ctick() (the simulate half); a name none of the five switches names is never
+     * withheld. */
+    public static boolean withheldWeather(Resource res) {
+        String name = res.name;
+        if("gfx/fx/clouds".equals(name))
+            return(!clouds);
+        if("gfx/fx/rain".equals(name))
+            return(!rain);
+        if("gfx/fx/snow".equals(name))
+            return(!snow);
+        if("gfx/fx/wet".equals(name))
+            return(!wetGround);
+        if("gfx/fx/seasonmap".equals(name))
+            return(!seasonTint);
+        return(false);
+    }
+
+    /* 160.2: is this plume overlay withheld right now? ownerRes is the gob's own drawable's resource
+     * name, overlayRes the plume sprite's -- either may be null (no drawable, no sprite yet, a Loading
+     * on the resource), in which case it is not a plume this decides. */
+    public static boolean withheldPlume(String ownerRes, String overlayRes) {
+        return(!smoke && PLUME.equals(overlayRes) && !CLUE.equals(ownerRes));
+    }
+
+    /* 160.2: re-decide every live plume against the setting just written -- symmetric with
+     * Gob.Overlay.init()'s own gate on one not yet in a tree, so a burning kiln already on screen
+     * follows a write with no relog and no server round trip. Collected under each session's OCache
+     * monitor and applied outside it: Gob.plumes() defers onto that gob's own loader task, and a gob
+     * cannot be walked and deferred at once without risking the OCache monitor nested inside it. */
+    private static void plumes() {
+        for(Sessions.Member m : Sessions.members()) {
+            UI ui = m.ui;
+            if((ui == null) || (ui.sess == null))
+                continue;
+            OCache oc = ui.sess.glob.oc;
+            List<Gob> gobs = new ArrayList<Gob>();
+            synchronized(oc) {
+                for(Gob gob : oc)
+                    gobs.add(gob);
+            }
+            for(Gob gob : gobs)
+                gob.plumes();
+        }
     }
 }

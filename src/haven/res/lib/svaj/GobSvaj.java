@@ -84,7 +84,9 @@ public class GobSvaj extends GAttrib implements Gob.SetupMod {
 	return(cur);
     }
 
+    // addon: 160.2 -- null is enough: Gob.Placed.Placement recomposes mods every tick and skips a null,
+    //        so a changed answer here is a changed placement.
     public Pipe.Op placestate() {
-	return(st());
+	return(io.brodgar.perf.Performance.treeEffects ? st() : null);
     }
 }

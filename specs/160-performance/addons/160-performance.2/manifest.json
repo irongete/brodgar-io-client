@@ -1,0 +1,10 @@
+{
+  "name": "160.2 — Performance: weather, tree effects and smoke plumes",
+  "id": "160-performance.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 160.2: smoke withheld and restored on a burning plume, and the round trip of tree effects and the five weather switches.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

@@ -108,7 +108,7 @@ client, anywhere.
       first); then write the values back.
       <!-- extra context: src/io/brodgar/addon/Args.java (integer's six-argument form and the sentences it raises); docs/addons/api/client/README.md is the page being extended — keep its voice and its tables -->
 
-- [ ] **160.2 — Weather, tree effects and smoke plumes.** The five weather switches, `treeEffects` and
+- [x] **160.2 — Weather, tree effects and smoke plumes.** The five weather switches, `treeEffects` and
       `smoke` act.
       *Weather.* `Performance.withheldWeather(Resource res)`: by `res.name` — `gfx/fx/clouds` ↦
       `!clouds`, `gfx/fx/rain` ↦ `!rain`, `gfx/fx/snow` ↦ `!snow`, `gfx/fx/wet` ↦ `!wetGround`,

@@ -33,6 +33,7 @@ lookup instead of a search.
 | [the map database](mapfile.md) | the **recorded** map: the one RW lock and its processor thread, `gridinfo`/`segments`, `ZoomGrid`, markers and the `merge` that re-bases them |
 | [the minimap](minimap.md) | the live ⇄ recorded coordinate bridge (`sessloc`), `resolve`'s `tryLock` rule, and how a grid becomes a picture |
 | [the 3D world](world-3d.md) | the `MapView` scene, a client-only gob in it, ground overlays over the terrain, materials, billboards, glTF and render-to-texture |
+| [weather, tree sway and overlay plumes](world-effects.md) | `Glob.wmap`/`Weather`/`Weather.Factory` and the two places that compose and tick it, the `lib/svaj` adopted copy and how `Gob.Placed.Placement` recomposes a sway, and `Gob.Overlay`'s lazy `init()`/`slots` lifecycle a plume rides |
 | [the pointer and the ground](map-click.md) | screen ↔ world and the space both speak, placement snapping, the pick pass, and the click dispatch a synchronous hook gets in front of |
 | [which ground is drawn](terrain-raster.md) | the terrain display lists: the one bolted to the player, one over a second cache, and what bounds each |
 | [the camera](camera.md) | reading the installed camera outside a render pass, the name→class registry and the two prefs, and the frustum's two traps |

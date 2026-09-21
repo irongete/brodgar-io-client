@@ -164,9 +164,17 @@ public class Glob {
 
 	synchronized(this) {
 	    ticklight(dt);
-	    for(Iterator<Object> i = wmap.values().iterator(); i.hasNext();) {
-		Object o = i.next();
+	    // addon: 160.2 -- entrySet() rather than values(), so a withheld entry's resource can be
+	    //        named without a second lookup; the iterator's remove() stays valid either way.
+	    for(Iterator<Map.Entry<Indir<Resource>, Object>> i = wmap.entrySet().iterator(); i.hasNext();) {
+		Map.Entry<Indir<Resource>, Object> e = i.next();
+		Object o = e.getValue();
 		if(o instanceof Weather) {
+		    try {
+			if(io.brodgar.perf.Performance.withheldWeather(e.getKey().get()))
+			    continue;
+		    } catch(Loading l) {
+		    }
 		    if(((Weather)o).tick(dt)) {
 			i.remove();
 			if(o instanceof Disposable)
@@ -332,6 +340,13 @@ public class Glob {
 	synchronized(this) {
 	    ArrayList<Weather> ret = new ArrayList<>(wmap.size());
 	    for(Map.Entry<Indir<Resource>, Object> cur : wmap.entrySet()) {
+		// addon: 160.2 -- a Loading here means not withheld this frame: the factory branch below
+		//        throws the very same Loading resolving the same key, so there is nothing to skip yet.
+		try {
+		    if(io.brodgar.perf.Performance.withheldWeather(cur.getKey().get()))
+			continue;
+		} catch(Loading l) {
+		}
 		Object val = cur.getValue();
 		if(val instanceof Weather) {
 		    ret.add((Weather)val);

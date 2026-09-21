@@ -108,7 +108,11 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		if(added && (spr instanceof SetupMod))
 		    gob.setupmods.add((SetupMod)spr);
 	    }
-	    if(slots == null)
+	    // addon: 160.2 -- a plume withheld by the Performance panel is never added: this is the whole
+	    //        "show" direction too, since Gob.ctick calls init() again every tick while slots stays
+	    //        null and ticks nothing that is in no tree, so a withheld plume costs nothing and is
+	    //        added on the first tick after smoke(true) with no walk.
+	    if((slots == null) && !gob.withheldplume(spr))
 		RUtils.multiadd(gob.slots, this);
 	}
 
@@ -860,6 +864,39 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		RUtils.multirem(new ArrayList<>(d.slots));
 	} else if((d.slots == null) || d.slots.isEmpty()) {
 	    RUtils.multiadd(this.slots, d);
+	}
+    }
+
+    // addon: 160.2 -- is this plume withheld by the Performance panel? The owner's resource is this
+    //        gob's own Drawable's; the plume's own is the overlay sprite's. Either may answer null (no
+    //        drawable yet, a Loading on the resource, no sprite yet), in which case it is not a plume
+    //        the panel decides. Performance.withheldPlume names the one rule, shared with the "show"
+    //        gate in Overlay.init().
+    public boolean withheldplume(Sprite spr) {
+	String owner;
+	try {
+	    Drawable d = getattr(Drawable.class);
+	    owner = (d == null) ? null : d.getres().name;
+	} catch(Loading l) {
+	    owner = null;
+	}
+	String overlay = ((spr == null) || (spr.res == null)) ? null : spr.res.name;
+	return(io.brodgar.perf.Performance.withheldPlume(owner, overlay));
+    }
+
+    // addon: 160.2 -- the withhold direction of a Performance.smoke() write, mirroring addonvisible():
+    //        deferred because ols and Overlay.slots may only be touched under this gob's own monitor,
+    //        which Performance.plumes()'s walk does not hold.
+    public void plumes() {
+	defer(this::syncplumes);
+    }
+
+    private void syncplumes() {
+	for(Overlay ol : ols) {
+	    if((ol.slots != null) && withheldplume(ol.spr)) {
+		RUtils.multirem(new ArrayList<>(ol.slots));
+		ol.slots = null;
+	    }
 	}
     }
 
