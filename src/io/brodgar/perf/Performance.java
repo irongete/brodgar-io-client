@@ -21,10 +21,10 @@ import io.brodgar.session.Sessions;
  * {@code hafen.client():options():performance()} are the same act.
  *
  * <p>{@code flavorGeneration()} is what {@link haven.MCache.Grid#getfo} compares a cut's stamp against
- * (160.3); {@code groundGeneration()} is bumped by its setters but consumed by nobody until 160.4 does
- * the same for the mesh. {@code crops} and {@code forage} likewise have no follower until 160.5 gives
- * them {@code replant()}. Every setting is an exact no-op
- * at its default, which is what lets this feature ship its whole surface before a single frame draws
+ * (160.3) and {@code groundGeneration()} what {@link haven.MCache.Grid#getcut} compares against for the
+ * mesh (160.4); {@code crops} and {@code forage} are read by the three adopted plant factories through
+ * {@code sprouts} and followed by {@code replant()} (160.5). Every setting is an exact no-op at its
+ * default, which is what lets this feature ship its whole surface before a single frame draws
  * differently.
  */
 public final class Performance {
@@ -75,11 +75,19 @@ public final class Performance {
     }
 
     public static void crops(int percent) {
-        Utils.setprefi("perf-crops", crops = clamp(percent, PLANT_MIN, PLANT_MAX));
+        int clamped = clamp(percent, PLANT_MIN, PLANT_MAX);
+        boolean changed = clamped != crops;
+        Utils.setprefi("perf-crops", crops = clamped);
+        if(changed)
+            replant();
     }
 
     public static void forage(int percent) {
-        Utils.setprefi("perf-forage", forage = clamp(percent, PLANT_MIN, PLANT_MAX));
+        int clamped = clamp(percent, PLANT_MIN, PLANT_MAX);
+        boolean changed = clamped != forage;
+        Utils.setprefi("perf-forage", forage = clamped);
+        if(changed)
+            replant();
     }
 
     public static void groundBlend(boolean on) {
@@ -152,6 +160,14 @@ public final class Performance {
         return(!smoke && PLUME.equals(overlayRes) && !CLUE.equals(ownerRes));
     }
 
+    /* 160.5: how many of a plant's count sprouts are drawn at percent -- at least one, so the growth
+     * stage stays readable, and every one of them at PLANT_MAX, which keeps the adopted factories on
+     * upstream's own code path at the default. Read by haven.res.lib.plants.GrowingPlant,
+     * TrellisPlant and haven.res.lib.gplant.GaussianPlant. */
+    public static int sprouts(int count, int percent) {
+        return((percent >= PLANT_MAX) ? count : Math.max(1, (int)Math.round(count * percent / 100.0)));
+    }
+
     /* 160.3: does this flavor object's resource carry ambient sound? A piece that does is seeded at the
      * tileset's own probability whatever the flavor setting (a summer meadow at 0 keeps its crickets):
      * a ClipAmbiance.Desc layer ("clamb"), an Audio.Clip layer with id "amb", or a render link whose
@@ -186,6 +202,26 @@ public final class Performance {
             }
             for(Gob gob : gobs)
                 gob.plumes();
+        }
+    }
+
+    /* 160.5: re-create the drawable of every plant in view after a write of crops or forage -- the
+     * sprout count is fixed when the sprite is created, so a changed amount is a new sprite. The same
+     * walk as plumes(): collected under each session's OCache monitor, applied outside it through
+     * Gob.replant(), which defers onto the gob's own loader task. */
+    private static void replant() {
+        for(Sessions.Member m : Sessions.members()) {
+            UI ui = m.ui;
+            if((ui == null) || (ui.sess == null))
+                continue;
+            OCache oc = ui.sess.glob.oc;
+            List<Gob> gobs = new ArrayList<Gob>();
+            synchronized(oc) {
+                for(Gob gob : oc)
+                    gobs.add(gob);
+            }
+            for(Gob gob : gobs)
+                gob.replant();
         }
     }
 }

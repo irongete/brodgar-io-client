@@ -1,0 +1,10 @@
+{
+  "name": "160.5 — Performance: crop and forageable sprouts",
+  "id": "160-performance.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 160.5: crops(1) draws fewer sprouts on a field in view and crops(100) draws them again over the same object, forage(1) likewise over a clump forageable, and the twelve defaults draw the scene the run began with.",
+  "api_version": "1.0",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

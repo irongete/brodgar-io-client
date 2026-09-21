@@ -900,6 +900,35 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	}
     }
 
+    // addon: 160.5 -- the follow of a Performance.crops()/forage() write: a plant's sprout count is
+    //        decided when its sprite is created, so the drawable is built again from the resource and
+    //        state bytes it was built from. Deferred like plumes(): setattr takes this gob's monitor and
+    //        the new ResDrawable's sprite may throw Loading. It lives here because ResDrawable.sdt is
+    //        package-private. Only a drawable whose factory is one of the three adopted copies is
+    //        re-created: a served class of another version never read the setting, so it is left alone.
+    public void replant() {
+	defer(this::syncplant);
+    }
+
+    private void syncplant() {
+	Drawable d = getattr(Drawable.class);
+	if(!(d instanceof ResDrawable))
+	    return;
+	ResDrawable rd = (ResDrawable)d;
+	Object factory;
+	try {
+	    factory = rd.rres.getcode(Sprite.Factory.class, false);
+	} catch(Loading l) {
+	    return;
+	}
+	if(!((factory instanceof haven.res.lib.plants.GrowingPlant) ||
+	     (factory instanceof haven.res.lib.plants.TrellisPlant) ||
+	     (factory instanceof haven.res.lib.gplant.GaussianPlant)))
+	    return;
+	setattr(new ResDrawable(this, rd.res, rd.sdt.clone()));
+	updated();
+    }
+
     public void removed(RenderTree.Slot slot) {
 	slots.remove(slot);
     }

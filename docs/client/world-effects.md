@@ -1,8 +1,8 @@
-# Weather, tree sway and overlay plumes
+# Weather, tree sway, overlay plumes and plant sprites
 
-> Three seams a client-side setting (fork) withholds from: the weather the server composes into the
-> scene, the sway shader every tree and bush carries, and the particle plumes standing at a gob's
-> overlays.
+> Four seams a client-side setting (fork) draws less at: the weather the server composes into the
+> scene, the sway shader every tree and bush carries, the particle plumes standing at a gob's
+> overlays, and the sprouts a crop or a forageable clump scatters over its tile.
 
 ## Weather: where it lives
 
@@ -56,6 +56,28 @@ name, `RUtils.multirem(new ArrayList<>(ol.slots))` then `ol.slots = null` — le
 `ols`, so `gob:overlay()` keeps listing it, `GobOverlayAdded` already fired for it stands, and the
 server's own removal of it still works.
 
+## Plant sprites: where it lives
+
+| What | Where |
+|---|---|
+| The factories | Served code on the crop and forageable resources, reached as the resource's `Sprite.Factory` through `Resource.getcode(Sprite.Factory.class, false)` (`Sprite.create` asks it first). The factory instance is made once per resource by `Resource.CodeEntry.get` from the `codeentry` layer's arguments and cached there; `create(owner, res, sdt)` runs once per gob |
+| Field crops | `lib/plants`, adopted at version 11 under `src/haven/res/lib/plants/`: `GrowingPlant` holds `num` (the count, an argument of the entry) and `var`, the mesh variants grouped by growth stage (`MeshRes.id / 10`); `create` reads the stage from the first byte of the state bytes and scatters `num` parts over the tile at random offsets from `owner.mkrandoom()` |
+| Trellis crops | `TrellisPlant`, beside it: the same `num` and stages, its parts lined along the trellis at `11f / num` apart, rotated by the gob's `a` |
+| Forageable clumps | `lib/gplant`, adopted at version 1 under `src/haven/res/lib/gplant/`: `GaussianPlant` holds `numl`..`numh` and a radius `r`; `create` draws a count in that range and places each part at a gaussian offset, a variant being a mesh layer or a `RenderLink.Res` made per owner. A forageable drawn as one mesh does not use it |
+| The part | `CSprite.addpart(xo, yo, a, mat, node)`: one render node per sprout at an offset and an explicit angle, all under the one `CSprite` the factory returns |
+| The drawable | `ResDrawable`: `res` (the `Indir<Resource>`), `rres` (resolved in the constructor), `sdt` (a package-private `MessageBuf` of the state bytes) and `spr`, created by `Sprite.create` in the constructor and aged. `OCache.$cres` replaces it through `Gob.setattr` when the resource or the state bytes change, and updates the sprite in place when only the bytes did and the sprite is a `Sprite.CUpd` |
+
+**Fork.** The three copies scale the count they draw by the panel's plant amount — a prefix of the full
+set, since the loop runs to the scaled count and the random sequence is untouched, so a lower
+setting keeps every drawn sprout where the full field had it; `TrellisPlant` re-spaces its prefix along the
+whole trellis. At the default the loop bound is the count itself: upstream's own code path. A write of
+`crops` or `forage` is followed by `Gob.replant()` (`defer(this::syncplant)`) over every gob of every
+session: a `ResDrawable` whose `rres.getcode(Sprite.Factory.class, false)` is an instance of one of the
+three is replaced by `setattr(new ResDrawable(this, rd.res, rd.sdt.clone()))` and `updated()` — the same
+path a re-sent `OD_RES` takes, so the old drawable is disposed and the slots swapped by `setattr`, and the
+gob's id, position, name, state bytes and overlays are untouched. A served factory of another version is
+not an instance of the local class and is left alone, which is right: the setting never reached it.
+
 ## Gotchas
 
 - **A weather not yet loaded throws `Loading`.** `Indir<Resource>.get()` on a `wmap` key can throw before
@@ -64,6 +86,14 @@ server's own removal of it still works.
   nothing is skipped that would not already have been deferred.
 - **`GobSvaj`'s fix is entirely in `st()`.** The tree-effects fork touches only `placestate()`'s return;
   changing anything inside `st()` risks the multi-session origin fix documented there (069).
+- **A plant's sprout count is fixed when its sprite is created.** `create` reads the count and places
+  every part in one pass, and `CSprite` has no way to add or drop a part afterwards; a changed amount is a
+  new sprite, which is a new `ResDrawable`. Withholding the drawable would hide the whole plant.
+- **`Sprite.Factory` and the adopted class are the same object only for a `Direct` factory.**
+  `Sprite.FactMaker` chains three ways of making a factory out of a resource's entry class: an instance of
+  the class when it implements `Sprite.Factory` (the three plant classes), else a lambda over a static
+  `mksprite` or over a constructor. An `instanceof` test against an adopted class holds for the first kind
+  alone; for the other two the instance is a lambda and the test is always false.
 - **`Overlay.slots == null` already meant two things before this feature** — "never added yet" and "this
   session is dormant and the overlay is deliberately held out of the tree" (`Gob.ctick`'s own comment).
   Withholding a plume is a third reason with the same observable shape, which is exactly why the existing
@@ -71,12 +101,13 @@ server's own removal of it still works.
 
 ## What is not mapped
 
-Plant sprites (`lib/plants`, `lib/gplant`). The particle simulation inside a plume's own sprite, and the
-render backend's instancing of weather geometry.
+The particle simulation inside a plume's own sprite, and the render backend's instancing of weather
+geometry.
 
 ## See also
 
 - [the 3D world](world-3d.md) — the `MapView` scene `updweather` composes into
 - [state roots](state.md) — `Glob`, `OCache` and the `Gob`/`GAttrib` lifetime
 - [several sessions at once](multi-session.md) — the sway origin fix `GobSvaj.st()` carries
-- [gob sprites](gob-sprites.md) — how a resource-drawn object becomes render nodes
+- [gob sprites](gob-sprites.md) — how a resource-drawn object becomes render nodes, and the `lib/vmat` adoption
+- [published code](published-code.md) — `get-code`, `@FromResource` and the version rule an adopted copy lives by

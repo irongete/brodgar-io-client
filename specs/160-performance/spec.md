@@ -221,6 +221,7 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/haven/RUtils.java` — 2
 - `src/haven/res/lib/svaj/GobSvaj.java` — 2
 - `src/haven/res/lib/svaj/Svaj.java` — 2, 5
+- `src/haven/res/lib/plants/GrowingPlant.java`, `TrellisPlant.java`, `src/haven/res/lib/gplant/GaussianPlant.java` — 5 (the adopted copies it wrote)
 - `src/haven/Tileset.java` — 3
 - `src/haven/MCache.java` — 3, 4
 - `src/haven/ClipAmbiance.java` — 3

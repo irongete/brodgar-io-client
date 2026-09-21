@@ -273,7 +273,7 @@ client, anywhere.
       water included.
       <!-- extra context: src/haven/resutil/TerrainTile.java lines of Blend's constructor and setbase; src/haven/MapMesh.java build; specs/120's rejected "skip dotrans for remembered ground" is prior art on why one mesh path, not two -->
 
-- [ ] **160.5 — Crop and forageable sprouts.** `crops` and `forage` act, through two adopted
+- [x] **160.5 — Crop and forageable sprouts.** `crops` and `forage` act, through two adopted
       copies, and plants in view follow a write.
       *The copies.* Run `java -cp bin/hafen.jar haven.Resource get-code lib/plants lib/gplant` from
       the tree's root (`doc/resource-code`): it writes `src/haven/res/lib/plants/GrowingPlant.java`
