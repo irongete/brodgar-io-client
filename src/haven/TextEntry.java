@@ -220,8 +220,10 @@ public class TextEntry extends Widget implements ReadLine.Owner {
 	    if(cx < sx) {sx = cx;}
 	    if(cx > sx + room) {sx = cx - room;}
 	    int lx = cx - sx;
+	    // addon: centred in the text room as the text is (it was hung from the line's top, which the stock face
+	    // fills exactly and a taller face, from a rule's font, does not: the caret then ended above the baseline)
 	    if(((Utils.rtime() - Math.max(focusstart, buf.mtime())) % 1.0) < 0.5)
-		g.image(caret, coff.add(toff + lx, ty + ((th - tcache.img.getHeight()) / 2)));
+		g.image(caret, coff.add(toff + lx, ty + ((th - caret.sz().y) / 2)));
 	}
     }
 
