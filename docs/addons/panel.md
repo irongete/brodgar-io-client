@@ -93,7 +93,7 @@ A card's status is truncated to the width the name line leaves. The tooltip and 
 |---|---|
 | An install replaces the folder whole | Nothing of the old folder survives, a file you edited included. An addon you mean to change is one you keep by hand. Everything the client holds about the addon is untouched, since none of it lives in the folder. That is the enabled state, consented permissions, options, hotkeys, window placements, held action-bar slots. A version asking for more than you approved is disabled and asked again. |
 | A removal forgets the addon | With the folder, the reload deletes every row in [the client's file](manifest.md#where-an-addon-lives). That is options, assigned hotkeys, consented permissions, the enabled-set entry, window placements and held slots, on every character. Removed and installed again, it starts as a first install. |
-| What a removal leaves | [Your addon's file](api/store/README.md) under `savedata/<id>/` stays, yours to delete by hand. A folder deleted by hand leaves those rows dormant. Put it back and everything is as it was. |
+| What a removal leaves | [Your addon's file](api/store/README.md) under `savedata/<id>/`, where the addon made one, stays yours to delete by hand. A folder deleted by hand leaves those rows dormant. Put it back and everything is as it was. |
 
 ## The hub
 

@@ -455,9 +455,11 @@ public final class AddonRegistry {
         new Step("remembered places", LuaWidget::rememberCapture),
         // ...then persist them (spec 05: flushed at Disable)
         new Step("saved variables", StoreApi::flush),
-        // 146: ...and close the file they went into. After the flush, because the flush is what fills it; before
-        //   everything below, because nothing below writes it. The close checkpoints the write-ahead log and
-        //   drops the sidecars, so a reload leaves one file per addon behind, as a quit does.
+        // 146: ...and close the file they went into, where the addon opened one — an addon that stores
+        //   nothing has no file to close, and this step must not make it one. After the flush, because the
+        //   flush is what fills it; before everything below, because nothing below writes it. The close
+        //   checkpoints the write-ahead log and drops the sidecars, so a reload leaves the file alone
+        //   beside the addon's folder, as a quit does.
         new Step("sqlite", SqliteApi::close),
         // 044.1: take every widget this addon stood in the world back OUT of its surface first, so the two
         //   teardowns below see an ordinary widget on the flat UI. Standing is a re-home, so it has to be

@@ -139,8 +139,8 @@ final class StoreApi {
         new ConcurrentLinkedQueue<AddonManager.SessionState>();
 
     /**
-     * Build {@code hafen.store()} for {@code owner}, open its file and load its client-scope vars
-     * (before Load). From installHafen.
+     * Build {@code hafen.store()} for {@code owner} (before Load). From installHafen. The file behind it
+     * is opened by the first verb that needs it, and its client-scope vars are read one name at a time.
      *
      * <p><b>This is the one section whose ACCESS PATTERN changed, not just its spelling.</b> A saved variable
      * was a declared <i>field</i> ({@code hafen.store.cfg.foo = 1}) and is now {@code hafen.store():var("cfg")}.
@@ -153,10 +153,12 @@ final class StoreApi {
      * is minted in that session's own {@link CharStore}, so this table holds exactly the client-scope names
      * this addon has asked for and there is nothing here for a second character to overwrite.
      *
-     * <p><b>The file is opened first</b> (146, {@link SqliteApi#open}), and nothing is read from it yet (147):
-     * a var is read the moment {@code :var} first names it, so a launch reads exactly what the addon
-     * asks for. An open that fails is the unavailable state — every var is empty and never written, and
-     * the verbs that need the file refuse naming the cause.
+     * <p><b>The file is not opened here</b>, and nothing is read from it yet (147): the section is a
+     * table of verbs, and every one of them reaches the file through {@link SqliteApi#db}, which opens it
+     * the first time it is asked (and makes the addon's folder doing it). So a var is read the moment
+     * {@code :var} first names it — in {@code Load} for an addon that names one there — and an addon that
+     * stores nothing leaves no file behind at all. An open that fails is the unavailable state: every var
+     * is empty and never written, and the verbs that need the file refuse naming the cause.
      */
     static void installStore(LuaTable hafen, final Addon owner) {
         owner.store = new LuaTable();                    // filled one name at a time, by :var (147)
@@ -261,7 +263,6 @@ final class StoreApi {
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():var(\"<name>\") for a client-scope name and"
                       + " hafen.session():current():store():var(\"<name>\") for a per-character one");
-        SqliteApi.open(owner);                           // the file: before any var is asked for
     }
 
     /** How the client half is reached, and the spelling its messages quote. */

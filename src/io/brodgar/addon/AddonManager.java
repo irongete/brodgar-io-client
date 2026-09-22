@@ -194,8 +194,8 @@ public final class AddonManager {
     // -- saved variables (spec 1e / D-002 / D-023; 146): hafen.store, the vars in the addon's own
     // savedata/<id>/<id>.sqlite. Per-character vars key on <genus>_<char>, known only once the HUD is up
     // (SessionEnteredWorld) — captured here and reused on flush so a relog (which rebinds ui before the new
-    // GameUI exists) writes under the OLD character's key. Client-scope vars need no char and load at
-    // addon-load time.
+    // GameUI exists) writes under the OLD character's key. Client-scope vars need no char and are read the
+    // moment :var names one, which is also when the addon's file is opened, and made if it is not there.
 
     // -- enabled set + reload (spec 1f-2 / D-005 / D-006): which addons run, persisted client-side --------
     // WoW "apply on reload" model: toggling enable/disable updates a persisted DISABLED set (an addon runs
@@ -5322,8 +5322,9 @@ public final class AddonManager {
         // one, never a copy, so hafen.store():var("cfg").foo = 1 still saves; a var exists when :var first names
         // it (147), and nothing declares one. :flush() forces
         // a write now; :info() says where the file is and how big. Per-character vars are restored at
-        // SessionEnteredWorld (the <genus>_<char> key is only known then); client-scope vars are loaded here,
-        // before the addon's files run, ready in the file body / Load. The table object for each name is
+        // SessionEnteredWorld (the <genus>_<char> key is only known then); a client-scope var is read the
+        // moment :var names it, which is also what opens the file — in the file body or Load for an addon
+        // that names one there, and never for one that names none. The table object for each name is
         // STABLE for the addon's whole life (restore fills it in place), so a cached reference stays valid.
         // This is the one section whose ACCESS PATTERN changed rather than its spelling, so the old field form
         // throws from a per-owner __index built off the manifest (StoreApi.index) — a static refusal table

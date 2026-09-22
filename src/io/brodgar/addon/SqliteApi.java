@@ -31,14 +31,15 @@ import static io.brodgar.addon.AddonManager.logAbout;
  * connection. Nothing of the client's is in it: where the user put the addon's windows and which action-bar
  * slots hold its entries are rows of the client's own file ({@link ClientDb}).
  *
- * <p><b>Opened at {@link StoreApi#installStore}</b>, so a var is readable before {@code Load}, and
- * <b>closed by its own teardown step</b> and by the quit's flush, which is what checkpoints the write-ahead
+ * <p><b>Opened by the first verb of the section that needs it</b> ({@link #db}) — a {@code :var} in
+ * {@code Load} opens it in {@code Load} — and <b>closed by its own teardown step</b> and by the quit's
+ * flush, which is what checkpoints the write-ahead
  * log and drops the {@code -wal}/{@code -shm} sidecars beside the file. Every {@code org.sqlite} and
  * {@code java.sql} type lives in {@link Db}, and nothing outside it names one: a runtime without
  * {@code java.sql} fails to link {@link Db} inside {@link #open}'s own guard and lands in the unavailable
- * state below, rather than taking the addon load with it.
+ * state below, rather than taking the addon down with it.
  *
- * <p><b>An open that fails leaves the store unavailable, and the addon loads.</b> The native library that
+ * <p><b>An open that fails leaves the store unavailable, and the addon runs on.</b> The native library that
  * could not be extracted, a file that is not a database, a lock another process holds, a folder that
  * cannot be written: each is one log line naming the file and the cause. The addon's vars are then
  * empty and are never written — what is held is not the file, and writing it back would replace the file
@@ -137,13 +138,16 @@ final class SqliteApi {
     private static final String ACC = "hafen.store()";
 
     /**
-     * Open {@code a}'s file, or leave its store unavailable. From {@link StoreApi#installStore}, before the
-     * vars are read. The file is {@code <id>/<id>.sqlite} inside {@link StoreApi#saveDir} — the addon's
-     * own folder, made here if it is not there — built through {@link Inside} like every other file under
+     * Open {@code a}'s file, or leave its store unavailable. From {@link #db} alone, under {@code a}'s
+     * monitor, the first time one of this addon's store verbs needs the file. The file is
+     * {@code <id>/<id>.sqlite} inside {@link StoreApi#saveDir} — the addon's
+     * own folder, <b>made here</b> if it is not there, which is why an addon that never asks has neither —
+     * built through {@link Inside} like every other file under
      * {@code savedata/}: the id is a name out of a manifest.
      */
     static void open(Addon a) {
         a.db = null;
+        a.dbClosed = false;                 // opening is the answer to "closed"; only db() decides to ask
         Path file;
         try {
             file = Inside.inside(StoreApi.saveDir().toPath(), relative(a), "store");
@@ -187,19 +191,39 @@ final class SqliteApi {
      * Close {@code a}'s file — the teardown step after {@code "saved variables"}, and the quit's flush. The
      * close checkpoints the write-ahead log into the file and removes the sidecars; a write after it is a
      * {@link Failure} its caller logs.
+     *
+     * <p><b>It stays closed</b> ({@link Addon#dbClosed}), and that flag is the whole of the difference
+     * between a file that has not been opened yet and one that is done with: the open is on demand
+     * ({@link #db}), so without it a call arriving after the teardown would make the file again — and
+     * an addon that is going away is the last one that should leave a new one behind. The exception is the
+     * {@code :lua} owner, which {@link #db} names.
      */
     static void close(Addon a) {
         if(a == null)
             return;
         Db db = a.db;
         a.db = null;
+        a.dbClosed = true;      // ...and it stays closed: the open is on demand, and a teardown is not one
         if(db != null)
             db.close();
     }
 
     /**
-     * <b>{@code a}'s open file, or {@code null}</b> — what every read and write of the store goes through.
-     * {@code null} is the unavailable state ({@link Addon#dbWhy} says why) or a file the teardown closed.
+     * <b>{@code a}'s open file, or {@code null}</b> — what every read and write of the store goes through,
+     * and <b>where the file is opened</b>.
+     *
+     * <p><b>The file is made by the first verb that needs it, and an addon that never asks has none.</b>
+     * Opening it at {@link StoreApi#installStore} instead wrote a folder and an empty database into
+     * {@code savedata/} for every addon the user enabled, whether or not it ever stored a thing — and most
+     * store nothing at all. Every verb of the section reaches the file through here, so "the first one"
+     * covers a {@code :var} in {@code Load} as squarely as a {@code :query} an hour later, and the vars are
+     * read one name at a time either way (147). What the demand open moves is <b>when an open that fails is
+     * reported</b>: at the verb that asked rather than at the load, in the same one log line, with the same
+     * unavailable state after it.
+     *
+     * <p>{@code null} is that unavailable state ({@link Addon#dbWhy} says why — an open that failed is not
+     * tried again this session) or a file the teardown closed ({@link Addon#dbClosed}), which is not
+     * reopened either: an addon going away must not leave a new file behind.
      *
      * <p><b>An owner that outlives its teardown gets its file back on the next use.</b> The {@code :lua} REPL
      * owner is torn down by every {@code :reload} — its Step walk closes the file like any addon's — and is
@@ -208,16 +232,21 @@ final class SqliteApi {
      */
     static Db db(Addon a) {
         Db db = a.db;
-        if((db == null) && (a.dbWhy == null) && a.manifest.internal()) {
-            synchronized(a) {                       // two threads of the REPL's Lua must not open it twice
+        if((db == null) && openable(a)) {
+            synchronized(a) {                       // two threads of one addon's Lua must not open it twice
                 db = a.db;
-                if(db == null) {
+                if((db == null) && openable(a)) {   // ...and the loser of that race must not re-log a failure
                     open(a);
                     db = a.db;
                 }
             }
         }
         return db;
+    }
+
+    /** Whether a {@code null} {@link Addon#db} is a file still to be opened, rather than one that is done with. */
+    private static boolean openable(Addon a) {
+        return (a.dbWhy == null) && (!a.dbClosed || a.manifest.internal());
     }
 
     /**

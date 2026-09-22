@@ -1403,14 +1403,23 @@ public final class Addon {
 
     /**
      * <b>This addon's store file</b> (146, {@link SqliteApi.Db}) — {@code savedata/<id>/<id>.sqlite}, opened by
-     * {@link SqliteApi#open} at {@link StoreApi#installStore} and closed by its own teardown step. {@code null}
-     * before the open, after the close, and for the whole session when the open failed: the <b>unavailable</b>
+     * {@link SqliteApi#db} the first time one of this addon's store verbs needs it, and closed by its own
+     * teardown step. {@code null}
+     * before that first verb, after the close, and for the whole session when the open failed: the
+     * <b>unavailable</b>
      * state, whose cause {@link #dbWhy} holds. Volatile, because the engine's writes and an addon's own verbs
      * reach it from more than one thread.
      */
     volatile SqliteApi.Db db;
     /** Why {@link #db} is {@code null} after an open that failed — the file and the driver's reason; else {@code null}. */
     volatile String dbWhy;
+    /**
+     * <b>The teardown closed {@link #db}</b>, so it is not opened again — what tells a {@code null}
+     * file that is done with from one that has not been asked for yet, the ask being what opens it.
+     * The {@code :lua} owner is the exception {@link SqliteApi#db} makes: it is torn down by every
+     * {@code :reload} and never rebuilt, so for it "closed" means "reopen".
+     */
+    volatile boolean dbClosed;
     /**
      * This addon's <b>declared tables</b> (146.2, {@link SqliteApi.Table}), interned by the table's name as
      * the file spells it (case-folded), so two {@code :create()}s of one name answer one object and

@@ -52,7 +52,8 @@ A character's vars are reached through [`session:store()`](vars.md#read-and-writ
 
 | Rule | Detail |
 |---|---|
-| One file per addon | Named by the id, in a folder named by the id. No path of your choosing, no file per account or character. A file per login would be one schema in as many files as logins, which no query reads together. Created the first time your addon loads, so a var is readable in `Load` and a table is there to declare. Two addons never share one. |
+| One file per addon | Named by the id, in a folder named by the id. No path of your choosing, no file per account or character. A file per login would be one schema in as many files as logins, which no query reads together. Two addons never share one. |
+| Made by the first verb that needs it | The file and its folder are made the first time you call a verb of the store, and never before: a `:var` in `Load` makes them in `Load`, so a var is readable there and a table is there to declare. An addon that stores nothing leaves nothing under `savedata/`, and being enabled is not storing anything. |
 | The client's own file | Where the user put your windows and which action-bar slots hold your entries are in `savedata/client.sqlite`, never in yours. |
 | Two sidecars while open | `<id>.sqlite-wal`, the log every write lands in first, and `<id>.sqlite-shm`, its index. A copy of the `.sqlite` alone taken while the client runs lacks what the log holds. Closing the file folds the log in and removes both: copy or move the folder once the client has quit or your addon is disabled. |
 
@@ -87,7 +88,7 @@ One call into the store costs the [watchdog](../../runtime.md#budgets-and-the-wa
 
 ## When the file cannot be opened
 
-An open that fails leaves the store unavailable and your addon loaded. It fails on a folder that cannot be written, or a file that is not a database. It fails on a lock another process holds, or a runtime without the driver. One log line names the file and the cause. Your vars are empty and never written. Every other verb refuses naming the cause. Fix it and `:reload`.
+The file is opened by the first verb that needs it, so that verb is where an open that fails is told, and it leaves the store unavailable and your addon running. It fails on a folder that cannot be written, or a file that is not a database. It fails on a lock another process holds, or a runtime without the driver. One log line names the file and the cause. Your vars are empty and never written. Every other verb refuses naming the cause. Fix it and `:reload`.
 
 > **A scope whose row could not be read is read-only for the session.** A var's row that is there and will not parse leaves that scope's tables empty. A write would replace the only copy of your data with that empty set, so the timer, `:flush()` and the teardown skip it. The log names the row. A load that succeeds lifts it (a `:reload` or the next launch once the row is readable). A row not there yet is not this case: an empty var is the whole truth, and the first write creates it.
 
