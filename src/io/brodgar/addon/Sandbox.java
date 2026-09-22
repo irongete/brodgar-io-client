@@ -9,6 +9,8 @@ import org.luaj.vm2.LoadState;
 import org.luaj.vm2.LuaClosure;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaFunction;
+import org.luaj.vm2.LuaString;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.compiler.LuaC;
@@ -67,11 +69,12 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  * user at their own console. It still gets the watchdog, so an accidental {@code :lua while true do
  * end} is aborted rather than freezing the client.
  *
- * <p><b>Known limitation (deferred hardening):</b> LuaJ's string metatable is a process-global static
- * ({@code LuaString.s_metatable}); a hostile addon calling {@code getmetatable("")} could tamper with
- * string handling for everyone. D-017's explicit list does not cover it; per-env string metatables
- * are a later refinement. (The soft per-tick time budget + auto-disable, D-018 layer 2, is implemented
- * in Phase 1f-3 — see {@link #SOFT_BUDGET_NANOS} + {@link AddonManager#enforceSoftBudget()}.)
+ * <p><b>The string metatable is the client's</b> ({@link #STRMETA}). It is the one surface the whitelist
+ * could not confine on its own: LuaJ keeps it in a process-global static, one table for every environment
+ * and for the console, so a write to it would change every other addon's strings. Both doors to it are
+ * shut here — the vocabulary behind it belongs to no environment, and {@code getmetatable("")} answers a
+ * sentinel. (The soft per-tick time budget + auto-disable, D-018 layer 2, is implemented in Phase 1f-3 —
+ * see {@link #SOFT_BUDGET_NANOS} + {@link AddonManager#enforceSoftBudget()}.)
  */
 public final class Sandbox {
 
@@ -102,6 +105,50 @@ public final class Sandbox {
     }
 
     /**
+     * <b>The string metatable every environment shares</b> — LuaJ keeps it in a process-global static
+     * ({@code LuaString.s_metatable}), so there is one for the whole client and the whitelist cannot give
+     * each addon its own. Two doors led to it, and this shuts both.
+     *
+     * <p>{@code __index} is the vocabulary {@code ("x"):upper()} resolves through, and it is minted in a
+     * {@link Globals} that is dropped where it was built: <b>no environment owns it</b>. Left to itself,
+     * {@code StringLib} stands the FIRST environment's own {@code string} global there and every later one
+     * reads from it — so whichever addon loaded first could rewrite every other addon's strings by
+     * assigning to a global of its own, with no metatable in sight. Each environment still gets its own
+     * {@code string} table: a write to it moves that addon's {@code string.upper(text)} and nothing else.
+     *
+     * <p>{@code __metatable} shuts the other door: {@code getmetatable("")} answers the sentinel rather
+     * than the table, so the vocabulary cannot be reached from Lua at all. {@code setmetatable("", …)}
+     * needs no guard — LuaJ refuses a string receiver on its own — and {@code debug.setmetatable} is not
+     * installed (D-017).
+     */
+    private static final LuaValue STRMETA = strmeta();
+
+    private static LuaValue strmeta() {
+        // The vocabulary, minted in an environment nobody is ever handed. The two libraries loaded ahead of
+        // it are there for the reason create() loads them ahead of it too: a stdlib module registers itself
+        // in package.loaded as it goes, and fails outright where that is missing.
+        Globals seed = new Globals();
+        seed.load(new JseBaseLib());
+        seed.load(new PackageLib());
+        seed.load(new StringLib());
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, seed.get("string"));
+        mt.set(LuaValue.METATABLE, LuaValue.valueOf(
+            "locked: the string metatable belongs to the client, since one addon's write to it would"
+            + " change every other addon's strings"));
+        return mt;
+    }
+
+    /**
+     * Put {@link #STRMETA} back where LuaJ reads it. Called by both factories rather than once at
+     * class-load, because {@link StringLib} mints a metatable of its own wherever it finds none: asserting
+     * ours after every install is what makes the order the environments are built in stop mattering.
+     */
+    private static void lockStrings() {
+        LuaString.s_metatable = STRMETA;
+    }
+
+    /**
      * Build a fresh <b>sandboxed</b> environment for an addon: the D-017 stdlib whitelist plus the
      * D-018 instruction watchdog. The returned {@link Globals} still needs the {@code hafen} facade
      * and {@code ADDON} table installed by the caller.
@@ -119,6 +166,7 @@ public final class Sandbox {
         g.load(new PackageLib());   // needed only so the modules below can register; then stripped
         g.load(new TableLib());     // table.*
         g.load(new StringLib());    // string.* (+ the string metatable)
+        lockStrings();              // ...which is the client's, not this environment's (see STRMETA)
         g.load(new JseMathLib());   // math.*
         g.load(new JseOsLib());     // os.* (dangerous entries stripped below)
         LoadState.install(g);       // so env.load(src, name) can decode/compile addon chunks...
@@ -135,6 +183,7 @@ public final class Sandbox {
     public static Globals consoleGlobals() {
         Globals g = JsePlatform.standardGlobals();
         g.debuglib = new Watchdog();   // typo protection; does NOT install a `debug` table
+        lockStrings();                 // the console reads the same static as every addon (see STRMETA)
         return g;
     }
 
