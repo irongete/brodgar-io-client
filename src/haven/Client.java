@@ -37,6 +37,9 @@ import java.awt.image.BufferedImage;
 
 public class Client implements Console.Directory {
     public static final Config.Variable<Boolean> initfullscreen = Config.Variable.propb("haven.fullscreen", false);
+    /* addon: the window icon is the launcher's to pick (Options, "Game icon"): original is the original
+     * Haven & Hearth icon, anything else the brodgar.io dolmen. Both ride in the jar. */
+    public static final Config.Variable<String> icon = Config.Variable.prop("haven.icon", "brodgar");
     public final Toolkit tk;
     public final Windeye wnd;
     private final EventQueue queue = new EventQueue(this);
@@ -62,8 +65,8 @@ public class Client implements Console.Directory {
 	    wnd.state(Windeye.State.EXCLUSIVE);
 	else if(Utils.getprefb("mainwnd/max", false))
 	    wnd.state(Windeye.State.MAXIMIZED);
-	try(InputStream icon = Client.class.getResourceAsStream("icon.png")) {
-	    wnd.icon(javax.imageio.ImageIO.read(icon));
+	try(InputStream fp = Client.class.getResourceAsStream(icon.get().equals("original") ? "icon-original.png" : "icon.png")) {
+	    wnd.icon(javax.imageio.ImageIO.read(fp));
 	} catch(IOException e) {
 	    throw(new Error(e));
 	}
