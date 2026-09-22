@@ -214,11 +214,11 @@ final class Refusal {
     /**
      * One verb of {@code hafen.ui} that <b>kept</b> its global spelling (078.2). The row is keyed the same way
      * a moved one is, and fires from the other side: the verb is absent from the session's own section, so
-     * {@code s:ui():window()} lands here instead of on a bare "has no verb". This is the half a sweep gets
+     * {@code session:ui():window()} lands here instead of on a bare "has no verb". This is the half a sweep gets
      * wrong — moving too much compiles, runs, and is wrong — so the refusal says which half the verb is in.
      */
     private static void uiKept(String verb, String why) {
-        MISPLACED.put("hafen.ui():" + verb, "s:ui():" + verb + "(…) does not exist: hafen.ui():" + verb
+        MISPLACED.put("hafen.ui():" + verb, "session:ui():" + verb + "(…) does not exist: hafen.ui():" + verb
             + "(…) " + why
             + ". The session's half of hafen.ui is the widgets THE CLIENT put up — :match, :matchAll, :on,"
             + " :root, :node, :inventory and :equipment.");

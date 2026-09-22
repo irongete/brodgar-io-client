@@ -808,6 +808,14 @@ public final class AddonRegistry {
             } catch(RuntimeException e) {
                 logDiag("shutdown: could not close " + ownerName(a) + "'s connections: " + e);
             }
+            // 143.1: ...and its voice links after them, the order the teardown Step takes them in. The last
+            // engine to close gives the microphone back, and the voice server hears the link end rather than
+            // waiting out a client that stopped speaking.
+            try {
+                VoiceApi.teardown(a);
+            } catch(RuntimeException e) {
+                logDiag("shutdown: could not close " + ownerName(a) + "'s voice links: " + e);
+            }
         }
         // ...and the :lua REPL owner's file, which no list above holds: it is an Addon with a store like any
         // other, and a quit that left it open would leave its sidecars beside the file.

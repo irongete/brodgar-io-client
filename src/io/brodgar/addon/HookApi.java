@@ -114,7 +114,7 @@ final class HookApi {
      * <p><b>This half is client-wide, and the other half is not</b> (111.1). {@link Console#setscmd} is
      * static, so a command registered here answers from every character and there is nothing to re-register
      * on a switch. SAYING a line is one character's — {@link #console(Addon, String)} — so
-     * {@code run} is absent from this door and reading it throws naming {@code s:console():run(line)}
+     * {@code run} is absent from this door and reading it throws naming {@code session:console():run(line)}
      * ({@link Refusal}) rather than the generic <i>has no verb</i>.
      */
     static void install(LuaTable hafen, final Addon owner) {
@@ -175,8 +175,8 @@ final class HookApi {
         }, verbs), null);
     }
 
-    /** {@code s:console()} — how the section is reached, and so how every one of its messages spells itself. */
-    private static final String CONS = "s:console()";
+    /** {@code session:console()} — how the section is reached, and so how every one of its messages spells itself. */
+    private static final String CONS = "session:console()";
     /** Its one verb, as an author writes it — what {@link Args} and the gate open their refusals with. */
     private static final String RUN = CONS + ":run";
 

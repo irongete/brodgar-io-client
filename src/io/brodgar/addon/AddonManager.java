@@ -4973,7 +4973,7 @@ public final class AddonManager {
         // character has open as a Craft object, or NIL when none is. A background session keeps its GameUI, so
         // its recipe window is open and answers — which is what makes a crafting addon across characters worth
         // writing — and the Craft is keyed on the WINDOW alone, since a widget already names the tree it
-        // stands in: :exists() walks up from it rather than comparing against the recipe on screen. The Craft carries :name() (the recipe), :inputs()/:outputs() (the slots, as
+        // stands in: :exists() walks up from it rather than comparing against the recipe on screen. The Craft carries :recipe() (the recipe), :inputs()/:outputs() (the slots, as
         // {res, name, num, opt} values — res is the DISPLAYED resource, i.e. the constraint category when the
         // recipe accepts one, else the concrete item; num = the required/produced count, -1 = unspecified ~ 1;
         // opt = an optional ingredient / chance byproduct), :qualityInputs() and :tools() ({res, name} values),

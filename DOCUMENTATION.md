@@ -43,17 +43,20 @@ It is a developer-first practical reference, not a specification, not a changelo
 One namespace or sub-subject per page, formatted for rapid technical lookup:
 
 ````markdown
-# hafen.speed: Movement Speed
+# session:speed: Movement Speed
 
 Brief one-sentence description of the subsystem and its purpose.
 
 ```lua
 -- Single runnable block (<= 12 lines) showing the most common usage pattern
-local current_session = hafen.session():current()
-if current_session then
-  local speed_controller = current_session:speed()
-  speed_controller:set("run")
-  hafen.log():write("Speed set to: " .. speed_controller:current())
+local session = hafen.session():current()
+if session then
+  local speeds = session:speed()
+  speeds:set("Run")                            -- your manifest declares "speed.set"
+  local current_speed = speeds:current()       -- nil until the server answers
+  if current_speed then
+    hafen.log():write("on " .. current_speed:name())
+  end
 end
 ```
 
@@ -63,8 +66,8 @@ end
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `speed:current()` | `string` | Unprotected | Current active movement speed identifier. |
-| `speed:set(name)` | `Speed` | `player.speed` | Updates character movement speed. Chains. |
+| `session:speed():current()` | `Speed \| nil` | Unprotected | The speed that character is on. |
+| `session:speed():set(speed)` | the collection | `speed.set` | Pick a speed: a `Speed`, the `1..4` position or a display name. |
 
 ---
 
@@ -77,12 +80,12 @@ Concise technical subsections explaining edge cases, lifecycle rules, or non-obv
 ## See Also
 
 - [Player Controls](player.md) — Character position and action management.
-- [Permissions](../../guides/permissions.md) — Permission declarations.
+- [Permissions](../guides/permissions.md) — Permission declarations.
 ````
 
 ### Rules for Reference Content:
 - **Tables are primary.** All methods, parameters, return types, and permissions must be clearly tabulated.
-- **Permission clarity:** Always specify whether a method is `Unprotected` or requires a specific permission (e.g. `player.speed`, `client.settings`).
+- **Permission clarity:** Always specify whether a method is `Unprotected` or requires a specific permission (e.g. `speed.set`, `client.settings`).
 
 ## 5. Headings and Anchors
 

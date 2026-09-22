@@ -111,13 +111,13 @@ public enum Permission {
                                                                               + " a field it types into — which the server sees"),
     UI_RESEND        ("ui.resend",          "ev:resend",                      "re-run a button you pressed, so the client"
                                                                               + " sends what that press sends"),
-    UI_FOCUS         ("ui.focus",           "s:chat():selected",              "move the keyboard into a chat entry line,"
+    UI_FOCUS         ("ui.focus",           "session:chat():selected",        "move the keyboard into a chat entry line,"
                                                                               + " so what you type next goes there"),
     VIRTUAL_CLICK    ("virtual.click",      "hafen.virtual():click",          "click the controls it has standing in the"
                                                                               + " world, which act as if you had clicked them"),
     CLIENT_SETTINGS  ("client.settings",    "hafen.client():options()",       "change your client settings and"
                                                                               + " hotkeys"),
-    CONSOLE_RUN      ("console.run",        "s:console():run",                "run any of the client's console"
+    CONSOLE_RUN      ("console.run",        "session:console():run",          "run any of the client's console"
                                                                               + " commands, on any of your"
                                                                               + " characters, including ones that"
                                                                               + " run code outside the addon"
