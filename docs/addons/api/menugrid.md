@@ -17,7 +17,7 @@ dig:use()                                                       -- fire it: exac
 | `session:menugrid():list(filter)` | `Pagina[]` | Unprotected | The whole catalogue, in the grid's own sort order. |
 | `session:menugrid():count(filter)` | `number` | Unprotected | How many match. |
 | `session:menugrid():find(filter)` | `Pagina \| nil` | Unprotected | The first that matches. |
-| `session:menugrid():roots()` | collection | Unprotected | The entries with no parent: the grid's root screen. |
+| `session:menugrid():roots()` | collection | Unprotected | The entries with no parent: the grid's root screen, [AddOns](#everything-inside-addons) among them while it holds something. |
 
 | Rule | Detail |
 |---|---|
@@ -49,7 +49,7 @@ A resource name never scans display names and a display name never matches a res
 | `pagina:tooltip()` | `string \| nil` | Unprotected | The description under the name, when the resource carries one. |
 | `pagina:hotkey()` | `string \| nil` | Unprotected | The letter the grid paints over the button while Alt is held. |
 | `pagina:categories()` | `string[] \| nil` | Unprotected | The categories above this entry, as the action tokens the message carries. Empty for a category and for an id-only entry. |
-| `pagina:parent()` | `Pagina \| nil` | Unprotected | The category this entry sits under. `nil` for a root entry. |
+| `pagina:parent()` | `Pagina \| nil` | Unprotected | The category this entry sits under. `nil` for a root entry. An entry an addon added always has one. |
 | `pagina:children()` | collection `\| nil` | Unprotected | The entries under this one, what the grid shows after clicking it. Empty for a leaf. |
 | `pagina:unseen()` | `boolean` | Unprotected | Whether the entry is still flagged as a new discovery, the grid's highlight. |
 | `pagina:exists()` | `boolean` | Unprotected | Whether the entry is still in the menu. |
@@ -72,7 +72,7 @@ end
 
 ## Write (unprotected)
 
-An entry of your own stands in the same grid, in the same order. `session:menugrid():add(id)` mints a `Pagina` your addon owns. Every reader answers for it: `:get` addresses it, `:list()` carries it, `:roots()` shows it.
+An entry of your own stands in the same grid, inside the client's [AddOns](#everything-inside-addons) category. `session:menugrid():add(id)` mints a `Pagina` your addon owns, at the top of AddOns. Every reader answers for it: `:get` addresses it, `:list()` carries it, AddOns' `:children()` shows it.
 
 ```lua
 local session = hafen.session():current()
@@ -87,14 +87,14 @@ dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))        -- writes chain
 | `pagina:name(text)` | the `Pagina` | Unprotected | The display name the grid paints and its tooltip shows. |
 | `pagina:tooltip(text)` | the `Pagina` | Unprotected | The description the tooltip paints under that name. |
 | `pagina:icon(image)` | the `Pagina` | Unprotected | The picture the button draws: an image [asset](asset/README.md) handle. |
-| `pagina:parent(pagina_or_nil)` | the `Pagina` | Unprotected | The category it hangs under. `nil` is the root screen. |
+| `pagina:parent(pagina_or_nil)` | the `Pagina` | Unprotected | The category it hangs under. `nil` is the top of AddOns. |
 
 | Rule | Detail |
 |---|---|
 | No permission | Nothing reaches the server: a custom entry is drawn by this client and pressing it runs [your own Lua](#a-click-runs-your-lua), like a [HUD overlay](ui/overlay.md). |
 | Bridge-owned | Reloading or disabling your addon takes every entry back out of every character's menu. |
 | A menu goes with the world it was in | A relog or a reconnect hands the character a new menu. Entries in the old one are drawn nowhere, `:exists() == false`, their ids free. The same [`SessionEnteredWorld`](event/bus/lifecycle.md#sessions) handler that added them adds them again. The [action-bar slot](actionbar.md#a-hold-is-remembered) each was placed in is remembered separately, and the `:add` takes it back. |
-| Only your own | Every write here refuses on an entry your addon did not add (the client's own, another addon's), naming which it is. |
+| Only your own | Every write here refuses on an entry your addon did not add (the client's own, AddOns included, or another addon's), naming which it is. |
 
 ### `session:menugrid():add(id)`
 
@@ -122,26 +122,44 @@ Takes the `Pagina`, or its id as a string: `"dig"` as spelled to `:add`, or the 
 | `pagina:tooltip(text)` | The description under that label, painted once the pointer has rested on the button. An entry with none has its name alone. |
 | `pagina:icon(image)` | Takes the handle [`hafen.asset():get("dig.png")`](asset/README.md) hands you, never a path. No icon draws an empty cell. An image bigger than a cell is scaled down keeping its aspect ratio. A smaller one draws at its own size. Centred, in [design pixels](ui/pixels.md): a 32×32 PNG fills a cell like the game's own art. |
 
+### Everything inside AddOns
+
+Every entry an addon adds stands inside AddOns, the client's own category on the root screen. A fresh `:add(id)` lands at its top, so the game's menu and the addons' never mix.
+
+```lua
+local menugrid = hafen.session():current():menugrid()
+local harvest = menugrid:add("harvest"):name("Harvest")
+local addons = harvest:parent()                                  -- AddOns: addons:res() is "addon/"
+hafen.log():write(addons:name() .. " holds " .. addons:children():count())
+```
+
+| Rule | Detail |
+|---|---|
+| The client's own | Identity `addon/`, name `AddOns`: `:get("addon/")` and `:get("AddOns")` hand you the same `Pagina`. `:addon()` and `:icon()` are `nil`, `:categories()` is empty. Every write on it refuses as the client's own. |
+| Drawn while it holds something | It stands on the root screen while some addon's entry is in that character's menu, and leaves with the last one. A player looking inside it then is put back on the root screen. |
+| Never among the game's | An entry of yours hangs under AddOns or under another entry an addon added. A game entry as its parent is refused. |
+| On the action bar | Dropping AddOns on a slot does nothing and sends nothing. |
+
 ### A category is an entry that has children
 
-`pagina:parent(category)` hangs one of your entries under another entry. `pagina:parent(nil)` puts it back on the root screen. A category is an entry with something under it: clicking it opens its children, and Back returns.
+`pagina:parent(category)` hangs one of your entries under another entry an addon added. `pagina:parent(nil)` puts it back at the top of AddOns, and so does passing AddOns itself, so `entry:parent(other:parent())` round-trips for a top-level `other`. A category is an entry with something under it: clicking it opens its children, and Back returns.
 
 ```lua
 local menugrid = hafen.session():current():menugrid()
 local tools = menugrid:add("tools"):name("Tools"):icon(hafen.asset():get("tools.png"))
 menugrid:add("tools/dig"):name("Auto-dig"):parent(tools)             -- under your own category
-menugrid:add("harvest"):parent(menugrid:get("paginae/act/craft"))    -- under one of the client's own
 ```
 
 | Rule | Detail |
 |---|---|
-| One tree | The parent is any `Pagina` in the menu: yours under a game category, beside the server's actions. A category of yours holding your entries. `category:children()` lists what hangs under it. |
-| Removing a category | Puts its children back on the root screen. It takes nothing with it. |
-| `nil` means the root screen | One of the few places it [carries a meaning](conventions.md#nil-is-an-error-unless-it-means-something). Elsewhere on this page an explicit `nil` raises. |
+| One tree | The parent is AddOns or any entry an addon added: a category of yours holding your entries, or another addon's. `category:children()` lists what hangs under it. |
+| Removing a category | Puts its children back at the top of AddOns. It takes nothing with it. |
+| `nil` means the top of AddOns | One of the few places it [carries a meaning](conventions.md#nil-is-an-error-unless-it-means-something). Elsewhere on this page an explicit `nil` raises. |
 | A cycle is refused, not written | The tree after the error is the tree before it. |
 
 | Call | Refusal names |
 |---|---|
+| `pagina:parent(menugrid:get("paginae/act/craft"))` | That entry is the client's own: your entries hang inside AddOns. |
 | `pagina:parent(pagina)` | That entry cannot hang under itself. |
 | A cycle in two steps or more | The entry it would hang under already hangs under this one. |
 | `pagina:parent(7)` | The parent is a `Pagina` object, or `nil`. |

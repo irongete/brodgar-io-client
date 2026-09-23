@@ -11,6 +11,7 @@ import haven.KeyMatch;
 import haven.MenuGrid;
 import haven.Resource;
 import haven.RichText;
+import haven.Tex;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -79,7 +80,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
     private static Indir<Resource> standin;
 
     /** The stand-in, loaded once. Local (jar-backed), so the wait is a map lookup after the first call. */
-    private static synchronized Indir<Resource> standin() {
+    static synchronized Indir<Resource> standin() {
         if(standin == null)
             standin = Resource.local().loadwait(STANDIN).indir();
         return standin;
@@ -97,8 +98,14 @@ public final class AddonPagina extends MenuGrid.Pagina {
     private String tooltip;
     /** The addon's own PNG, or {@code null} for an entry that draws an empty cell. */
     private LuaImage icon;
-    /** The category this entry hangs under, or {@code null} for the root screen. Any live entry may be one. */
+    /** The category of an addon's this entry hangs under, or {@code null} for the top of AddOns. */
     private MenuGrid.Pagina parent;
+    /**
+     * This grid's {@link AddonsCategory}, what {@link #parent()} answers for a {@code null} field. Held here,
+     * strongly, because the category's own registry holds it weakly: every entry of a grid keeps that grid's
+     * one AddOns alive, which is what keeps it the same object for as long as anything hangs under it.
+     */
+    private final AddonsCategory top;
 
     /**
      * The one key this entry fires, {@code pag:on("Pressed", fn)}: the word a button of yours fires on, since
@@ -126,6 +133,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         this.id = id;
         this.name = name;
         this.subs = new Subs(owner, Addon.C_WIDGET);
+        this.top = AddonsCategory.of(scm);
     }
 
     /**
@@ -140,13 +148,15 @@ public final class AddonPagina extends MenuGrid.Pagina {
     }
 
     /**
-     * The category this entry hangs under, or {@code null} for the root screen. <b>Read live, never cached</b>:
-     * the stock {@code PagButton.parent()} memoises the parent it derived from {@code act().parent}, and a
-     * parent that an addon can rewrite cannot go through a memo — so both this and {@link AddonPagButton#parent()}
-     * answer from the field on every call, which is what {@code MenuGrid.cons} then walks.
+     * The category this entry hangs under — one of an addon's, or AddOns itself, <b>never {@code null}</b>: every
+     * entry an addon adds stands somewhere inside AddOns (162), and this one line is the whole redirection.
+     * <b>Read live, never cached</b>: the stock {@code PagButton.parent()} memoises the parent it derived from
+     * {@code act().parent}, and a parent that an addon can rewrite cannot go through a memo — so both this and
+     * {@link AddonPagButton#parent()} answer from the field on every call, which is what {@code MenuGrid.cons}
+     * then walks.
      */
     public MenuGrid.Pagina parent() {
-        return parent;
+        return (parent != null) ? parent : top;
     }
 
     String name() {
@@ -194,9 +204,10 @@ public final class AddonPagina extends MenuGrid.Pagina {
     }
 
     /**
-     * Hang this entry under {@code par} — one of the addon's own, one of the client's own, or {@code null} for
-     * the root screen. <b>The two kinds share one tree</b>: a parent is any live entry, since {@code cons}
-     * reaches a category through {@code parent()} alone and does not care which kind answered.
+     * Hang this entry under {@code par} — an entry an addon added, AddOns itself, or {@code null} for the top of
+     * AddOns (the last two are one place, so {@code a:parent(b:parent())} round-trips for a top-level {@code b}).
+     * <b>A game entry is refused</b> (162): every entry an addon adds stands inside AddOns, and each entry it
+     * could hang under already does, so the one boundary is kept by refusing the only parent outside it.
      *
      * <p><b>A cycle is refused before it is written.</b> The walk up from {@code par} is the whole test: an
      * entry that is its own ancestor draws in no screen at all (the closure reaches it, no screen's {@code cons}
@@ -205,6 +216,12 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * {@code seen} set here, so a chain can never be walked twice whatever it holds.
      */
     void parent(MenuGrid.Pagina par) {
+        if(par instanceof AddonsCategory)
+            par = null;
+        if((par != null) && !(par instanceof AddonPagina))
+            throw new LuaError("pagina:parent(pagOrNil): " + LuaPagina.label(par) + " is the client's own entry"
+                + " — an addon's entries all hang inside the " + AddonsCategory.NAME + " category: nil for its"
+                + " top, or one of the entries under it");
         Set<MenuGrid.Pagina> seen = new HashSet<MenuGrid.Pagina>();
         for(MenuGrid.Pagina up = par; up != null; ) {
             if(up == this) {
@@ -213,7 +230,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
                         + " category is simply an entry that has children, and nothing is its own child");
                 throw new LuaError("pagina:parent(pagOrNil): \"" + id + "\" cannot hang under "
                     + LuaPagina.label(par) + ", because that entry already hangs under this one — a cycle"
-                    + " takes both of them out of the menu, since neither is reachable from the root screen");
+                    + " takes both of them out of the menu, since neither is reachable from " + AddonsCategory.NAME);
             }
             if(!seen.add(up))
                 break;
@@ -234,7 +251,26 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * back on page 1.
      */
     private void relayout() {
-        scm.change(scm.cur);
+        relayout(scm);
+    }
+
+    /**
+     * Rebuild one grid's layout — and put a player who is somewhere inside AddOns back on the root screen when
+     * no addon entry is left in that menu: AddOns itself is no longer drawn, so the screen they were on is one
+     * nothing leads to, holding a lone Back.
+     */
+    private static void relayout(MenuGrid scm) {
+        MenuGrid.Pagina cur = scm.cur;
+        if((cur instanceof AddonsCategory) || (cur instanceof AddonPagina)) {
+            boolean any = false;
+            synchronized(scm.paginae) {
+                for(MenuGrid.Pagina q : scm.paginae)
+                    any |= (q instanceof AddonPagina);
+            }
+            if(!any)
+                cur = null;
+        }
+        scm.change(cur);
     }
 
     /** {@code tostring} for a Java-side log; Lua sees {@link LuaPagina}'s. */
@@ -340,14 +376,25 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * (an addon's file is authored in design pixels), so nothing here scales twice.
      */
     static final class Icon extends GSprite {
+        /** The addon's image whose {@code dead} flag guards the draw, or {@code null} for a plain texture. */
         private final LuaImage img;
+        private final Tex tex;
         private final Coord dsz, off;
 
         Icon(GSprite.Owner owner, LuaImage img) {
+            this(owner, img, (img == null) ? null : img.stex);
+        }
+
+        /** A plain texture — the client's own {@link AddonsCategory} draws its dolmen through the same fitting. */
+        Icon(GSprite.Owner owner, Tex tex) {
+            this(owner, null, tex);
+        }
+
+        private Icon(GSprite.Owner owner, LuaImage img, Tex tex) {
             super(owner);
             this.img = img;
-            Coord isz = (img == null) ? null : img.stex.sz();
-            this.dsz = fit(isz);
+            this.tex = tex;
+            this.dsz = fit((tex == null) ? null : tex.sz());
             this.off = CELL.sub(dsz).div(2);
         }
 
@@ -366,10 +413,9 @@ public final class AddonPagina extends MenuGrid.Pagina {
         }
 
         public void draw(GOut g) {
-            LuaImage li = img;
-            if((li == null) || li.dead)      // no icon set, or its asset was disposed → an empty cell
+            if((tex == null) || ((img != null) && img.dead))   // no icon, or its asset was disposed → an empty cell
                 return;
-            g.image(li.stex, off, dsz);
+            g.image(tex, off, dsz);
         }
     }
 
@@ -452,14 +498,14 @@ public final class AddonPagina extends MenuGrid.Pagina {
         }
         a.menuEntries.clear();
         for(MenuGrid g : grids)
-            g.change(g.cur);            // one relayout per grid, for the whole sweep
+            relayout(g);                // one relayout per grid, for the whole sweep
     }
 
     /**
      * Drop one entry out of the grid it was added to (its own, never the drawn session's), and
      * <b>re-root whatever hung under it</b>: a category that leaves takes no child with it, so the children go
-     * back to the root screen rather than under a parent no screen reaches — which would draw the removed
-     * category itself back onto the root screen, since {@code cons} walks the closure through {@code parent()}
+     * back to the top of AddOns rather than under a parent no screen reaches — which would draw the removed
+     * category itself back inside AddOns, since {@code cons} walks the closure through {@code parent()}
      * and does not ask whether the parent is still in {@code paginae}. Every custom entry of every addon is in
      * this set, so one pass over it covers a child another addon hung under this category too.
      *
@@ -550,6 +596,10 @@ public final class AddonPagina extends MenuGrid.Pagina {
             throw new LuaError(call + ": \"" + res + "\" is in no character's menu — this addon removed it"
                 + " again, or added it to a menu a relogin has since replaced (pag:exists() is the test).");
         }
+        if(res.equals(AddonsCategory.ID))    // before the prefix test, which would call it another addon's
+            throw new LuaError(call + ": \"" + res + "\" is the " + AddonsCategory.NAME + " category, the client's"
+                + " own entry — every entry an addon adds hangs inside it, and " + CharApi.MG + ":add(id) mints"
+                + " one of your own that every one of these verbs writes");
         if(res.startsWith(PREFIX)) {
             throw new LuaError(call + ": \"" + res + "\" belongs to " + other(res) + ", not to"
                 + " this addon — an addon writes only the entries it added with " + CharApi.MG + ":add(id)");
@@ -574,6 +624,9 @@ public final class AddonPagina extends MenuGrid.Pagina {
         MenuGrid.Pagina p = LuaPagina.live(user, res);
         if(p instanceof AddonPagina)
             return (AddonPagina)p;
+        if(res.equals(AddonsCategory.ID))
+            throw new LuaError(call + ": \"" + res + "\" is the " + AddonsCategory.NAME + " category, the client's"
+                + " own entry, and a slot is held for an entry an addon added (" + CharApi.MG + ":add(id))");
         if(res.startsWith(PREFIX))
             throw new LuaError(call + ": \"" + res + "\" is not in that character's menu — " + other(res)
                 + " added it and removed it again, added it on another character, or added it to a menu a"

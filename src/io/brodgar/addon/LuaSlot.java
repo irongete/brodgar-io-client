@@ -265,6 +265,11 @@ public final class LuaSlot {
                 // in pagina:use() (D-213). The gate answers "may this addon assign one of the game's actions";
                 // this string is not one, whoever asks — the caller wants the other verb, and that is decided
                 // at the line that wrote it rather than by what the manifest happens to declare.
+                if((rv.type() == LuaValue.TSTRING) && rv.tojstring().trim().equals(AddonsCategory.ID))
+                    throw new LuaError("slot:res(resourceName): \"" + AddonsCategory.ID + "\" is the "
+                        + AddonsCategory.NAME + " category, the client's own entry, and the server has never heard"
+                        + " of it — this verb assigns one of the game's own actions, by the name the server"
+                        + " publishes");
                 if((rv.type() == LuaValue.TSTRING) && rv.tojstring().trim().startsWith(AddonPagina.PREFIX)) {
                     throw new LuaError("slot:res(resourceName): \"" + rv.tojstring().trim() + "\" is an entry"
                         + " an addon added to the menu, and the server has never heard of it — this verb"

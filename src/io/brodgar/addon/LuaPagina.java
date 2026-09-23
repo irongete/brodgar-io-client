@@ -282,8 +282,8 @@ public final class LuaPagina {
                 MenuGrid.PagButton b = button(self, "categories");
                 if(b == null)
                     return LuaValue.NIL;
-                if(b.pag instanceof AddonPagina)   // a custom entry sends nothing, so it has no tokens (059.1)
-                    return new LuaTable();
+                if((b.pag instanceof AddonPagina) || (b.pag instanceof AddonsCategory))
+                    return new LuaTable();         // a custom entry sends nothing, so it has no tokens (059.1)
                 try {
                     // audit2 B16 (ab-07): an ID-ONLY entry is the OTHER kind with no tokens, and it reached
                     // here. Its resource carries no action layer, so act() is null and reading .ad off it
@@ -382,11 +382,11 @@ public final class LuaPagina {
             }
         });
         // parent() — the CATEGORY this entry sits under, as a Pagina object; nil for a root entry (and while
-        // the parent's own resource is still Loading).
-        // parent(pagOrNil) — 059.2: hang one of THIS addon's entries under a category. The two kinds share one
-        // tree, so the parent is any entry in the menu — one of your own, or one of the client's own — and a
-        // category is simply an entry that has children. nil is DOCUMENTED here (the root screen), so it is the
-        // write and not the read: Args.passed, never Args.written.
+        // the parent's own resource is still Loading). An entry an addon added always has one: AddOns (162).
+        // parent(pagOrNil) — 059.2: hang one of THIS addon's entries under a category — an entry an addon added,
+        // or AddOns itself; a game entry is refused (162), since everything an addon adds stands inside AddOns.
+        // A category is simply an entry that has children. nil is DOCUMENTED here (the top of AddOns), so it is
+        // the write and not the read: Args.passed, never Args.written.
         m.set("parent", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -515,9 +515,10 @@ public final class LuaPagina {
             if(v.type() == LuaValue.TSTRING)
                 throw new LuaError("pagina:parent(pagOrNil): \"" + v.tojstring() + "\" is a key, and a parent is"
                     + " the Pagina object — " + CharApi.MG + ":get(\"" + v.tojstring() + "\"), or nil for the"
-                    + " root screen");
+                    + " top of " + AddonsCategory.NAME);
             throw new LuaError("pagina:parent(pagOrNil): the parent is a Pagina object (" + CharApi.MG
-                + ":get(key), " + CharApi.MG + ":add(id)) or nil for the root screen, got " + v.typename());
+                + ":get(key), " + CharApi.MG + ":add(id)) or nil for the top of " + AddonsCategory.NAME + ", got "
+                + v.typename());
         }
         // 077.3: and it is a category in THIS character's menu. One tree per login, so an entry cannot hang
         // under a screen that is in another character's grid — a name that happens to exist in both would
@@ -569,6 +570,8 @@ public final class LuaPagina {
     private static String resname(MenuGrid.Pagina p) {
         if(p instanceof AddonPagina)
             return ((AddonPagina)p).id;
+        if(p instanceof AddonsCategory)     // the client's own, over the same stand-in (162)
+            return AddonsCategory.ID;
         try {
             Resource r = p.res();
             return (r == null) ? null : r.name;
@@ -603,6 +606,8 @@ public final class LuaPagina {
             return null;
         if(b.pag instanceof AddonPagina)
             return ((AddonPagina)b.pag).name();
+        if(b.pag instanceof AddonsCategory)
+            return AddonsCategory.NAME;
         try {
             return b.name();
         } catch(RuntimeException e) {   // Loading etc.
@@ -615,6 +620,8 @@ public final class LuaPagina {
             return null;
         if(b.pag instanceof AddonPagina)      // the stand-in's own pagina layer is not this entry's (059.1)
             return ((AddonPagina)b.pag).tooltip();
+        if(b.pag instanceof AddonsCategory)
+            return AddonsCategory.TIP;
         try {
             Resource.Pagina pg = b.res.layer(Resource.pagina);
             return (pg == null) ? null : pg.text;
@@ -834,6 +841,8 @@ public final class LuaPagina {
         if(p instanceof AddonPagina) {
             t.set("path", new LuaTable());     // a custom entry sends nothing (059.1)
             t.set("addon", LuaValue.valueOf(((AddonPagina)p).owner.manifest.id));   // whose entry it is (059.3)
+        } else if(p instanceof AddonsCategory) {
+            t.set("path", new LuaTable());     // the client's own, and it sends nothing either (162)
         } else if(b != null) {
             try {
                 String[] ad = b.act().ad;

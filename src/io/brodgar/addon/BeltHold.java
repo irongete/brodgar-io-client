@@ -254,10 +254,13 @@ public final class BeltHold {
 
     /**
      * A drag from the menu grid dropped on slot {@code n} ({@code GameUI.Belt.dropthing}). {@code true} when
-     * this is an addon's own entry and the layer took it — the drop then <b>sends nothing</b>, where the stock
-     * body would {@code wdgmsg("setbelt", …)} a name the server has never heard of and drop it silently.
+     * this is an addon's own entry and the layer took it, or the client's own AddOns category, which it
+     * swallows — the drop then <b>sends nothing</b>, where the stock body would {@code wdgmsg("setbelt", …)} a
+     * name the server has never heard of and drop it silently.
      */
     public static boolean dropped(GameUI g, int n, MenuGrid.Pagina pag) {
+        if(pag instanceof AddonsCategory)   // 162: the server has never heard of it, and it holds no slot
+            return true;                    //   of its own either -- the drop does nothing and sends nothing
         if(!(pag instanceof AddonPagina))
             return false;
         // 073.3: the bar the drop landed on, and no other. A bar with no session behind it can hold no

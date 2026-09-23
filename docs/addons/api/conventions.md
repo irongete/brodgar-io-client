@@ -127,7 +127,7 @@ An explicit `nil` argument raises: a value that arrived as `nil` would otherwise
 | Withdraw the page | [`options:panel(nil)`](client/addon.md#the-page). |
 | Unbind the control | [`widget:bind(nil)`](client/addon.md#binding-a-control-shows-the-option). |
 | None | A [virtual entity](virtual/README.md)'s `:tint(nil)`, [`gob:tint(nil)`](look.md#tint-unprotected). |
-| The root screen | `pagina:parent(nil)`. |
+| The top of the AddOns category | [`pagina:parent(nil)`](menugrid.md#a-category-is-an-entry-that-has-children). |
 | The login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil). |
 | The pointer the client would have drawn | [`mouse:cursor(nil)`](ui/mouse.md). |
 | Everything | A [filter](#the-filter-argument): `collection:list(nil)`, `:count(nil)`, `:find(nil)`. |

@@ -1,0 +1,9 @@
+{
+  "name": "162.1 — the AddOns category",
+  "id": "162-menugrid-addons-category.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 162.1: every entry an addon adds hangs inside the client's own AddOns category.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

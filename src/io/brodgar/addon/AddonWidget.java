@@ -438,6 +438,10 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
                 d.set("res", LuaValue.valueOf(((AddonPagina)pag).id));
                 return d;
             }
+            if(pag instanceof AddonsCategory) {    // 162: the client's own, over the same stand-in
+                d.set("res", LuaValue.valueOf(AddonsCategory.ID));
+                return d;
+            }
             String nm = resName(pag.res);
             if(nm != null)
                 d.set("res", LuaValue.valueOf(nm));
