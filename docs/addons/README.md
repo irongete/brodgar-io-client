@@ -51,3 +51,10 @@ One page per namespace, and a directory where a namespace is large. The [referen
 | [Shapes](api/shapes.md) | What a plain table of numbers looks like. |
 | [Data types](api/types/README.md) | Every snapshot shape. |
 | [Events](api/event/bus/README.md) | The catalogue of what the client tells you about. |
+
+> [!WARNING]
+> This documentation has been entirely generated using artificial intelligence. While efforts have been made to provide accurate and useful information, it may contain inaccuracies, omissions, or outdated information.
+>
+> If you notice anything that is incorrect, unclear, or missing, please feel free to [open an issue](https://github.com/irongete/brodgar-io-client/issues) or submit a [pull request](https://github.com/irongete/brodgar-io-client/pulls) with a correction.
+>
+> Community contributions and corrections are always welcome!

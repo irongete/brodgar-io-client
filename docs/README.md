@@ -41,3 +41,10 @@ The documentation is organized into two distinct sections:
 - **[Architecture Overview](client/README.md)**: Subsystem map of the Java client codebase.
 - **[Render Pipeline](client/render-gl.md)**: OpenGL rendering architecture.
 - **[State Management](client/state.md)**: Engine state tracking and synchronization.
+
+> [!WARNING]
+> This documentation has been entirely generated using artificial intelligence. While efforts have been made to provide accurate and useful information, it may contain inaccuracies, omissions, or outdated information.
+>
+> If you notice anything that is incorrect, unclear, or missing, please feel free to [open an issue](https://github.com/irongete/brodgar-io-client/issues) or submit a [pull request](https://github.com/irongete/brodgar-io-client/pulls) with a correction.
+>
+> Community contributions and corrections are always welcome!

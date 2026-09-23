@@ -88,3 +88,10 @@ The standard is [`DOCUMENTATION.md`](../../DOCUMENTATION.md) §12, and it is six
 | Gotchas live on their subsystem's page | not in a tier of their own, and only when they cost time |
 | A page is born from need | no completeness goal; a missing subsystem is one nobody has needed yet |
 | Ceiling 150 lines | corrected in place, never appended to |
+
+> [!WARNING]
+> This documentation has been entirely generated using artificial intelligence. While efforts have been made to provide accurate and useful information, it may contain inaccuracies, omissions, or outdated information.
+>
+> If you notice anything that is incorrect, unclear, or missing, please feel free to [open an issue](https://github.com/irongete/brodgar-io-client/issues) or submit a [pull request](https://github.com/irongete/brodgar-io-client/pulls) with a correction.
+>
+> Community contributions and corrections are always welcome!
