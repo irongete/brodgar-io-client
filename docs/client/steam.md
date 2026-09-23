@@ -8,7 +8,7 @@
 
 | What | Where |
 |---|---|
-| The one instance | `Steam.get()` — lazily loads the natives and calls `SteamAPI.init()`; **null** when either fails, and `API.failed` latches so every later call answers null at once. Nothing touches the SDK before the first `get()` |
+| The one instance | `Steam.get()` — lazily loads the natives and calls `SteamAPI.init()`; **null** when either fails (a `LinkageError` too, `// addon:`: see the gotchas), and `API.failed` latches so every later call answers null at once. Nothing touches the SDK before the first `get()` |
 | What `init` needs | the Steam client running and logged in, and the process identified as the game: **app id 3051280**, from the `SteamAppId` environment variable (Steam sets it on a process it starts) or from `steam_appid.txt` in the **working directory**. Without either, `SteamAPI.init()` fails with `[S_API]` lines on stderr — noise, not an error |
 | Natives | `Steam.SteamLibraryLoaderJogl` — JOGL's `TempJarCache`/`addNativeJarLibs` on `SteamAPI.class`, so the natives jar is found by name beside `steamworks4j.jar` (`steamworks4j-natives-windows-amd64.jar`, `64` appended on 64-bit Windows) |
 | Callbacks | one daemon thread (`Steam.listen`) pumps `SteamAPI.runCallbacks()` every 100 ms; `Listener`/`Waiter` turn a callback id into a blocking `get()` |
@@ -46,6 +46,12 @@
   recommends for exactly that case.
 - **A failed `init` is final for the process.** `API.failed` is never reset: Steam started after the
   first `Steam.get()` needs a client restart.
+- **On macOS arm64 the natives never load, and the failure is an `Error`.** `SteamLibraryLoaderJogl` goes
+  through JOGL's `Platform`, whose own native (`libgluegen_rt.dylib`, in
+  `gluegen-rt-natives-macosx-universal.jar`) is x86_64 only: `Platform.<clinit>` throws an
+  `UnsatisfiedLinkError`, and every later touch a `NoClassDefFoundError`. Upstream's `get()` caught only
+  the second, so the first `get()` killed the thread that asked — the UI loop's, a black window. `get()`
+  catches `LinkageError` (`// addon:`): on that platform Steam is absent, and so is the Steam login.
 - **A direct-launch item runs on the launcher's JVM and classpath.** Its flags are the launcher's
   (`--add-exports` for JOGL, whatever memory it has), not the item's; an item that wants its own JVM
   starts one from `main` or chains a `.hl`. The `Class-Path` of a jar on the item's `class-path` resolves

@@ -172,7 +172,7 @@ public class Steam {
 	    try {
 		if(!API.init())
 		    return(null);
-	    } catch(NoClassDefFoundError e) {
+	    } catch(LinkageError e) {   // addon: an UnsatisfiedLinkError as well: on macOS arm64 the natives come through JOGL's loader, which has none
 		return(null);
 	    }
 	    instance = new Steam();
