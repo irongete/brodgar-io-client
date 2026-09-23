@@ -47,6 +47,7 @@ final class AddonsCategory extends MenuGrid.Pagina {
     /** The line under the name in the long tooltip, and what {@code pag:tooltip()} answers. */
     static final String TIP = "What your addons add to the menu";
 
+    // retained: weak on both axes -- the value is held weakly, so nothing here reaches the grid it is keyed on.
     private static final Map<MenuGrid, WeakReference<AddonsCategory>> byGrid =
         new WeakHashMap<MenuGrid, WeakReference<AddonsCategory>>();
 
