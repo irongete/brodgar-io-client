@@ -348,8 +348,6 @@ public class HashDirCache implements ResCache {
 	try {
 	    if(cachebase.get() != null)
 		return(get(cachebase.get()));
-	    if(Resource.resurl.get() != null) // addon: the brodgar.io cache shares the proxy's local cache directory
-		return(get(Resource.isbrodgarcache(Resource.resurl.get()) ? Resource.BRODGAR_CACHE_FALLBACK : Resource.resurl.get()));
 	    return(get("default"));
 	} catch(Exception e) {
 	    return(null);
