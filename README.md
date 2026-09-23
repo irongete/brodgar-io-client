@@ -23,12 +23,8 @@ A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
    at the newest release, on the **Release** or the **Beta** channel — pick either from its dropdown.
 3. Log in. With the Steam client running, the login screen's *Log in with Steam* button logs in the
    Haven & Hearth account your Steam account is linked to (linking is on the game's website, under
-   *Account security*). The password box beside it is the native login, as ever.
-
-**Downloads**: [the launcher](https://github.com/irongete/brodgar-io-client-launcher/releases/latest) ·
-[client releases](https://github.com/irongete/brodgar-io-client/releases) (what the launcher installs
-for you; the pre-releases are the Beta channel) ·
-[source code](https://github.com/irongete/brodgar-io-client)
+   *Account security*). The password box beside it is the native login, as ever. On macOS the client
+   cannot load Steam yet: log in with the password.
 
 ## Documentation
 
