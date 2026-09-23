@@ -254,8 +254,8 @@
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="bin/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="windows.bat" destdir="bin" eol="crlf" />
-    <fixcrlf srcdir="etc" includes="linux.sh,macos.sh" destdir="bin" eol="lf" />
-    <chmod perm="a+x"><fileset dir="bin" includes="*.sh" /></chmod>
+    <fixcrlf srcdir="etc" includes="linux.sh,macos.command" destdir="bin" eol="lf" />
+    <chmod perm="a+x"><fileset dir="bin" includes="*.sh,*.command" /></chmod>
     <!-- addon: the Steam app id, read by the Steamworks SDK from the working directory when the client is
          not started by Steam. Beside hafen.jar because that folder IS the working directory of every start
          (the scripts cd there; the launcher starts the client in client/): it is what lets the login screen's
@@ -317,21 +317,21 @@
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="windows.bat" destdir="dist" eol="crlf" />
-    <fixcrlf srcdir="etc" includes="linux.sh,macos.sh" destdir="dist" eol="lf" />
+    <fixcrlf srcdir="etc" includes="linux.sh,macos.command" destdir="dist" eol="lf" />
     <copy file="etc/steam_appid.txt" todir="dist" />
     <chmod file="dist/hafen.jar" perm="a+x" />
-    <chmod perm="a+x"><fileset dir="dist" includes="*.sh" /></chmod>
-    <echo message="Client ready in dist/ -- run dist\windows.bat, dist/linux.sh or dist/macos.sh to play." />
+    <chmod perm="a+x"><fileset dir="dist" includes="*.sh,*.command" /></chmod>
+    <echo message="Client ready in dist/ -- run dist\windows.bat, dist/linux.sh or dist/macos.command to play." />
   </target>
 
   <!-- addon: the release asset publish.ps1 uploads: dist/ without savedata/, the client at the zip's root,
        named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
-       Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). The .sh scripts are
+       Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). The .sh and .command scripts are
        stored with mode 755, since a build on Windows has no executable bit to carry into the zip. -->
   <target name="release" depends="dist">
     <zip destfile="build/brodgar.io-client-v${version}.zip">
-      <zipfileset dir="dist" excludes="savedata/**,*.sh" />
-      <zipfileset dir="dist" includes="*.sh" filemode="755" />
+      <zipfileset dir="dist" excludes="savedata/**,*.sh,*.command" />
+      <zipfileset dir="dist" includes="*.sh,*.command" filemode="755" />
     </zip>
     <echo message="Release asset: build/brodgar.io-client-v${version}.zip" />
   </target>

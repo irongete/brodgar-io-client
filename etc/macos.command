@@ -5,7 +5,8 @@
 #  This file is a template. On build, `ant` copies it next to hafen.jar
 #  and its dependency jars: into bin/ (the "bin" target, the development
 #  sandbox) and into dist/ (the "dist" target, the install a release is
-#  made of). Run ./macos.sh from a terminal to start the client. Any extra
+#  made of). Double-click macos.command in Finder (it opens in Terminal),
+#  or run it from a terminal, to start the client. Any extra
 #  arguments are passed through to the client: resources come from where
 #  haven-config.properties beside this file says (the game's own server as
 #  built; the launcher rewrites that line from its checkbox) unless you add
