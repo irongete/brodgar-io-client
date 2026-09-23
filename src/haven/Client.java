@@ -47,15 +47,16 @@ public class Client implements Console.Directory {
     private Thread mt;
 
     /* addon: the title names the client and its version beside the game -- "Haven & Hearth - Brodgar client
-     * v158.2-beta" -- so a player (and a bug report's screenshot) can tell which build is running. */
-    private static String title() {
+     * v158.2-beta" -- so a player (and a bug report's screenshot) can tell which build is running. Not named
+     * title(): inside Main, a UI.Runner, that name is Runner.title(), whose default answers null. */
+    private static String wndtitle() {
 	return("Haven & Hearth - " + io.brodgar.Build.label());
     }
 
     public Client(Toolkit tk) {
 	this.tk = tk;
 	this.wnd = tk.window();
-	wnd.title(title());
+	wnd.title(wndtitle());
 	Coord fsz = Utils.getprefc("mainwnd/locksize", null);
 	if(fsz == null)
 	    wnd.sizing(new Windeye.Sizing().minsize(UI.scale(800, 600)).normsize(Utils.getprefc("mainwnd/size", UI.scale(1024, 768))));
@@ -289,9 +290,9 @@ public class Client implements Console.Directory {
 		}
 		String t= fun.title();
 		if(t == null)
-		    wnd.title(title());
+		    wnd.title(wndtitle());
 		else
-		    wnd.title(title() + " \u2013 " + t);
+		    wnd.title(wndtitle() + " \u2013 " + t);
 		fun = fun.run(newui(fun));
 	    }
 	}
