@@ -21,7 +21,9 @@ import java.nio.file.Path;
  * when the client runs with {@code -Dhaven.store=sqlite} — {@code savedata/map.sqlite} behind
  * {@code ResCache.global} (the recorded map, the minimap icon settings) and {@code savedata/rescache.sqlite}
  * behind {@code Resource.setcache} (the resource cache) — and none otherwise, when {@code HashDirCache} under
- * {@code %APPDATA%} stays what it was. Each store keeps its own data: nothing is imported either way.
+ * {@code %APPDATA%} stays what it was. Each store keeps its own data: the client imports nothing either way;
+ * the launcher's {@code DataMigrator} copies the map and the minimap icons of the known worlds into
+ * {@code map.sqlite} once, when its Options switch to SQLite.
  *
  * <p><b>The switch is here.</b> {@link #global()} and {@link #resources()} answer the two seams in
  * {@code haven} ({@code ResCache.StupidJavaCodeContainer.makeglobal}, {@code Client.setupres}), and
