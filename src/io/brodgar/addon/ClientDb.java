@@ -22,8 +22,12 @@ import java.util.prefs.Preferences;
  * {@code prefs} — and the two records it keeps <i>about</i> an addon, where the user put its windows
  * ({@code placements}) and which action-bar slots hold its menu entries ({@code holds}). An addon's own
  * file ({@link SqliteApi.Db}) holds what the addon stores through {@code hafen.store()}, and nothing of
- * the client's: the rule is by owner. No registry node is ever opened ({@link Prefs}). The panel's Remove
- * deletes every row about the addon with its folder ({@link #forget}); nothing else does.
+ * the client's: the rule is by owner. <b>The login secrets are the one exception</b>: the saved tokens, the
+ * list of remembered accounts and the install's token identity ({@link Prefs#secret}) never reach the file —
+ * they go to the platform's own node, the registry on Windows, exactly where they were before this file
+ * existed, so a client folder copied or zipped for someone else carries no token. No other preference opens
+ * the registry ({@link Prefs}). The panel's Remove deletes every row about the addon with its folder
+ * ({@link #forget}); nothing else does.
  *
  * <p><b>Opened once and lazily, on the first call from any thread.</b> The earliest caller is a "Haven
  * resource loader" thread inside {@code Client.setupres()} — {@code Resource.Image} → {@code UI.scale} →
@@ -209,6 +213,8 @@ public final class ClientDb {
             fail("could not be read", e);
             out.clear();
         }
+        // a secret a file still holds is neither served nor listed: its home is the platform node
+        out.keySet().removeIf(Prefs::secret);
         return out;
     }
 
@@ -377,16 +383,45 @@ public final class ClientDb {
      * through to the file — so a read costs a hash lookup, and a second client writing the same file is not
      * seen, as it never was. Children are in-memory nodes, and nothing asks for one.
      *
+     * <p><b>A {@link #secret} key never touches the map nor the file</b>: the root reads, writes and removes it
+     * on the platform's own node, the one upstream's {@code Utils.prefs()} opens —
+     * {@code HKCU\Software\JavaSoft\Prefs\haven\<prefspec>} on Windows — opened at the first secret touched,
+     * so no earlier preference read reaches the registry. A platform node that fails issues one
+     * {@link Warning} and holds the secrets in memory for the session; the file is never the fallback.
+     *
      * <p><b>{@code putSpi}/{@code removeSpi} never throw</b>: {@code AbstractPreferences.put} does not swallow,
-     * and {@code Utils.setpref*} catches {@code SecurityException} alone. {@code keysSpi} answers the keys.
-     * {@code isUserNode()} and {@code toString()} are overridden because the inherited ones compare the root
-     * against the platform's own user root node, and on Windows asking for that node <i>creates</i>
-     * {@code HKCU\Software\JavaSoft\Prefs}: without them, printing the node would open the registry.
+     * and {@code Utils.setpref*} catches {@code SecurityException} alone. {@code keysSpi} answers the keys,
+     * which are the file's alone. {@code isUserNode()} and {@code toString()} are overridden because the
+     * inherited ones compare the root against the platform's own user root node, and on Windows asking for
+     * that node <i>creates</i> {@code HKCU\Software\JavaSoft\Prefs}: without them, printing the node would
+     * open the registry.
      */
     static final class Prefs extends AbstractPreferences {
+        /**
+         * The keys that stay out of the file, by prefix: the saved tokens ({@code savedtoken-}, and
+         * {@code lasttoken-}, a launcher's), the remembered accounts beside them ({@code saved-tokens@}, and
+         * {@code tokenname@}, which {@code Client.connect} reads), and the identity the auth server issues
+         * tokens against ({@code token-id}, {@code token-desc}).
+         */
+        private static final String[] SECRETS = {"savedtoken-", "lasttoken-", "saved-tokens@", "tokenname@", "token-"};
+
+        /** Whether {@code key} is a login secret, kept on the platform node and never in the file. */
+        static boolean secret(String key) {
+            for(String prefix : SECRETS) {
+                if(key.startsWith(prefix))
+                    return true;
+            }
+            return false;
+        }
+
         /** The file behind this node, or {@code null} for an in-memory child. */
         private final ClientDb db;
         private final Map<String, String> map;
+
+        /** The platform node the secrets live on, opened at the first secret; {@code null} before, or once it failed. */
+        private Preferences platform;
+        /** The platform node failed: the secrets are held here for the session, never in the file. */
+        private Map<String, String> held;
 
         Prefs(ClientDb db, Map<String, String> map) {
             super(null, "");
@@ -401,19 +436,84 @@ public final class ClientDb {
         }
 
         protected String getSpi(String key) {
+            if((db != null) && secret(key)) {
+                Preferences p = platform();
+                if(p != null) {
+                    try {
+                        return p.get(key, null);
+                    } catch(RuntimeException e) {
+                        platformFailed(e);
+                    }
+                }
+                return held.get(key);
+            }
             return map.get(key);
         }
 
         protected void putSpi(String key, String value) {
+            if((db != null) && secret(key)) {
+                Preferences p = platform();
+                if(p != null) {
+                    try {
+                        p.put(key, value);
+                        return;
+                    } catch(RuntimeException e) {
+                        platformFailed(e);
+                    }
+                }
+                held.put(key, value);
+                return;
+            }
             map.put(key, value);
             if(db != null)
                 db.put(key, value);
         }
 
         protected void removeSpi(String key) {
+            if((db != null) && secret(key)) {
+                Preferences p = platform();
+                if(p != null) {
+                    try {
+                        p.remove(key);
+                        return;
+                    } catch(RuntimeException e) {
+                        platformFailed(e);
+                    }
+                }
+                held.remove(key);
+                return;
+            }
             map.remove(key);
             if(db != null)
                 db.remove(key);
+        }
+
+        /**
+         * The platform node, opened on the first call — the node upstream's {@code Utils.prefs()} opens, so the
+         * secrets are where the client kept them before its own file. {@code null} once it has failed. Called
+         * under the node's lock ({@code AbstractPreferences} holds it around every {@code *Spi}).
+         */
+        private Preferences platform() {
+            if((platform == null) && (held == null)) {
+                try {
+                    Preferences node = Preferences.userNodeForPackage(Utils.class);
+                    String spec = Utils.prefspec.get();
+                    platform = (spec == null) ? node : node.node(spec);
+                } catch(RuntimeException e) {
+                    platformFailed(e);
+                }
+            }
+            return platform;
+        }
+
+        /** The platform node failed: the one warning, and the secrets are held in memory from here on. */
+        private void platformFailed(RuntimeException e) {
+            platform = null;
+            if(held == null) {
+                held = new ConcurrentHashMap<String, String>();
+                new Warning(e, "the system's preference store failed: " + why(e) + " — the saved logins are held"
+                    + " in memory for this session and not written").level(Warning.ERROR).issue();
+            }
         }
 
         protected String[] keysSpi() {

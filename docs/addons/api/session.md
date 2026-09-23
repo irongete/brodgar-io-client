@@ -80,7 +80,7 @@ Nothing here is protected, and a `Session`'s own reads never throw. `session:wor
 | `hafen.session():find(filter)` | `Session \| nil` | Unprotected | The first that matches. `hafen.session():find("bo")` matches part of an account name. |
 | `hafen.session():get(user)` | `Session` | Unprotected | The session for that account name. Always an object. |
 | `hafen.session():current()` | `Session \| nil` | Unprotected | The session on screen. `nil` on the login screen. |
-| `hafen.session():saved()` | `string[]` | Unprotected | The account names the login screen remembered ("Remember me"). Empty when none, never a token. |
+| `hafen.session():saved()` | `string[]` | Unprotected | The account names the login screen remembered ("Remember me"). Empty when none, never a token. The names and their tokens are kept in the system's user store (the registry on Windows), never under `savedata/`, so a copied client folder remembers no one. |
 | `session:user()` | `string` | Unprotected | The account name. Answers for a session that has ended. |
 | `session:character()` | `string \| nil` | Unprotected | The character this session is playing. `nil` until its HUD is up. |
 | `session:exists()` | `boolean` | Unprotected | Whether the client still holds this session. |

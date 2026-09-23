@@ -396,8 +396,9 @@ public class Utils {
 		    } else {
 			// addon: the client's own file, savedata/client.sqlite, in place of the registry node
 			// java.util.prefs would open (HKCU\Software\JavaSoft\Prefs\haven\hafen on Windows,
-			// which the official client writes too). The -Dhaven.prefs branch above still installs
-			// the in-memory override. prefspec stays declared for the -p option, and nothing reads it.
+			// which the official client writes too). The login tokens alone still go to that node,
+			// under prefspec, so a copied client folder carries none (ClientDb.Prefs.secret). The
+			// -Dhaven.prefs branch above still installs the in-memory override.
 			prefs = io.brodgar.addon.ClientDb.prefs();
 		    }
 		}
