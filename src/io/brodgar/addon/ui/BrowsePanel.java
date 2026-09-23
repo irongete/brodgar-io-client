@@ -25,8 +25,9 @@ import java.util.List;
 
 /**
  * <b>The Browse tab</b> — the hub's own front page, drawn with the client's widgets: a search field with the
- * order beside it, the tags as a row of chips, a line saying which of how many, one {@link AddonCard} per
- * addon in a scrolling list, and <b>Previous</b> / <b>Next</b> under it. A card opens the addon's page,
+ * order beside it, the tags as a row of chips, one {@link AddonCard} per addon in a scrolling list, and on the
+ * manager's own bottom line, right-aligned beside its <b>Back</b>, a line saying which of how many and
+ * <b>Previous</b> / <b>Next</b> ({@link #pagerBar}, which {@link AddonPanel} places there). A card opens the addon's page,
  * {@link AddonDetail}, in the same box; <b>Back to list</b> on the page puts the list back exactly as it
  * was — the field, the page and the scroll all kept, the list being hidden rather than rebuilt.
  *
@@ -49,6 +50,8 @@ final class BrowsePanel extends Widget {
     static final int LIMIT = 24;
     /** The order picker's width, and the pager's two buttons. */
     static final int SORT_W = 170, PREV_W = 80, NEXT_W = 60;
+    /** Where the pager's strip starts on the manager's bottom line: past Back (200 wide) and a gap. */
+    static final int PAGER_X = 208;
     /** The room around a card, design pixels: between its frame and the port's edges, and between one card and the next. */
     static final int MARGIN = 2, ROW_GAP = 4;
     /** The orders, as the picker names them — one per {@link Registry#SORTS}, in the same order. */
@@ -63,6 +66,7 @@ final class BrowsePanel extends Widget {
     private final Chips chips;
     private final Label count, pageLbl;
     private final Button prev, next;
+    private final Widget pagerBar;           // the pager's own strip: the manager places it on Back's line
     private final Scrollport port;
     private final List<AddonCard> cards = new ArrayList<AddonCard>();
     private Label notice;                    // the port's own word while it holds no cards, or null
@@ -119,26 +123,34 @@ final class BrowsePanel extends Widget {
         int y = prevw.pos("bl").adds(0, 4).y + rowh + UI.scale(6);
         chips = listing.add(new Chips(), new Coord(0, y));
         chips.set(tags);
-        count = listing.add(new Label(""), Coord.z);
-        next = listing.add(new Button(UI.scale(NEXT_W), "Next", false).action(() -> turn(1)), Coord.z);
-        pageLbl = listing.add(new Label(""), Coord.z);
-        prev = listing.add(new Button(UI.scale(PREV_W), "Previous", false).action(() -> turn(-1)), Coord.z);
+        // The pager is built here, where its state lives, but in a strip of its own that the manager adds on
+        // its bottom line: as wide as the tab less Back and its gap, so it never stands over Back's clicks.
+        pagerBar = new Widget(new Coord(UI.scale(W - PAGER_X), Button.hs));
+        count = pagerBar.add(new Label(""), Coord.z);
+        next = pagerBar.add(new Button(UI.scale(NEXT_W), "Next", false).action(() -> turn(1)), Coord.z);
+        pageLbl = pagerBar.add(new Label(""), Coord.z);
+        prev = pagerBar.add(new Button(UI.scale(PREV_W), "Previous", false).action(() -> turn(-1)), Coord.z);
         port = listing.add(new Scrollport(UI.scale(new Coord(W, 100))), Coord.z);
         bar(null);
         layout();
     }
 
+    /** The pager's strip, for the manager to place on its bottom line, flush with the tab's right edge. */
+    Widget pagerBar() {
+        return(pagerBar);
+    }
+
+    /** The list is on screen, not an addon's page over it: the one time the pager stands. */
+    boolean listing() {
+        return(detail == null);
+    }
+
     /**
-     * Place the line, the pager and the port under the chips, which are as tall as the tags need: a hub with
-     * more tags than fit a row wraps them, and the port is what gives the room. Run at build and whenever the
-     * chips change.
+     * Place the port under the chips, which are as tall as the tags need: a hub with more tags than fit a row
+     * wraps them, and the port is what gives the room. Run at build and whenever the chips change.
      */
     private void layout() {
         int y = chips.c.y + chips.sz.y + UI.scale(6);
-        int barh = next.sz.y;
-        next.c = new Coord(sz.x - next.sz.x, y);
-        pager();
-        y += barh + UI.scale(6);
         port.c = new Coord(0, y);
         port.resize(new Coord(sz.x, sz.y - y));
         port.cont.update();                 // the bar's range follows the box, which resize alone does not move
@@ -165,16 +177,19 @@ final class BrowsePanel extends Widget {
         stack();
     }
 
-    /** The pager, right-aligned: the label's width places the two buttons. */
+    /** The pager, right-aligned in its strip: the labels' widths place the buttons and the line before them. */
     private void pager() {
-        int y = next.c.y, barh = next.sz.y;
-        Coord pc = new Coord(next.c.x - UI.scale(8) - pageLbl.sz.x, y + (barh - pageLbl.sz.y) / 2);
+        int barh = pagerBar.sz.y;
+        Coord nc = new Coord(pagerBar.sz.x - next.sz.x, (barh - next.sz.y) / 2);
+        if(!nc.equals(next.c))
+            next.c = nc;
+        Coord pc = new Coord(nc.x - UI.scale(8) - pageLbl.sz.x, (barh - pageLbl.sz.y) / 2);
         if(!pc.equals(pageLbl.c))
             pageLbl.c = pc;
-        Coord vc = new Coord(pc.x - UI.scale(8) - prev.sz.x, y);
+        Coord vc = new Coord(pc.x - UI.scale(8) - prev.sz.x, (barh - prev.sz.y) / 2);
         if(!vc.equals(prev.c))
             prev.c = vc;
-        Coord cc = new Coord(0, y + (barh - count.sz.y) / 2);
+        Coord cc = new Coord(vc.x - UI.scale(8) - count.sz.x, (barh - count.sz.y) / 2);
         if(!cc.equals(count.c))
             count.c = cc;
     }

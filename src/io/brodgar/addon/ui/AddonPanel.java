@@ -178,7 +178,12 @@ public class AddonPanel extends OptWnd.Panel {
         check.c = new Coord(tc.x + UI.scale(LIST_W) - check.sz.x, ib.c.y);
         checked = add(new Label(""), Coord.z);
         placeChecked();
-        add(opt.new PButton(UI.scale(200), "Back", 27, back), installed.pos("bl").adds(0, 8));
+        Widget backb = add(opt.new PButton(UI.scale(200), "Back", 27, back), installed.pos("bl").adds(0, 8));
+        // Browse's pager, on Back's line and flush with the tabs' right edge; it stands only while Browse
+        // shows its list (see tick).
+        Widget pb = add(browsing.pagerBar(), Coord.z);
+        pb.c = new Coord(tc.x + UI.scale(LIST_W) - pb.sz.x, backb.c.y + (backb.sz.y - pb.sz.y) / 2);
+        pb.hide();
         rebuild();
         pack();
     }
@@ -292,6 +297,10 @@ public class AddonPanel extends OptWnd.Panel {
         }
         placeChecked();
         pollCheck();
+        Widget pb = browsing.pagerBar();
+        boolean pager = browse.visible() && browsing.listing();
+        if(pb.visible() != pager)                      // on a change only, as the check above
+            pb.show(pager);
     }
 
     /** The check's line, right-aligned against the button's left and centred on it: its width is its text's. */
