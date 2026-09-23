@@ -10,10 +10,17 @@ A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
 
 ## How to play
 
-1. **[Download the launcher](https://github.com/irongete/brodgar-io-client-launcher/releases/latest/download/brodgar.io-launcher.zip)**
-   and unzip it anywhere.
-2. Run `run.bat`. The launcher installs the client and keeps it at the newest release, on the **Release**
-   or the **Beta** channel — pick either from its dropdown.
+1. Download the launcher for your system; it brings its own Java:
+   **[Windows](https://github.com/irongete/brodgar-io-client-launcher/releases/latest/download/brodgar.io-launcher-windows-x64.zip)** ·
+   **[macOS](https://github.com/irongete/brodgar-io-client-launcher/releases/latest/download/brodgar.io-launcher-macos-arm64.zip)**
+   (Apple Silicon) ·
+   **[Linux](https://github.com/irongete/brodgar-io-client-launcher/releases/latest/download/brodgar.io-launcher-linux-x64.zip)**
+   (x64).
+2. Start it. **Windows**: unzip it anywhere and run `run.bat`. **macOS**: open the app, **Brodgar.io**; it is
+   not signed by Apple, so the first time macOS refuses it — open **System Settings**, **Privacy & Security**,
+   and press **Open Anyway**, once. **Linux**: unzip it anywhere and run `run.sh` (a right click, **Run as a
+   Program**); from then on it is in your applications menu. The launcher installs the client and keeps it
+   at the newest release, on the **Release** or the **Beta** channel — pick either from its dropdown.
 3. Log in. With the Steam client running, the login screen's *Log in with Steam* button logs in the
    Haven & Hearth account your Steam account is linked to (linking is on the game's website, under
    *Account security*). The password box beside it is the native login, as ever.
