@@ -52,7 +52,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = 'irongete/brodgar-io-client'
-$product = 'brodgar.io client'
+$product = 'Brodgar client'
 Set-Location $PSScriptRoot
 
 function Run {

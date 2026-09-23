@@ -1,4 +1,4 @@
-# brodgar.io client
+# Brodgar client
 
 A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
 [dolda2000/hafen-client](https://github.com/dolda2000/hafen-client), documented
@@ -16,7 +16,7 @@ A [Haven & Hearth](https://www.havenandhearth.com/) client, forked from
    (Apple Silicon) ·
    **[Linux](https://github.com/irongete/brodgar-io-client-launcher/releases/latest/download/brodgar.io-launcher-linux-x64.zip)**
    (x64).
-2. Start it. **Windows**: unzip it anywhere and run `run.bat`. **macOS**: open the app, **Brodgar.io**; it is
+2. Start it. **Windows**: unzip it anywhere and run `run.bat`. **macOS**: open the app, **Brodgar launcher**; it is
    not signed by Apple, so the first time macOS refuses it — open **System Settings**, **Privacy & Security**,
    and press **Open Anyway**, once. **Linux**: unzip it anywhere and run `run.sh` (a right click, **Run as a
    Program**); from then on it is in your applications menu. The launcher installs the client and keeps it
