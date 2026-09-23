@@ -1,41 +1,22 @@
 # The AddOns Manager
 
-**AddOns**, on the game menu `Ctrl+O` opens, switches your addons on and off and finds new ones. The **Installed** tab lists every addon in `addons/` with its live status and enable box, and updates or removes the ones the hub installed. The **Browse** tab is the front page of `brodgar.io/addons`, the hub, drawn in the client. The client reads the hub anonymously: the request carries nothing about you or your character.
+**AddOns**, on the game menu `Ctrl+O` opens, switches your addons on and off and finds new ones. The **Installed** tab lists every addon in `addons/` as a table with an enable box, and updates or removes the ones the hub installed. The **Browse** tab is the front page of `brodgar.io/addons`, the hub, drawn in the client. The client reads the hub anonymously: the request carries nothing about you or your character.
 
 ---
 
 ## Installed
 
-Every addon the client discovered, sorted by id: a checkbox, the name, version and author, a live status. The description is the tooltip. The tooltip also lists `Needs:`, `Optional:` and `Used by:` when the manifests name them. With nothing in `addons/` the list says `No addons installed`.
-
-| Row shows | Meaning |
-|---|---|
-| `loaded v<version>` | Running. |
-| `disabled` | Switched off, not loaded. |
-| `not loaded` | Enabled but not running: an enable no reload has applied yet. |
-| `error: …` | Its manifest or its Lua failed, or a dependency is missing: `error: needs <id>, which is not installed`. The message says how. |
-| `manifest error (hover)` | The manifest does not parse. The tooltip opens with the reason. |
-| `outdated (…)` | Not run: the [API version](manifest.md#the-api-version) it declares is not one this client implements (`outdated (API 9.0, client 1.0)`) or it declares none (`outdated (no api_version, client 1.0)`). |
-| `auto-disabled (…)` | The [CPU budget](runtime.md#budgets-and-the-watchdog) or a [fatal failure](runtime.md#when-a-failure-is-fatal) stopped it, or stopped a library it needs: `auto-disabled (needs <id>)`. |
-| `update <version>` | The hub publishes a newer version. **Update** stands beside it. |
-| `downloading <n>%` | An update's package is on its way, against the size the hub advertised. |
-| `staged <version> - Reload UI to apply` | A version [installed from the hub](#how-an-install-lands) waits to replace this folder at the next reload. |
-| `staged <version> - restart to apply` | The last reload could not replace the folder (a file still held). The next start does. |
-| `removed on Reload UI` | Marked for removal: the next reload [deletes the folder and forgets the addon](#what-an-install-keeps-and-a-removal-forgets). |
-| `removed on restart` | The last reload could not delete it. The next start does. |
-| `failed: <why>` | An update's download or a check refused it. Nothing landed. **Update** is back. |
-| `[protected: N]` | It asked for N permission entries and can act on your behalf. The tooltip names them. A `<prefix>.*` group counts as one entry. |
-| `[net]` | It declared network hosts. The tooltip names every host. |
+Every addon the client discovered, sorted by id, in a table under a header naming its columns: a checkbox, **Name**, **Version**, **Author**, then **Update** and **Remove** where they stand. A cell too long for its column is cut with an ellipsis. A row's text is red when the addon declares an [API version](manifest.md#the-api-version) this client does not implement (unless **Load out of date AddOns** is ticked), yellow when the hub has a newer version, green when its box is ticked and grey when it is not, in that order. The name's tooltip carries the rest: a broken manifest's reason or why it is out of date first, then the description, the permissions it declares, its network hosts, and `Needs:`, `Optional:` and `Used by:` when the manifests name them. With nothing in `addons/` the list says `No addons installed`. The status each addon is in (`loaded`, `error`, `outdated`, …) is what [`:addons`](runtime.md#the-console-commands) prints.
 
 | Control | Effect |
 |---|---|
 | A checkbox | Applied on the next reload, never mid-session. A "changes pending" line says so until **Reload UI**. |
-| **Enable all** | Turns on every addon not marked `[protected: N]`. A write addon is enabled one at a time, through the consent dialog ticking it raises. |
+| **Enable all** | Turns on every addon that declares no permission. A write addon is enabled one at a time, through the consent dialog ticking it raises. |
 | **Open addons folder** | Opens `addons/` in your file browser. |
 | **Update**, **Remove** | Stand on a row the hub installed, a folder carrying the record [an install writes](#how-an-install-lands), and no other. A folder you put in `addons/` is yours, never replaced or deleted. Neither is offered while something already waits on the folder. |
-| **Remove** | Marks the folder. The row reads `removed on Reload UI` until the next reload deletes it and [forgets the addon](#what-an-install-keeps-and-a-removal-forgets). |
-| **Update** | Stands once a check has found the hub's latest version greater than the installed one (ordered `MAJOR.MINOR.PATCH`, a pre-release below the release it precedes). The press is [an install](#how-an-install-lands). |
-| **Check for updates** | The check also runs each time the tab comes on screen. The line beside it reads `checking`, `no update available` or `1 update available`. Otherwise it reads the hub's own sentence with its status, the failure that kept the client from reaching it, or `no addon installed from the hub`. |
+| **Remove** | Marks the folder. The next reload deletes it and [forgets the addon](#what-an-install-keeps-and-a-removal-forgets). Both buttons leave the row until then. |
+| **Update** | Stands once a check has found the hub's latest version greater than the installed one (ordered `MAJOR.MINOR.PATCH`, a pre-release below the release it precedes). Its tooltip names that version. The press is [an install](#how-an-install-lands). Both buttons leave the row while the download runs and until the reload that applies it. |
+| **Check for updates** | At the right of the **Installed** and **Browse** buttons, while Installed shows. The check also runs each time the tab comes on screen. The line to its left reads `checking`, `no update available` or `1 update available`. Otherwise it reads the hub's own sentence with its status, the failure that kept the client from reaching it, or `no addon installed from the hub`. |
 | **Load out of date AddOns** | Loads every addon marked `outdated (…)` as if its [API version](manifest.md#the-api-version) were current. One stance over the list, kept across restarts, off until ticked. Applied at the next reload, with a log line per addon naming why it was out of date. Not a permission: an out-of-date write addon is still disabled until enabled, through its consent dialog. |
 
 An addon's own settings are on the **AddOns** tab of **Options**, where an addon that holds [a page](api/client/addon.md#the-page) has a row. An addon that declares a permission key is disabled the first time the client sees it ([permissions](guides/permissions.md)).
@@ -108,5 +89,5 @@ A card's status is truncated to the width the name line leaves. The tooltip and 
 
 - [The manifest](manifest.md) — what a row and a card read: the name, the version, the permissions, the API version.
 - [The runtime](runtime.md) — what a reload does with what this manager changed, and the console commands.
-- [Permissions](guides/permissions.md) — what enabling a `[protected: N]` addon asks you, and why.
-- [Debugging](guides/debugging.md) — reading a row that says `error`, `outdated` or `disabled`.
+- [Permissions](guides/permissions.md) — what enabling an addon that declares a permission asks you, and why.
+- [Debugging](guides/debugging.md) — an addon whose status is `error`, `outdated` or `disabled`.

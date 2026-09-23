@@ -94,7 +94,7 @@ A `<prefix>.*` entry stands for every key under that prefix.
 | Step | Detail |
 |---|---|
 | 1. The manifest declares a key or a group for every protected verb you call | `"permissions": ["player.move", "gob.click", "item.*"]`. |
-| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it. Enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. Its row carries a `[protected: N]` badge with the entries in the tooltip, and **Enable all** skips it. |
+| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it. Enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. The tooltip of its name lists the entries, and **Enable all** skips it. |
 
 | Rule | Detail |
 |---|---|
@@ -171,6 +171,6 @@ end)
 | One line per key over the same hosts | *"fetch data from the servers it lists: api.example.com"*. *"keep a live connection to the servers it lists: api.example.com"*. For a [voice link](../api/voice/README.md#declaring-network-access), *"use your microphone to talk on the voice servers it lists"*. |
 | Load error, refusal | Hosts without a key is a load error naming the keys. A key with no hosts is refused at the call. An origin the user did not approve is refused before any request leaves, connection opens or microphone is taken. |
 | An entry | One scheme on one port. A [`wss://` address is the `https` server](../api/websocket.md#declaring-network-access) the block names. A wildcard covers one domain's sub-domains, never a top-level domain ([what an entry means](../api/http.md#declaring-network-access)). |
-| The panel | A `[net]` badge with the exact hosts in the row's tooltip. |
+| The panel | The exact hosts in the tooltip of the addon's name. |
 
 **Next:** [theming](theming.md) — changing what the client looks like, which needs no permission.

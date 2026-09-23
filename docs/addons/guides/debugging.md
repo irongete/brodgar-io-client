@@ -72,7 +72,7 @@ end)
 
 ## When the addon does not load
 
-`:addons` lists every folder found with its status. The [AddOns manager](../panel.md) (`Ctrl+O`) says the same with the error attached.
+`:addons` lists every folder found with its status. A broken manifest's reason is also the tooltip of its name in the [AddOns manager](../panel.md) (`Ctrl+O`).
 
 | Status | Look at |
 |---|---|

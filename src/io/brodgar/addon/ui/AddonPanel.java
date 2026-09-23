@@ -3,6 +3,7 @@ package io.brodgar.addon.ui;
 import haven.Button;
 import haven.CheckBox;
 import haven.Coord;
+import haven.GOut;
 import haven.Label;
 import haven.OptWnd;
 import haven.RichText;
@@ -19,6 +20,7 @@ import io.brodgar.addon.registry.Entry;
 import io.brodgar.addon.registry.Registry;
 import io.brodgar.addon.registry.Semver;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -31,21 +33,23 @@ import java.util.Map;
  * It lives in the addon package (it needs no package-private {@code haven} access): it drives the all-static
  * {@link AddonRegistry} facade and the hub client {@link Registry}.
  *
- * <p><b>Installed</b> is the manager as it was: each row is one discovered addon — an <b>enable/disable</b>
- * checkbox (WoW "apply on reload": {@link AddonRegistry#setEnabled}), name/version/author with the description
- * as a tooltip, and a live status (loaded / disabled / error / outdated / auto-disabled / staged / removed) — plus
- * a "changes pending" hint, the <b>Load out of date AddOns</b> checkbox (WoW's, {@link AddonRegistry#setLoadOutdated}:
- * one persisted stance that lets every {@code outdated (…)} row load on the next reload, no permission and no
- * per-row grant), and the global <b>Reload UI</b>, <b>Enable all</b> and <b>Open addons folder</b> controls.
- * A row the hub installed — one whose folder carries the hub's {@code InstallRecord} — carries <b>Remove</b>
- * ({@link AddonRegistry#markRemove}: the folder is marked and the next reload deletes it) and, once a check has
- * found the hub's latest greater than the record's version ({@link Semver#compare}, the hub's own order),
- * <b>Update</b>, which is the install path ({@link AddonRegistry#install}) run on the hub's item (145.3). The
- * check is {@link Registry#lookup} of the hub-installed ids, run whenever the tab comes on screen — watched
- * from {@link #tick}, one transition, so the manager being opened and the tab being switched to are the one
- * door — and by <b>Check for updates</b>, whose own line says {@code checking}, how many, or why the hub did
- * not answer; with nothing installed from the hub, nothing goes out. A by-hand row carries neither button:
- * the client never replaces or deletes a folder the player put there.
+ * <p><b>Installed</b> is a table, one row per discovered addon under a header naming its columns: an
+ * <b>enable/disable</b> checkbox (WoW "apply on reload": {@link AddonRegistry#setEnabled}), the name, the version
+ * and the author, each cut to its column with an ellipsis, and the row's buttons; the name's tooltip carries the
+ * rest (a broken manifest's reason, the description, the permissions and hosts, the dependencies). Under the
+ * table stand a "changes pending" hint, the <b>Load out of date AddOns</b> checkbox (WoW's,
+ * {@link AddonRegistry#setLoadOutdated}: one persisted stance that lets every out-of-date addon load on the next
+ * reload, no permission and no per-row grant), and the global <b>Reload UI</b>, <b>Enable all</b> and <b>Open
+ * addons folder</b> controls. A row the hub installed — one whose folder carries the hub's {@code InstallRecord}
+ * — carries <b>Remove</b> ({@link AddonRegistry#markRemove}: the folder is marked and the next reload deletes
+ * it) and, once a check has found the hub's latest greater than the record's version ({@link Semver#compare},
+ * the hub's own order), <b>Update</b>, which is the install path ({@link AddonRegistry#install}) run on the
+ * hub's item (145.3), with that version as its tooltip. The check is {@link Registry#lookup} of the
+ * hub-installed ids, run whenever the tab comes on screen — watched from {@link #tick}, one transition, so the
+ * manager being opened and the tab being switched to are the one door — and by <b>Check for updates</b>, which
+ * stands at the right of the tab buttons while Installed is showing, its own line beside it saying
+ * {@code checking}, how many, or why the hub did not answer; with nothing installed from the hub, nothing goes
+ * out. A by-hand row carries neither button: the client never replaces or deletes a folder the player put there.
  *
  * <p><b>Browse</b> is the hub's own front page in the client's widgets — {@link BrowsePanel}: a search
  * field with the order beside it, the tags as chips, one {@link AddonCard} per addon and a pager, and a
@@ -63,11 +67,9 @@ import java.util.Map;
  * ({@link #failTip}, {@link #pendingStatus}) live here.
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
- * addon that declares any of them shows the {@code [protected: N]} row marker with its declared entries in the
- * row tooltip — the shape {@code [net]} already uses for its hosts, so how much an addon asked for is legible
- * in the list and exactly what it asked for is one hover away — defaults to disabled, and enabling it raises
- * the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions}, slice 4c) — so it
- * only ever runs after the user knowingly grants it, for exactly the keys it asked for.
+ * addon that declares any of them lists its declared entries in its name's tooltip, defaults to disabled, and
+ * enabling it raises the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions},
+ * slice 4c) — so it only ever runs after the user knowingly grants it, for exactly the keys it asked for.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -79,12 +81,20 @@ import java.util.Map;
  */
 public class AddonPanel extends OptWnd.Panel {
     /**
-     * The list width, both tabs: an Installed row's metadata to {@link #STATUS_X}, its status from there, and
-     * two button columns — {@link #BUTTON_X} (Update) and {@link #BUTTON2_X} (Remove) — each
-     * {@link #BUTTON_W} wide, the last ending short of the port's scrollbar. The Browse tab is
-     * {@link BrowsePanel#W} wide, which is this, and its cards lay their own columns out.
+     * The list width, both tabs, and the Installed table's columns, in design pixels: the checkbox at 0, the
+     * name at {@link #NAME_X}, the version at {@link #VERSION_X}, the author at {@link #AUTHOR_X}, and two
+     * button columns — {@link #BUTTON_X} (Update) and {@link #BUTTON2_X} (Remove) — each {@link #BUTTON_W}
+     * wide, the last ending short of the port's scrollbar. A text column runs to {@link #COL_GAP} short of the
+     * next. The Browse tab is {@link BrowsePanel#W} wide, which is this, and its cards lay their own columns out.
      */
-    static final int LIST_W = 624, STATUS_X = 290, BUTTON_X = 480, BUTTON2_X = 544, BUTTON_W = 60;
+    static final int LIST_W = 624, NAME_X = 26, VERSION_X = 250, AUTHOR_X = 330, BUTTON_X = 480, BUTTON2_X = 544,
+                     BUTTON_W = 60, COL_GAP = 8;
+    /**
+     * An Installed row's colours ({@link Row#colour}): red for an API version this client does not implement,
+     * yellow for a newer version on the hub, green for enabled, grey for disabled.
+     */
+    static final Color INCOMPATIBLE = new Color(235, 90, 80), UPDATABLE = new Color(240, 205, 70),
+                       ENABLED = new Color(120, 215, 110), DISABLED = new Color(150, 150, 150);
     /** The Installed list's height: as tall as the Browse tab leaves room for under its own controls. */
     static final int LIST_H = 260;
     /** How long the search field's text has to be still before it is searched, in seconds. */
@@ -95,11 +105,13 @@ public class AddonPanel extends OptWnd.Panel {
     // -- Installed
     private final Scrollport list;
     private final Label hint;
+    private final CheckBox loadOld;         // Load out of date AddOns: while ticked, an out-of-date row is not red
     private final List<Row> rows = new ArrayList<Row>();
     private Label empty;                    // "No addons installed", centred in the list, exactly while it is empty
     private int builtGen = Integer.MIN_VALUE;
     private PermissionConsentWnd consent;   // the live enable-time permission consent dialog (4c), or null/destroyed
     // -- the update check (145.3)
+    private final Button check;             // Check for updates, right of the tab buttons, while Installed shows
     private final Label checked;            // the check's own line: checking / how many / why the hub did not answer
     private final Map<String, Entry> updates = new HashMap<String, Entry>();   // id -> the hub's item, newer than the record
     private Registry.Request<List<Entry>> checking;   // the lookup in flight, the only one ever read
@@ -110,9 +122,9 @@ public class AddonPanel extends OptWnd.Panel {
 
     public AddonPanel(OptWnd opt, OptWnd.Panel back) {
         // addon: (115.1) "AddOns" is this panel's own caption on the window, written by OptWnd.chpanel when it
-        // is swapped in. The game menu that opens it carries none.
+        // is swapped in, so the panel repeats it nowhere: the tab buttons are its first line. The game menu that
+        // opens it carries none.
         opt.super("AddOns");
-        Widget prev = add(new Label("AddOns"), 0, 0);
         // 145.1: two tabs, exactly as OptWnd.SettingsPanel lays its own out. Tabs is built with a placeholder c
         // because a tab's button needs its Tab and a Tab is placed where Tabs was told, so the bodies are moved
         // under the buttons once both exist. The buttons are plain Buttons whose action is the swap rather
@@ -121,8 +133,7 @@ public class AddonPanel extends OptWnd.Panel {
         tabs = new Tabs(Coord.z, Coord.z, this);
         installed = tabs.add();
         browse = tabs.add();
-        Button ib = add(new Button(UI.scale(120), "Installed", false).action(() -> tabs.showtab(installed)),
-                        prev.pos("bl").adds(0, 6));
+        Button ib = add(new Button(UI.scale(120), "Installed", false).action(() -> tabs.showtab(installed)), 0, 0);
         add(new Button(UI.scale(120), "Browse", false).action(() -> tabs.showtab(browse)), ib.pos("ur").adds(5, 0));
         Coord tc = ib.pos("bl").adds(0, 8);
         tabs.c = tc;
@@ -130,28 +141,18 @@ public class AddonPanel extends OptWnd.Panel {
         browse.move(tc);
 
         // ---- Installed: today's widgets, inside a tab
-        prev = installed.add(new Label("Enable or disable addons. Changes apply on reload."), Coord.z);
-        // D-027/D-028: the protected verbs are a PER-ADDON permission (no global switch). An addon that declares
-        // any carries the [protected: N] row marker, is disabled by default, and enabling it raises the consent
-        // dialog (confirmEnablePermissions / PermissionConsentWnd, slice 4c) — this line just points the user at
-        // that, and says what the number and the hover are for.
-        prev = installed.add(new Label("An addon marked [protected: N] asked for N permissions to act on your behalf"
-            + " (hover to read them); enabling one asks you to approve the list."),
-            prev.pos("bl").adds(0, 2));
-        // 141.1: the list is as wide as its longest row needs -- a row's metadata label runs to STATUS_X and its
-        // status label from there, so `outdated (no api_version, client 1.0)`, the longest status a row carries,
-        // and a long name with `[protected: N]  [net]` after it both fit whole beside the scrollbar. 145.1: and
-        // a button column stands at BUTTON_X beside the status, which is what widened it from 480; 145.3: a
-        // second at BUTTON2_X, for Update and Remove side by side, which widened it to LIST_W.
-        // The list is clipped at its edge, not wrapped, so a row wider than this reads as a status cut mid-word.
-        list = installed.add(new Scrollport(UI.scale(new Coord(LIST_W, LIST_H))), prev.pos("bl").adds(0, 8));
+        Widget prev = installed.add(new Label("Enable or disable addons. Changes apply on reload."), Coord.z);
+        // The table: its header stands outside the port, so it stays put while the rows scroll under it, and
+        // names the columns every row lays its cells out on.
+        prev = installed.add(new Header(), prev.pos("bl").adds(0, 8));
+        list = installed.add(new Scrollport(UI.scale(new Coord(LIST_W, LIST_H))), prev.pos("bl"));
         hint = installed.add(new Label(""), list.pos("bl").adds(0, 6));
         // 141.2: LOAD OUT OF DATE ADDONS -- the WoW checkbox of the same name, one stance over the whole list
         // rather than a per-row grant. It sits between the hint and the buttons because it is applied exactly
         // as a row's box is: ticking it flags "changes pending" and Reload UI is what lets the out-of-date
         // addons in. Seeded from the pref and written straight back through the facade, the Row box's own
         // pattern; `a = v` is owed because overriding set(boolean) replaces the default that wrote it.
-        CheckBox outdated = installed.add(new CheckBox("Load out of date AddOns") {
+        CheckBox outdated = loadOld = installed.add(new CheckBox("Load out of date AddOns") {
                 { a = AddonRegistry.loadOutdated(); }
                 public void set(boolean v) {
                     AddonRegistry.setLoadOutdated(v);
@@ -163,12 +164,6 @@ public class AddonPanel extends OptWnd.Panel {
         installed.add(new Button(UI.scale(110), "Enable all", false).action(this::enableAll), reload.pos("ur").adds(8, 0));
         installed.add(new Button(UI.scale(170), "Open addons folder", false).action(AddonRegistry::openAddonsFolder),
                       reload.pos("ur").adds(8, 0).add(UI.scale(118), 0));
-        // 145.3: the check, on a row of its own with its line beside it -- the pair a search field and its line
-        // make on Browse. The same check runs by itself whenever the tab comes on screen (see tick).
-        Button check = installed.add(new Button(UI.scale(150), "Check for updates", false).action(this::checkUpdates),
-                                     reload.pos("bl").adds(0, 8));
-        Label word = new Label("");
-        checked = installed.add(word, new Coord(check.pos("ur").x + UI.scale(8), check.c.y + (check.sz.y - word.sz.y) / 2));
 
         // ---- Browse: the hub's front page, and the addon's page over it
         browsing = browse.add(new BrowsePanel(), Coord.z);
@@ -176,6 +171,13 @@ public class AddonPanel extends OptWnd.Panel {
         // Tabs.pack gives both tabs the union box, so Browse is laid out to Installed's height and Back sits
         // below both at the same place whichever is showing.
         tabs.pack();
+        // 145.3: the check, on the tab buttons' line and flush with the tabs' right edge, its line to its left
+        // (placed by tick, as its text moves). It stands only while Installed shows -- the rows it updates are
+        // there. The same check runs by itself whenever the tab comes on screen (see tick).
+        check = add(new Button(UI.scale(150), "Check for updates", false).action(this::checkUpdates), Coord.z);
+        check.c = new Coord(tc.x + UI.scale(LIST_W) - check.sz.x, ib.c.y);
+        checked = add(new Label(""), Coord.z);
+        placeChecked();
         add(opt.new PButton(UI.scale(200), "Back", 27, back), installed.pos("bl").adds(0, 8));
         rebuild();
         pack();
@@ -199,9 +201,9 @@ public class AddonPanel extends OptWnd.Panel {
         }
         int y = 0;
         for(AddonInfo ai : AddonRegistry.describeAddons()) {
-            Row r = list.cont.add(new Row(ai), new Coord(0, y));
+            Row r = list.cont.add(new Row(ai, rows.size()), new Coord(0, y));
             rows.add(r);
-            y += r.sz.y + UI.scale(2);
+            y += r.sz.y;
         }
         if(rows.isEmpty()) {
             empty = list.cont.add(new Label("No addons installed"), Coord.z);
@@ -284,7 +286,19 @@ public class AddonPanel extends OptWnd.Panel {
         if(on && !showing)
             checkUpdates();
         showing = on;
+        if(check.visible() != installed.visible()) {   // on a change only: show() re-offers focus
+            check.show(installed.visible());
+            checked.show(installed.visible());
+        }
+        placeChecked();
         pollCheck();
+    }
+
+    /** The check's line, right-aligned against the button's left and centred on it: its width is its text's. */
+    private void placeChecked() {
+        Coord at = new Coord(check.c.x - UI.scale(8) - checked.sz.x, check.c.y + (check.sz.y - checked.sz.y) / 2);
+        if(!at.equals(checked.c))
+            checked.c = at;
     }
 
     // ------------------------------------------------------------- the update check (145.3)
@@ -358,27 +372,12 @@ public class AddonPanel extends OptWnd.Panel {
     // ------------------------------------------------------------- what a row says, on either tab
 
     /**
-     * The metadata a row shows: name, version, who made it, and the markers. {@code protectedCount} is how many
-     * permission entries it asked for — the COUNT, because "it can act on your behalf" is the one thing the
-     * marker used to say about an addon wanting to change the movement speed and one wanting to send any
-     * message the client can; a group is one entry, the same one line the consent dialog renders for it, and
-     * the entries themselves are in the tooltip. {@code net} says it declared hosts it can reach (D-037).
-     */
-    static String meta(String name, String version, String who, int protectedCount, boolean net) {
-        return name
-            + ((version != null) ? ("  v" + version) : "")
-            + ((who != null) ? ("  " + who) : "")
-            + ((protectedCount > 0) ? ("  [protected: " + protectedCount + "]") : "")
-            + (net ? "  [net]" : "");
-    }
-
-    /**
      * The tooltip a row carries: {@code lead} first and whole where there is one — a broken manifest's own
-     * reason, or an out-of-date sentence, because a row has room for a state and the tip for the why — then
-     * the description, then exactly which permissions it asked for and which hosts it may reach (§5.3), so what
-     * an addon wants to do and the servers it talks to are read BEFORE it is enabled or installed, where the
-     * row itself has room for how many. {@code needs}/{@code optional}/{@code usedBy} are the manifest's
-     * dependency lists (156.2). {@code null} when there is nothing to say.
+     * reason, or an out-of-date sentence, because the row's columns are the name, version and author and the
+     * tip is where the why goes — then the description, then exactly which permissions it asked for and which
+     * hosts it may reach (§5.3 — D-037), so what an addon wants to do and the servers it talks to are read BEFORE
+     * it is enabled or installed. {@code needs}/{@code optional}/{@code usedBy} are the manifest's dependency
+     * lists (156.2). {@code null} when there is nothing to say.
      */
     static String tip(String lead, String description, String permissions, List<String> hosts,
                       List<String> needs, List<String> optional, List<String> usedBy) {
@@ -418,9 +417,9 @@ public class AddonPanel extends OptWnd.Panel {
      * the GL upload fails (GL_INVALID_VALUE 1281 -> crashes the render thread on hover). quote() escapes
      * RichText's $ { } so the description stays literal (descriptions are full of { } [ ] tokens).
      */
-    private static void rowTip(Label nm, String tip) {
+    private static void rowTip(Widget w, String tip) {
         if(tip != null)
-            nm.settip(RichText.Parser.quote(tip), true);
+            w.settip(RichText.Parser.quote(tip), true);
     }
 
     /**
@@ -428,14 +427,16 @@ public class AddonPanel extends OptWnd.Panel {
      * destroyed when it stops, never hidden: a selector walks hidden widgets too, so a row that "carries no
      * button" has to carry none. Answers the button as it now stands, for the field that holds it. Narrower
      * than its column, because the port's content is the list less its scrollbar and a widget past that edge
-     * is clipped. Safe from a tick and from the press itself — a button's own {@code click} is the last thing
-     * its {@code mouseup} does.
+     * is clipped. Centred on the row's height. Safe from a tick and from the press itself — a button's own
+     * {@code click} is the last thing its {@code mouseup} does.
      */
     private static Button offer(Widget row, Button b, boolean on, String text, int x, Runnable action) {
         if(on == (b != null))
             return b;
-        if(on)
-            return row.add(new Button(UI.scale(BUTTON_W), text, false).action(action), new Coord(UI.scale(x), 0));
+        if(on) {
+            Button nb = new Button(UI.scale(BUTTON_W), text, false).action(action);
+            return row.add(nb, new Coord(UI.scale(x), (row.sz.y - nb.sz.y) / 2));
+        }
         b.destroy();
         return null;
     }
@@ -463,27 +464,57 @@ public class AddonPanel extends OptWnd.Panel {
     }
 
     /**
-     * One addon row: an enable checkbox, the manifest metadata, a live status label — and, on a row the hub
-     * installed, <b>Remove</b> at {@link #BUTTON2_X} and <b>Update</b> at {@link #BUTTON_X} once a check has
-     * found a greater version (145.3). The status is the first of these that is true: {@code downloading n%}
-     * while an update's download runs; the stage or the removal waiting on the folder ({@link #pendingStatus});
-     * {@code failed: why} after a download or a stage the registry refused, the whole why in the label's own
-     * tooltip; {@code manifest error (hover)}; {@code update v} where the hub's item is newer than the record;
-     * else {@link AddonRegistry#liveStatus}. The buttons stand only while nothing waits on the folder and
-     * nothing is in flight for it: what is staged, marked or downloading is applied on reload, and a second
-     * word on the same folder before then would be one the reload could not keep.
+     * The Installed table's header: the column names, on the columns {@link Row} lays its cells out on, over a
+     * rule. It stands outside the port, so it stays put while the rows scroll under it.
+     */
+    private static final class Header extends Widget {
+        Header() {
+            super(new Coord(UI.scale(LIST_W), 0));
+            Label n = add(new Label("Name"), new Coord(UI.scale(NAME_X), 0));
+            add(new Label("Version"), new Coord(UI.scale(VERSION_X), 0));
+            add(new Label("Author"), new Coord(UI.scale(AUTHOR_X), 0));
+            resize(new Coord(sz.x, n.sz.y + UI.scale(4)));
+        }
+
+        public void draw(GOut g) {
+            super.draw(g);
+            g.chcolor(255, 255, 255, 64);
+            g.frect(new Coord(0, sz.y - UI.scale(1)), new Coord(sz.x, UI.scale(1)));
+            g.chcolor();
+        }
+    }
+
+    /**
+     * One row of the Installed table: an enable checkbox, then the name, the version and the author, each cut
+     * to its column with an ellipsis, over a faint band on every other row — and, on a row the hub installed,
+     * <b>Remove</b> at {@link #BUTTON2_X} and <b>Update</b> at {@link #BUTTON_X} once a check has found a
+     * greater version (145.3), that version its tooltip. The name's tooltip carries everything else
+     * ({@link #tip}), on the name alone: the other columns carry none. The buttons stand only while nothing
+     * waits on the folder and nothing is in flight for it: what is staged, marked or downloading is applied on
+     * reload, and a second word on the same folder before then would be one the reload could not keep.
+     *
+     * <p>The three cells take the row's colour ({@link #colour}), the first of these that is true: red where
+     * the addon declares an API version this client does not implement, unless <b>Load out of date AddOns</b>
+     * is ticked; yellow where a check found a newer version on the hub; green where its box is ticked; grey
+     * where it is not. Read every tick, so a box ticked or a check come in recolours the row at once.
      */
     private final class Row extends Widget {
         final String id;
         final String hub;                     // the hub's record in the folder, or null for a by-hand folder
-        private final Label status;
-        private final String manifestError;   // why this row has no manifest at all, or null
+        private final boolean odd;            // every other row carries the band
+        private final boolean apiOld;         // declares an API version this client does not implement
+        private final CheckBox box;
+        private final Label name, version, author;
+        private final String nameText, versionText, authorText;
+        private final AddonCard.Fit fitName = new AddonCard.Fit(), fitVersion = new AddonCard.Fit(),
+                                    fitAuthor = new AddonCard.Fit();
         private Button update, remove;        // in the tree exactly while offered (offer)
-        private String tipped;                // the failure the status label's tooltip holds, or null
+        private String offered;               // the version Update's tooltip names, or null
 
-        Row(AddonInfo ai) {
-            // As tall as a button, which is taller than a line of text: Button.hs is its images' own height.
-            super(new Coord(UI.scale(LIST_W), Math.max(UI.scale(18), Button.hs)));
+        Row(AddonInfo ai, int index) {
+            // As tall as a button with a little air, which is taller than a line of text: Button.hs is its
+            // images' own height. Rows stack with no gap, so the bands tile.
+            super(new Coord(UI.scale(LIST_W), Button.hs + UI.scale(4)));
             final String rid = ai.id;
             final boolean writes = ai.declaresPermissions();   // D-027: enabling this addon needs consent (4c)
             final PermissionSet declared = ai.permissions;
@@ -492,10 +523,9 @@ public class AddonPanel extends OptWnd.Panel {
             // persisted bit says, so the box is shown unticked and does not answer — a ticked box beside a row
             // that will never load is the panel claiming a state the client cannot reach.
             final boolean broken = (ai.manifestError != null);
-            this.manifestError = ai.manifestError;
             // Every child is placed at a FRESH Coord, computed before the add: Widget.add keeps the very object
             // it is handed, and a `child.c.y = …` on one added at Coord.z would move the client's shared zero.
-            CheckBox box = new CheckBox("") {
+            box = new CheckBox("") {
                     { a = ai.enabled && !broken; }
                     public void set(boolean v) {
                         if(broken) {
@@ -513,54 +543,54 @@ public class AddonPanel extends OptWnd.Panel {
                     }
                 };
             add(box, new Coord(0, (sz.y - box.sz.y) / 2));
-            Label nm = new Label(meta(ai.name, ai.version, ai.author,
-                                      ai.declaresPermissions() ? ai.permissions.size() : 0, ai.declaresNetwork()));
-            add(nm, new Coord(UI.scale(22), (sz.y - nm.sz.y) / 2));
+            name = cell(NAME_X);
+            version = cell(VERSION_X);
+            author = cell(AUTHOR_X);
+            nameText = (ai.name != null) ? ai.name : rid;
+            versionText = (ai.version != null) ? ai.version : "";
+            authorText = (ai.author != null) ? ai.author : "";
             // For a broken manifest the tip opens with the REASON, first and whole (an unknown permission key
-            // names the valid ones), because a row that says only "manifest error" sends the author to the
-            // terminal for something the panel already knows. An out-of-date addon opens the same way (141.1):
-            // the row has room for the two numbers, the tip says which side to move — and it says so on a
-            // disabled row too, where the status cannot.
-            rowTip(nm, tip(broken ? ai.manifestError : ((ai.outdated != null) ? "Out of date: " + ai.outdated : null),
-                           ai.description, ai.declaresPermissions() ? ai.permissions.toString() : null,
-                           ai.networkHosts, ai.needs, ai.optional, ai.usedBy));
-            status = add(new Label(""), new Coord(UI.scale(STATUS_X), nm.c.y));
+            // names the valid ones), because a row that says only its name sends the author to the terminal
+            // for something the panel already knows. An out-of-date addon opens the same way (141.1): the tip
+            // says which side to move — and it says so on a disabled row too.
+            rowTip(name, tip(broken ? ai.manifestError : ((ai.outdated != null) ? "Out of date: " + ai.outdated : null),
+                             ai.description, ai.declaresPermissions() ? ai.permissions.toString() : null,
+                             ai.networkHosts, ai.needs, ai.optional, ai.usedBy));
+            this.odd = (index % 2) == 1;
+            this.apiOld = (ai.outdated != null);
             this.id = rid;
             this.hub = ai.hub;
+            fit();
             refresh();
         }
 
-        private void refresh() {
-            // liveStatus is the cheap per-frame read and does no manifest I/O, so it can only report
-            // "not loaded" for an addon whose manifest is the thing that failed. The row read it once at
-            // build time and keeps it: the reason is in the tooltip, the label just says which kind of row
-            // this is. 145.2: a stage waiting on this folder outranks the live state -- what is loaded is
-            // about to be replaced, and the row says by what and by which gesture. 145.3: so does an update's
-            // download, and a removal; and an update the check found outranks the live state too, because
-            // the press it offers is about what is loaded.
-            Entry latest = updates.get(id);
-            int progress = AddonRegistry.downloading(id);
-            AddonRegistry.Pending p = AddonRegistry.pending(id);
-            String why = AddonRegistry.failed(id);
-            String s;
-            boolean act = false;             // the buttons stand while nothing waits on the folder
-            if(progress >= 0) {
-                s = "downloading " + progress + "%";
-            } else if(p != null) {
-                s = pendingStatus(p);
-            } else {
-                act = (hub != null);
-                if(why != null)
-                    s = "failed: " + why;    // ...and a retry is one press away
-                else if(manifestError != null)
-                    s = "manifest error (hover)";
-                else if(latest != null)
-                    s = "update " + latest.version;
-                else
-                    s = AddonRegistry.liveStatus(id);
+        /** An empty text cell at column {@code x}, centred on the row's height. */
+        private Label cell(int x) {
+            Label l = new Label("");
+            return add(l, new Coord(UI.scale(x), (sz.y - l.sz.y) / 2));
+        }
+
+        /**
+         * Cut each cell to its column, and centre it again: a label re-renders at its first draw under a tree
+         * rule, so its size is read here, every tick, rather than trusted from construction. {@code Fit} asks
+         * again only when the text, the room or the label moved.
+         */
+        private void fit() {
+            fitName.fit(name, nameText, UI.scale(VERSION_X - NAME_X - COL_GAP));
+            fitVersion.fit(version, versionText, UI.scale(AUTHOR_X - VERSION_X - COL_GAP));
+            fitAuthor.fit(author, authorText, UI.scale(BUTTON_X - AUTHOR_X - COL_GAP));
+            for(Label l : new Label[] {name, version, author}) {
+                int y = (sz.y - l.sz.y) / 2;
+                if(l.c.y != y)
+                    l.c = new Coord(l.c.x, y);
             }
-            status.settext(s);
-            tipped = failTip(status, why, tipped);
+        }
+
+        private void refresh() {
+            // The buttons stand while nothing waits on the folder: no download in flight, no stage or removal
+            // pending. A failed download or stage leaves them standing, so a retry is one press away.
+            Entry latest = updates.get(id);
+            boolean act = (hub != null) && (AddonRegistry.downloading(id) < 0) && (AddonRegistry.pending(id) == null);
             // The press reads the map at press time, not the item the button was built for: a later check
             // may have found a newer version still, and the button stands through it.
             update = offer(this, update, act && (latest != null), "Update", BUTTON_X, () -> {
@@ -568,11 +598,40 @@ public class AddonPanel extends OptWnd.Panel {
                     if(e != null)
                         AddonRegistry.install(e);
                 });
+            if(update == null) {
+                offered = null;
+            } else if(!latest.version.equals(offered)) {
+                update.settip("Update to " + latest.version);
+                offered = latest.version;
+            }
             remove = offer(this, remove, act, "Remove", BUTTON2_X, () -> AddonRegistry.markRemove(id));
+            Color c = colour(latest != null);
+            name.setcolor(c);
+            version.setcolor(c);
+            author.setcolor(c);
+        }
+
+        /** The row's colour: see the class comment. {@code newer} is whether a check found a newer version. */
+        private Color colour(boolean newer) {
+            if(apiOld && !loadOld.a)
+                return INCOMPATIBLE;
+            if(newer)
+                return UPDATABLE;
+            return box.a ? ENABLED : DISABLED;
+        }
+
+        public void draw(GOut g) {
+            if(odd) {
+                g.chcolor(255, 255, 255, 16);
+                g.frect(Coord.z, sz);
+                g.chcolor();
+            }
+            super.draw(g);
         }
 
         public void tick(double dt) {
             super.tick(dt);
+            fit();
             refresh();
         }
     }

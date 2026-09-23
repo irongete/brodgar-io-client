@@ -977,8 +977,8 @@ public class OptWnd extends Window {
      * picked one draws on the right. It is one of the panels chpanel swaps between, and it carries the
      * window's whole caption while it shows.
      *
-     * Nothing in here binds Escape: the list IS the navigation, so no panel carries a Back any more, and
-     * Escape reaches Window.keydown and closes the window as it does on every other window in the client. */
+     * Back, under the tabs, returns to the game menu, and Escape presses it: the same button in the same
+     * place as the AddOns manager's, so both destinations of the game menu leave it the same way. */
     public class SettingsPanel extends Panel {
 	private final Tabs tabs;
 	private final List<Subject> subjects = new ArrayList<Subject>();
@@ -1009,6 +1009,8 @@ public class OptWnd extends Window {
 	     * nothing left that moves for a later pack to follow; Tabs.pack puts both tabs on the union of
 	     * them, which is now the same box twice. */
 	    tabs.pack();
+	    // addon: the way back to the game menu, where AddonPanel puts its own: under the tabs, Escape its key.
+	    add(new PButton(UI.scale(200), "Back", 27, main), game.tab.pos("bl").adds(0, 8));
 	    pack();
 	}
 

@@ -34,7 +34,7 @@ if api then api.show("Hello") else hafen.log():write("Hello") end
 
 | Rule | Detail |
 |---|---|
-| `status` | `loaded`, `disabled`, `not loaded`, `error`, `outdated`, `auto-disabled` or `manifest error`: the words the [Installed tab](../../panel.md#installed) shows. `reason` is the sentence behind an `error`, `outdated`, `auto-disabled` or `manifest error`, absent otherwise. |
+| `status` | `loaded`, `disabled`, `not loaded`, `error`, `outdated`, `auto-disabled` or `manifest error`: the words [`:addons`](../../runtime.md#the-console-commands) prints. `reason` is the sentence behind an `error`, `outdated`, `auto-disabled` or `manifest error`, absent otherwise. |
 | Interned | `addons:get("mylib") == addons:get("mylib")`, from the first call, whether or not the folder exists. `tostring` is `Addon(mylib)`. |
 | Closed | An unknown verb raises naming the verbs a handle answers. |
 
@@ -45,7 +45,7 @@ Your manifest's `dependencies` and `optional_dependencies` list ids, each as `<i
 | Rule | Detail |
 |---|---|
 | Order | Every addon runs after the installed, loading addons its two lists name, ties by id. A dependency's `export` and `Load` precede your file body. |
-| A hard dependency missing | Your addon is a load error, its row reading `error: needs mylib, which is not installed` (`is disabled`, `is out of date`, `has a manifest error`, `failed to load`). Nothing of yours runs. |
+| A hard dependency missing | Your addon is a load error, its status reading `error: needs mylib, which is not installed` (`is disabled`, `is out of date`, `has a manifest error`, `failed to load`). Nothing of yours runs. |
 | A minimum | `mylib>=1.2.0` compares the library's manifest `version` as the hub orders versions. Not met on a hard dependency: `error: needs mylib >= 1.2.0, 1.0.0 installed`. On an optional one: the library is, to you, absent — `:api()` is `nil`, `:exists()` and `:info()` still answer. A library whose `version` is not a version is below every minimum. |
 | An optional dependency absent | Nothing happens. Ask `:api()` when you need it. |
 | A cycle | Hard dependencies that close a cycle are a load error on each member: `depends in a cycle: a -> b -> a`. An optional dependency that would close one is not ordered, with a log line. |

@@ -137,8 +137,9 @@ final class AddonCard extends Frame {
      * an ellipsis where it runs wider than {@code w}, a few renders at most, each keeping the share that
      * fitted — and remembers what it was cut for, so {@link #layout} asks again only when the text, the
      * room or the label's own size moved, the last being a sheet re-rendering the label under another face.
+     * An Installed row ({@link AddonPanel}) cuts its cells with it too.
      */
-    private static final class Fit {
+    static final class Fit {
         String text;
         int w = -1, szx = -1;
 
