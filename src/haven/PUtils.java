@@ -544,6 +544,26 @@ public class PUtils {
 	return(new BufferedImage(img.getColorModel(), convolvedown(img.getRaster(), tsz, filter), false, null));
     }
 
+    /* addon: a window icon at the sizes a system shows it, for a toolkit to hand over whole: img, as RGBA,
+     * reduced with a Lanczos filter to each side smaller than it, then img itself when a side reaches it. The
+     * client gives the toolkit one large icon (etc/icon.png, 512 px); one image scaled by the system instead
+     * lost its outline at the title bar's sizes, or blurred on the macOS Dock when it was small. */
+    public static java.util.List<BufferedImage> iconsizes(BufferedImage img, int... sides) {
+	int max = Math.max(img.getWidth(), img.getHeight());
+	BufferedImage rgba = coercergba(img, false);
+	java.util.List<BufferedImage> ret = new java.util.ArrayList<>();
+	boolean whole = false;
+	for(int side : sides) {
+	    if(side < max)
+		ret.add(convolvedown(rgba, Coord.of(side), new Lanczos(3)));
+	    else
+		whole = true;
+	}
+	if(whole)
+	    ret.add(rgba);
+	return(ret);
+    }
+
     public static WritableRaster convolveup(Raster in, Coord tsz, Convolution filter) {
 	int w = in.getWidth(), h = in.getHeight(), nb = in.getNumBands();
 	double xf = (double)w / (double)tsz.x, ixf = 1.0 / xf;

@@ -13,10 +13,10 @@ untouched). `dolmen-cutout.png` is the same drawing with the checkerboard flood-
 border: the dark outline closes the drawing, so a fill that only walks light neutral pixels never gets inside.
 Delete the cutout to have it rebuilt from the JPG.
 
-The icon stays 64 x 64 on purpose. `Client.java` hands ONE image to `Windeye.icon`, and AWT scales it to the
-title bar and the taskbar with a plain bilinear `drawImage` (2 x 2 samples): from 256 px the outline breaks up
-at 48 px and below, from 64 px it lands where a proper Lanczos reduction would. The preview scales the same
-way AWT does, so what it shows is what the taskbar shows.
+The icon is 512 x 512. `Client.java` hands that one image to `Windeye.icon`, and the toolkit reduces it with a
+Lanczos filter (`PUtils.iconsizes`) to every size its system shows: the title bar's 16 to 24 px and the
+taskbar's 32 to 48 px on Windows, a Linux panel's up to 256 px, and on macOS the Dock takes the 512 px image
+itself. The preview reduces the same way, so what it shows is what the taskbar shows.
 """
 import argparse
 from collections import deque
@@ -31,13 +31,13 @@ CUTOUT = SOURCE_DIR / "dolmen-cutout.png"
 ICON = REPO / "etc" / "icon.png"
 PREVIEW = SOURCE_DIR / "preview.png"
 
-ICON_SIDE = 64
+ICON_SIDE = 512
 INK = (30, 26, 46)              # the drawing's outline colour: transparent pixels take it (no light halo when
                                 # scaling down) and every tile's border uses it, so the tile reads as part of
                                 # the drawing
 DRAWING_FRACTION = 0.80         # width of the drawing over the icon's side
 CORNER_FRACTION = 0.16          # tile corner radius over the side
-BORDER_FRACTION = 0.035         # tile border width over the side (about 2 px at 64)
+BORDER_FRACTION = 0.035         # tile border width over the side (about 18 px at 512, 2 px at 64)
 
 # name -> (centre colour, edge colour); the tile is a radial gradient between the two
 STYLES = {
@@ -49,6 +49,7 @@ STYLES = {
 DEFAULT_STYLE = "moonlit"
 TASKBARS = {"dark": (32, 32, 32), "grey": (76, 76, 76), "light": (243, 243, 243)}
 PREVIEW_SIZES = (32, 24, 16)
+PREVIEW_SIDE = 64               # the whole icon, at the left of each preview row
 
 
 def looks_like_checkerboard(red, green, blue):
@@ -143,47 +144,25 @@ def compose(drawing, style):
     return canvas.resize((ICON_SIDE, ICON_SIDE), Image.LANCZOS)
 
 
-def awt_scale(image, size):
-    """What AWT makes of the icon at `size`: one bilinear pass, 2 x 2 source samples per target pixel."""
-    source = image.load()
-    width, height = image.size
-    target = Image.new("RGBA", (size, size))
-    target_pixels = target.load()
-    for y in range(size):
-        for x in range(size):
-            source_x = (x + 0.5) * width / size - 0.5
-            source_y = (y + 0.5) * height / size - 0.5
-            left = max(0, min(width - 2, int(source_x)))
-            top = max(0, min(height - 2, int(source_y)))
-            weight_x = min(1.0, max(0.0, source_x - left))
-            weight_y = min(1.0, max(0.0, source_y - top))
-            channels = []
-            for channel in range(4):
-                top_row = source[left, top][channel] * (1 - weight_x) + source[left + 1, top][channel] * weight_x
-                bottom_row = source[left, top + 1][channel] * (1 - weight_x) + source[left + 1, top + 1][channel] * weight_x
-                channels.append(round(top_row * (1 - weight_y) + bottom_row * weight_y))
-            target_pixels[x, y] = tuple(channels)
-    return target
-
-
 def preview(drawing):
     styles = ["none"] + list(STYLES)
     zoom = 2
     gap = 10
     strip_width = sum(size * zoom + gap for size in PREVIEW_SIZES) + gap
-    row_height = ICON_SIDE + 2 * gap
-    sheet_width = gap + ICON_SIDE + gap + len(TASKBARS) * (strip_width + gap)
+    row_height = PREVIEW_SIDE + 2 * gap
+    sheet_width = gap + PREVIEW_SIDE + gap + len(TASKBARS) * (strip_width + gap)
     sheet = Image.new("RGB", (sheet_width, row_height * len(styles)), (255, 255, 255))
     for row, style in enumerate(styles):
         icon = compose(drawing, style)
+        whole = icon.resize((PREVIEW_SIDE, PREVIEW_SIDE), Image.LANCZOS)
         y = row * row_height + gap
-        sheet.paste(icon, (gap, y), icon)
-        x = gap + ICON_SIDE + gap
+        sheet.paste(whole, (gap, y), whole)
+        x = gap + PREVIEW_SIDE + gap
         for taskbar_colour in TASKBARS.values():
             strip = Image.new("RGB", (strip_width, row_height), taskbar_colour)
             strip_x = gap
             for size in PREVIEW_SIZES:
-                scaled = awt_scale(icon, size).resize((size * zoom, size * zoom), Image.NEAREST)
+                scaled = icon.resize((size, size), Image.LANCZOS).resize((size * zoom, size * zoom), Image.NEAREST)
                 strip.paste(scaled, (strip_x, (row_height - size * zoom) // 2), scaled)
                 strip_x += size * zoom + gap
             sheet.paste(strip, (x, row * row_height))

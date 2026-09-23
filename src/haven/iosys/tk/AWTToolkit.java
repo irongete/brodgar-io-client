@@ -480,7 +480,10 @@ public abstract class AWTToolkit implements Toolkit {
 	}
 
 	public AWTWindow icon(BufferedImage icon) {
-	    frame.setIconImage(icon);
+	    // addon: the sizes Windows shows a window's icon at, the title bar's and the taskbar's at each display
+	    // scale and the larger Alt+Tab ones, each reduced from the one given (PUtils.iconsizes): AWT picks the
+	    // nearest, where one image was scaled by a plain bilinear drawImage
+	    frame.setIconImages(new ArrayList<java.awt.Image>(PUtils.iconsizes(icon, 16, 20, 24, 32, 40, 48, 64, 128, 256)));
 	    try {
 		Class<?> ctb = Class.forName("java.awt.Taskbar");
 		Object tb = ctb.getMethod("getTaskbar").invoke(null);

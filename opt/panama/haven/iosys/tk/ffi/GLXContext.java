@@ -931,19 +931,27 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 	    }
 
 	    public GLXWindow icon(BufferedImage img) {
-		img = PUtils.coercergba(img, false);
-		Coord sz = PUtils.imgsz(img);
-		long[] pixels = new long[2 + (sz.x * sz.y)];
-		pixels[0] = sz.x;
-		pixels[1] = sz.y;
-		Raster imgd = img.getRaster();
-		for(int y = 0, p = 2; y < sz.y; y++) {
-		    for(int x = 0; x < sz.x; x++, p++) {
-			int a = imgd.getSample(x, y, 3);
-			int r = (imgd.getSample(x, y, 0) * a) / 255;
-			int g = (imgd.getSample(x, y, 1) * a) / 255;
-			int b = (imgd.getSample(x, y, 2) * a) / 255;
-			pixels[p] = (b << 0) | (g << 8) | (r << 16) | (a << 24);
+		// addon: _NET_WM_ICON holds any number of sizes one after the other, and the window manager picks;
+		// each is reduced from the one given (PUtils.iconsizes), where one image was scaled by the window manager
+		List<BufferedImage> sizes = PUtils.iconsizes(img, 16, 24, 32, 48, 64, 128, 256);
+		int len = 0;
+		for(BufferedImage size : sizes)
+		    len += 2 + (size.getWidth() * size.getHeight());
+		long[] pixels = new long[len];
+		int p = 0;
+		for(BufferedImage size : sizes) {
+		    Coord sz = PUtils.imgsz(size);
+		    pixels[p++] = sz.x;
+		    pixels[p++] = sz.y;
+		    Raster imgd = size.getRaster();
+		    for(int y = 0; y < sz.y; y++) {
+			for(int x = 0; x < sz.x; x++, p++) {
+			    int a = imgd.getSample(x, y, 3);
+			    int r = (imgd.getSample(x, y, 0) * a) / 255;
+			    int g = (imgd.getSample(x, y, 1) * a) / 255;
+			    int b = (imgd.getSample(x, y, 2) * a) / 255;
+			    pixels[p] = (b << 0) | (g << 8) | (r << 16) | (a << 24);
+			}
 		    }
 		}
 		xrun(() -> xlib.XChangeProperty(dpy, id, _NET_WM_ICON.id, CARDINAL.id, XLib.PropModeReplace, pixels));
