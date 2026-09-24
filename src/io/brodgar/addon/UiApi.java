@@ -1296,15 +1296,15 @@ final class UiApi {
                     }
                 }
 
-                // 150: ...AND WHERE IT LANDS IS WRITTEN. Window.mouseup drops the drag's grab and says nothing,
-                // so this is the one place the drag is known to have ended: a press on the title bar that
-                // moved the window is a drag, and its landing goes into the client's file as a :draggable
-                // gesture's does (Gesture.save). A press that never moved is a click, and writes nothing.
+                // 150: ...AND WHERE IT LANDS IS WRITTEN. Window.mouseup drops the drag's grab and tells only the
+                // client's own rule (166: WndPos.dropped, which makes a window the user moved follow the screen),
+                // so this is the one place this layer knows the drag ended: a press on the title bar that moved
+                // the window is a drag, and its landing goes into the client's file as a :draggable gesture's
+                // does (Gesture.save). A press that never moved is a click, and writes nothing.
                 public boolean mouseup(Widget.MouseUpEvent ev) {
                     boolean r = super.mouseup(ev);
                     if(dragged) {
                         dragged = false;
-                        io.brodgar.ui.WndPos.handMoved(this);   // 166: a window the user moved follows the screen
                         LuaWidget.rememberLanded(owner, this, true);
                     }
                     return r;
@@ -2411,7 +2411,7 @@ final class UiApi {
         return w.c;
     }
 
-    /** The size argument {@code savewndpos} must persist ({@code wndsz-map}): the stock box recorded at first touch, else the widget's own. */
+    /** The size argument the client persists ({@code wndsz-map}): the stock box recorded at first touch, else the widget's own. */
     static Coord stockSizeArg(Widget w) {
         LuaWidget.Moved m = movedOwner(w, false);
         return (m != null) ? m.size : ((w == null) ? null : LuaWidget.sizeArg(w));

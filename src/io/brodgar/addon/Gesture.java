@@ -48,8 +48,8 @@ import java.util.Map;
  * {@code widget:position(x, y)} and {@code widget:size(w, h)} do — {@code wantPos}/{@code wantSize} + a fresh
  * {@link Layout#nextSeq()} + {@link Layout#apply} — so the off-screen clamp, the two {@code nil} undos,
  * {@code widget:revert()}, {@code :reload} and disable all come from the layer that was already there, a
- * window that packs itself around its contents makes a resize <i>inert</i> rather than an error, and
- * {@code GameUI.savewndpos} goes on writing what the <i>user</i> placed. A drag of a widget directly on the
+ * window that packs itself around its contents makes a resize <i>inert</i> rather than an error, and the
+ * client's store goes on holding what the <i>user</i> placed. A drag of a widget directly on the
  * screen also gives the level the fraction it landed at ({@link LuaWidget.Moved#hand}, 166.2), so it follows
  * a resize of the screen.
  *

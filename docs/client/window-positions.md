@@ -9,39 +9,38 @@
 
 | Key | Window | Read | Written |
 |---|---|---|---|
-| `wndc-inv` | `invwnd`, the `Hidewnd` around `maininv` | `GameUI.addchild`, `place == "inv"` | `savewndpos0` |
-| `wndc-equ` | `equwnd` | `place == "equ"` | `savewndpos0` |
-| `wndc-chr` | `chrwdg` (`CharWnd`) | `place == "chr"` | `savewndpos0` |
-| `wndc-zerg` | `zerg` (kin) | the `GameUI` constructor | `savewndpos0` |
-| `wndc-map` + `wndsz-map` | `mapfile` (`MapWnd`) | `place == "mapview"`; the size is the CONTENT size, `csz()` | `savewndpos0` |
-| `wndc-srch` | `srchwnd` (`MenuSearch.Main`) | `place == "menu"` | ⚠️ never, upstream |
-| `wndc-icon` | `iconwnd` (`GobIcon.SettingsWindow`) | `MapMenu`'s icon button, on each open | ⚠️ never, upstream |
-| `makewndc` | the crafting window's anonymous wrapper | a `GameUI` field, read once at construction | the wrapper's own `destroy()` |
-| `wndc-misc/<id>` | a server window added with an `"id"` opt | `place == "misc"`, the `"id"` case | `GameUI.cdestroy` |
-| `cont-wndc/<id>` + `cont-wndvis/<id>` | `GItem.ContentsWindow`, an item's contents | its constructor and `wndshow` | its own `tick`, on every change of `c` while pinned |
+| `wndc-inv` | `invwnd`, the `Hidewnd` around `maininv` | `GameUI.addchild`, `place == "inv"` | the drop |
+| `wndc-equ` | `equwnd` | `place == "equ"` | the drop |
+| `wndc-chr` | `chrwdg` (`CharWnd`) | `place == "chr"` | the drop |
+| `wndc-zerg` | `zerg` (kin) | the `GameUI` constructor | the drop |
+| `wndc-map` + `wndsz-map` | `mapfile` (`MapWnd`) | `place == "mapview"`; the size is the CONTENT size, `csz()` | the drop; the box when a grip is let go |
+| `wndc-srch` | `srchwnd` (`MenuSearch.Main`) | `place == "menu"` | the drop |
+| `wndc-icon` | `iconwnd` (`GobIcon.SettingsWindow`) | `MapMenu`'s icon button, on each open | the drop |
+| `makewndc` | the crafting window's anonymous wrapper | `place == "craft"`, on each opening | the drop |
+| `wndc-misc/<id>` | a server window added with an `"id"` opt | `place == "misc"`, the `"id"` case | the drop |
+| `cont-wndc/<id>` + `cont-wndvis/<id>` | `GItem.ContentsWindow`, an item's contents | its constructor and `wndshow` | the drop; `cont-wndvis` by `chstate` |
 
 `Utils.getprefc` reads a `wndc-*` value as `NxM`: a value with no `x` gives the default, and one that
 does not parse **throws `NumberFormatException`** — it catches only `SecurityException`. So a value in any
 other shape must carry no `x`, or an older build reading it fails instead of defaulting. `Utils.setprefc`
 writes `null` as the empty string, which reads back as the default.
 
-## The writers
+## The one write: the drop
 
 | What | Where |
 |---|---|
-| The main writer — **every 60 s while on screen, and again the moment the screen leaves this character** | `savewndpos0` is the body. Two doors into it: `savewndpos`, which is the `onscreen()` guard, from `tick` on a `lastwndsave` clock; and `leavingscreen()`, which has none, from `MapView.dormant(true)`. ⚠️ **The guard is false by construction on the leaving path** — the new anchor is published before the frame moves the views ([multi-session.md](multi-session.md)) — so that door must skip it. `dispose()`, reached only once the screen has already gone, writes nothing |
-| `wndc-misc/<id>` | `GameUI.cdestroy`, for a window in `wndids`, guarded by `onscreen()`. ⚠️ **Reparenting runs `cdestroy` too**, so a window taken out of `GameUI` loses its id and writes its place as it leaves |
-| `makewndc` | the wrapper's `destroy()`, guarded by `onscreen()`. The field is updated with what it wrote, so the next crafting window opens there |
-| `cont-wndc/<id>` | `ContentsWindow.tick`, whenever `c` differs from the last value written (`lc`) and the state is `"wnd"` |
+| A place is written **when the user puts the window down**, and at no other moment | `Window.drag` notes where the drag started (`// addon:`). `Window.mouseup`, dropping the grab, calls the fork's `WndPos.dropped` when `c` moved; a press on the title bar that moved nothing writes nothing. `dropped` writes the key the window was loaded under (`WndPos.load`, or `WndPos.key` for a `ContentsWindow`, which has an id before it has a place) |
+| The map's box | `Window.resizedByHand(true)`, from the frame's grip on release and from `MapWnd.ViewFrame.mouseup` for the compact one (`// addon:`), writes the place, whose free space the new box changed. `GameUI`'s anonymous `MapWnd` subclass writes `wndsz-map` beside it |
+| ⚠️ **The upstream writers are cut** | Upstream writes on a 60 s clock in `GameUI.tick` (`savewndpos`), in `cdestroy` for `wndc-misc/<id>`, in the crafting wrapper's `destroy()` for `makewndc`, and in `ContentsWindow.tick` on every change of `c`. This client removes all four (`// addon:`): a stored fraction does not change with the screen, so nothing has to catch up on a clock, a character switch or the client closing, and a session nobody touches writes nothing. A merge that brings one back must cut it again |
 
-**The store belongs to what the USER placed**, and the writes are *unconditional*: no dirty flag, no
-"only if it changed" (except `ContentsWindow`'s `lc`).
+**The store belongs to what the USER placed**: only the user's drop writes it, and a place an addon's
+layout holds is never written (`AddonManager.posHeld`).
 
 ## The reads, the default placement and the clamp
 
 | What | Where |
 |---|---|
-| Read **once, at construction or `addchild`** | Each window is added at its stored `c` and never re-read in the session. `makewndc` is read into a field when `GameUI` is built |
+| Read **once, at construction or `addchild`** | Each window is added at its stored `c` and never re-read in the session. `makewndc` is read each time a crafting window opens |
 | ⚠️ **`zerg` is placed before `GameUI` has a size** | The constructor adds it; `GameUI()` is built at `Coord.z`, and the first real size arrives in `added()` → `resize(parent.sz)`. Anything that needs the parent's size to place a window must wait for that call |
 | ⚠️ **`ContentsWindow` reads its place before it has a parent** | The constructor sets `c` from `cont-wndc/<id>` when `cont-wndvis/<id>` is true and calls `chstate("wnd")`; otherwise the window starts `"hide"`. `wndshow(true)` reads the key again, falling back to the pointer (`cont.rootxlate(ui.mc)`) |
 | ⚠️ **`ContentsWindow` has three states** | `"hide"`, `"hover"` (a `HoverDeco` beside the hovered item, `move`d there on every `ckhover`) and `"wnd"` (pinned, `DefaultDeco`). Only `"wnd"` is a place the user chose. It hangs under `GameUI`, or `ui.root` when there is none (`GItem.contparent`) |
@@ -60,8 +59,8 @@ writes `null` as the empty string, which reads back as the default.
 | How the screen's size arrives | `UILoop.Frame.tick` resizes each root to the frame's `sz` when it differs: the addon layer's `layer.root` under that tree's monitor, then the session's `ui.root` under its own. `Widget.resize` calls `presize()` on every child, and `GameUI.presize` is `resize(parent.sz)`: that is how the HUD hears it. `Window` has no `presize`, so a window directly on a root is never told |
 
 `Widget.move` itself is **not** hooked anywhere, and deliberately: it is on every drag of every window in
-the client. `Window` moves `c` from `mousemove` while its own grab (`dm`) stands, with no clamp, and
-tells nobody; `mouseup` drops the grab.
+the client. `Window` moves `c` from `mousemove` while its own grab (`dm`) stands, with no clamp; `mouseup`
+drops the grab and is the one place the end of a drag is known.
 
 ## The fork's seams
 
@@ -72,8 +71,8 @@ window-position rule, which keeps a place as a **fraction of the free space** pe
 - The keys carry `fx/fy`, each number written by `Double.toString`: locale-free, with no `x`, so a
   pre-fork `Utils.getprefc` reads it as its default. An `NxM` value still loads as pixels. `wndsz-map`
   stays pixels.
-- `wndc-srch` and a live `iconwnd`'s `wndc-icon` are written by `savewndpos0`, and closing `iconwnd`
-  writes it too.
+- Every key above is written by the drop, `wndc-srch` and `wndc-icon` included, which upstream never
+  writes.
 - `zerg` waits for the first `resize`. `ContentsWindow` resolves its place in `added()` and `wndshow`,
   and `ContentsWindow.pinned()` (`// addon:`) is true in `"wnd"`.
 - `GameUI.resize` keeps the old size and re-places every top-level `Window` at its fraction of the new free
@@ -83,5 +82,5 @@ window-position rule, which keeps a place as a **fraction of the free space** pe
 - `UILoop.Frame.tick` keeps `layer.root`'s old size and runs the same re-placement over it right after
   `layer.root.resize(sz)`. `ui.root` needs none: the HUD under it re-places its own windows.
 - `AddonWidgets.stockcsz` substitutes the map's box when an addon has resized it, so `wndsz-map` records
-  the user's box. It substitutes rather than restores because `savewndpos` runs on the 60 s tick, and
-  putting the widget back around the write would snap a laid-out HUD once a minute.
+  the user's box. It substitutes rather than restores: the write runs with the addon's level standing, and
+  moving the window back around it would snap a laid-out HUD.

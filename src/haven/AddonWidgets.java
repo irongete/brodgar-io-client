@@ -458,7 +458,7 @@ public final class AddonWidgets {
 
     /**
      * The <b>size-persistence seam</b> (spec {@code 036-ui-layout}, E) — the box the client should write down for
-     * the one window whose size it persists ({@link GameUI}'s {@code savewndpos}, {@code wndsz-map}): a
+     * the one window whose size it persists ({@code wndsz-map}, when the user lets the map's grip go): a
      * {@link Window}'s content size — the same value {@code csz()} answers — or the stock one when an AddOn has
      * resized it, so the client never persists an addon's box as the user's own preference. A window's place is
      * {@code io.brodgar.ui.WndPos}'s (spec {@code 166-relative-window-positions}).

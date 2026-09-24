@@ -26,12 +26,15 @@ import java.util.WeakHashMap;
  *     it had.</li>
  * <li><b>The value</b> -- the client's own {@code wndc-*} keys carry {@code fx/fy}, each number by
  *     {@code Double.toString} (locale-free, round-trips). An old {@code NxM} value is pixels and loads as it
- *     always did; the next save rewrites it. A pre-feature build reading the slash falls back to its default.</li>
+ *     always did; the next drop rewrites it. A pre-feature build reading the slash falls back to its default.</li>
+ * <li><b>The one write</b> -- {@link #dropped}: a place is written when the user puts the window down, and at no
+ *     other moment. The stored value is a fraction, so a screen of another size changes nothing there, and there
+ *     is nothing for a clock, a character switch or the client closing to catch up on.</li>
  * <li><b>The registry</b> -- each top-level window the rule has seen: its fraction, the {@code c} the rule last
- *     put it at, the parent's size then, and whether it follows. A window an addon built follows only once the
- *     user has moved it. A {@code c} other than the recorded one is a move, and the fraction is retaken from it,
- *     unless an addon's layout holds the place: then the place is the layout's and the fraction stays the
- *     user's.</li>
+ *     put it at, the parent's size then, whether it follows, and the key it is stored under. A window an addon
+ *     built follows only once the user has moved it. A {@code c} other than the recorded one is a move, and the
+ *     fraction is retaken from it, unless an addon's layout holds the place: then the place is the layout's and
+ *     the fraction stays the user's.</li>
  * </ul>
  *
  * <p><b>Threading.</b> Called under the tree's own monitor (a resize, a server message, a tick); the registry
@@ -62,6 +65,7 @@ public final class WndPos {
         Coord at;                                   // where the rule last put it
         Coord psz;                                  // the parent's size then; null: waiting for a size
         boolean follows;
+        String key;                                 // what a drop writes; null: a window nothing stores
         WeakReference<Widget> parent;
 
         Widget parent() {
@@ -175,18 +179,19 @@ public final class WndPos {
 
     // ---- the entry points ----------------------------------------------------------------------------
 
-    /** {@link #load(Widget, Widget, Val, Coord)} of what {@code key} holds. */
+    /** {@link #load(Widget, Widget, String, Val, Coord)} of what {@code key} holds. */
     public static Coord load(Widget parent, Widget w, String key, Coord def) {
-        return load(parent, w, read(key), def);
+        return load(parent, w, key, read(key), def);
     }
 
     /**
      * <b>Where to add {@code w} to {@code parent}</b>, from the stored {@code v}: a fraction is placed at the
-     * parent's size, pixels are used as they are, nothing gives {@code def}. Registers the window. A parent
-     * with no size yet ({@code GameUI}'s constructor) leaves a fraction waiting: {@code def} now, and the first
-     * {@link #relayout} places it. {@code null} when there is neither a value nor a default.
+     * parent's size, pixels are used as they are, nothing gives {@code def}. Registers the window under
+     * {@code key}, which its drop writes ({@code null}: nothing stores it). A parent with no size yet
+     * ({@code GameUI}'s constructor) leaves a fraction waiting: {@code def} now, and the first {@link #relayout}
+     * places it. {@code null} when there is neither a value nor a default.
      */
-    public static Coord load(Widget parent, Widget w, Val v, Coord def) {
+    public static Coord load(Widget parent, Widget w, String key, Val v, Coord def) {
         if((parent == null) || (w == null))
             return (v != null && v.px != null) ? v.px : def;
         Coord psz = parent.sz;
@@ -194,6 +199,7 @@ public final class WndPos {
             Rec r = new Rec();
             r.parent = new WeakReference<Widget>(parent);
             r.follows = !AddonManager.built(w);
+            r.key = key;
             Coord c;
             if((v != null) && (v.px == null)) {
                 r.fx = v.fx;
@@ -221,41 +227,56 @@ public final class WndPos {
     }
 
     /**
-     * <b>Write {@code w}'s place under {@code key}</b>, as a fraction: the one the rule holds, retaken first if
-     * the user moved the window. A place an addon's layout holds is never written: the fraction stays the
-     * user's. Hands back what it wrote, or {@code null} when there was nothing to write.
+     * <b>Name the key {@code w}'s drop writes</b>, for a window registered before it is placed -- an item's
+     * contents window, which has an id from birth and a place only once pinned. {@code null} unnames it.
      */
-    public static Val save(String key, Widget w) {
+    public static void key(Widget w, String key) {
         if(w == null)
-            return null;
-        Val v;
+            return;
         synchronized(WndPos.class) {
             Rec r = recs.get(w);
             if(r == null) {
-                Widget p = w.parent;
-                if((p == null) || !area(p.sz) || AddonManager.posHeld(w))
-                    return null;
                 r = new Rec();
-                r.parent = new WeakReference<Widget>(p);
                 r.follows = !AddonManager.built(w);
-                r.fx = frac(w.c.x, p.sz.x, w.sz.x, Double.NaN);
-                r.fy = frac(w.c.y, p.sz.y, w.sz.y, Double.NaN);
-                r.at = w.c;
-                r.psz = p.sz;
                 recs.put(w, r);
-            } else {
-                sync(w, r);
             }
-            if(Double.isNaN(r.fx) || Double.isNaN(r.fy)) {
-                if(r.at == null)
-                    return null;
-                v = new Val(Double.NaN, Double.NaN, r.at);
-            } else {
-                v = new Val(r.fx, r.fy, null);
-            }
+            r.key = key;
         }
-        Utils.setpref(key, v.toString());
-        return v;
+    }
+
+    /**
+     * <b>The user just put {@code w} down</b> -- a drag of it ended somewhere else ({@code Window.mouseup}), or
+     * its grip was let go ({@code Window.resizedByHand}). The one moment a place is written: the fraction is
+     * taken from where the window stands now, it follows the screen from here on, and its key, when it has one,
+     * is written in this call. Nothing while an addon's layout holds the place: that place is the layout's, and
+     * the next fold puts the window back.
+     */
+    public static void dropped(Widget w) {
+        Widget p = (w == null) ? null : w.parent;
+        if((p == null) || (w.c == null) || (w.sz == null) || !area(p.sz))
+            return;
+        String key;
+        double[] f;
+        synchronized(WndPos.class) {
+            if(AddonManager.posHeld(w))
+                return;
+            Rec r = recs.get(w);
+            if(r == null) {
+                r = new Rec();
+                recs.put(w, r);
+            }
+            if(r.parent() != p)
+                r.parent = new WeakReference<Widget>(p);
+            r.fx = frac(w.c.x, p.sz.x, w.sz.x, r.fx);
+            r.fy = frac(w.c.y, p.sz.y, w.sz.y, r.fy);
+            r.at = w.c;
+            r.psz = p.sz;
+            r.follows = true;
+            key = r.key;
+            f = new double[] {r.fx, r.fy};
+        }
+        if(key != null)
+            Utils.setpref(key, text(f));
     }
 
     /**
@@ -280,32 +301,6 @@ public final class WndPos {
             r.at = c;
             r.psz = p.sz;
             return c;
-        }
-    }
-
-    /**
-     * <b>The user's hand moved {@code w}</b> -- the title-bar drag of a window an addon built. From here on the
-     * window follows the rule, its fraction taken where it stands. Nothing while an addon's layout holds the
-     * place: the drag then writes that level.
-     */
-    public static void handMoved(Widget w) {
-        if((w == null) || (w.parent == null) || !area(w.parent.sz))
-            return;
-        synchronized(WndPos.class) {
-            if(AddonManager.posHeld(w))
-                return;
-            Widget p = w.parent;
-            Rec r = recs.get(w);
-            if((r == null) || (r.parent() != p)) {
-                r = new Rec();
-                r.parent = new WeakReference<Widget>(p);
-                recs.put(w, r);
-            }
-            r.fx = frac(w.c.x, p.sz.x, w.sz.x, r.fx);
-            r.fy = frac(w.c.y, p.sz.y, w.sz.y, r.fy);
-            r.at = w.c;
-            r.psz = p.sz;
-            r.follows = true;
         }
     }
 

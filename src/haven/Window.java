@@ -87,6 +87,7 @@ public class Window extends Widget {
     private Pipe.Op gbasic;
     private UI.Grab dm = null;
     private Coord doff;
+    private Coord dragc;	// addon: where the drag started, so its end can tell a move from a click (166)
     public boolean large = false;
 
     @RName("wnd")
@@ -542,9 +543,12 @@ public class Window extends Widget {
     /* addon: THE CORNER GRIP IS THE USER'S HAND (153.1). DefaultDeco drives resize() from its own grab and tells
      * nobody, so a window an addon built could not follow it -- its canvas, its size level, its remembered box
      * and its "Resized" key all sat where they were. Called after every resize the grip makes (done=false) and
-     * once when it is released (done=true); the stock window does nothing with it, and the addon's window
+     * once when it is released (done=true). On release the stock window writes its place down, as a drop does
+     * (166): a new box changes the free space its place is a fraction of. The addon's window
      * (io.brodgar.addon.UiApi) overrides it. */
     public void resizedByHand(boolean done) {
+	if(done)
+	    io.brodgar.ui.WndPos.dropped(this);
     }
 
     public void uimsg(String msg, Object... args) {
@@ -570,6 +574,7 @@ public class Window extends Widget {
     public void drag(Coord off) {
 	dm = ui.grabmouse(this);
 	doff = off;
+	dragc = this.c;	// addon: (166)
     }
 
     public boolean checkhit(Coord c) {
@@ -589,6 +594,8 @@ public class Window extends Widget {
 	if(dm != null) {
 	    dm.remove();
 	    dm = null;
+	    if(!Utils.eq(this.c, dragc))	// addon: the user put it down somewhere else: that is when its place is written (166)
+		io.brodgar.ui.WndPos.dropped(this);
 	    return(true);
 	}
 	return(super.mouseup(ev));

@@ -2313,7 +2313,7 @@ public final class AddonManager {
 
     /**
      * The <b>size-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} where the client
-     * writes a window's own box to disk ({@code GameUI.savewndpos}'s {@code wndsz-map}): what should be persisted
+     * writes a window's own box to disk ({@code wndsz-map}, when the user lets the map's grip go): what should be persisted
      * is what the <b>user</b> last sized, so a widget an addon's layout is standing on answers with the stock
      * value recorded at first touch, and every other widget answers with itself.
      */

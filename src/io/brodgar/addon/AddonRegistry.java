@@ -557,7 +557,7 @@ public final class AddonRegistry {
         //   in one sweep (bumps gen -> stock foundry restored)
         new Step("fonts", FontApi::teardownFonts),
         // 036.1: put every native widget this addon laid out back where the user had it — an addon's layout is
-        //   a LAYER over the client's, so nothing of ours is left behind for GameUI.savewndpos to persist as
+        //   a LAYER over the client's, so nothing of ours is left standing for the client's store to take as
         //   their preference. AFTER the fonts step (036.2): the sheet's own pos/size rules have to have
         //   stopped resolving first, or re-running the cascade would put them back
         new Step("moved windows", UiApi::teardownMoved),

@@ -53,7 +53,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private Text lastmsg;
     private double msgtime;
     private Window invwnd, equwnd, makewnd, srchwnd, iconwnd;
-    private io.brodgar.ui.WndPos.Val makewndc = io.brodgar.ui.WndPos.read("makewndc");	// addon: a fraction of the free space, or the old pixels (166)
     public Inventory maininv;
     public CharWnd chrwdg;
     public MapWnd mapfile;
@@ -557,10 +556,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     public void dispose() {
-	/* rts: (122.4) no savewndpos() here. It was dead by two independent guards -- Sessions.Member.discard
-	 * relinquishes the screen before UILoop.bgdestroy, and bgdestroy clears drawui -- so onscreen() was
-	 * false by construction on every path that reaches this, and the write it looked like happening never
-	 * did. The layout is written where the screen actually leaves the character: leavingscreen(), below. */
+	/* addon: (166) no layout write here: a window's place is written the moment the user drops it. */
 	Debug.log = new java.io.PrintWriter(System.err);
 	ui.cons.clearout();
 	super.dispose();
@@ -980,56 +976,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(opt);
     }
 
-    /* rts: (F6, specs/rts/plan.md) is this the session on screen? Several GameUIs now exist at once
-     * and they all persist window geometry to the SAME keys. The conflict is not that they want
-     * different layouts -- it is that a session nobody has touched writes back the positions it loaded,
-     * undoing what the user just did in the session they were actually looking at. The one on screen
-     * owns the layout; the rest keep their geometry and say nothing about it. */
-    private boolean onscreen() {
-	return((ui != null) && (ui == io.brodgar.session.Sessions.anchor()));
-    }
-
-    private void savewndpos() {
-	if(!onscreen())
-	    return;
-	savewndpos0();
-    }
-
-    /* rts: (122.4) the screen is leaving this character: write its layout down now.
-     *
-     * The one path that may skip the onscreen() guard, and it has to: this is called from
-     * MapView.dormant(true), which the frame reaches only after the anchor has already been published,
-     * so onscreen() is false by construction by the time it runs. Guarding it would be guarding on the
-     * very move that makes the write necessary.
-     *
-     * Package-visible for MapView and nothing else. Sessions is the only caller of dormant(boolean), so
-     * this covers every exit from the screen -- a switch, a relinquish, the last session falling, the
-     * login screen -- and nothing besides. */
-    void leavingscreen() {
-	savewndpos0();
-    }
-
-    private void savewndpos0() {
-	/* addon: what gets written down is what the USER placed, as a fraction of the free space (166). WndPos
-	 * never takes that fraction from a place an AddOn's layout is standing on, so uninstalling it leaves these
-	 * windows where their owner arranged them; stockcsz answers the map's box the same way (spec 036-ui-layout). */
-	if(invwnd != null)
-	    io.brodgar.ui.WndPos.save("wndc-inv", invwnd);
-	if(equwnd != null)
-	    io.brodgar.ui.WndPos.save("wndc-equ", equwnd);
-	if(chrwdg != null)
-	    io.brodgar.ui.WndPos.save("wndc-chr", chrwdg);
-	if(zerg != null)
-	    io.brodgar.ui.WndPos.save("wndc-zerg", zerg);
-	if(mapfile != null) {
-	    io.brodgar.ui.WndPos.save("wndc-map", mapfile);
-	    Utils.setprefc("wndsz-map", AddonWidgets.stockcsz(mapfile));
-	}
-	if(srchwnd != null)	// addon: read at its creation and never written upstream (166)
-	    io.brodgar.ui.WndPos.save("wndc-srch", srchwnd);
-	if(iconwnd != null)	// addon: (166)
-	    io.brodgar.ui.WndPos.save("wndc-icon", iconwnd);
-    }
+    /* addon: (166) a window's place is written when the user puts it down -- Window.mouseup and a released grip
+     * call io.brodgar.ui.WndPos.dropped, which writes the key the window was loaded under -- and at no other
+     * moment. What is stored is a fraction of the free space, so nothing has to catch up on a clock, a character
+     * switch or the client closing, and a session nobody touches writes nothing. WndPos never takes a place an
+     * AddOn's layout is standing on, so uninstalling it leaves these windows where their owner put them. */
 
     private final BMap<String, Window> wndids = new HashBMap<String, Window>();
 
@@ -1060,7 +1011,16 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 		mmap = blpanel.add(new CornerMap(UI.scale(new Coord(133, 133)), file), minimapc);
 		mmap.lower();
-		mapfile = new MapWnd(file, map, Utils.getprefc("wndsz-map", UI.scale(new Coord(700, 500))), "Map");
+		mapfile = new MapWnd(file, map, Utils.getprefc("wndsz-map", UI.scale(new Coord(700, 500))), "Map") {
+			/* addon: (166) its box is written when the user lets a grip go, as its place is when they drop
+			 * it: the one window whose size the client keeps. stockcsz answers the box the user chose even
+			 * while an AddOn's size level stands on it (spec 036-ui-layout). */
+			public void resizedByHand(boolean done) {
+			    super.resizedByHand(done);
+			    if(done)
+				Utils.setprefc("wndsz-map", AddonWidgets.stockcsz(this));
+			}
+		    };
 		mapfile.reqclose(() -> {
 		    Utils.setprefb("wndvis-map", false);
 		    mapfile.hide();
@@ -1122,18 +1082,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			    makewnd = null;
 			}
 		    }
-		    public void destroy() {
-			if(onscreen()) {   // rts: (F6)
-			    io.brodgar.ui.WndPos.Val v = io.brodgar.ui.WndPos.save("makewndc", this);	// addon: see savewndpos
-			    if(v != null)
-				makewndc = v;
-			}
-			super.destroy();
-		    }
 		};
 	    makewnd.add(mkwdg, Coord.z);
 	    makewnd.pack();
-	    fitwdg(add(makewnd, io.brodgar.ui.WndPos.load(this, makewnd, makewndc, new Coord(400, 200))));	// addon: (166)
+	    fitwdg(add(makewnd, io.brodgar.ui.WndPos.load(this, makewnd, "makewndc", new Coord(400, 200))));	// addon: read at each opening, written when the user drops it (166)
 	} else if(place == "buddy") {
 	    zerg.ntab(buddies = (BuddyWnd)child, zerg.kin);
 	} else if(place == "pol") {
@@ -1280,11 +1232,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public void cdestroy(Widget w) {
 	if(w instanceof Window) {
 	    String wndid = wndids.reverse().get((Window)w);
-	    if(wndid != null) {
-		wndids.remove(wndid);
-		if(onscreen())   // rts: (F6)
-		    io.brodgar.ui.WndPos.save(String.format("wndc-misc/%s", wndid), w);	// addon: see savewndpos
-	    }
+	    if(wndid != null)
+		wndids.remove(wndid);	// addon: its place was written when the user dropped it (166)
 	}
 	if(w instanceof GItem) {
 	    for(Iterator<DraggedItem> i = hand.iterator(); i.hasNext();) {
@@ -1473,14 +1422,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
-    private double lastwndsave = 0;
     public void tick(double dt) {
 	super.tick(dt);
 	double now = Utils.rtime();
-	if(now - lastwndsave > 60) {
-	    savewndpos();
-	    lastwndsave = now;
-	}
 	double idle = now - ui.lastevent;
 	if(!afk && (idle > 300)) {
 	    afk = true;
@@ -1715,11 +1659,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			return;
 		    if(iconwnd == null) {
 			iconwnd = new GobIcon.SettingsWindow(iconconf).reqclose(() -> {
-			    if(iconwnd != null) {
-				if(onscreen())	// addon: closing it writes its place, as savewndpos does (166)
-				    io.brodgar.ui.WndPos.save("wndc-icon", iconwnd);
+			    if(iconwnd != null)
 				iconwnd.reqdestroy();
-			    }
 			    iconwnd = null;
 			});
 			fitwdg(GameUI.this.add(iconwnd, io.brodgar.ui.WndPos.load(GameUI.this, iconwnd, "wndc-icon", new Coord(200, 200))));	// addon: (166)

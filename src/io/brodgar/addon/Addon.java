@@ -432,7 +432,8 @@ public final class Addon {
      * <p><b>An addon's layout is a layer over the client's, never a write into it.</b> The record is what makes
      * that true in both directions: {@link UiApi#teardownMoved} puts every widget back on {@code :reload}/disable
      * (guarded on it still being the same live one, so a relog correctly skips it), and {@link UiApi#stockPos}
-     * answers {@code GameUI.savewndpos} with the coordinate the <i>user</i> last placed, so the client never
+     * answers with the coordinate the <i>user</i> last placed, while the client's store is written only when the
+     * user drops a window ({@code io.brodgar.ui.WndPos.dropped}, which skips a place we hold), so the client never
      * persists our layout as their preference. {@code widget:position(nil)}/{@code :size(nil)} drop their own half and
      * restore it there and then; an entry with neither half left is dropped. Copy-on-write like the lists above.
      */

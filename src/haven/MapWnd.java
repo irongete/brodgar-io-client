@@ -204,6 +204,7 @@ public class MapWnd extends Window implements Console.Directory {
 	    if((ev.b == 1) && (drag != null)) {
 		drag.remove();
 		drag = null;
+		MapWnd.this.resizedByHand(true);	// addon: the compact grip is the user's hand, as the frame's is (166)
 		return(true);
 	    }
 	    return(super.mouseup(ev));

@@ -446,8 +446,9 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    this.inv = add(inv, Coord.z);
 	    this.id = cont.contentsid;
 	    this.tick(0);
+	    io.brodgar.ui.WndPos.key(this, key());	// addon: what the user's drop writes, pinned or not yet (166)
 	    if(Utils.getprefb(String.format("cont-wndvis/%s", id), false))
-		saved = io.brodgar.ui.WndPos.read(String.format("cont-wndc/%s", id));	// addon: (166)
+		saved = io.brodgar.ui.WndPos.read(key());	// addon: (166)
 	    if(saved != null) {
 		chstate("wnd");
 	    } else {
@@ -455,11 +456,16 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    }
 	}
 
+	/* addon: (166) the key its place is stored under, or null for contents with no id. */
+	private String key() {
+	    return((id == null) ? null : String.format("cont-wndc/%s", id));
+	}
+
 	/* addon: (166) the constructor has no parent to measure a fraction against: the place resolves here. */
 	protected void added() {
 	    super.added();
 	    if((saved != null) && (st == "wnd"))
-		this.c = io.brodgar.ui.WndPos.load(parent, this, saved, Coord.z);
+		this.c = io.brodgar.ui.WndPos.load(parent, this, key(), saved, Coord.z);
 	    saved = null;
 	}
 
@@ -528,7 +534,6 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    }
 	}
 
-	private Coord lc = null;
 	public void tick(double dt) {
 	    super.tick(dt);
 	    if(st == "hide") {
@@ -538,11 +543,7 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    }
 	    if(!Utils.eq(inv.sz, psz))
 		resize(inv.c.add(psz = inv.sz));
-	    if(st == "wnd") {
-		if(!Utils.eq(lc, this.c) && (id != null))
-		    io.brodgar.ui.WndPos.save(String.format("cont-wndc/%s", id), this);	// addon: (166)
-		lc = this.c;
-	    }
+	    // addon: (166) its place is written when the user drops it (Window.mouseup), not watched here
 	}
 
 	public void reqclose() {
@@ -569,7 +570,7 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    if(show && (st != "wnd")) {
 		Coord wc = null;
 		if(id != null)
-		    wc = io.brodgar.ui.WndPos.load(parent, this, String.format("cont-wndc/%s", id), null);	// addon: (166)
+		    wc = io.brodgar.ui.WndPos.load(parent, this, key(), null);	// addon: (166)
 		if(st == "hide") {
 		    if(wc == null)
 			wc = cont.rootxlate(ui.mc).add(overlap);
