@@ -16,7 +16,8 @@
   that exists anywhere. Runs `ant -Dversion=<v> release`, tags v<v>, pushes the tag, creates the release
   with the zip, and pushes the branch when origin lacks the commit. CI (.github/workflows/publish.yml) runs
   this same script on every push to master (-Beta) and from the Run workflow button (-Release); a push skips a
-  commit that carries a tag already, the button only one that carries a release's. Needs git, ant and gh (`gh auth login`).
+  commit that carries a tag already, the button only one that carries a release's. Under CI it hands the tag
+  it published to the workflow as the step output `tag`. Needs git, ant and gh (`gh auth login`).
 
 .PARAMETER Beta
   The next beta, vN.X-beta.
@@ -230,6 +231,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "gh release create failed ($LASTEXITCODE): $tag is pushed without a release -- delete it (git push origin :refs/tags/$tag; git tag -d $tag) and run again"
 }
 Write-Host "Published $title as $tag on the $channel channel."
+# CI: the tag this run published, for the workflow's next steps -- never `git tag --points-at HEAD`, which also
+# names the beta a release shares its commit with
+if ($env:GITHUB_OUTPUT) { Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=$tag" }
+if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Published $tag from $short." }
 # the branch last, and only when origin lacks this commit: CI publishes a commit that origin holds already, and
 # pushing it there while a newer one has landed is rejected -- after the release, so a rejection strands no tag
 Run git @('fetch', 'origin', $current)

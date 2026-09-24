@@ -1,8 +1,8 @@
 # The GitHub Pages site is docs/ as of the newest release: a release published by hand (publish.ps1) fires
 # the release event here, and one published by the Publish workflow dispatches this one with its tag, since
 # an event raised with the workflow's own token starts no other workflow. A beta publishes nothing: the
-# site follows the Release channel. The Run workflow button republishes the newest release, or the tag it
-# is given.
+# site follows the Release channel. The Run workflow button republishes the newest release, or the release
+# it is given; a pre-release, a draft or anything that is not one tag of a release is refused.
 #
 # The pages are built by Jekyll from a copy of docs/ in which every `{{` and `{%` is escaped, so that a page
 # may show a Lua table literal such as `{{r, g, b}}` without Liquid reading it as a template tag. Nothing
@@ -45,17 +45,26 @@ jobs:
           tag="${EVENT_TAG:-$INPUT_TAG}"
           if [ -z "$tag" ]; then
             tag="$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName')"
+            if [ -z "$tag" ]; then
+              echo "nothing is released yet" >&2
+              exit 1
+            fi
           fi
-          if [ -z "$tag" ]; then
-            tag="$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
+          if ! [[ "$tag" =~ ^v[0-9A-Za-z.-]+$ ]]; then
+            echo "'$tag' is not one tag: name a single release, such as v5" >&2
+            exit 1
           fi
-          if [ -z "$tag" ]; then
-            echo "nothing is released yet: name a tag" >&2
+          kind="$(gh release view "$tag" -R "$GITHUB_REPOSITORY" --json isDraft,isPrerelease --jq 'if .isDraft then "a draft" elif .isPrerelease then "a pre-release" else "release" end')" || {
+            echo "$tag is not a release of $GITHUB_REPOSITORY" >&2
+            exit 1
+          }
+          if [ "$kind" != release ]; then
+            echo "$tag is $kind, and the site follows the Release channel: name a release" >&2
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Publishing the docs of $tag." | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.release.outputs.tag }}
       - name: Copy docs/ and escape Liquid
@@ -66,7 +75,7 @@ jobs:
         with:
           source: _pages
           destination: _site
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
 
   deploy:
     needs: build
@@ -76,4 +85,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
