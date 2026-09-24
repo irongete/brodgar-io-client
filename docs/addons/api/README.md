@@ -87,7 +87,7 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 | [Mirror](ui/mirror.md) | A surface showing another widget's live picture: a character nobody is looking at, seen from the layer. |
 | [Controls](ui/controls/README.md) | What a control is, the roster, the reading order. |
 | [Display controls](ui/controls/display.md) | A label, a picture, a separator, a progress bar. |
-| [Interactive controls](ui/controls/interactive.md) | A button, a text entry, a checkbox, a radio, a slider, a scroll, a scrollbar. |
+| [Interactive controls](ui/controls/interactive.md) | A button, a text entry, a checkbox, a radio, a slider, a scroll, a scrollbar, a key button. |
 | [Columns and rows](ui/column.md) | A surface that lays its children out along one axis and sizes itself to them. |
 | [Lists](ui/lists.md) | A listbox, dropdown or menu of rows, and the row source they share with a radio. |
 | [The Widget object](ui/widget.md) | What every widget answers, subscribing on one, tooltips and focus. |

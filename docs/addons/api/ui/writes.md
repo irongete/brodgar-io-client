@@ -26,15 +26,15 @@ inventory:enabled(false)            -- raises: its state is the client's
 | `:destroy()` | Removes it and everything in it. Chains. | Raises. |
 | `:revert()` | Gives back everything your addon holds on it and inside it. | Works, same: [the one undo for a whole edit](edit.md#taking-the-whole-edit-back). |
 | `:enabled(b)` | Greys it out or brings it back. Chains — [below](#enabled-and-disabled). | Raises: the client keeps driving its own state. |
-| `:text(s)` | Writes a [control](controls/README.md)'s caption. | Works: [a level over what it says, restored](edit.md#what-a-window-says). |
+| `:text(s)` | Writes a [control](controls/README.md)'s caption. A key button refuses: its caption is the key it shows. | Works: [a level over what it says, restored](edit.md#what-a-window-says). |
 | `:title(s)` | Writes a window's caption. | Works, same. |
 | `:tooltip(s)` | Writes the line shown when the pointer rests on it. | Raises: the client's words about its own button. |
 | `:image(up, down [, hover])` | Gives a [control](controls/interactive.md#a-caption-or-a-picture) being built its pictures. | Raises. |
-| `:value(v)` | Writes what a [control](controls/README.md#setters) holds. | Works, **protected** (`widget.value`): [drives the client's control as the user would](edit.md#driving-one-protected). The server sees it. |
+| `:value(v)` | Writes what a [control](controls/README.md#setters) holds. A key button refuses: its key is its binding's. | Works, **protected** (`widget.value`): [drives the client's control as the user would](edit.md#driving-one-protected). The server sees it. |
 | `:source(h)` | Gives a [picture control](controls/display.md#picture) its content. | Raises. |
 | `:rows(t)` | Gives a [radio](controls/interactive.md#radio) or a [row-source control](lists.md#rows-listbox-dropdown-menu) its rows. | Raises. |
 | `:range(min, max)` | Sets a [slider's or scrollbar's](controls/interactive.md#slider) bounds. | Raises. |
-| `:bind(opt)` | Joins a control to [an option your addon declared](../client/addon.md#binding-a-control-shows-the-option). The control takes the option's value. The user moving it writes the option. A write to the option moves it. `:bind(nil)` unbinds. | Raises. `:bind()` reads `nil`. Driving a client control is `:value(v)`. |
+| `:bind(opt)`, `:bind(binding)` | Joins a control to [an option your addon declared](../client/addon.md#binding-a-control-shows-the-option), or a [key button](controls/interactive.md#key-button) to a hotkey of yours. The control takes the option's value, or shows the hotkey's key. The user moving it writes the option, and the user's press on a key button assigns the key. A write to the option moves it. `:bind(nil)` unbinds. | Raises. `:bind()` reads `nil`. Driving a client control is `:value(v)`. |
 | `:rowHeight(n)` | Sets a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built. | Raises. |
 | `:cellSize(w, h)` | Sets a [grid](lists.md#grid)'s cell box while it is being built. | Raises. |
 | `:columns(t)` | Names a [table](lists.md#table)'s columns while it is being built. | Raises. |

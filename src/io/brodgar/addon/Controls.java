@@ -330,6 +330,18 @@ final class Controls {
     }
 
     /**
+     * {@code hafen.ui():keybinding()} — the client's own key button ({@link haven.OptWnd.SetButton}), bound to nothing
+     * until {@code :bind(binding)} joins it to one of the addon's hotkeys (spec 163), at the Keybindings panel's width.
+     */
+    static LuaValue keybinding(Addon owner, Varargs a) {
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.ui():keybinding() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():keybinding():bind(binding):size(w):parent(w)");
+        UI u = UiApi.requireUi("keybinding");
+        return UiApi.attach(u, owner, new CKeybinding(owner, Px.in(CKeybinding.DEF_W)));
+    }
+
+    /**
      * {@code hafen.ui():scroll()} — a scrolling container over {@link haven.Scrollport}'s own two pieces (task
      * 040.8): {@code :parent(sp)} on any control puts it INSIDE the scrolling area, never beside the bar, and
      * the bar answers the same {@code :range}/{@code :value}/{@code "Changed"} as a bare {@code :scrollbar()}
@@ -431,6 +443,8 @@ final class Controls {
      * does</b> rather than failing as a nil call.
      */
     static void text(Owned c, Widget w, String s) {
+        if(c instanceof CKeybinding)   // 163.1: the caption is the key
+            throw new LuaError(CKeybinding.TEXT_REFUSAL);
         if(c instanceof CtlButton) {
             synchronized(LuaWidget.monitor(w)) { ((CtlButton)c).change(s); }
             WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date

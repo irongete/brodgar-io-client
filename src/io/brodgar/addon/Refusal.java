@@ -163,8 +163,8 @@ final class Refusal {
         uiKept("tipAt", "asks who would speak for a point on the SCREEN");
         uiKept("scale", "is the device factor the client is running at");
         for(String c : new String[] {"button", "label", "entry", "check", "radio", "slider", "scroll",
-                                     "scrollbar", "dropdown", "menu", "listbox", "table", "grid", "image",
-                                     "progress", "separator"})
+                                     "scrollbar", "keybinding", "dropdown", "menu", "listbox", "table", "grid",
+                                     "image", "progress", "separator"})
             uiKept(c, "mints a control of YOURS, in the addon layer" + twoTrees);
         // 111.1: the console splits by DIRECTION rather than by tree. Registering a command is client-wide
         // (Console.setscmd is static, so one name answers from every character) and stays here; SAYING a line

@@ -90,6 +90,11 @@ final class Binding {
      * binding is dropped first, so a second {@code bind} replaces.
      */
     static void bind(Addon owner, Owned c, Widget w, LuaValue v) {
+        if(LuaBinding.resolve(v) != null)     // 163.1: a Binding is a hotkey's, and a key button is what joins one
+            throw new LuaError(VERB + "(opt): a Binding joins a key button to one of your hotkeys —"
+                + " hafen.ui():keybinding() — and a " + LuaWidget.typeName(w) + " binds to an option your addon"
+                + " declared, what " + AddonOptions.HANDLE + ":boolean(name):default(v):add() and the three builders"
+                + " beside it hand back.");
         LuaOption o = LuaOption.resolve(v);
         if(o == null)
             throw new LuaError(VERB + "(opt): opt is an Option your addon declared — what "

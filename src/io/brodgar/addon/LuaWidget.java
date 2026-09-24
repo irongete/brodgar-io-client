@@ -20,6 +20,7 @@ import haven.ISBox;
 import haven.Img;
 import haven.Inventory;
 import haven.ItemInfo;
+import haven.KeyBinding;
 import haven.Label;
 import haven.Makewindow;
 import haven.MenuGrid;
@@ -1650,7 +1651,8 @@ public final class LuaWidget {
         // dropdown or a radio a choice, an entry a text; the control is configured from the option (its range,
         // its rows) and takes the value at once, the user moving it writes opt:value(v), and a write to the
         // option from anywhere moves every bound control without firing the control's own Changed. A second
-        // bind replaces the first, and a binding ends with the control.
+        // bind replaces the first, and a binding ends with the control. A key button (163.1) takes instead a
+        // Binding of one of the addon's live hotkeys (CKeybinding.hotkey), and shows its key at once.
         //   THE WRITE IS YOURS ALONE, like every builder setter: a borrowed control refuses naming the client --
         // what one of its controls holds is the client's, driven by the server and read back by it, and
         // widget:value(v) under widget.value is how that one is driven. The read still answers, as nil.
@@ -1658,8 +1660,10 @@ public final class LuaWidget {
             public Varargs invoke(Varargs a) {            // w:bind() → narg 1 · w:bind(opt)/(nil) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "bind"));
-                if(!Args.passed(a, 2))
-                    return Binding.read((w == null) ? null : ownedContent(owner, w));
+                if(!Args.passed(a, 2)) {
+                    Owned rc = (w == null) ? null : ownedContent(owner, w);
+                    return (rc instanceof CKeybinding) ? ((CKeybinding)rc).bound() : Binding.read(rc);   // 163.1
+                }
                 Args.only(a, 1, Binding.VERB);
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
@@ -1673,6 +1677,17 @@ public final class LuaWidget {
                         + " act; to show an option, build a control of your own: hafen.ui():check(), :slider(),"
                         + " :dropdown(), :radio() or :entry().");
                 LuaValue v = a.arg(2);
+                if(c instanceof CKeybinding) {          // 163.1: a key button joins a hotkey of the addon's, not an option
+                    CKeybinding keyButton = (CKeybinding)c;
+                    KeyBinding hotkey = v.isnil() ? null : CKeybinding.hotkey(owner, v);   // every refusal first
+                    synchronized(monitor(w)) {
+                        if(hotkey == null)
+                            keyButton.unbind();
+                        else
+                            keyButton.bind(hotkey);
+                    }
+                    return self;
+                }
                 if(v.isnil())
                     Binding.unbind(c);
                 else

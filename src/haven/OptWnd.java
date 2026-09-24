@@ -701,42 +701,56 @@ public class OptWnd extends Window {
 	    prev = adda(pb, scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    pack();
 	}
+    }
 
-	public class SetButton extends KeyMatch.Capture {
-	    public final KeyBinding cmd;
+    /* addon: (163.1) THE KEY BUTTON, a member of OptWnd rather than of BindingPanel. Upstream nests it in the panel,
+     * an inner class, so it could only be built inside an Options window; as a static member it can stand anywhere --
+     * hafen.ui():keybinding() builds this very class on an addon's own page. `cmd` is no longer final and may be null:
+     * a button bound to nothing shows the key it last showed and writes nothing, and one an addon re-binds takes the
+     * new binding. follow() is the display half of draw(), callable at once. BindingPanel.addbtn builds it as before. */
+    public static class SetButton extends KeyMatch.Capture {
+	public KeyBinding cmd;   // addon: (163.1) was final, and never null
 
-	    public SetButton(int w, KeyBinding cmd) {
-		super(w, cmd.key());
-		this.cmd = cmd;
-	    }
+	public SetButton(int w, KeyBinding cmd) {
+	    super(w, (cmd == null) ? null : cmd.key());   // addon: (163.1) bound to nothing, it reads None
+	    this.cmd = cmd;
+	}
 
-	    public void set(KeyMatch key) {
-		super.set(key);
+	public void set(KeyMatch key) {
+	    super.set(key);
+	    if(cmd != null)   // addon: (163.1)
 		cmd.set(key);
-	    }
+	}
 
-	    public void draw(GOut g) {
-		if(cmd.key() != key)
-		    super.set(cmd.key());
-		super.draw(g);
-	    }
+	/* addon: (163.1) show the binding's key WITHOUT writing it -- the test draw() made inline, by identity as
+	 * before: KeyBinding.key() hands out one cached wrapper per key, so a new object means a new key. */
+	public void follow() {
+	    if((cmd != null) && (cmd.key() != key))
+		super.set(cmd.key());
+	}
 
-	    protected KeyMatch mkmatch(KeyEvent ev) {
-		return(KeyMatch.forevent(ev, ~cmd.modign));
-	    }
+	public void draw(GOut g) {
+	    follow();   // addon: (163.1) was the same test, inline
+	    super.draw(g);
+	}
 
-	    protected boolean handle(KeyEvent ev) {
-		if(ev.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+	protected KeyMatch mkmatch(KeyEvent ev) {
+	    return(KeyMatch.forevent(ev, ~((cmd == null) ? 0 : cmd.modign)));   // addon: (163.1) null-safe
+	}
+
+	protected boolean handle(KeyEvent ev) {
+	    if(ev.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+		if(cmd != null) {   // addon: (163.1) bound to nothing, there is no default to go back to
 		    cmd.set(null);
 		    super.set(cmd.key());
-		    return(true);
 		}
-		return(super.handle(ev));
+		return(true);
 	    }
+	    return(super.handle(ev));
+	}
 
-	    public Object tooltip(Coord c, Widget prev) {
-		return(kbtt().tex());   // addon: (F3d)
-	    }
+	public Object tooltip(Coord c, Widget prev) {
+	    return(kbtt().tex());   // addon: (F3d)
 	}
     }
 

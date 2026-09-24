@@ -1,6 +1,6 @@
 # hafen.ui: Interactive Controls
 
-A button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar: the [controls](README.md) the user drives. Each is built bare, configured by chained setters and dressed by the [stylesheet](../style/README.md).
+A button, a text entry, a checkbox, a radio, a slider, a scroll, a scrollbar and a key button: the [controls](README.md) the user drives. Each is built bare, configured by chained setters and dressed by the [stylesheet](../style/README.md).
 
 ```lua
 local harvest_window = hafen.ui():window():title("Harvest"):size(200, 100)
@@ -132,6 +132,40 @@ row_scrollbar:on("Changed", function(value) first_row = value end)
 | A client scrollbar | Reports `Changed` from both of its writes, the thumb drag and the wheel or step buttons, and cannot be cancelled — [edit](../edit.md). Its rail and thumb are `scrollbar` and `scrollbar.knob`. |
 | A list's own scrollbar | Reads its position off the list every frame, so `widget:value(n)` on it is refused rather than reverted. Drive the list: `widget:value(row)` on a listbox scrolls to that row, and the bar follows. |
 
+## Key button
+
+The client's own key button, the one each row of Options ▸ Game ▸ Keybindings ends in, joined to one of your hotkeys. The user presses it, then the key, and the key is assigned exactly as on that row. It needs `"api_version": "1.1"` in your [manifest](../../../manifest.md#the-api-version).
+
+```lua
+local keybindings = hafen.client():options():keybindings()
+keybindings:on("toggle", function() hafen.log():write("toggled") end)
+local toggle_binding = keybindings:binding():get("toggle")          -- after on(): your own hotkey
+hafen.client():options():addon():panel(function(root)
+  local toggle_row = hafen.ui():row():gap(8):parent(root)
+  hafen.ui():label():parent(toggle_row):text("Toggle the window")
+  hafen.ui():keybinding():parent(toggle_row):bind(toggle_binding)
+end)
+```
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.ui():keybinding()` | [`Widget`](../widget.md) | Unprotected | A key button bound to nothing. It reads `None`, and a press does nothing. |
+| `key_button:bind(binding)` | `self` | Unprotected | Joins it to a hotkey your addon declared and has not ended: the [Binding](../../client/keybindings.md#the-binding-object) `keybindings:binding():get(name)` hands you. It shows that hotkey's key at once. A second call replaces the first. |
+| `key_button:bind()` | `Binding \| nil` | Unprotected | The Binding it is joined to, the same object `keybindings:binding():get(name)` hands you. `nil` while none. |
+| `key_button:bind(nil)` | `self` | Unprotected | Unbinds. The key stays shown, and a press does nothing. |
+| `key_button:value()` | `string \| nil` | Unprotected | The key it shows, spelled as [`binding:key()`](../../client/keybindings.md#key-strings) spells it. `nil` for unbound. |
+
+| Rule | Detail |
+|---|---|
+| The client's class | `:type()` reads `"SetButton"` and `:role()` `button`, so `@SetButton` names yours and the panel's alike, and a [`button`](../style/surfaces.md#button) rule dresses it. |
+| Width | The panel's own, 175 design px, until `:size(w)`. The height is the button's art. |
+| Your own hotkeys | A binding of the client's (`inv`) or of another addon's is refused, naming Options ▸ Game ▸ Keybindings, where the user assigns those. A Binding taken before `keybindings:on` declared the name is the registry id as written, not yours: refused, naming the order. A hotkey ended with `subscription:off()` is refused. A refused bind changes nothing. |
+| A hotkey that ends while bound | The button keeps the Binding, and a press does nothing. Declaring the name again brings it back: the Binding is the same. |
+| `:value(v)` | Refused, naming `binding:key(key)` under `client.settings`: the key is the binding's. |
+| `:text(s)` | Refused: the caption is the key. A line beside it is a [label](display.md#label). |
+| `:tooltip(s)` | Replaces the client's own tip, which names Escape, Backspace and Delete. `""` brings that tip back. |
+| Unprotected | Building, binding and pressing it. A press is the user's own edit of their key, made by hand as on the panel's row. `binding:key(key)`, the write your code makes, stays under `client.settings`. |
+
 ---
 
 ## See Also
@@ -140,3 +174,4 @@ row_scrollbar:on("Changed", function(value) first_row = value end)
 - [Display](display.md) — the controls with nothing to click.
 - [Widget](../widget.md) — everything a control answers before it adds its own.
 - [Style](../style/README.md) — the rules that dress it.
+- [Keybindings](../../client/keybindings.md) — the hotkey a key button assigns, and the Binding it takes.

@@ -40,8 +40,9 @@ public class KeyBinding {
     public final int modign;
     public KeyMatch key;
     // addon: the exclusivity-aware form of whichever of `key`/`defkey` key() is handing out, and the one it
-    // was built from. Cached because OptWnd.SetButton.draw() compares key() by IDENTITY: a fresh wrapper on
-    // every call would re-label the button every frame. Guarded by `bindings`, like every other claim state.
+    // was built from. Cached because OptWnd.SetButton.follow() (what its draw() runs every frame) compares key() by
+    // IDENTITY: a fresh wrapper on every call would re-label the button every frame. Guarded by `bindings`, like
+    // every other claim state.
     private KeyMatch awarefor, aware;
 
     private KeyBinding(String id, KeyMatch defkey, int modign) {

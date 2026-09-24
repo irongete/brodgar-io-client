@@ -162,12 +162,12 @@ HOPS = {
 }
 # every control hafen.ui() mints is a widget of yours
 for _c in ("window", "widget", "button", "label", "entry", "check", "radio", "slider", "scroll", "scrollbar",
-           "dropdown", "menu", "listbox", "table", "grid", "image", "progress", "separator"):
+           "keybinding", "dropdown", "menu", "listbox", "table", "grid", "image", "progress", "separator"):
     HOPS[("hafen.ui()", _c)] = "widget"
 # ...and a widget's chained setters hand the widget back, so a builder chain a message spells
 # (`hafen.ui():button():text("Go"):position(x, y):parent(w):on("Pressed", fn)`) walks to the verb it promises.
 WIDGET_SETTERS = {"text", "position", "size", "parent", "title", "resizable", "image", "source", "value", "range",
-                  "rows", "rowHeight", "cellSize", "columns"}
+                  "rows", "rowHeight", "cellSize", "columns", "bind"}
 
 # Collections whose spelling is built at runtime (a local, a parameter) -- named here, a list to keep.
 HAND_SPELLINGS = {

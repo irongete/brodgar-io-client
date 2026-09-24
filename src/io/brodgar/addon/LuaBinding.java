@@ -77,7 +77,7 @@ public final class LuaBinding {
     }
 
     /** A {@link KeyMatch} as the API hands one out: a display string, or {@code nil} for unbound. */
-    private static LuaValue keyName(KeyMatch km) {
+    static LuaValue keyName(KeyMatch km) {
         return ((km == null) || (km == KeyMatch.nil)) ? LuaValue.NIL : LuaValue.valueOf(km.name());
     }
 

@@ -721,6 +721,15 @@ final class UiApi {
                 return Controls.entry(owner, a);
             }
         });
+        // :keybinding() — 163.1, THE CLIENT'S KEY BUTTON: OptWnd.SetButton, the class each row of Options > Game >
+        // Keybindings ends in, joined by :bind(binding) to one of this addon's hotkeys, so the user assigns the key
+        // on the addon's own page. Built bare and configured by chained setters like every control here.
+        m.set("keybinding", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "keybinding");
+                return Controls.keybinding(owner, a);
+            }
+        });
         // :scroll() — 040.8, a scrolling container over haven.Scrollport's own two pieces. :parent(sp) on any
         // control puts it INSIDE the scrolling area (LuaWidget's parent(w) write redirects into the port's own
         // inner container for this one control) -- never beside the bar, which is the trap a plain add() would

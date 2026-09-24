@@ -30,6 +30,7 @@ A builder hands back the same [Widget](../widget.md) every lookup gives you. Eve
 | `hafen.ui():slider()` | `Widget` | Unprotected | A draggable position within a range. | [interactive](interactive.md#slider) |
 | `hafen.ui():scroll()` | `Widget` | Unprotected | A scrolling container for other controls. | [interactive](interactive.md#scroll) |
 | `hafen.ui():scrollbar()` | `Widget` | Unprotected | A bare scroll thumb, for driving something yourself. | [interactive](interactive.md#scrollbar) |
+| `hafen.ui():keybinding()` | `Widget` | Unprotected | The client's key button, joined to one of your hotkeys. | [interactive](interactive.md#key-button) |
 | `hafen.ui():listbox()`, `:dropdown()`, `:menu()`, `:grid()`, `:table()` | `Widget` | Unprotected | The row-source controls. | [lists](../lists.md) |
 | `hafen.ui():column()`, `:row()` | `Widget` | Unprotected | Not controls: surfaces of yours that lay the controls in them out. | [column](../column.md) |
 
@@ -45,21 +46,22 @@ No builder takes an argument. A control is built bare with the client's defaults
 | `:source(h)` / `:source()` | `self` / `string \| userdata \| nil` | Unprotected | The picture a [picture control](display.md#picture) shows. |
 | `:rows(t)` / `:rows()` | `self` / `table \| nil` | Unprotected | The row source a [radio](interactive.md#radio) or a [row-source control](../lists.md) takes. |
 | `:range(min, max)` / `:range()` | `self` / `{min=, max=} \| nil` | Unprotected | The bounds of a [slider or scrollbar](interactive.md#slider). |
-| `:bind(opt)` / `:bind()` | `self` / `Option \| nil` | Unprotected | The [option of your addon's](../../client/addon.md#binding-a-control-shows-the-option) a checkbox, slider, dropdown, radio or entry shows and writes. `:bind(nil)` unbinds. |
+| `:bind(opt)`, `:bind(binding)` / `:bind()` | `self` / `Option \| Binding \| nil` | Unprotected | The [option of your addon's](../../client/addon.md#binding-a-control-shows-the-option) a checkbox, slider, dropdown, radio or entry shows and writes, or the [hotkey of yours](interactive.md#key-button) a key button assigns. `:bind(nil)` unbinds. |
 
 Every setter returns the Widget and has a bare read. None is protected on a control you built: it is your own client-side UI, restored with your addon.
 
 | Rule | Detail |
 |---|---|
 | `:bind(opt)` | The control takes the option's value at once and is configured from it. A slider's `:range` comes from its bounds, a dropdown's or radio's `:rows` from its choices. The user moving the control writes `opt:value(v)`. A write to the option moves the control without firing its `Changed`. A control of another kind than the option's is refused naming the one it takes. So is a control holding no value, and a client control. |
-| `:value()` | One verb for whatever a control holds: a [progress bar](display.md#progress-bar)'s fraction, a checkbox's boolean, an entry's string. `nil` where it holds nothing. On a client control the write is [driving](../edit.md#driving-one-protected) and protected. |
+| `:bind(binding)` | A key button's alone: a [Binding](../../client/keybindings.md#the-binding-object) of a hotkey your addon declared and has not ended, its key shown at once. An Option given to a key button, and a Binding given to any other control, are refused naming the control that takes it. |
+| `:value()` | One verb for whatever a control holds: a [progress bar](display.md#progress-bar)'s fraction, a checkbox's boolean, an entry's string, a [key button](interactive.md#key-button)'s key. `nil` where it holds nothing. On a client control the write is [driving](../edit.md#driving-one-protected) and protected. A key button you built refuses the write: its key is its binding's. |
 | Value checks | The type first: a number is a number and `"50"` is [a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). `:range(min, max)`'s bounds are read the same way. A progress bar refuses a value outside `0..1`, naming the rule. A slider or scrollbar clamps a value outside its `:range` to the nearer bound, that range being yours to narrow at any time. |
 
 ## Sizing
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `:size(w)` | `self` | Unprotected | Sets the width. The height is the control's own art. Answered by the button, text entry, checkbox, dropdown, slider and separator. |
+| `:size(w)` | `self` | Unprotected | Sets the width. The height is the control's own art. Answered by the button, key button, text entry, checkbox, dropdown, slider and separator. |
 | `:size(w, h)` | `self` | Unprotected | Sets both, in [design pixels](../pixels.md). A box under the art's own raises, naming the height it needs: `widget:size(w, h) — a Button is 24 design px tall, which is its own ART's box: 4 clips it`. |
 
 ```lua
@@ -107,7 +109,7 @@ A control your addon built is [owned](../writes.md#owned-vs-borrowed): the sette
 ## See Also
 
 - [Display](display.md) — label, picture, separator, progress bar.
-- [Interactive](interactive.md) — button, text entry, checkbox, radio, slider, scroll, scrollbar.
+- [Interactive](interactive.md) — button, text entry, checkbox, radio, slider, scroll, scrollbar, key button.
 - [Lists](../lists.md) — listbox, dropdown, menu, grid, table.
 - [Widget](../widget.md) — everything a control answers before it adds its own.
 - [Edit](../edit.md) — the same capability keys on the client's controls.
