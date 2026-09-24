@@ -25,7 +25,8 @@
 .PARAMETER Version
   That number instead of the counted one: N, or N.X with -Beta.
 .PARAMETER Notes
-  A markdown file with the release notes; default: the commit subjects since the previous version.
+  A markdown file with the release notes; default: the commit subjects since the previous version (a
+  release: since the previous release).
 .PARAMETER Message
   The release notes, inline.
 .PARAMETER Branch
@@ -180,10 +181,17 @@ if ($Notes) {
     if ($Message) {
         [IO.File]::WriteAllText($notesFile, $Message, (New-Object Text.UTF8Encoding $false))   # no BOM: PowerShell 5.1 would write one
     } else {
-        # since the newest published version when its tag is here, else since the highest tag reachable
+        # a beta: since the newest published version; a release: since the newest published release, since the
+        # betas between are its code (and the newest beta is usually HEAD itself) -- when that tag is here, else
+        # since the highest such tag reachable
+        $since = if ($Release) { @($published | Where-Object { -not $_.Prerelease }) | Select-Object -First 1 } else { $newest }
         $previous = $null
-        if ($newest -and (git tag -l $newest.Tag)) { $previous = $newest.Tag }
-        if (-not $previous) { $previous = git tag -l 'v*' --merged HEAD --sort=-v:refname | Select-Object -First 1 }
+        if ($since -and (git tag -l $since.Tag)) { $previous = $since.Tag }
+        if (-not $previous) {
+            $reachable = @(git tag -l 'v*' --merged HEAD --sort=-v:refname)
+            if ($Release) { $reachable = @($reachable | Where-Object { $_ -notmatch '-beta$' }) }
+            $previous = $reachable | Select-Object -First 1
+        }
         if ($previous) {
             $log = @(git log --format='- %s' --max-count=200 "$previous..HEAD")
             if (-not $log) { throw "no commits since $previous to write notes from: give -Notes or -Message" }
