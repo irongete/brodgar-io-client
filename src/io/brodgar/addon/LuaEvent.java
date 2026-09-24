@@ -777,13 +777,16 @@ public final class LuaEvent {
      */
     private static void control(LuaTable m) {
         // ev:value() — what the control is ABOUT to take (061.2), read through the one canonical
-        // Java→Lua marshal: a checkbox's boolean, a radio's row, a native list's own row object as an
-        // opaque handle that still compares ==. nil where the key carries none — a Pressed is an
-        // activation and holds nothing — the same "the data decides, not a typo" rule Shape.INPUT's
-        // :button()/:amount() already have.
+        // Java→Lua marshal: a checkbox's boolean, a radio's row. A native list's own row object is a Row
+        // (164.1), the one widget:value() and widget:rows() hand out, so the two compare ==. nil where the key
+        // carries none — a Pressed is an activation and holds nothing — the same "the data decides, not a
+        // typo" rule Shape.INPUT's :button()/:amount() already have.
         m.set("value", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaMarshal.toLua(self(a.arg1(), Shape.CONTROL, "value").nval);
+                LuaEvent e = self(a.arg1(), Shape.CONTROL, "value");
+                if(e.actor instanceof haven.SListWidget)
+                    return LuaRow.of(e.owner, e.nval);
+                return LuaMarshal.toLua(e.nval);
             }
         });
         m.set("preventDefault", new VarArgFunction() {

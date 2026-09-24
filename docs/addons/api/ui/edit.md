@@ -116,7 +116,7 @@ end)
 
 ## Reading what a borrowed control holds
 
-`widget:value()` answers on a client control as on [one you built](controls/README.md#setters). A checkbox's boolean. A radio's row, read from any of its buttons. A slider's or scrollbar's number. A text field's string. A list's or dropdown's row. A [key button](controls/interactive.md#key-button)'s key, spelled as [`binding:key()`](../client/keybindings.md#the-binding-object) spells it, `nil` for unbound. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is an opaque handle: hold it and compare it with `==`. There is nothing inside to read.
+`widget:value()` answers on a client control as on [one you built](controls/README.md#setters). A checkbox's boolean. A radio's row, read from any of its buttons. A slider's or scrollbar's number. A text field's string. A list's or dropdown's row. A [key button](controls/interactive.md#key-button)'s key, spelled as [`binding:key()`](../client/keybindings.md#the-binding-object) spells it, `nil` for unbound. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is a [Row](lists.md#reading-one): compare it with `==`, and read it with `row:text()`, `row:group()` and `row:info()`.
 
 ---
 

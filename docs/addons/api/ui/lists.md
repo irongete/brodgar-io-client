@@ -120,6 +120,68 @@ local stock_table = hafen.ui():table():size(300, 200)
 
 ---
 
+## The client's own lists
+
+A list the client built holds rows your addon reads whole, the rows off screen and those a search left out included. A search list, one the client filters as it is typed into, also lets your addon decide which rows each search keeps.
+
+```lua
+local session = hafen.session():current()
+local search_list = session:ui():match("@BuddyList")      -- one of the client's search lists
+for _, row in ipairs(search_list:rows()) do
+  hafen.log():write(tostring(row:text()))
+end
+search_list:on("Search", function(event)                   -- keep the rows that start with what is typed
+  local text = (event:row():text() or ""):lower()
+  event:match(text:sub(1, #event:text()) == event:text():lower())
+end)
+```
+
+### Reading one
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `widget:rows()` | `Row[] \| nil` | Unprotected | On a client list or dropdown: every row it holds, in its order. `nil` while its contents are still loading. |
+| `widget:value()` | `Row \| nil` | Unprotected | The picked row. `nil` for none. |
+| `widget:row()` | `Row \| nil` | Unprotected | On one of a list's row widgets: the row it draws. `nil` on every other widget. |
+| `row:text()` | `string \| nil` | Unprotected | The text the row shows, where the client can read one: a search list's rows read the text their list searches by. `nil` for a row it cannot read. |
+| `row:group()` | `number \| nil` | Unprotected | The group the row is drawn in, where its list draws rows by group: the number [`widget:group()`](widget.md#read-methods) reads on the row's widget. `nil` elsewhere. |
+| `row:info()` | `table` | Unprotected | Snapshot `{text, group}`. Absent values are unset keys. |
+
+| Rule | Detail |
+|---|---|
+| One row, one value | Every door hands back the same Row: `==` compares two, and one keys a table. [`widget:value(row)`](edit.md#driving-one-protected) on its own list picks it. |
+| Plain rows | A list of strings or numbers hands those back as themselves. |
+| A row reads what it holds | The client may replace a row rather than change it when the server sends it again, and a replaced row is no longer its list's. Read the list again rather than keeping rows. |
+| Row widgets | A list builds a widget only for each row on screen: `widget:row()` reaches those, `widget:rows()` every row. |
+| Written by the client | `widget:rows(t)` on a client list raises, naming `widget:rows()`. |
+
+### Searching one
+
+A search list is filtered while it has the keyboard and is typed into. Its `widget:events()` lists `Search`.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `widget:search()` | `string \| nil` | Unprotected | What a search list is filtered by. `nil` while no search runs, and on anything that does not search. |
+| `widget:search(text)` | `self` | Unprotected | Filters a search list by `text`, as typing it does, and picks no row. `""` ends the search. |
+| `widget:on("Search", fn)` | `Sub` | Unprotected | `fn(event)` once for every row, each time the list searches. |
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `event:row()` | `Row` | Unprotected | The row being tested. |
+| `event:text()` | `string` | Unprotected | What the list is filtered by. |
+| `event:match()` | `boolean` | Unprotected | The verdict as it stands. It starts as the client's own test: the row's text contains what is typed, in any case. |
+| `event:match(keep)` | `event` | Unprotected | Keeps (`true`) or drops (`false`) the row. |
+
+| Rule | Detail |
+|---|---|
+| Every addon has a say | A row is kept when any handler said `true`, otherwise dropped when any said `false`, otherwise the client's test decides. The order the addons run in changes nothing. |
+| What a search does | The list shows the kept rows and `text (kept/total)` in its corner. Typed by the user, it also picks the first kept row when the picked one is out, as a click would, and some lists tell the server about that pick. `widget:search(text)` only filters: it picks nothing and sends nothing. Every addon's `Search` runs for both. |
+| When it ends | Backspacing the last letter, `widget:search("")`, or the list losing the keyboard. A search made with `widget:search(text)` on a list that never had the keyboard lasts until one of those. |
+| Inside the tree | A handler runs on the keystroke, inside that character's tree, like a `Draw` painter: keep it short. One whose addon is busy on another thread at that instant is skipped for that row, and the verdict stands. A handler that raises is logged. |
+| Refusals | `widget:search(nil)` is refused, naming `""`. A widget that does not search is refused. |
+
+---
+
 ## See Also
 
 - [Edit](edit.md) — the same keys on the client's row controls.

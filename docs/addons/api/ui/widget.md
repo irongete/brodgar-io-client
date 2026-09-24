@@ -88,7 +88,7 @@ Every method answers on every widget, owned or borrowed, and none throws.
 | `:image()` | `table \| nil` | Unprotected | The faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, `{up=, down=, hover=}`. `nil` otherwise. |
 | `:value()` | `any \| nil` | Unprotected | What a [control](controls/README.md#setters) holds, the client's own included. `nil` where it holds nothing. `:value(v)` writes it on [one you built](controls/README.md#setters) and, protected, on [one of the client's](edit.md#driving-one-protected). |
 | `:source()` | `string \| userdata \| nil` | Unprotected | The picture a [picture control](controls/display.md#picture) shows. `nil` before one is set. |
-| `:rows()` | `table \| nil` | Unprotected | The row source of a [radio](controls/interactive.md#radio) or a [row-source control](lists.md). `nil` where a control has no rows. |
+| `:rows()` | `table \| nil` | Unprotected | The row source of a [radio](controls/interactive.md#radio) or a [row-source control](lists.md). On one of the client's lists, [every row it holds](lists.md#reading-one). `nil` where a control has no rows. |
 | `:range()` | `{min=, max=} \| nil` | Unprotected | The bounds of a [slider or scrollbar](controls/interactive.md#slider). |
 | `:gap()` | `number \| nil` | Unprotected | The room between the children of a [column or row](column.md), in design pixels. `nil` elsewhere. |
 | `:rowHeight()` | `number \| nil` | Unprotected | The row height of a [listbox, dropdown, menu or table](lists.md), in design pixels. |
@@ -96,6 +96,8 @@ Every method answers on every widget, owned or borrowed, and none throws.
 | `:columns()` | `table \| nil` | Unprotected | The column descriptors of a [table](lists.md#table). |
 | `:item()` | [`Item`](items.md#the-item-object) `\| nil` | Unprotected | The item an icon draws — a container's cell, the cursor, a recipe slot, a listing a resource paints. `nil` on every other widget. |
 | `:group()` | `number \| nil` | Unprotected | The group a list row draws its name in, `0..254`. A kin roster row answers the kin's own group ([`kin:group()`](../kin.md)). A village's or realm's member row answers that polity's group for them, also for a member the roster does not know (`???`). `nil` on every other widget and on a polity with no groups. |
+| `:row()` | [`Row`](lists.md#reading-one) `\| nil` | Unprotected | On a row widget of one of the client's lists: the row it draws. `nil` on every other widget. |
+| `:search()` | `string \| nil` | Unprotected | What one of the client's search lists is filtered by. `nil` while no search runs, and on every other widget. [`:search(text)` filters it](lists.md#searching-one). |
 | `:items()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [`Item`](items.md#the-item-object) | Unprotected | The items inside it — [items](items.md). |
 | `:exists()` | `boolean` | Unprotected | Whether it is still in the tree. |
 | `:info()` | `table \| nil` | Unprotected | Snapshot `{type, role, res, id, pos, size, visible, enabled, text, owned}`. Absent values are unset keys. `nil` once stale. |
@@ -159,7 +161,7 @@ subscription:off()
 | Coordinates | `event:x()`/`:y()` are widget-local [design pixels](pixels.md). On a window you painted, local means the content area ([where a press lands](custom.md#where-a-press-lands)). On a client window, its own box, caption included. |
 | Button and wheel | `event:button()` is 1 (left) or 3 (right), on `MouseDown`/`MouseUp` only. `event:amount()` is the wheel delta. |
 | Cancelling | `event:preventDefault()` stops the input reaching the widget's own handling and any child under it. No handler's return value is read. Two handlers fire independently. Either cancelling cancels, both still run. |
-| Controls | A control answers these keys plus its own capability keys (`Pressed`, `Changed`, `Submitted`, `Selected`, `Cell`) — [controls](controls/README.md). On a client control the capability key is cancelable ([edit](edit.md)), except a borrowed slider's or scrollbar's `Changed`, where `preventDefault()` raises: the value has already moved. |
+| Controls | A control answers these keys plus its own capability keys (`Pressed`, `Changed`, `Submitted`, `Selected`, `Cell`) — [controls](controls/README.md). On a client control the capability key is cancelable ([edit](edit.md)), except a borrowed slider's or scrollbar's `Changed`, where `preventDefault()` raises: the value has already moved. A client search list also answers [`Search`](lists.md#searching-one), once per row as it searches. |
 | Surfaces | A surface you paint answers `Draw`, `Update`, `Drop` and `Close` on top — [custom](custom.md#subscribing). |
 | Unknown key | Raises, listing the keys this widget answers: `a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Removed, Dragged, Resized`. |
 | `Removed` scope | Fires for the widget that was destroyed, not for what was inside it: a control that dies with its window fires nothing. Subscribe on the window. `widget:exists()` answers for any widget at any moment. |

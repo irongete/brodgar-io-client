@@ -408,6 +408,55 @@ public final class AddonWidgets {
     }
 
     /**
+     * <b>Every row a client list holds</b> (spec {@code 164-list-rows}) — what {@code widget:rows()} reads on one
+     * of the client's own lists. A search list answers {@code allitems()}, so the rows a search left out are
+     * there too; every other list answers {@code items()}, which is the whole of it. Both are
+     * {@code protected}, which is why this lives here. A copy, which the caller takes under the tree's monitor:
+     * {@code Polity.MemberList.tick} refills its list in place. {@code null} when the model cannot answer yet.
+     */
+    public static List<Object> listRows(SListWidget<?, ?> list) {
+	try {
+	    List<?> items = (list instanceof SSearchBox) ? ((SSearchBox<?, ?>)list).allitems() : list.items();
+	    return((items == null) ? new ArrayList<Object>() : new ArrayList<Object>(items));
+	} catch(RuntimeException e) {
+	    return(null);   // a model still Loading: a read answers nil rather than half a list
+	}
+    }
+
+    /**
+     * <b>The search seam</b> (spec {@code 164-list-rows}) — the one {@code // addon:} line in
+     * {@link SSearchBox#search}, asked once per row where the client asked {@code searchmatch}: the client's own
+     * test first, then every addon holding {@code "Search"} on this list, which may keep or drop the row. With
+     * nobody holding it the answer is the client's, after one lookup per addon.
+     */
+    public static <I> boolean searchmatch(SSearchBox<I, ?> list, I item, String text) {
+	boolean own = list.searchmatch(item, text);
+	return(io.brodgar.addon.AddonManager.searchmatch(list, item, text, own));
+    }
+
+    /**
+     * <b>An addon's search</b> (spec {@code 164-list-rows}) — {@code widget:search(text)}. The list filters exactly
+     * as a keystroke makes it filter, every addon's {@code "Search"} included, and shows its counter, but picks no
+     * row: a keystroke's search picks the first match when the picked row is out, and on the kin and member lists
+     * that pick is a {@code wdgmsg}. So nothing reaches the server. The empty text ends the search, as
+     * backspacing the last letter does. The flag is restored rather than cleared, for a search a handler starts
+     * inside another.
+     */
+    public static void search(SSearchBox<?, ?> list, String text) {
+	if(text.isEmpty()) {
+	    list.stopsearch();
+	    return;
+	}
+	boolean was = list.quiet;
+	list.quiet = true;
+	try {
+	    list.search(text);
+	} finally {
+	    list.quiet = was;
+	}
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
      * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
      * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's

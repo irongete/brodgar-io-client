@@ -31,8 +31,9 @@ inventory:enabled(false)            -- raises: its state is the client's
 | `:tooltip(s)` | Writes the line shown when the pointer rests on it. | Raises: the client's words about its own button. |
 | `:image(up, down [, hover])` | Gives a [control](controls/interactive.md#a-caption-or-a-picture) being built its pictures. | Raises. |
 | `:value(v)` | Writes what a [control](controls/README.md#setters) holds. A key button refuses: its key is its binding's. | Works, **protected** (`widget.value`): [drives the client's control as the user would](edit.md#driving-one-protected). The server sees it. A client key button refuses, before the permission is asked: its key is its binding's, written with `binding:key(key)`. |
+| `:search(text)` | Raises: a list you build has no search. | Works: [filters one of the client's search lists](lists.md#searching-one), picking no row. |
 | `:source(h)` | Gives a [picture control](controls/display.md#picture) its content. | Raises. |
-| `:rows(t)` | Gives a [radio](controls/interactive.md#radio) or a [row-source control](lists.md#rows-listbox-dropdown-menu) its rows. | Raises. |
+| `:rows(t)` | Gives a [radio](controls/interactive.md#radio) or a [row-source control](lists.md#rows-listbox-dropdown-menu) its rows. | Raises. A client list fills itself: `:rows()` [reads every row it holds](lists.md#reading-one). |
 | `:range(min, max)` | Sets a [slider's or scrollbar's](controls/interactive.md#slider) bounds. | Raises. |
 | `:bind(opt)`, `:bind(binding)` | Joins a control to [an option your addon declared](../client/addon.md#binding-a-control-shows-the-option), or a [key button](controls/interactive.md#key-button) to a hotkey of yours. The control takes the option's value, or shows the hotkey's key. The user moving it writes the option, and the user's press on a key button assigns the key. A write to the option moves it. `:bind(nil)` unbinds. | Raises. `:bind()` reads `nil`. Driving a client control is `:value(v)`. |
 | `:rowHeight(n)` | Sets a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built. | Raises. |

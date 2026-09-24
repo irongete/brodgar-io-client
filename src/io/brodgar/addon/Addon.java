@@ -744,6 +744,15 @@ public final class Addon {
     LuaValue petalMeta;
 
     /**
+     * 164.1: a client list's Row and a search list's {@code Search} event. A Row is the list's own row object
+     * under {@code rowMeta}, and two userdata compare {@code ==} only under the same metatable. The event's is
+     * built while the seam hands an event out, before this addon's Lua is entered, so {@link #luaLock} does
+     * not cover it: both are built under {@link LuaRow#META_LOCK}.
+     */
+    LuaValue rowMeta;
+    LuaValue searchEventMeta;
+
+    /**
      * The four caches those metatables belong to (audit2 B10) — the objects 091 added minted a fresh
      * userdata per call, against the grammar's own rule that a read hands back the same object every time.
      *

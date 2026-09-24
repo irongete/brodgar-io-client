@@ -1392,15 +1392,54 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "group"));
                 if(!(w instanceof haven.SListWidget.ItemWidget))
                     return LuaValue.NIL;
-                Object row = ((haven.SListWidget.ItemWidget<?>)w).item;
-                int g;
-                if(row instanceof haven.BuddyWnd.Buddy)
-                    g = ((haven.BuddyWnd.Buddy)row).group;
-                else if(row instanceof haven.Polity.Member)
-                    g = ((haven.Polity.Member)row).group;
-                else
+                return LuaRow.group(((haven.SListWidget.ItemWidget<?>)w).item);   // 164.1: row:group()'s own arm
+            }
+        });
+        // row() — 164.1: THE ROW A LIST'S ROW WIDGET DRAWS, the same Row widget:rows() hands out, and nil on every
+        // other widget. The crossing from a drawn row to the list's own object; widget:rows() is the other door,
+        // and the one that reaches the rows no widget draws.
+        m.set("row", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 0, "widget:row");
+                Widget w = live(handle(self, "row"));
+                if(!(w instanceof haven.SListWidget.ItemWidget))
                     return LuaValue.NIL;
-                return (g < 0) ? LuaValue.NIL : LuaValue.valueOf(g);
+                return LuaRow.of(owner, ((haven.SListWidget.ItemWidget<?>)w).item);
+            }
+        });
+        // search() / search(text) — 164.1: WHAT A CLIENT SEARCH LIST IS FILTERED BY, and filtering it. The read
+        // answers on every widget: the text a search list is filtering by, nil while none runs and on anything
+        // that does not search. The write filters the list as a keystroke does, every addon's "Search" included,
+        // but picks no row (AddonWidgets.search): a keystroke's pick is a wdgmsg on the kin and member lists, and
+        // this one sends nothing — a client-local write like :visible(b), so unprotected. "" ends the search, as
+        // backspacing the last letter does; nil is refused, since it has no meaning of its own here.
+        m.set("search", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 1, "widget:search");
+                LuaWidget h = handle(self, "search");
+                if(!Args.passed(a, 2)) {
+                    Widget rw = live(h);
+                    if(!(rw instanceof haven.SSearchBox))
+                        return LuaValue.NIL;
+                    String typed = ((haven.SSearchBox<?, ?>)rw).searching;
+                    return (typed == null) ? LuaValue.NIL : LuaValue.valueOf(typed);
+                }
+                if(a.arg(2).isnil())
+                    throw new LuaError("widget:search(text): text must not be nil — \"\" ends the search, and"
+                        + " widget:search() with no argument reads what is typed");
+                String text = Args.str(a.arg(2), "widget:search", "text", "\"\" ends the search").tojstring();
+                Widget w = live(h);
+                if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                if(!(w instanceof haven.SSearchBox))
+                    throw new LuaError("widget:search(text) filters one of the client's search lists — a list whose"
+                        + " widget:events() carries Search — and " + typeName(w) + " does not search. A list you"
+                        + " build shows the table you give widget:rows(t): filter the table.");
+                synchronized(monitor(w)) {
+                    haven.AddonWidgets.search((haven.SSearchBox<?, ?>)w, text);
+                }
+                WidgetSurface.touch(w);                   // standing in the world? its picture moved
+                return self;
             }
         });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The
@@ -1570,7 +1609,7 @@ public final class LuaWidget {
                     if(rw == null)
                         return LuaValue.NIL;
                     Owned rc = ownedContent(owner, rw);
-                    return (rc == null) ? value(rw) : Controls.value(rc);
+                    return (rc == null) ? value(owner, rw) : Controls.value(rc);
                 }
                 // audit2 B08 (uw-12): THE GATE BEFORE THE STALE NO-OP (D-213). The write used to answer the
                 // 029.2 chaining no-op on a stale receiver BEFORE it looked at the manifest, so an addon that
@@ -1618,15 +1657,25 @@ public final class LuaWidget {
         // back exactly the table last given. hafen.ui():radio() is the first builder that answers it: three
         // labels become three RadioButtons stacked under it. A control with no row source reads nil and a
         // write there throws naming what does, exactly like :value()/"Changed".
+        //   164.1: AND ONE OF THE CLIENT'S LISTS READS EVERY ROW IT HOLDS, as Rows — the rows off screen and the
+        // ones a search left out included, which no row widget reaches. The client fills that list itself, so the
+        // write there is refused naming the read.
         m.set("rows", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:rows() → narg 1 · w:rows(t) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "rows"));
                 LuaValue v = Args.written(a, 2, "widget:rows", "t");
-                if(v == null)
-                    return Controls.rows((w == null) ? null : ownedContent(owner, w));
+                if(v == null) {
+                    Owned c = (w == null) ? null : ownedContent(owner, w);
+                    if((c == null) && (w instanceof SListWidget))
+                        return LuaRow.all(owner, (SListWidget<?, ?>)w);
+                    return Controls.rows(c);
+                }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
+                if((ownedContent(owner, w) == null) && (w instanceof SListWidget))
+                    throw new LuaError("widget:rows(t) gives a list you built its rows; " + typeName(w) + " is one"
+                        + " of the client's lists, which fills itself — widget:rows() reads every row it holds");
                 Controls.rows(owned(owner, w, "rows(t)"), w, v);
                 return self;
             }
@@ -3727,11 +3776,11 @@ public final class LuaWidget {
      * is checked</i>, and the group that holds it is not a widget to point at — so the button is the address
      * and the row is the answer, which is also what its {@code "Changed"} says it is about to become.
      *
-     * <p>A native list's row is an arbitrary Java object, so it goes through the one canonical marshal
-     * ({@link LuaMarshal#toLua}): a plain value crosses as itself, anything else as an opaque handle that
-     * still compares {@code ==} and can be handed straight back.
+     * <p>A native list's row is the list's own Java object, so it crosses as a {@link LuaRow} (164.1): a plain
+     * value as itself, anything else as a Row that compares {@code ==}, reads its text and group, and can be
+     * handed straight back.
      */
-    static LuaValue value(Widget w) {
+    static LuaValue value(Addon owner, Widget w) {
         if(secret(w))
             return LuaValue.NIL;                   // audit2 B08 (pk-02): a credential is not a value either
         try {
@@ -3750,7 +3799,7 @@ public final class LuaWidget {
             if(w instanceof TextEntry)
                 return LuaValue.valueOf(((TextEntry)w).text());
             if(w instanceof SListWidget)           // a list, a dropbox and a menu's inner list: the picked row
-                return LuaMarshal.toLua(((SListWidget<?, ?>)w).sel);
+                return LuaRow.of(owner, ((SListWidget<?, ?>)w).sel);
             if(w instanceof Progress)
                 return LuaValue.valueOf(((Progress)w).fraction());
             // A kin/village colour row (BuddyWnd.GroupSelector) holds the GROUP it is showing, which is what

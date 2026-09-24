@@ -524,6 +524,8 @@ final class Controls {
             // there. See keyElsewhere, which is where the author of that mistake is told where the key went.
             if(((haven.SListWidget<?, ?>)w).slistowner() != w)
                 return Collections.<String>emptyList();
+            if(w instanceof haven.SSearchBox)   // 164.1: a search list also asks every addon about each row
+                return java.util.Arrays.asList("Changed", "Search");
             return Collections.singletonList("Changed");
         }
         if(w instanceof haven.GridList)    // 061.3: a grid paints its cells, and a pick is one of them
@@ -622,6 +624,66 @@ final class Controls {
             c = new Subs.Cancel();
         s.fireBorrowed(key, actor, value, c, moved);
         return c;
+    }
+
+    // ------------------------------------------------------------------ the search seam (164.1)
+
+    /**
+     * <b>One row's verdict in a client search</b> (164.1), shared by every handler of every addon asked about
+     * that row. It starts at the client's own test. The row is kept when any handler said {@code true};
+     * otherwise dropped when any said {@code false}; otherwise the client's test stands — so what a handler
+     * says never depends on the order the addons happen to be loaded in. {@link #current} is the verdict as it
+     * stands, which is what {@code event:match()} reads.
+     */
+    static final class Verdict {
+        private final boolean own;
+        private boolean kept, dropped;
+
+        Verdict(boolean own) {
+            this.own = own;
+        }
+
+        void say(boolean keep) {
+            if(keep)
+                kept = true;
+            else
+                dropped = true;
+        }
+
+        boolean current() {
+            return kept || (!dropped && own);
+        }
+    }
+
+    /**
+     * <b>The search seam</b> (164.1) — asked by {@code haven.SSearchBox.search} through
+     * {@code AddonWidgets.searchmatch}, once per row, with the client's own verdict: does any addon keep or drop
+     * this row? {@link #dispatch}'s walk: an addon with no live {@code Search} on the list costs one lookup, and
+     * the verdict is minted by the first that holds one.
+     *
+     * <p><b>Threading.</b> Inside the tree's monitor — a keystroke's own, or the one {@code widget:search(text)}
+     * takes — so each addon's Lua is only tried ({@link AddonManager#enterLua}): one busy on another thread at
+     * that instant is skipped for this row, and the verdict stands.
+     */
+    static boolean search(Widget list, Object row, String text, boolean own) {
+        Verdict v = null;
+        for(Addon a : AddonManager.addons)   // a snapshot walk, as dispatch's
+            v = offerSearch(a, list, row, text, own, v);
+        v = offerSearch(AddonManager.consoleOwner, list, row, text, own, v);
+        return (v == null) ? own : v.current();
+    }
+
+    /** One owner's part of {@link #search}: its handlers, one event between them, the shared verdict minted lazily. */
+    private static Verdict offerSearch(Addon a, Widget list, Object row, String text, boolean own, Verdict v) {
+        if(a == null)
+            return v;
+        WidgetSubs s = a.widgetSubsOrNull(list);
+        if((s == null) || !s.subs.has("Search"))
+            return v;
+        if(v == null)
+            v = new Verdict(own);
+        s.subs.fire("Search", LuaSearchEvent.of(a, row, text, v));
+        return v;
     }
 
     /**

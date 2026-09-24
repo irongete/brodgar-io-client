@@ -2278,6 +2278,17 @@ public final class AddonManager {
     }
 
     /**
+     * The <b>search seam</b> (164.1) — called from {@code haven.AddonWidgets.searchmatch}, the one
+     * {@code // addon:} line in {@code SSearchBox.search}, once per row with the client's own verdict
+     * ({@code own}): fire {@code Search} for every addon that holds it on {@code list} and answer whether the row
+     * stays ({@link Controls#search}). With nobody listening it is one map lookup per loaded addon and answers
+     * {@code own}.
+     */
+    public static boolean searchmatch(Widget list, Object row, String text, boolean own) {
+        return Controls.search(list, row, text, own);
+    }
+
+    /**
      * The <b>reporting</b> half of the same seam (061.4) — called where the client has ALREADY written the
      * value it is announcing (a slider's drag, a scrollbar's drag, wheel and step), so there is nothing to
      * answer and the {@code ev} refuses both verbs that would pretend otherwise ({@link Controls#report}).

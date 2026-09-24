@@ -1,0 +1,9 @@
+{
+  "name": "164.1 — the rows of the client's lists, and its search lists",
+  "id": "164-list-rows.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 164.1: a client list's rows are Rows that read their text and group, widget:rows() reads a list whole, widget:search() filters a search list without picking a row, and every addon's Search handler has a say on each row.",
+  "api_version": "1.1",
+  "files": ["main.lua"]
+}

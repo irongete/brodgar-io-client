@@ -33,6 +33,7 @@ public abstract class SSearchBox<I, W extends Widget> extends SListBox<I, W> {
     public String searching = null;
     private List<I> filtered = null;
     private Text info;
+    boolean quiet = false;   // addon: 164 -- set by AddonWidgets.search: an addon's search filters and picks no row
 
     protected abstract List<? extends I> allitems();
     protected abstract boolean searchmatch(I item, String text);
@@ -113,7 +114,7 @@ public abstract class SSearchBox<I, W extends Widget> extends SListBox<I, W> {
 	for(I item : items) {
 	    if(item == sel)
 		bs = false;
-	    if(searchmatch(item, text)) {
+	    if(AddonWidgets.searchmatch(this, item, text)) {   // addon: 164 -- the client's test, then every addon's "Search"
 		if(item == sel)
 		    sf = true;
 		if(bs || (ncc < 0))
@@ -123,7 +124,7 @@ public abstract class SSearchBox<I, W extends Widget> extends SListBox<I, W> {
 	}
 	filtered = found;
 	searching = text;
-	if(!sf) {
+	if(!sf && !quiet) {   // addon: 164 -- the pick is a wdgmsg on the kin and member lists; an addon's search sends none
 	    if(ncc >= 0)
 		change(found.get(ncc));
 	    else

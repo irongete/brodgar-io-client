@@ -226,7 +226,9 @@ PER_FILE = {
     "guides/saved-data.md": {"nodes": "table", "chat": "widget"},
     "edit.md": {"volume": "widget"},
     "interactive.md": {"sp": None, "p": None, "volume": "widget", "search_entry": "widget"},
-    "lists.md": {"grid": None, "kind_filter": "widget", "actions": "widget", "icon_grid": "widget"},
+    # `row:` on lists.md is a client list's Row (164.1), not the row surface it names everywhere else
+    "lists.md": {"grid": None, "kind_filter": "widget", "actions": "widget", "icon_grid": "widget",
+                 "row": "row", "kin_list": "widget"},
     "overlays.md": {"claim": "mask", "claims": "toggle"},
     "position.md": {"home": "position"},
     "grids.md": {"current_grid": "grid"},
@@ -536,6 +538,7 @@ def event_keys():
             | arr(vo, "KEYS") | arr(pg, "KEYS") | arr(hr, "KEYS"))
     # widgetKeys() adds these by interface rather than from an array, so they are named here.
     live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
+    live |= {"Search"}               # Controls.borrowedKeys: a client search list, once per row (164.1)
     live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)
     live |= {"Move", "Up"}           # the pointer grab, closed to exactly these two
     live |= {"PickChanged"}          # the pointer's pick pass, m:on(key, fn), closed to exactly this one
