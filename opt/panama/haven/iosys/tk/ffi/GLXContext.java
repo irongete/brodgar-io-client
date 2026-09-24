@@ -1361,7 +1361,7 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 			break;
 		    }
 		    default:
-			Warning.warn(String.format("unexpected XInput event received for window %s: %d",  ev.evtype()));
+			Warning.warn(String.format("unexpected XInput event received for window %s: %d", id, ev.evtype())); // addon: a throw here ends the X11 dispatch thread
 			break;
 		    }
 		}
@@ -1381,7 +1381,7 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 		    });
 		    break;
 		default:
-		    Warning.warn(String.format("unexpected XInput event received for window %s: %d",  ev.evtype()));
+		    Warning.warn(String.format("unexpected XInput event received for window %s: %d", id, ev.evtype())); // addon: a throw here ends the X11 dispatch thread
 		    break;
 		}
 	    }
