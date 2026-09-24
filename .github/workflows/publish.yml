@@ -30,11 +30,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      # a commit that carries a tag was published by hand
+      # a push skips a commit that carries a tag, published by hand; the button skips only a release's tag,
+      # since HEAD is always the beta its own push published, and a release makes that beta's code official
       - name: Skip a commit published by hand
         id: tagged
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           tags="$(git tag --points-at HEAD 'v*')"
+          if [ "$EVENT" != 'push' ]; then tags="$(printf '%s\n' "$tags" | grep -v -- '-beta$' || true)"; fi
           if [ -n "$tags" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "HEAD is already $tags: published by hand, nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"

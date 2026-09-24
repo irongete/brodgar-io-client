@@ -15,8 +15,8 @@
   Refuses a dirty tree, a branch other than master (-Branch), a version not above GitHub's newest and a tag
   that exists anywhere. Runs `ant -Dversion=<v> release`, tags v<v>, pushes the tag, creates the release
   with the zip, and pushes the branch when origin lacks the commit. CI (.github/workflows/publish.yml) runs
-  this same script on every push to master (-Beta) and from the Run workflow button (-Release), and skips a
-  commit that carries a tag already. Needs git, ant and gh (`gh auth login`).
+  this same script on every push to master (-Beta) and from the Run workflow button (-Release); a push skips a
+  commit that carries a tag already, the button only one that carries a release's. Needs git, ant and gh (`gh auth login`).
 
 .PARAMETER Beta
   The next beta, vN.X-beta.
