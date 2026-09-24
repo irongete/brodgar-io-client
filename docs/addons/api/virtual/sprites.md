@@ -50,7 +50,7 @@ local marker = hafen.virtual():sprite():add(icon, prey):facing("camera"):offset(
 |---|---|
 | World geometry | `"fixed"` and `"camera"` are true geometry: world-scale applies, and each occludes and is occluded like anything in the scene. Any other mode raises naming the three. |
 | A camera-facing quad rises along the camera's up axis | Tilted to a top-down view that axis is horizontal. The picture lies in the plane through its anchor, which at ground level the terrain swallows. Anchor it to a game object and lift it with `:offset(0, 0, z)`. One at a point has no lift, so give it a gob anchor or keep the camera tilted. |
-| `"screen"` | The world-anchored version of drawing an image at [`session:world():worldToScreen`](../world.md#the-screen-and-the-world) in a [HUD overlay](../ui/overlay.md). The image is its own size in [design pixels](../ui/pixels.md) times the scale, bottom-centred on its world point. It is drawn on top of the scene with no depth occlusion. `:rotate` has no visible effect. `:alpha` and `:tint` work as on `"fixed"`. |
+| `"screen"` | The world-anchored version of drawing an image at [`session:world():worldToScreen`](../world.md#the-screen-and-the-world) in a [HUD overlay](../ui/overlay.md). The image is its own size in [design pixels](../ui/pixels.md) times the scale, bottom-centred on its world point. It is drawn on top of the scene with no depth occlusion. `:rotate` has no visible effect. `:alpha` and `:tint` work as on `"fixed"`. No [`:outline`](README.md#one-vocabulary-every-kind) ring is drawn. |
 | `:facing` rebuilds the visual | The one property that decides which thing is drawn: writing it re-mills the sprite in place, same position and look. Everything else applies live. |
 
 ## Clickability

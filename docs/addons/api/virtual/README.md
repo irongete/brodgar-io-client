@@ -87,6 +87,7 @@ Every entity answers the same read/write pairs: bare reads, with a value writes 
 | `entity:scale()` / `entity:scale(k)` | the entity | Unprotected | Uniform scale, `1` original. Held to `0.01..100`, so `:scale(0)` gives the smallest size (where [`gob:scale(k)`](../look.md#size-unprotected) refuses a `0`). |
 | `entity:alpha()` / `entity:alpha(value)` | the entity | Unprotected | Opacity `0..1`, `1` opaque. Clamped. |
 | `entity:tint()` / `entity:tint(color)` | the entity | Unprotected | A [colour](../shapes.md#colours) laid over it, its `a` the blend strength. A [patch](patches.md#the-patch)'s own fill opacity. `nil` clears it and is legal. |
+| `entity:outline()` / `entity:outline(color, width)` | the entity | Unprotected | A ring round what is drawn of it, by [`gob:outline`](../look.md#outline-unprotected)'s rules: a [colour](../shapes.md#colours) and a width of `1` to `8` design pixels, default `2`. The read answers both. `nil` takes it off. A [patch](patches.md#the-patch) raises naming `patch:border`. |
 | `entity:visible()` / `entity:visible(flag)` | the entity | Unprotected | Whether you have it showing. `false` takes it out and keeps the entity. |
 | `entity:drawn()` | `boolean` | Unprotected | Whether it is in the 3D scene right now ([below](#the-ground-under-one-that-stands-still)). |
 | `entity:clickable()` / `entity:clickable(flag)` | the entity | Unprotected | The pick surface: opt-in, client-side only. |
@@ -97,6 +98,7 @@ Every entity answers the same read/write pairs: bare reads, with a value writes 
 | Rule | Detail |
 |---|---|
 | A standing widget is not a picture | The picture kinds have `:onClick(fn)`. A panel fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that subscription. `:clickable(flag)` there means whether the panel takes the pointer at all. |
+| The ring is round solid geometry | It follows the picture, not the quad: a [sprite](sprites.md)'s ring runs round its opaque pixels. An entity at `:alpha` below `1` or facing `"screen"` draws none, and keeps the ring for when it is solid in the world again. What stands in front cuts it, as it cuts [a gob's](../look.md#outline-unprotected). |
 | A refusal names the kind | A verb none has answers `ghost`, `sprite`, `object`, `panel` or `patch` and lists what that kind answers. `tostring(entity)` is the kind and what it draws (`Ghost(gfx/terobjs/arch/logcabin)`, the bare `Patch`). A standing widget is `panel`. The [widget](../ui/widget.md) inside it answers to `widget` with a different sentence: a Position out here, pixels within a parent in there. |
 
 ### The snapshot
@@ -117,6 +119,7 @@ end
 | `kind`, `rotate`, `scale`, `alpha`, `visible`, `clickable`, `exists`, `drawn`, `failed` | Always. |
 | `position` | Always: the `{gridId, x, y}` table [`position:info()`](../position.md) answers. |
 | `tint` | When one is laid over it, as a [colour](../shapes.md#colours). |
+| `outline` | When a ring is drawn round it: `{color = …, width = …}`, the pair `entity:outline()` reads. |
 | `anchor`, `offset` | For one that follows a gob. Absent for one that stands still. |
 | `res` / `mesh` / `image`, `facing` / `facing` / `pieces` | A ghost's / an object's / a sprite's / a panel's / a patch's own. |
 

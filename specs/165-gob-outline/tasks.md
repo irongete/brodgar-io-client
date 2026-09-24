@@ -59,7 +59,7 @@ bin`; `tools/docverbs.py` and `tools/refusalverbs.py`, each bare, exit `0`; `lua
         (6).
       - `:reload`: the green ring is gone (8).
 
-- [ ] **165.2 — entity:outline(color [, width]) on a ghost, a sprite, an object and a panel; a patch refuses it.**
+- [x] **165.2 — entity:outline(color [, width]) on a ghost, a sprite, an object and a panel; a patch refuses it.**
       Code: `LuaWorldEntity.outline`/`outlineWidth`; `entityHandle`'s `outline` and `setEntityOutline`;
       `GobOutline.apply` at the five look-copy sites; `:info()`'s `outline`; `patchHandle`'s refusal.
 

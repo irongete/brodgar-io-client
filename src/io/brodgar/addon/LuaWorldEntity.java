@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  *   <li>{@link LuaWidgetEntity} — a widget standing in the world, {@code hafen.virtual():widget()};</li>
  *   <li>{@link LuaPatch} — a shape lying on the terrain, {@code hafen.virtual():patch()}.</li>
  * </ul>
- * Everything else — the transform ({@link #rc}/{@link #a}), the look ({@link #alpha}/{@link #tint}/{@link #scale}),
+ * Everything else — the transform ({@link #rc}/{@link #a}), the look ({@link #alpha}/{@link #tint}/{@link #scale}/{@link #outline}),
  * pick-selectability ({@link #clickable}/{@link #onClick}), scene add/hide/show/destroy, the deferred-vs-immediate
  * publish, teardown, and the gizmo — is identical and lives here + in {@link VirtualApi}. Because every entity is a
  * {@link GhostGob} (whose {@code obstate} preps the click surface + look states), a new visual only has to build a
@@ -32,14 +32,14 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Handle, not a ref.</b> A world entity has no server identity, so re-resolution is meaningless; it is
  * addressed by a bridge-owned <b>handle</b> (D-030), like a {@code hafen.ui():window()}. The shared handle verbs
- * ({@code :position}/{@code :offset}/{@code :rotate}/{@code :scale}/{@code :alpha}/{@code :tint}/{@code :visible}/
+ * ({@code :position}/{@code :offset}/{@code :rotate}/{@code :scale}/{@code :alpha}/{@code :tint}/{@code :outline}/{@code :visible}/
  * {@code :clickable}/{@code :onClick}/{@code :exists}/{@code :drawn}/{@code :info}) are built by
  * {@link VirtualApi}'s {@code entityHandle}, and the ending is the collection's — {@code hafen.virtual():<kind>():remove(x)},
  * never a verb on the member; each kind adds its own verbs there ({@code :res()} for a ghost, {@code :image()} and
  * {@code :facing()} for a sprite, {@code :mesh()} for an object, {@code :facing()} and {@code :screen()} for a
  * standing widget, {@code :border()}, {@code :occluded()} and {@code :piece()} for a patch).
  *
- * <p><b>Desired-state fields.</b> {@link #alpha}, {@link #tint}, {@link #scale}, {@link #clickable}, and
+ * <p><b>Desired-state fields.</b> {@link #alpha}, {@link #tint}, {@link #scale}, {@link #outline}, {@link #clickable}, and
  * {@link #hidden} are the entity's <i>desired</i> state, guarded by {@code this}. They are mirrored onto the
  * {@link #gob}'s {@link GhostGob} fields when it exists and are read by the (possibly deferred) create at publish
  * time — so a verb that lands <i>before</i> the visual streams in still takes effect.
@@ -100,6 +100,8 @@ public abstract class LuaWorldEntity {
     float   alpha = 1f;            // V3: desired opacity 0..1 (1 = opaque); mirrored onto the GhostGob; guarded by this
     Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
     float   scale = 1f;            // V6: desired uniform scale (1 = original size); mirrored onto the GhostGob; guarded by this
+    Color   outline;               // 165.2: the ring round what is drawn of it, or null; a GobOutline on the gob; guarded by this
+    int     outlineWidth = GobOutline.DEFAULT_WIDTH;   // 165.2: the ring's width in design pixels; guarded by this
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
     boolean grounded = true;       // 044.9/075.3: can the DRAWN character see where it stands? the ground under a free
                                    //   one (false whenever rc == null, 045.1), the object under an anchored one; guarded by this

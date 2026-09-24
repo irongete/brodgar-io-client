@@ -26,7 +26,7 @@ The event-driven shape: [`session:ui():on(selector, "Added", …)`](../ui/replac
 
 ## The standing widget
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind) (`:position`, `:offset`, `:rotate`, `:scale`, `:alpha`, `:tint`, `:visible`, `:clickable`, `:exists`) plus its own.
+The [shared vocabulary](README.md#one-vocabulary-every-kind) (`:position`, `:offset`, `:rotate`, `:scale`, `:alpha`, `:tint`, `:outline`, `:visible`, `:clickable`, `:exists`) plus its own.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
@@ -49,7 +49,7 @@ The same modes a [sprite](sprites.md#facing) has.
 |---|---|
 | `"fixed"` | A world quad upright at the entity's `:rotate` angle, double-sided. Foreshortened under this client's angled camera. |
 | `"camera"` | A world quad turned to the viewer in yaw and pitch, keeping world size, perspective and occlusion: the mode spatial framing asks for. `:rotate` stored but unused. |
-| `"screen"` | A constant-size blit at the anchor's projected point, over the scene. `:rotate` stored but unused. |
+| `"screen"` | A constant-size blit at the anchor's projected point, over the scene. `:rotate` stored but unused. No [`:outline`](README.md#one-vocabulary-every-kind) ring is drawn. |
 
 | Rule | Detail |
 |---|---|

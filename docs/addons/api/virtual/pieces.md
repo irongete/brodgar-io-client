@@ -11,7 +11,7 @@ local down   = { here:offset(3, -3),  here:offset(9, -3),      -- the upright, o
                  here:offset(9, 15),  here:offset(3, 15) }
 local patch = hafen.virtual():patch():add(across, here):tint{40, 200, 120}
 patch:piece():add(down)                            -- one shape now, drawn as the two together
-patch:border({255, 255, 255}, 0)                   -- ...and outlined round the L, not round each quad
+patch:border({255, 255, 255}, 0)                   -- ...and edged round the L, not round each quad
 ```
 
 ---

@@ -49,7 +49,7 @@ import static io.brodgar.addon.AddonManager.*;
  * :add(what, p)} places one and hands back its handle, {@code :list(filter)} reads them, and {@code :remove(x)}
  * ends one (R7: the collection placed it, so the collection ends it). Every handle then speaks the same verbs,
  * each a read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code :scale},
- * {@code :alpha}, {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two
+ * {@code :alpha}, {@code :tint}, {@code :outline}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two
  * its own kind adds.
  *
  * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVirtual} registers each kind by
@@ -1000,6 +1000,7 @@ final class VirtualApi {
                     gob.alpha = gh.alpha;                    // V3: reflect the desired look before the first scene add
                     gob.tint = gh.tint;
                     gob.scale = gh.scale;                    // V6: reflect the desired scale before the first scene add
+                    GobOutline.apply(gob, gh.owner, gh.outline, gh.outlineWidth);   // 165.2: and the ring
                     if(gh.rc != null)
                         gob.move(gh.rc, gh.a);               // apply any :move that landed while we were building
                     gh.gob = gob;
@@ -1169,6 +1170,33 @@ final class VirtualApi {
                 return self;
             }
         });
+        // outline() -> colour, width | outline(c [, w]) rings what is drawn of it | outline(nil) takes it off
+        // (165.2). gob:outline's shape, parsed by the same helpers so the two doors refuse in one voice. A
+        // patch overrides it with its refusal: its line is patch:border, a band in world units.
+        m.set("outline", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = recv(a, e, kind + ":outline()");
+                Args.only(a, 2, kind + ":outline");
+                if(!Args.passed(a, 2)) {
+                    synchronized(e) {
+                        if(e.outline == null)
+                            return LuaValue.NIL;
+                        return LuaValue.varargsOf(AddonManager.color(e.outline), LuaValue.valueOf(e.outlineWidth));
+                    }
+                }
+                java.awt.Color c = null;
+                int w = GobOutline.DEFAULT_WIDTH;
+                if(a.arg(2).isnil()) {
+                    if(Args.passed(a, 3))
+                        throw GobOutline.nilWithWidth(kind + ":outline");
+                } else {
+                    c = colorArg(a, 2, kind + ":outline");
+                    w = GobOutline.widthArg(a, 3, kind + ":outline");
+                }
+                setEntityOutline(e, c, w);
+                return self;
+            }
+        });
         // visible() / visible(b) -- a boolean property is a property, so one name carries both directions.
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -1280,6 +1308,12 @@ final class VirtualApi {
                         LuaValue tint = AddonManager.color(e.tint);
                         if(!tint.isnil())
                             t.set("tint", tint);
+                    }
+                    if(e.outline != null) {
+                        LuaTable ring = new LuaTable();
+                        ring.set("color", AddonManager.color(e.outline));
+                        ring.set("width", LuaValue.valueOf(e.outlineWidth));
+                        t.set("outline", ring);
                     }
                     // The anchor and its offset travel together: :offset() is refused on a free entity, so
                     // the key it reads is absent for one exactly as the verb is.
@@ -1627,6 +1661,7 @@ final class VirtualApi {
         GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.a = a;
         gob.alpha = ob.alpha; gob.tint = ob.tint; gob.scale = ob.scale;   // reflect the look before the first scene add
+        GobOutline.apply(gob, ob.owner, ob.outline, ob.outlineWidth);
         gob.clickable = ob.clickable;                  // a clickable object's mesh renders into the clickmap → V2-pickable
         gob.setattr(new SprDrawable(gob, MeshSprite.mill(mesh)));    // resource-free glTF-model visual (R3b: shared textures + per-material states)
         if(rc != null)
@@ -1726,6 +1761,7 @@ final class VirtualApi {
         GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.a = a;
         gob.alpha = sp.alpha; gob.tint = sp.tint; gob.scale = sp.scale;   // reflect the look before the first scene add
+        GobOutline.apply(gob, sp.owner, sp.outline, sp.outlineWidth);
         gob.clickable = sp.clickable;                  // R2b: a world-quad sprite renders into the clickmap → V2-pickable (see onGhostClick)
         gob.setattr(sp.visual(gob, sp.facing));        // the kind's one miller, shared with :facing(mode)
         if(rc != null)
@@ -1918,6 +1954,7 @@ final class VirtualApi {
         }
         GhostGob gob = new GhostGob(g, birthPoint(rc));
         gob.alpha = we.alpha; gob.tint = we.tint; gob.scale = we.scale;   // the look, before the first scene add
+        GobOutline.apply(gob, we.owner, we.outline, we.outlineWidth);
         // NO GobClick (044.4): a standing widget is not in the world pick at all. Its clicks are resolved
         // before the pick pass is ever started, off the quad's projected corners, and a pointer that MISSES
         // the panel must reach the world beneath it — which it does because the quad puts nothing in the
@@ -2407,6 +2444,15 @@ final class VirtualApi {
                 return pieceCollection(p);
             }
         });
+        // outline is refused HERE and nowhere else (165.2). The four kinds standing up are drawn, so a ring round
+        // what is drawn of them is one more look; a patch's line is already a verb of its own, a band round the
+        // shape in world units, and a second word for it would be exactly the dual API this area refuses.
+        x.set("outline", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                throw new LuaError("patch:outline: a patch's line is patch:border(color, width), a band round the"
+                    + " shape in world units — :outline rings what is drawn of a gob or a standing entity");
+            }
+        });
         return entityHandle(p, "patch", "patch", x, ", :border(), :occluded() and :piece()");
     }
 
@@ -2756,6 +2802,27 @@ final class VirtualApi {
             if(e.gob instanceof GhostGob)
                 ((GhostGob)e.gob).tint = tint;         // read by obstate on the next scene (re)add
             refreshEntityScene(e);
+        }
+    }
+
+    /**
+     * Ring an entity ({@code e:outline(c, w)}, 165.2); {@code null} takes the ring off. Recorded on the entity for
+     * the create and {@link #rehome} to copy, and applied as a {@link GobOutline} on its gob — entity monitor, then
+     * gob, {@link #setEntityFacing}'s order. No scene re-add: the attrib is a {@code Gob.SetupMod}, taken by
+     * {@code updstate} on the gob's next {@code ctick}. Under the entity monitor.
+     */
+    private static void setEntityOutline(LuaWorldEntity e, java.awt.Color c, int w) {
+        synchronized(e) {
+            if(e.dead)
+                return;
+            e.outline = c;
+            e.outlineWidth = (c == null) ? GobOutline.DEFAULT_WIDTH : w;
+            Gob g = e.gob;
+            if(g != null) {
+                synchronized(g) {
+                    GobOutline.apply(g, e.owner, c, w);
+                }
+            }
         }
     }
 
@@ -3226,6 +3293,7 @@ final class VirtualApi {
         synchronized(e) {
             if(e.dead) { gob.dispose(); return; }
             gob.alpha = e.alpha; gob.tint = e.tint; gob.scale = e.scale;   // the look, before the first scene add
+            GobOutline.apply(gob, e.owner, e.outline, e.outlineWidth);
             gob.clickable = e.clickable;
             gob.setattr(d);
             if(e.rc != null)

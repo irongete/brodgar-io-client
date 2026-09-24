@@ -1,0 +1,9 @@
+{
+  "name": "165.2 — entity:outline, a ring round what is drawn of a standing entity",
+  "id": "165-gob-outline.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 165.2: entity:outline(color [, width]) on a ghost, a sprite, an object and a panel writes, reads, snapshots and refuses as gob:outline does; a patch refuses it naming patch:border; the ring goes while an entity is see-through or faces the screen.",
+  "api_version": "1.2",
+  "files": ["main.lua"]
+}

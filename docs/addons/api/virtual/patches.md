@@ -15,7 +15,7 @@ local patch = hafen.virtual():patch():add(ring, here):tint{40, 200, 120}
 | Rule | Detail |
 |---|---|
 | The collection | `hafen.virtual():patch()` holds the patches your addon laid: `:add(ring, anchor)`, `:list(filter)`, `:remove(patch)`, the [collection shape](README.md#the-collections-unprotected). |
-| On the ground exactly | Over a slope, a ridge or a tile boundary it follows the relief with no float, gap or shimmer. What stands on that ground occludes it, your character included, until [`:occluded(false)`](#drawing-through-the-world). Its outline is the shape's own at every zoom. |
+| On the ground exactly | Over a slope, a ridge or a tile boundary it follows the relief with no float, gap or shimmer. What stands on that ground occludes it, your character included, until [`:occluded(false)`](#drawing-through-the-world). Its edge is the shape's own at every zoom. |
 | A patch and a ring | A footprint or a field is one piece and is the ring it was laid with. Anything not convex is the same patch carrying more pieces. |
 | Client-only | No server id, never sent, grants nothing ([the section's note](README.md)). |
 
@@ -28,7 +28,7 @@ local patch = hafen.virtual():patch():add(ring, here):tint{40, 200, 120}
 
 ## The patch
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind) plus its own. Two shared verbs answer differently because a patch is on the ground.
+The [shared vocabulary](README.md#one-vocabulary-every-kind) plus its own. Two shared verbs answer differently because a patch is on the ground, and one raises.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
@@ -41,6 +41,7 @@ The [shared vocabulary](README.md#one-vocabulary-every-kind) plus its own. Two s
 | Rule | Detail |
 |---|---|
 | The shared verbs | `:scale(k)` takes the shape out from its own place. `:rotate(angle)` turns it there. `:tint(color)` and `:alpha(value)` colour it. `:visible(flag)` takes it off the ground and back. `:position(position)` moves a planted one. On one that follows it raises naming `patch:offset`. Each moves every [piece](pieces.md) together, since a piece is held as offsets from the anchor. |
+| No `:outline` | `patch:outline(…)` raises naming `patch:border(color, width)`: a patch's line is a band round the shape in world units. [`:outline`](README.md#one-vocabulary-every-kind) rings what is drawn of a kind standing up. |
 | The tint is the fill | Its fourth component is the fill's own opacity, not a blend strength. `:alpha(value)` is the whole shape's and multiplies fill and border alike, so a solid line stands round see-through ground. |
 | What costs terrain work | Turning, scaling, tinting, bordering and switching occlusion re-carve the silhouette and push colours through ground already laid. No mesh is rebuilt. Moving one off the tiles it covers re-cuts those tiles: a patch dragged across the map every frame is the one thing here not free. |
 

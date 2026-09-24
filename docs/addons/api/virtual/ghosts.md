@@ -23,7 +23,7 @@ ghost:rotate(math.pi)
 
 ## The ghost
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind) (`:position`, `:offset`, `:rotate`, `:scale`, `:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists`) plus its own.
+The [shared vocabulary](README.md#one-vocabulary-every-kind) (`:position`, `:offset`, `:rotate`, `:scale`, `:alpha`, `:tint`, `:outline`, `:visible`, `:clickable`, `:onClick`, `:exists`) plus its own.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
