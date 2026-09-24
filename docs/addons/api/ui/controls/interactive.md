@@ -166,6 +166,35 @@ end)
 | `:tooltip(s)` | Replaces the client's own tip, which names Escape, Backspace and Delete. `""` brings that tip back. |
 | Unprotected | Building, binding and pressing it. A press is the user's own edit of their key, made by hand as on the panel's row. `binding:key(key)`, the write your code makes, stays under `client.settings`. |
 
+### A press
+
+The user presses the key button and it reads `...`. The next key they press, with its modifiers, is the hotkey's key: the same persisted, exclusive edit as the panel's row, so the key is taken off whichever binding was assigned it.
+
+| Pressed after `...` | What happens |
+|---|---|
+| A key, with any modifiers | Assigned. |
+| `Escape` | Cancels. The key stays. |
+| `Backspace` | Back to the client's default, which for your hotkey is unbound. |
+| `Delete` | Unbound. |
+| A modifier alone | Nothing yet: the button waits for the key the modifier goes with. |
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `key_button:on("Changed", fn)` | `Sub` | Unprotected | `fn(key)` once per press that moves the key, after the capture has closed: the key it now shows, `nil` for unbound. |
+
+```lua
+local key_button = hafen.ui():keybinding():bind(toggle_binding)
+key_button:on("Changed", function(key) hafen.log():write("toggle: " .. tostring(key)) end)
+```
+
+| Rule | Detail |
+|---|---|
+| A press that leaves the key | `Escape`, the key it already had, or `Backspace` on a hotkey already on its default: nothing fires. |
+| A change made elsewhere | In Options ▸ Game ▸ Keybindings, on another key button, or with `binding:key(key)`: the button shows it on its next frame, and nothing fires. |
+| The same key both places | A key assigned here shows in Options ▸ Game ▸ Keybindings, and one assigned there shows here. |
+| Disabled | A disabled key button, `:enabled(false)` or inside a disabled [column](../column.md), takes no key. |
+| A capture ends by itself | While it reads `...`, disabling it, unbinding it, hiding it or ending its hotkey ends the capture: nothing is assigned and nothing fires. |
+
 ---
 
 ## See Also

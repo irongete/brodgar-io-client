@@ -236,6 +236,20 @@ public class KeyMatch {
 	    }
 	}
 
+	/* addon: (163.2) whether the key grab is open -- the caption reads "..." while it is */
+	public boolean capturing() {
+	    return(grab != null);
+	}
+
+	/* addon: (163.2) close an open key grab and show the key again: what Escape does, without a key */
+	public void cancel() {
+	    if(grab != null) {
+		grab.remove();
+		grab = null;
+		change(namefor(this.key));
+	    }
+	}
+
 	protected KeyMatch mkmatch(KeyEvent ev) {
 	    return(forevent(ev, MODS));
 	}

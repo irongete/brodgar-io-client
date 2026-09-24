@@ -13,7 +13,7 @@
       The panel's `SetButton` becomes a class anything can build; the bridge's `CKeybinding` wears it; `:bind(binding)`
       joins it to a live hotkey of the addon's and refuses everything else; the client implements API `1.1`.
       Claims criteria 1, 2, 3, 4 (the native tip; unprotected), 5 (`:value()`), 7, 10. Details: [163.1](#1631).
-- [ ] **163.2 — A press on the key button assigns the key, and `Changed` says so.**
+- [x] **163.2 — A press on the key button assigns the key, and `Changed` says so.**
       The capture is wrapped: `Changed` once per press that moves the key, after the grab closes; a capture ends by
       itself when the button is disabled, unbound, hidden or its hotkey ends. Claims criteria 2 (shown at once, with a
       real key), 4, 5, 6, 8, 11. Details: [163.2](#1632).

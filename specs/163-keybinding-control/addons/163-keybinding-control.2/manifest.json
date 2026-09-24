@@ -1,0 +1,9 @@
+{
+  "name": "163.2 — a press on the key button",
+  "id": "163-keybinding-control.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 163.2: a press on the key button assigns the key as the Keybindings panel does, fires Changed once per moving press, and a capture ends by itself when the button stops answering.",
+  "api_version": "1.1",
+  "files": ["main.lua"]
+}

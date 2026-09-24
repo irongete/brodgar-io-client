@@ -84,6 +84,7 @@ A control answers the universal [`:on(key, fn)`](../widget.md#subscribing) keys 
 |---|---|---|
 | `:button()` | `Pressed` | — |
 | `:check()`, `:radio()`, `:slider()`, `:scrollbar()`, `:scroll()`, `:listbox()`, `:dropdown()` | `Changed` | The value — [interactive](interactive.md), [lists](../lists.md). |
+| `:keybinding()` | `Changed` | The key it now shows, `nil` for unbound — [interactive](interactive.md#a-press). |
 | `:entry()` | `Changed`, `Submitted` | The text. |
 | `:menu()` | `Selected` | The picked row. |
 | `:grid()` | `Cell` | `event` — [grid](../lists.md#grid). |

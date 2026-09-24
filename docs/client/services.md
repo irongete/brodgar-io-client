@@ -110,6 +110,11 @@
   called to display a key, it makes a binding on its default an assignment. `KeyMatch.Capture.click` toggles the key
   grab — open, the caption reads `...`; a second click closes it and restores the caption — and `keydown` closes it
   only when `handle` answers `true`, which a bare modifier never does.
+  `Capture.capturing()` answers whether the grab is open, and `cancel()` closes it and restores the caption: Escape
+  without a key (fork addition). ⚠️ The fork's disabled cut runs inside a key grab's dispatch too — `UI.dispatch`
+  walks `grabs` first, but `UI.WidgetGrab.handle` is `Event.dispatch`, which is `Widget.handle`, whose first line is
+  the cut — so a capture button the cut disables lets the key pass on to the tree with its caption still `...`
+  until something calls `cancel()`.
 - **`GobIcon.Settings.settings` is SWAPPED WHOLESALE by the loader thread** (`Loader.run` builds `nset` and assigns it), minting **fresh `Setting` objects** as icon resources resolve. So a local reference to the map is a stable snapshot to iterate — but anything keyed on a `Setting`'s Java identity goes stale the first time a new icon arrives, writing to an orphan. Key on `Setting.ID.res`.
 - **`dsave()` is debounced through `Defer`** : it returns immediately and `save()` runs on another thread, coalescing a second request into `saveagain`. `save()` itself no-ops when `ResCache.global == null`, which is what makes a headless subclass-the-sink test possible.
 - **The registry is EMPTY until the HUD is up and grows as new icon types are seen** — the server pushes them via `Settings.receive`, whose two arms (one resource, or an `Object[]` of them) both build a `Setting` with `nilid`; the `sub` variants only appear from a stored config's `"sub"` list.

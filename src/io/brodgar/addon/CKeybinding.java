@@ -6,6 +6,8 @@ import haven.KeyBinding;
 import haven.OptWnd;
 import haven.Widget;
 
+import java.awt.event.KeyEvent;
+
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
@@ -21,8 +23,13 @@ import org.luaj.vm2.LuaValue;
  * {@link KeyBinding} it is joined to, {@code null} while none, and a press starts a capture only while that binding's
  * hotkey is live in its addon ({@link #live}). {@code :type()} reads {@code "SetButton"}: {@link LuaWidget#typeName}
  * climbs past an {@link Owned.Control}.
+ *
+ * <p>The press: {@code Changed} fires once per press that moves the key, with the key it now shows ({@code nil} for
+ * unbound), after {@code Capture.keydown} has closed the grab, so a handler may unbind or destroy the button. A capture
+ * ends by itself, nothing assigned and nothing fired, as soon as the button stops answering ({@link #answers}):
+ * disabled, unbound, hidden, or its hotkey ended.
  */
-final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Controls.Value {
+final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Controls.Value, Controls.Change {
     /** The Keybindings panel's own width for a key button ({@code BindingPanel.addbtn}'s {@code UI.scale(175)}), DESIGN px. */
     static final int DEF_W = 175;
 
@@ -39,6 +46,9 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
 
     /** What {@code Button.disable} was last told — {@code dis} is private there, and {@code disable} always redraws. */
     private boolean disabled;
+
+    /** A press that moved the key, fired as Changed once the grab has closed — Java null while none, NIL for unbound. */
+    private LuaValue moved;
 
     CKeybinding(Addon owner, int w) {
         super(w, null);
@@ -66,6 +76,11 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
                 return true;
         }
         return false;
+    }
+
+    /** Would a press here reach the key: joined to a live hotkey, enabled through every Owned above it, and shown? */
+    boolean answers() {
+        return live() && Owned.effective(this) && tvisible();
     }
 
     /** {@code widget:bind()} — the Binding it is joined to, the object {@code keybindings:binding():get(name)} hands out. */
@@ -121,12 +136,14 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
 
     /** {@code widget:bind(binding)}, {@code kb} from {@link #hotkey}: join it, and show its key at once. Caller holds the monitor. */
     void bind(KeyBinding kb) {
+        cancel();           // 163.2: a capture belongs to the binding it began on
         this.cmd = kb;
         follow();
     }
 
     /** {@code widget:bind(nil)}: joined to nothing, the key it shows left shown. Caller holds the monitor. */
     void unbind() {
+        cancel();           // 163.2: unbound, the capture ends and nothing is assigned
         this.cmd = null;
     }
 
@@ -144,16 +161,51 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
 
     // ------------------------------------------------------------------ what the engine asks
 
-    /** A press starts a capture only while the hotkey is live: built bare, unbound or ended, it does nothing. */
+    /** A press starts a capture only while the button answers; while one is open, a press is what closes it. */
     public void click() {
-        if(live())
+        if(capturing() || answers())
             super.click();
     }
 
-    /** The key the binding holds, shown every tick, drawn or hidden, so {@code :value()} is never a frame behind. */
+    /**
+     * A capture that no longer answers ends by itself; then the key the binding holds is shown, drawn or hidden, so
+     * {@code :value()} is never a frame behind.
+     */
     public void tick(double dt) {
         super.tick(dt);
+        if(capturing() && !answers())
+            cancel();
         follow();
+    }
+
+    /**
+     * A key pressed while capturing. Where the button no longer answers, the capture ends and nothing is assigned —
+     * answering false, because the grab is already closed. Otherwise the client's own handling runs, and a key that
+     * moved is kept for {@link #keydown} to fire once the grab has closed.
+     */
+    protected boolean handle(KeyEvent ev) {
+        if(!answers()) {
+            cancel();
+            return(false);
+        }
+        KeyBinding kb = cmd;
+        LuaValue before = LuaBinding.keyName(kb.key());
+        boolean done = super.handle(ev);
+        LuaValue after = LuaBinding.keyName(kb.key());
+        if(!after.eq_b(before))
+            moved = after;
+        return(done);
+    }
+
+    /** {@code Changed} fires here, after {@code Capture.keydown} has closed the grab, so a handler may unbind or destroy the button. */
+    public boolean keydown(KeyDownEvent ev) {
+        boolean took = super.keydown(ev);
+        LuaValue key = moved;
+        if(key != null) {
+            moved = null;
+            Controls.fire(this, LuaOption.CHANGED, key);
+        }
+        return(took);
     }
 
     /** {@code widget:tooltip(s)} replaces the client's own tip ({@code kbtt}); {@code ""} nulls the field and brings it back. */
