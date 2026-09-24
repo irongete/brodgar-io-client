@@ -53,7 +53,7 @@ public final class WndPos {
         }
 
         public String toString() {
-            return (px != null) ? (px.x + "x" + px.y) : (Double.toString(fx) + "/" + Double.toString(fy));
+            return (px != null) ? (px.x + "x" + px.y) : text(new double[] {fx, fy});
         }
     }
 
@@ -136,6 +136,20 @@ public final class WndPos {
      */
     public static Val read(String key) {
         return parse(Utils.getpref(key, null));
+    }
+
+    /** A fraction {@code {fx, fy}} as the store writes it: {@code fx/fy}, each number by {@code Double.toString}. */
+    public static String text(double[] f) {
+        return Double.toString(f[0]) + "/" + Double.toString(f[1]);
+    }
+
+    /**
+     * A stored {@code fx/fy} back as {@code {fx, fy}}, clamped to {@code 0..1} -- {@code null} for the old pixels,
+     * nothing, or anything that does not parse.
+     */
+    public static double[] fraction(String v) {
+        Val p = parse(v);
+        return ((p == null) || (p.px != null)) ? null : new double[] {p.fx, p.fy};
     }
 
     static Val parse(String v) {

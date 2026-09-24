@@ -2718,11 +2718,16 @@ public final class LuaWidget {
      * fraction it had, kept on an axis with no free space.
      */
     static double[] handOf(Widget w, double[] was) {
+        if(!onScreen(w))
+            return null;
+        return io.brodgar.ui.WndPos.frac(w.c, w.parent.sz, w.sz, was);
+    }
+
+    /** Is {@code w} directly on the screen -- a {@link GameUI} or the root of the tree it stands in? (166) */
+    static boolean onScreen(Widget w) {
         Widget p = (w == null) ? null : w.parent;
         UI u = (w == null) ? null : w.ui;
-        if((p == null) || !((p instanceof GameUI) || ((u != null) && (p == u.root))))
-            return null;
-        return io.brodgar.ui.WndPos.frac(w.c, p.sz, w.sz, was);
+        return (p != null) && ((p instanceof GameUI) || ((u != null) && (p == u.root)));
     }
 
     /**
@@ -2927,6 +2932,10 @@ public final class LuaWidget {
         StoreApi.Placement p = StoreApi.placement(owner, w, name);
         if(p == null)
             return;                                   // nothing saved under it yet: the name is where it will go
+        if(p.frac != null) {
+            rememberFrac(owner, w, p);
+            return;
+        }
         synchronized(monitor(w)) {
             Moved rec = recordMoved(owner, w);
             if(p.pos != null) {
@@ -2948,6 +2957,53 @@ public final class LuaWidget {
                     rec.hand = handOf(w, null);
             }
         }
+    }
+
+    /**
+     * {@link #rememberApply} of a place saved as a fraction of the screen (166): the box first, since the place
+     * a fraction stands at depends on it, then the place at the parent's size now, written as the plain
+     * {@code position} level and held as the hand level, so it goes on following the screen. A parent with no
+     * size yet has no place to give, and the box alone is put back.
+     */
+    private static void rememberFrac(Addon owner, Widget w, StoreApi.Placement p) {
+        synchronized(monitor(w)) {
+            Moved rec = recordMoved(owner, w);
+            if(p.size != null) {
+                rec.wantSize = p.size;
+                rec.sizeSeq = Layout.nextSeq();
+            }
+        }
+        Layout.apply(w);
+        synchronized(monitor(w)) {
+            Moved rec = findMoved(owner, w);
+            Widget par = w.parent;
+            if((rec == null) || (par == null) || (par.sz == null) || (par.sz.x <= 0) || (par.sz.y <= 0))
+                return;
+            rec.wantPos = Layout.Anchor.at(Px.out(io.brodgar.ui.WndPos.place(p.frac, par.sz, w.sz)));
+            rec.posSeq = Layout.nextSeq();
+            rec.hand = onScreen(w) ? p.frac.clone() : null;
+        }
+        Layout.apply(w);
+    }
+
+    /**
+     * The place half of a remembered widget as it stands, for {@link StoreApi#land} (166): its fraction for a
+     * widget directly on the screen, its pixels for one inside a window, and {@code null} when there is no
+     * place to save, which leaves the saved one standing: a screen with no size yet, and a widget that has left
+     * its parent ({@code Widget.remove} clears {@code parent}, so where it stood can no longer be told apart
+     * from a place inside a window).
+     */
+    private static StoreApi.Placement placeNow(Addon owner, Widget w) {
+        if((w.c == null) || (w.parent == null))
+            return null;
+        StoreApi.Placement at = new StoreApi.Placement();
+        if(!onScreen(w)) {
+            at.pos = Px.out(w.c);
+            return at;
+        }
+        Moved rec = findMoved(owner, w);
+        at.frac = handOf(w, (rec == null) ? null : rec.hand);
+        return (at.frac == null) ? null : at;
     }
 
     /** {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. */
@@ -2981,12 +3037,20 @@ public final class LuaWidget {
      * client's file, in this call ({@link StoreApi#land}, 150). The value is read off the widget rather than
      * off the level, so what is saved is where it <b>landed</b> — the clamp, and a window that re-packed
      * itself, both having had their word. From {@link Gesture} ({@code :draggable}/{@code :resizable}) and from
-     * the title-bar drag of a window this addon built ({@code UiApi}'s window, its {@code mouseup}).
+     * the title-bar drag of a window this addon built ({@code UiApi}'s window, its {@code mouseup}). A place on
+     * the screen is saved as its fraction (166), one inside a window as pixels.
      */
     static void rememberLanded(Addon owner, Widget w, boolean pos) {
         String nm = rememberedName(owner, w);
-        if(nm != null)
-            StoreApi.land(owner, w, nm, pos ? Px.out(w.c) : null, pos ? null : Px.out(sizeArg(w)));
+        if(nm == null)
+            return;
+        if(pos) {
+            StoreApi.Placement at = placeNow(owner, w);
+            if(at != null)
+                StoreApi.land(owner, w, nm, at.pos, at.frac, null);
+        } else {
+            StoreApi.land(owner, w, nm, null, null, Px.out(sizeArg(w)));
+        }
     }
 
     /**
@@ -3000,7 +3064,8 @@ public final class LuaWidget {
      * <p><b>It does not ask whether the widget is still in the tree</b>, and that is the case it exists for: a
      * relog tears every addon down with the <i>new</i> {@code UI} already installed, so the last session's
      * windows answer "not in this tree" while still carrying the coordinate the user dropped them at. Reading
-     * a stale widget's last geometry is exactly right here — where it was when it went is where it was.
+     * a stale widget's last geometry is exactly right here — where it was when it went is where it was. The one
+     * widget it cannot read is one removed itself, whose parent is gone: its place stays what was saved.
      *
      * <p>092.8: each lands in the scope of <b>its own</b> tree, so one capture over an addon's remembered
      * widgets fills as many folders as the addon has trees with a window in them.
@@ -3023,7 +3088,7 @@ public final class LuaWidget {
             if((rec == null) && (own == null))
                 continue;                             // nothing of ours is standing on it: nothing to record
             boolean placed = (own != null) || (rec.wantPos != null);
-            Coord pos = (!placed || (w.c == null)) ? null : Px.out(w.c);
+            StoreApi.Placement at = placed ? placeNow(a, w) : null;   // 166: a fraction on the screen, pixels in a window
             // 153.1: an OWNED window's box is its own by construction too -- the client's grip sizes it and
             // names no level where none stands -- so it is read from the box whenever it is remembered, the
             // one gate being a PACKED surface, whose box is what its rows measure rather than a size anyone
@@ -3032,7 +3097,7 @@ public final class LuaWidget {
             boolean sized = (own != null) ? !((own instanceof AddonWidget) && ((AddonWidget)own).packed)
                                           : ((rec != null) && (rec.wantSize != null));
             Coord size = (!sized || (w.sz == null)) ? null : Px.out(sizeArg(w));
-            StoreApi.land(a, w, e.getKey(), pos, size);
+            StoreApi.land(a, w, e.getKey(), (at == null) ? null : at.pos, (at == null) ? null : at.frac, size);
         }
     }
 

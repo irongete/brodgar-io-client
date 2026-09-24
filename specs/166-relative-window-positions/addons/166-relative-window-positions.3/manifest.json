@@ -1,0 +1,9 @@
+{
+  "name": "166.3 — widget:remember keeps a place relative to the screen",
+  "id": "166-relative-window-positions.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 166.3: a window remembered on the HUD comes back at its fraction of another HUD size and follows it, a widget remembered inside a window comes back at its pixels, and after remember(nil) a fresh window under the name keeps its default place.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

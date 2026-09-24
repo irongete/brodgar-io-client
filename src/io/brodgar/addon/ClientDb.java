@@ -4,6 +4,7 @@ import haven.Config;
 import haven.Coord;
 import haven.Utils;
 import haven.Warning;
+import io.brodgar.ui.WndPos;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -660,7 +661,11 @@ public final class ClientDb {
             });
         }
 
-        /** Every row of {@code placements} under one addon and one scope, by name. A row with neither half is not a placement. */
+        /**
+         * Every row of {@code placements} under one addon and one scope, by name. A row with neither half is not a
+         * placement. A TEXT {@code fx/fy} in {@code x} with {@code y} {@code NULL} is the place as a fraction of the
+         * screen (166); two integers are pixels.
+         */
         Map<String, StoreApi.Placement> placements(String id, String scope) throws java.sql.SQLException {
             Map<String, StoreApi.Placement> out = new LinkedHashMap<String, StoreApi.Placement>();
             try(java.sql.PreparedStatement ps = c.prepareStatement(
@@ -670,9 +675,11 @@ public final class ClientDb {
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
                     while(rs.next()) {
                         StoreApi.Placement p = new StoreApi.Placement();
-                        p.pos = coord(rs, 2, 3);
+                        p.frac = frac(rs, 2, 3);
+                        if(p.frac == null)
+                            p.pos = coord(rs, 2, 3);
                         p.size = coord(rs, 4, 5);
-                        if((p.pos != null) || (p.size != null))
+                        if((p.pos != null) || (p.frac != null) || (p.size != null))
                             out.put(rs.getString(1), p);
                     }
                 }
@@ -695,12 +702,17 @@ public final class ClientDb {
                             "INSERT INTO placements (addon, scope, name, x, y, w, h) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
                         for(Map.Entry<String, StoreApi.Placement> e : rows.entrySet()) {
                             StoreApi.Placement p = e.getValue();
-                            if((p.pos == null) && (p.size == null))
+                            if((p.pos == null) && (p.frac == null) && (p.size == null))
                                 continue;
                             ps.setString(1, id);
                             ps.setString(2, scope);
                             ps.setString(3, e.getKey());
-                            half(ps, 4, p.pos);
+                            if(p.frac != null) {
+                                ps.setString(4, WndPos.text(p.frac));
+                                ps.setNull(5, java.sql.Types.INTEGER);
+                            } else {
+                                half(ps, 4, p.pos);
+                            }
                             half(ps, 6, p.size);
                             ps.executeUpdate();
                         }
@@ -737,6 +749,19 @@ public final class ClientDb {
                 return null;
             int y = rs.getInt(ycol);
             return rs.wasNull() ? null : Coord.of(x, y);
+        }
+
+        /**
+         * The place half as a fraction (166): a TEXT {@code fx/fy} in {@code xcol} beside a {@code NULL} in
+         * {@code ycol}, or {@code null} for anything else. The TEXT keeps the column's INTEGER affinity from
+         * turning {@code 1.0} into a pixel, and the {@code NULL} makes a pre-feature client read no place at all.
+         */
+        private static double[] frac(java.sql.ResultSet rs, int xcol, int ycol) throws java.sql.SQLException {
+            String x = rs.getString(xcol);
+            if(x == null)
+                return null;
+            rs.getInt(ycol);
+            return rs.wasNull() ? WndPos.fraction(x) : null;
         }
 
         /** Bind one half of a placement to two integer parameters, {@code NULL} when the half is not held. */

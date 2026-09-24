@@ -74,7 +74,7 @@ Every suite does three things:
 
       `remember(nil)` deletes the row at the end.
 
-- [ ] **166.3 — `widget:remember` keeps a place relative to the screen.**
+- [x] **166.3 — `widget:remember` keeps a place relative to the screen.**
       - `StoreApi.Placement` gains the fraction. `rememberLanded` and `rememberCapture` store it for a
         widget on the screen, and `rememberApply` puts it back as the hand level.
       - `ClientDb` writes `x` = TEXT `fx/fy`, `y` = `NULL`, and reads it back.

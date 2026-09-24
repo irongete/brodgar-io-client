@@ -859,9 +859,16 @@ final class StoreApi {
      * in the DESIGN pixels the layout level speaks. A half no level stands on is {@code null} and is
      * {@code NULL} in the row: an addon that only lets the user drag a window has nothing to say about its
      * box, and saying it anyway would pin a size the user never chose.
+     *
+     * <p>166: the place is held one of two ways, never both. A widget directly on the screen -- the HUD or its
+     * tree's root -- keeps {@link #frac}, its fraction of the free space per axis ({@code io.brodgar.ui.WndPos}),
+     * so a name saved at one screen size puts it back at the same relative place at another. A widget inside a
+     * window keeps {@link #pos}, pixels in that window.
      */
     static final class Placement {
         Coord pos;
+        /** The place as a fraction {@code {fx, fy}} of the screen's free space, or {@code null} (166). */
+        double[] frac;
         Coord size;
     }
 
@@ -951,19 +958,26 @@ final class StoreApi {
      * they held, <b>and put the scope's rows in the client's file in the same call</b> (150) — a gesture is
      * rare, the file is always open, and the row is what a {@code :reload} reads back. A half arrives
      * {@code null} when this addon has no level of that kind on the widget, and a half that is not written is
-     * not erased — an addon that stops resizing a window has not decided the user never sized it.
+     * not erased — an addon that stops resizing a window has not decided the user never sized it. The place
+     * arrives as pixels ({@code pos}) or as a fraction of the screen ({@code frac}, 166), and either replaces
+     * the other.
      */
-    static void land(Addon a, Widget w, String name, Coord pos, Coord size) {
+    static void land(Addon a, Widget w, String name, Coord pos, double[] frac, Coord size) {
         String scope = scopeOf(w);
-        if((scope == null) || ((pos == null) && (size == null)))
+        if((scope == null) || ((pos == null) && (frac == null) && (size == null)))
             return;
         PlaceSet ps = set(a, scope);
         Map<String, Placement> m = ps.byName;
         Placement p = m.get(name);
         if(p == null)
             m.put(name, p = new Placement());
-        if(pos != null)
+        if(frac != null) {
+            p.frac = frac.clone();
+            p.pos = null;
+        } else if(pos != null) {
             p.pos = pos;
+            p.frac = null;
+        }
         if(size != null)
             p.size = size;
         writePlacements(a, scope, ps);
@@ -1013,8 +1027,9 @@ final class StoreApi {
     }
 
     /**
-     * {@code {"<name>": {"pos": {x, y}, "size": {x, y}}, …}}, names in order — the order is what makes the
-     * write-skip comparison above answer on the content rather than on a hash walk.
+     * {@code {"<name>": {"pos": {x, y}, "frac": {x, y}, "size": {x, y}}, …}}, names in order — the order is what
+     * makes the write-skip comparison above answer on the content rather than on a hash walk. A place is
+     * {@code pos} or {@code frac} (166), never both.
      */
     private static String placementsJson(PlaceSet ps) {
         List<String> names = new ArrayList<String>(ps.byName.keySet());
@@ -1025,12 +1040,14 @@ final class StoreApi {
             if(b.length() > 1)
                 b.append(',');
             b.append(Json.write(LuaValue.valueOf(nm))).append(":{");
+            int at = b.length();
             if(p.pos != null)
                 b.append("\"pos\":").append(xyJson(p.pos));
-            if((p.pos != null) && (p.size != null))
-                b.append(',');
+            if(p.frac != null)
+                b.append((b.length() > at) ? "," : "").append("\"frac\":{\"x\":").append(Double.toString(p.frac[0]))
+                 .append(",\"y\":").append(Double.toString(p.frac[1])).append('}');
             if(p.size != null)
-                b.append("\"size\":").append(xyJson(p.size));
+                b.append((b.length() > at) ? "," : "").append("\"size\":").append(xyJson(p.size));
             b.append('}');
         }
         return b.append('}').toString();
