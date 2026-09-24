@@ -64,7 +64,9 @@ public class FragData extends Variable.Global {
     private static final Object defid = new PostProc.AutoID("fragdata", 15000) {
 	    public void proc(Context ctx) {
 		FragmentContext fctx = (FragmentContext)ctx;
-		Collection<FragData> used = new HashSet<>();
+		/* addon: (165.1) insertion order, not identity-hash order: with two non-primary outputs a HashSet
+		 * numbered them differently from run to run, so GLProgram.cachekey changed and ProgramCache missed. */
+		Collection<FragData> used = new LinkedHashSet<>();
 		for(Toplevel tl : fctx.vardefs) {
 		    if(tl instanceof Def)
 			used.add(((Def)tl).var());

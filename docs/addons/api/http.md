@@ -22,7 +22,7 @@ The key says whether, the hosts say where. The user reads them as one line when 
 ```json
 {
   "id": "prices",
-  "api_version": "1.1",
+  "api_version": "1.2",
   "files": ["main.lua"],
   "permissions": ["http.get"],
   "network": {

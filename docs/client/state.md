@@ -72,6 +72,8 @@
   `ob.removed()` (sets a flag) — `Gob.dispose()` is NOT on that path. So
   anything a gob merely *points at* elsewhere (its own client gob in the scene, a GL resource) must be
   ended on the gob-removed seam: the screen-vs-world `gob:overlay` asymmetry, and `follow=`'s orphan.
+  Likewise a registry asking whether an attrib is still in play reads `Gob.removed` as well as its own
+  disposal: `GAttrib.dispose` never runs for an object the server took away.
 - **`ctick` self-removes a VIRTUAL gob** when `ols.isEmpty()` and it has no `Drawable`
    — a client-only gob must keep something in one of the two, or it
   vanishes on the next tick. `ctick` also drops a finished overlay (`ol.tick(dt)` true,) **without calling

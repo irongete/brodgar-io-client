@@ -41,7 +41,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 |---|---|
 | [`session:world`](world.md) | One character's live world: the objects it has loaded, the terrain, and the clicks and drags on both. |
 | [Gob](gob.md) | One object in the world, read with methods. |
-| [Look](look.md) | How a gob is drawn: `gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)`, client-local and written on the object. |
+| [Look](look.md) | How a gob is drawn: `gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)`, `gob:outline(color, width)`, client-local and written on the object. |
 | [Materials](materials.md) | The variable-material slots a gob is drawn in: read the server's, dress one in another resource, release it. |
 | [Placing](placing.md) | The ghost on the cursor: what you are about to place, where it sits, the ground it will take. |
 | [Position](position.md) | The one place type, computable and saveable, that every spatial verb takes. |

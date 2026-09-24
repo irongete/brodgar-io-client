@@ -57,8 +57,8 @@ import java.util.List;
  *
  * <p><b>The cross-session reads stay cross-session</b>, because they are about the object rather than about a
  * copy: {@code gob:sessions()} asks every live cache, and the visual writes ({@code :scale}, {@code :tint},
- * {@code :visible}, an overlay attach) land on every copy so that one object is drawn the same whichever
- * character is looking at it.
+ * {@code :outline}, {@code :visible}, an overlay attach) land on every copy so that one object is drawn the
+ * same whichever character is looking at it.
  *
  * <p><b>Which characters can see it is a read, not bookkeeping</b> — {@code gob:sessions()} asks the live
  * object caches at the moment of the call, so a session that ends drops out of the answer with nothing having
@@ -542,6 +542,46 @@ public final class LuaGob {
                 for(Gob g : AddonManager.gobCopies(h.id))
                     GobTint.apply(g, owner, c);
                 GobIntent.tint(h.id, owner, c);
+                return self;
+            }
+        });
+        // outline() / outline(c [, w]) / outline(nil) -- a RING round what the client draws of the object
+        // (165.1), patch:border's shape: the colour and an optional width in design pixels (1..8, default 2) in
+        // one verb, the bare read answering the colour KEYED and then the width, so two:outline(one:outline())
+        // is one expression; nil takes it off, and a width beside that nil is refused. Surplus arguments are
+        // refused first (Args.only), and every refusal is raised before the object is looked for, so a mistake
+        // on a gone gob is still a mistake.
+        //   It marks the object in the view's outline mask (GobOutline.Paint) and OutlineRing paints the ring
+        // round what is VISIBLE of it: an occluder in front clears the mask, so the ring runs along its edge.
+        // The object's own colours are untouched, and gob:tint composes with it: two attribs, two slots.
+        //   The tint's rules on where it lands and how long it lasts, with one difference: a write on a gob
+        // that is gone does nothing at all -- no intent is recorded for an object nobody holds.
+        m.set("outline", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = Args.only(a, 2, "gob:outline");
+                LuaGob h = handle(self, "outline");
+                if(!Args.passed(a, 2)) {
+                    Gob g = gob(self, "outline");
+                    java.awt.Color c = (g == null) ? null : GobOutline.value(g);
+                    if(c == null)
+                        return LuaValue.NIL;
+                    return LuaValue.varargsOf(AddonManager.color(c), LuaValue.valueOf(GobOutline.width(g)));
+                }
+                java.awt.Color c = null;
+                int w = GobOutline.DEFAULT_WIDTH;
+                if(a.arg(2).isnil()) {
+                    if(Args.passed(a, 3))
+                        throw GobOutline.nilWithWidth("gob:outline");
+                } else {
+                    c = AddonManager.colorArg(a, 2, "gob:outline");
+                    w = GobOutline.widthArg(a, 3, "gob:outline");
+                }
+                List<Gob> copies = AddonManager.gobCopies(h.id);
+                if(copies.isEmpty())
+                    return self;
+                for(Gob g : copies)
+                    GobOutline.apply(g, owner, c, w);
+                GobIntent.outline(h.id, owner, c, w);
                 return self;
             }
         });

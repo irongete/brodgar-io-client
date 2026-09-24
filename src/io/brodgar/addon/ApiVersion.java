@@ -28,7 +28,7 @@ public final class ApiVersion {
      * The API this client implements. <b>The one literal</b>: {@code tools/docverbs.py} reads it from this
      * line and holds the version the documentation states to it, so a bump is this constant and the page.
      */
-    public static final ApiVersion CURRENT = new ApiVersion(1, 1);
+    public static final ApiVersion CURRENT = new ApiVersion(1, 2);
 
     /** The declared form: a generation without a leading zero, a point, an edition that may be {@code 0}. */
     private static final Pattern FORM = Pattern.compile("^([1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
@@ -85,8 +85,8 @@ public final class ApiVersion {
      * the panel's tooltip and the console say — or {@code null} when it is current and loads as any other.
      * Three sentences, one per way of being out of date, and the sentence names both numbers so the reader
      * knows which side to move: {@code null} (absent) → <i>declares no api_version, this client implements
-     * 1.1</i>; another generation → <i>written for API 9.0, this client implements 1.1</i>; a later edition of
-     * this generation → <i>too new: needs API 1.3 or newer, this client implements 1.1</i>.
+     * 1.2</i>; another generation → <i>written for API 9.0, this client implements 1.2</i>; a later edition of
+     * this generation → <i>too new: needs API 1.3 or newer, this client implements 1.2</i>.
      */
     public static String why(ApiVersion declared) {
         if(declared == null)
@@ -99,8 +99,8 @@ public final class ApiVersion {
     }
 
     /**
-     * The AddOns panel row's status for an out-of-date addon — {@code outdated (API 9.0, client 1.1)}, or
-     * {@code outdated (no api_version, client 1.1)} for one that declares none — or {@code null} when
+     * The AddOns panel row's status for an out-of-date addon — {@code outdated (API 9.0, client 1.2)}, or
+     * {@code outdated (no api_version, client 1.2)} for one that declares none — or {@code null} when
      * {@code declared} is current, exactly as {@link #why} answers {@code null} for it. The label carries the
      * two numbers and no sentence, because a row has room for a state and the tooltip has room for the why.
      */

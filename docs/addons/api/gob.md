@@ -32,7 +32,7 @@ Each character holds its own copy of the object against its own map. A read is c
 |---|---|
 | `:exists()` | "Can that character see it": `false` the moment the object leaves that character's view, even while another of yours still looks at it. Every other read answers `nil` in the same moment, as for a despawned object. |
 | The answers do not otherwise depend on the reader | `:name()`, `:health()` and the rest read the server's object. `:position()` is a [Position](position.md) anchored on a server grid id, so two characters looking at one tree compute the same place from two frames. |
-| Writes go the other way | [`gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)`](look.md) and [`gob:overlay()`](overlay.md)`:add(key)` change how the object looks, and one object looks one way: written to every character that sees it. |
+| Writes go the other way | [`gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)`, `gob:outline(color, width)`](look.md) and [`gob:overlay()`](overlay.md)`:add(key)` change how the object looks, and one object looks one way: written to every character that sees it. |
 
 ### `gob:sessions()`
 
@@ -174,11 +174,11 @@ A building site (`gfx/terobjs/consobj`, the same resource for every building) ha
 
 | Write | Page | Detail |
 |---|---|---|
-| `gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)` | [Look](look.md) | How big, whether drawn, what colour is laid over it. |
+| `gob:scale(k)`, `gob:visible(flag)`, `gob:tint(color)`, `gob:outline(color, width)` | [Look](look.md) | How big, whether drawn, what colour is laid over it, what ring is drawn round it. |
 | `gob:materials()` | [Materials](materials.md) | The variable-material slots the server dressed it in, each readable and dressable in another resource by name. |
 | `gob:overlay()` | [Overlay](overlay.md) | What stands at it. |
 
-All are unprotected, written on the object rather than a character, and change nothing on this page. A resized, hidden, tinted or re-dressed object answers every read above. `gob:visible(false)` withholds the model alone: a hidden object goes on drawing your overlays and the game's own (name label, health bar) over empty ground. The click goes through to that ground, the label does not.
+All are unprotected, written on the object rather than a character, and change nothing on this page. A resized, hidden, tinted, outlined or re-dressed object answers every read above. `gob:visible(false)` withholds the model alone: a hidden object goes on drawing your overlays and the game's own (name label, health bar) over empty ground. The click goes through to that ground, the label does not.
 
 ## Clicking one
 
@@ -231,7 +231,7 @@ Anything acting on a gob takes the Gob object, not an id: `my_gob:overlay():add(
 ## See Also
 
 - [`session:world`](world.md) — finding the gobs to read, and clicking one.
-- [Look](look.md) — size, visibility and tint.
+- [Look](look.md) — size, visibility, tint and outline.
 - [Materials](materials.md) — the material slots it is drawn in.
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add.
 - [`session:kin`](kin.md) — the roster side of `gob:kin()`.

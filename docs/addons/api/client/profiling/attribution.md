@@ -111,7 +111,7 @@ end
 | Pass | Covers |
 |---|---|
 | `shadow` | The entire shadow-map render. |
-| `scene` | The 3D draw list, the world itself. |
+| `scene` | The 3D draw list, the world itself, and the rings [`gob:outline`](../../look.md#outline-unprotected) draws while one is on an object. |
 | `ui2d` | The widget tree. |
 
 | Rule | Detail |

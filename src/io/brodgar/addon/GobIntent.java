@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * <b>What an addon has asked to be drawn at one game object</b> (092.7, A-087) &mdash; the intent behind
- * {@code gob:scale(k)}, {@code gob:visible(b)}, {@code gob:tint(c)}, {@code slot:material(name)} and
+ * {@code gob:scale(k)}, {@code gob:visible(b)}, {@code gob:tint(c)}, {@code gob:outline(c, w)}, {@code slot:material(name)} and
  * {@code gob:overlay():add(key)}, held per <b>gob id</b> so a session that loads the object <i>afterwards</i>
  * draws it the same.
  *
@@ -73,6 +73,9 @@ final class GobIntent {
         /** The colour this addon laid over the object, or {@code null} (135.1): no tint is the absence of the
          *  state on the attrib, and the absence of it here too. */
         Color tint;
+        /** The ring this addon drew round the object and its width, or {@code null} (165.1): the tint's shape. */
+        Color outline;
+        int outlineWidth;
         /** The overlay records this addon stood on the object, in attach order &mdash; the very objects the
          *  copies share. */
         final List<LuaGobOverlay.Attach> overlays = new ArrayList<LuaGobOverlay.Attach>();
@@ -81,7 +84,8 @@ final class GobIntent {
         final Map<Integer, GobMaterials.Entry> materials = new HashMap<Integer, GobMaterials.Entry>();
 
         boolean empty() {
-            return !scaled && !hidden && (tint == null) && overlays.isEmpty() && materials.isEmpty();
+            return !scaled && !hidden && (tint == null) && (outline == null) && overlays.isEmpty()
+                && materials.isEmpty();
         }
     }
 
@@ -172,6 +176,27 @@ final class GobIntent {
         Record r = record(owner, id, true);
         if(r != null)
             r.tint = c;
+    }
+
+    /**
+     * {@code gob:outline(c, w)} was written (165.1). <b>One ring, last write wins</b>, {@link GobOutline}'s own
+     * rule and the tint's shape &mdash; {@code null} is {@code gob:outline(nil)}, so it forgets.
+     */
+    static synchronized void outline(long id, Addon owner, Color c, int w) {
+        for(Addon a : owners()) {
+            Record r = record(a, id, false);
+            if(r != null) {
+                r.outline = null;
+                prune(a, id, r);
+            }
+        }
+        if(c == null)
+            return;
+        Record r = record(owner, id, true);
+        if(r != null) {
+            r.outline = c;
+            r.outlineWidth = w;
+        }
     }
 
     /**
@@ -314,9 +339,10 @@ final class GobIntent {
         if(g == null)
             return;
         Long key = Long.valueOf(g.id);
-        Addon scaleOwner = null, tintOwner = null;
+        Addon scaleOwner = null, tintOwner = null, outlineOwner = null;
         float scale = GobScale.NONE;
-        Color tint = null;
+        Color tint = null, outline = null;
+        int outlineWidth = GobOutline.DEFAULT_WIDTH;
         boolean hidden = false;
         List<LuaGobOverlay.Attach> overlays = null;
         Map<Integer, GobMaterials.Entry> materials = null;
@@ -331,6 +357,11 @@ final class GobIntent {
             if(r.tint != null) {
                 tintOwner = a;
                 tint = r.tint;
+            }
+            if(r.outline != null) {
+                outlineOwner = a;
+                outline = r.outline;
+                outlineWidth = r.outlineWidth;
             }
             hidden |= r.hidden;
             if(!r.overlays.isEmpty()) {
@@ -367,6 +398,13 @@ final class GobIntent {
                 GobTint.apply(g, tintOwner, tint);
             } catch(RuntimeException e) {
                 /* a copy that cannot take it draws plain: a state, not a fault */
+            }
+        }
+        if(outlineOwner != null) {
+            try {
+                GobOutline.apply(g, outlineOwner, outline, outlineWidth);
+            } catch(RuntimeException e) {
+                /* a copy that cannot take it draws no ring: a state, not a fault */
             }
         }
         /* Before the copy is let into a render tree at all (the drain releases the 114.1 hold below this

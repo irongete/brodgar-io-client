@@ -1,7 +1,8 @@
 # The render backend: scene counters and GL submission
 
 > Split out of [world-3d.md](world-3d.md), which flagged these two halves as the natural cut. What the
-> `:stats on` HUD reads, and where a frame's draw calls actually happen.
+> `:stats on` HUD reads, and where a frame's draw calls actually happen. The buffers a frame draws into, a
+> second fragment output and a screen pass that reads one back are [render-targets.md](render-targets.md).
 
 ## Scene counters (what the `:stats on` HUD reads)
 

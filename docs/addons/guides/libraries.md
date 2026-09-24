@@ -7,7 +7,7 @@ An addon that exports a table is a library; another addon reads it with `hafen.c
 A library is an ordinary addon: a folder, a manifest, files. What makes it a library is one call in its file body.
 
 ```json
-{ "id": "mylib", "name": "My Library", "version": "1.0.0", "author": "you", "api_version": "1.1", "files": ["mylib.lua"],
+{ "id": "mylib", "name": "My Library", "version": "1.0.0", "author": "you", "api_version": "1.2", "files": ["mylib.lua"],
   "description": "A notice at the top of the screen, for other addons to show" }
 ```
 
@@ -41,7 +41,7 @@ hafen.client():addons():export({
 ## Using one
 
 ```json
-{ "id": "myaddon", "version": "0.3.0", "api_version": "1.1", "files": ["main.lua"],
+{ "id": "myaddon", "version": "0.3.0", "api_version": "1.2", "files": ["main.lua"],
   "optional_dependencies": ["mylib>=1.0.0"] }
 ```
 

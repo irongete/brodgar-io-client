@@ -6921,6 +6921,14 @@ public final class AddonManager {
                 java.awt.Color tint = GobTint.value(g);
                 if(tint != null)
                     t.set("tint", color(tint));
+                // 165.1: the ring round it, {color =, width =} as a document writes a line, and absent likewise.
+                java.awt.Color outline = GobOutline.value(g);
+                if(outline != null) {
+                    LuaTable ring = new LuaTable();
+                    ring.set("color", color(outline));
+                    ring.set("width", LuaValue.valueOf(GobOutline.width(g)));
+                    t.set("outline", ring);
+                }
                 // 152.1: the resource names in force per variable-material slot, in wire order, and no key
                 // at all for an object with none — a composed body, a tree, one whose lib/vmat has not arrived.
                 int slots = LuaMaterialSlot.count(g);

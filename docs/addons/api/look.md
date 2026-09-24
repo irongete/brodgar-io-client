@@ -1,6 +1,6 @@
 # Look: How a Gob Is Drawn
 
-The look of a [Gob](gob.md) is what the client draws for it: how big, whether at all, in what colour. The verbs on this page change those three. The [materials](materials.md) a model is drawn in have a page of their own, and what stands at a gob is its [overlay](overlay.md) collection.
+The look of a [Gob](gob.md) is what the client draws for it: how big, whether at all, in what colour, and with what ring round it. The verbs on this page change those four. The [materials](materials.md) a model is drawn in have a page of their own, and what stands at a gob is its [overlay](overlay.md) collection.
 
 ```lua
 local session = hafen.session():current()
@@ -21,6 +21,9 @@ end
 | `gob:tint()` | colour `\| nil` | Unprotected | The colour laid over it, keyed. `nil` for an object nobody tinted. |
 | `gob:tint(color)` | the Gob | Unprotected | Lay `color` over it. |
 | `gob:tint(nil)` | the Gob | Unprotected | Draw it in its own colours again. |
+| `gob:outline()` | colour, `number` `\| nil` | Unprotected | The ring round it, keyed, then its width. `nil` for an object nobody outlined. |
+| `gob:outline(color, width)` | the Gob | Unprotected | Draw a ring of `color` round it, `width` design pixels wide. `width` is optional, `2` without it. |
+| `gob:outline(nil)` | the Gob | Unprotected | Take the ring off. |
 
 Rules shared by every write on this page:
 
@@ -32,7 +35,7 @@ Rules shared by every write on this page:
 | `:reload` or disable | Puts back everything you changed, in every character's view. |
 | Two addons | Last write wins. |
 | Once the gob is gone | The read answers `nil` and a write does nothing. |
-| Composition | The three compose: `boar:tint(color):scale(2):visible(false):visible(true)` is a boar still tinted and twice its size. |
+| Composition | The four compose: `boar:tint(color):outline(ring_color):scale(2):visible(false):visible(true)` is a boar still tinted, ringed and twice its size. Setting or clearing one leaves the others as they were. |
 
 ## Size (unprotected)
 
@@ -92,6 +95,35 @@ end
 | `gob:tint(nil)` | Legal and leaves nothing behind. |
 | Not a colour | A number, a string, a boolean, a table that is not one: raises naming both spellings of a colour. |
 
+## Outline (unprotected)
+
+`gob:outline(color, width)` draws a ring of a [colour](shapes.md#colours) round what the client draws of the object, and paints nothing inside it. A hover highlight is one handler on [`PickChanged`](ui/mouse.md#the-pick):
+
+```lua
+local highlighted = nil
+hafen.ui():mouse():on("PickChanged", function(gob)
+  if highlighted then
+    highlighted:outline(nil)             -- the object the pointer left
+  end
+  highlighted = gob
+  if gob then
+    gob:outline({255, 220, 0}, 3)        -- a yellow ring, 3 design pixels wide
+  end
+end)
+```
+
+| Rule | Detail |
+|---|---|
+| What is ringed | Everything the client draws of the object: its model, its equipment, the game's own sprites standing at it. The object keeps its own colours. |
+| Not ringed | What is drawn over the scene: [widgets](ui/widget.md), [overlay](overlay.md) labels and painters. What a character carries is an object of its own, ringed through its own Gob. See-through parts, smoke and glass, draw no ring. |
+| The visible part only | Where something solid stands between the camera and the object, the ring runs along that thing's edge. It never shows through a wall. What is see-through in front, water or smoke, veils the ring as it veils the object. |
+| `width` | Design pixels, the same on screen at any interface scale. A whole number from `1` to `8`. `0`, `9`, `1.5` and `"2"` raise naming the rule. |
+| `a` | The ring's strength: `255` (the default) solid, lower see-through. At `0` no ring is drawn, and the read still answers it. |
+| The read | Two values: the colour keyed, then the width. `other:outline(gob:outline())` copies a ring. [`gob:info()`](types/world.md#gobinfo) carries the pair as `outline = {color = …, width = …}`, and no `outline` key for an object nobody outlined. |
+| `gob:outline(nil)` | Takes the ring off and leaves nothing behind. `gob:outline(nil, width)` raises: taking a ring off takes no width. |
+| Refused | A value that is not a colour raises naming both spellings of one. A third argument raises. Each is raised on a gob that is gone too. |
+| API `1.2` | Declare `"api_version": "1.2"` in your [manifest](../manifest.md#the-api-version). |
+
 ## Overlays
 
 Everything drawn at a gob is the collection [`gob:overlay()`](overlay.md), unprotected. That is the game's own, the labels and painters you attach, and whatever you have [stood in the world](virtual/README.md) anchored to it. An overlay is attached to the object, so every character that can see the object draws it. A `:reload` or a disable takes it off all of them.
@@ -102,6 +134,7 @@ Everything drawn at a gob is the collection [`gob:overlay()`](overlay.md), unpro
 
 - [Gob](gob.md) — the object itself: finding one, and everything you read off it.
 - [Overlay](overlay.md) — the labels, painters and models you attach at a gob.
-- [Colours](shapes.md#colours) — the table `gob:tint` reads and writes.
+- [Colours](shapes.md#colours) — the table `gob:tint` and `gob:outline` read and write.
+- [The mouse](ui/mouse.md#the-pick) — `PickChanged`, the object under the pointer.
 - [Virtual entities](virtual/README.md) — `:scale`, `:visible` and `:tint` on a thing you stood there.
 - [Threading](threading.md) — why these writes are safe from a `Draw` handler.

@@ -44,6 +44,7 @@ From [`gob:info()`](../gob.md), for logging and serialising. To read a gob call 
 | `visible` | `boolean` | Whether the client draws it ([`gob:visible()`](../look.md#drawn-or-not-unprotected)). `true` for an object nobody hid. |
 | `scale` | `number` | How big it is drawn ([`gob:scale()`](../look.md#size-unprotected)). `1` for an object nobody sized. |
 | `tint` | [colour](../shapes.md#colours) | The colour laid over it ([`gob:tint()`](../look.md#tint-unprotected)). Optional. |
+| `outline` | `table` | The ring round it ([`gob:outline()`](../look.md#outline-unprotected)): `{color = colour, width = number}`. Optional. |
 | `materials` | `string[]` | The resource name in force per [material slot](../materials.md), in slot order. Absent for an object with none. |
 
 | Rule | Detail |

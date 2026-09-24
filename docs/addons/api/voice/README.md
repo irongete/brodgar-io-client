@@ -27,7 +27,7 @@ The same declaration a request or a connection needs, under its own key. The use
 ```json
 {
   "id": "myaddon",
-  "api_version": "1.1",
+  "api_version": "1.2",
   "files": ["main.lua"],
   "permissions": ["voice.connect"],
   "network": {

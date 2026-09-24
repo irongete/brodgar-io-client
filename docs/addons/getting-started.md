@@ -22,7 +22,7 @@ The folder name is the addon's id, and `manifest.json` repeats it:
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
-  "api_version": "1.1",
+  "api_version": "1.2",
   "files": ["main.lua"]
 }
 ```
@@ -140,7 +140,7 @@ The client fills the table from disk when you name it and writes it back for you
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
-  "api_version": "1.1",
+  "api_version": "1.2",
   "files": ["main.lua"]
 }
 ```

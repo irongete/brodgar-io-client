@@ -782,6 +782,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.plgob = plgob;
 	glob.plgob = plgob;   // addon: (terrain loading) -- see Glob.plgob
 	basic.add(new Outlines(false));
+	basic.add(new io.brodgar.addon.OutlineRing());   // addon: (165.1) the rings of gob:outline, over the scene
 	this.gobs = new Gobs();
 	this.terrain = new Terrain();
 	this.clickmap = new ClickMap();
