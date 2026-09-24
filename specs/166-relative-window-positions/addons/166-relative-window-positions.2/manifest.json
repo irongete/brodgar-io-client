@@ -1,0 +1,9 @@
+{
+  "name": "166.2 — a place the user's hand gives an addon's widget follows the screen",
+  "id": "166-relative-window-positions.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 166.2: a remembered place, a title-bar drag over a :position level, a :draggable drag and a title-bar drag in the layer each follow a resize of the screen, while a place the addon wrote and a window nobody moved keep their pixels.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

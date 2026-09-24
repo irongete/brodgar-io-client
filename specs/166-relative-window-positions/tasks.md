@@ -52,7 +52,7 @@ Every suite does three things:
         (criterion 4).
       - Move the action search window, restart and open it: it is where you left it.
 
-- [ ] **166.2 — A place the user's hand gives an addon's widget follows the screen.**
+- [x] **166.2 — A place the user's hand gives an addon's widget follows the screen.**
       - Add `LuaWidget.Moved.hand`. It is set, for a widget whose parent is a `GameUI` or a root, by
         `Gesture.write`, `LuaWidget.levelFollows` and `rememberApply`. `widget:position(x, y)` clears it.
       - `Layout.reapply` rewrites hand levels from their fraction.

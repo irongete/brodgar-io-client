@@ -2284,9 +2284,10 @@ final class UiApi {
         if(m == null)
             return;
         synchronized(LuaWidget.monitor(w)) {
-            if(pos)
+            if(pos) {
                 m.wantPos = null;
-            else
+                m.hand = null;                // 166.2: the hand place goes with the level it was
+            } else
                 m.wantSize = null;
             if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
@@ -2544,6 +2545,7 @@ final class UiApi {
             return;
         m.wantText = null;
         m.wantPos = null;
+        m.hand = null;
         m.wantSize = null;
         Layout.apply(w);                      // the fold, three levels shorter
         if(m.idle() && owner.movedNative.remove(m))

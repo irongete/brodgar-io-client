@@ -49,7 +49,9 @@ import java.util.Map;
  * {@link Layout#nextSeq()} + {@link Layout#apply} — so the off-screen clamp, the two {@code nil} undos,
  * {@code widget:revert()}, {@code :reload} and disable all come from the layer that was already there, a
  * window that packs itself around its contents makes a resize <i>inert</i> rather than an error, and
- * {@code GameUI.savewndpos} goes on writing what the <i>user</i> placed.
+ * {@code GameUI.savewndpos} goes on writing what the <i>user</i> placed. A drag of a widget directly on the
+ * screen also gives the level the fraction it landed at ({@link LuaWidget.Moved#hand}, 166.2), so it follows
+ * a resize of the screen.
  *
  * <p><b>Every armed owner's level is written, and the target moves once</b>: one {@link Move} per (target,
  * mode) however many addons armed it, each owner getting its own record and its own {@code seq}, so a
@@ -542,6 +544,15 @@ final class Gesture extends Widget {
                     }
                 }
                 Layout.apply(m.target);                // the clamp, the fold and the followers, all from there
+                if(m.mode == Mode.DRAG) {
+                    // 166.2: the user's hand placed it, so on the screen it follows the screen -- each owner's
+                    // level carries the fraction it landed at, the clamp having had its word.
+                    for(int j = 0, o = m.owners.size(); j < o; j++) {
+                        LuaWidget.Moved rec = LuaWidget.findMoved(m.owners.get(j), m.target);
+                        if((rec != null) && (rec.wantPos != null))
+                            rec.hand = LuaWidget.handOf(m.target, rec.hand);
+                    }
+                }
             }
         }
     }

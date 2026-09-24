@@ -1,8 +1,9 @@
 # Where GameUI's windows stand: the position store and the screen resize
 
 > Covers **where the client puts its own windows**: the `wndc-*` preference keys, every place one is read
-> and written, the clamp, and what `GameUI.resize` re-places. Which windows `GameUI` owns and how they open
-> and close is [gameui-windows.md](gameui-windows.md). The **class + method name is the stable anchor**.
+> and written, the clamp, how the screen's size arrives and what `GameUI.resize` re-places. Which windows
+> `GameUI` owns and how they open and close is [gameui-windows.md](gameui-windows.md). The **class + method
+> name is the stable anchor**.
 
 ## The keys and their windows
 
@@ -56,6 +57,7 @@ writes `null` as the empty string, which reads back as the default.
 | ⚠️ **`ChatUI` overrides `move(Coord)`** | `ChatUI.move` — `this.c = (this.base = base).add(0, visible ? -sz.y : 0)`. So the argument is the chat's **base** (its bottom edge) and `c` is derived from it: `move(c)` is **not** the identity there, and anything that moves the chat by writing `c` and reads it back gets a different pair while the chat is expanded |
 | ⚠️ **`ChatUI.resize(int)` floors its width** | `Math.max(w, selw + …)`, so a HUD narrower than both corner panels (`blpw` + `brpw`, `UI.scale(142)` each) still gives the chat a positive box |
 | Windows | **None upstream.** A window keeps its pixels through a screen resize, so one left at the bottom or right edge ends up inside the screen, or off it |
+| How the screen's size arrives | `UILoop.Frame.tick` resizes each root to the frame's `sz` when it differs: the addon layer's `layer.root` under that tree's monitor, then the session's `ui.root` under its own. `Widget.resize` calls `presize()` on every child, and `GameUI.presize` is `resize(parent.sz)`: that is how the HUD hears it. `Window` has no `presize`, so a window directly on a root is never told |
 
 `Widget.move` itself is **not** hooked anywhere, and deliberately: it is on every drag of every window in
 the client. `Window` moves `c` from `mousemove` while its own grab (`dm`) stands, with no clamp, and
@@ -78,6 +80,8 @@ window-position rule, which keeps a place as a **fraction of the free space** pe
   space, skipping an unpinned `ContentsWindow`, **before** `AddonWidgets.relayout(this)`. That call goes
   last so a place the addon layer holds overwrites the client's placement, and it is idempotent so a
   `resize` it makes cannot come back round through the same line.
+- `UILoop.Frame.tick` keeps `layer.root`'s old size and runs the same re-placement over it right after
+  `layer.root.resize(sz)`. `ui.root` needs none: the HUD under it re-places its own windows.
 - `AddonWidgets.stockcsz` substitutes the map's box when an addon has resized it, so `wndsz-map` records
   the user's box. It substitutes rather than restores because `savewndpos` runs on the 60 s tick, and
   putting the widget back around the write would snap a laid-out HUD once a minute.

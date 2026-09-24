@@ -713,8 +713,11 @@ public abstract class UILoop implements Console.Directory {
 		 * press still falls through where no handler cancels it (custom.md). */
 		if(!layerhot)
 		    layerhot = (layer.tooltip(layer.mc) != null);
-		if(!layer.root.sz.equals(sz))
+		if(!layer.root.sz.equals(sz)) {
+		    Coord was = layer.root.sz;
 		    layer.root.resize(sz);
+		    io.brodgar.ui.WndPos.relayout(layer.root, was);   // addon: a window the user moved in the layer keeps its fraction (166)
+		}
 	    }
 	    synchronized(ui) {
 		CPUProfile.phase(prof, "stick");

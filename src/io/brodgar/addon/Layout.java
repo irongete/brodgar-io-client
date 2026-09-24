@@ -999,12 +999,15 @@ final class Layout {
      * to != WIDGET} filter skips every screen-anchored widget by construction. {@code UILoop} resizing {@code
      * ui.root} is exactly this case, so it is handled here, separately: every SCREEN-anchored widget is
      * re-applied — the same widgets {@code redrive()} used to walk every tick, now touched only on an actual
-     * screen resize.
+     * screen resize. So is every level held directly on the root ({@link #reapply}), which is where a hand place
+     * on the screen follows it (166.2).
      */
     static void dispatchResized(Widget w) {
         UI u = w.ui;   // 073.2: "is this the SCREEN?" is a question about the widget's own tree, not about
-        if((u != null) && (w == u.root))   //   whether it is the DRAWN one's root, which a background
+        if((u != null) && (w == u.root)) { //   whether it is the DRAWN one's root, which a background
             rederiveScreenAnchored();      //   session's root never is however often it resizes
+            reapply(w);                    // 166.2: ...and a hand place on the root follows the screen
+        }
         // 158.2: a widget's OWN anchor reads its own box -- "bottomright" is corner ON corner, so a widget
         // that grew by the verb, a rule's size, a pack or the client's grip has its corner off the target's
         // until it is re-derived. Where derived holds it, the whole fold runs over it (apply is idempotent,
@@ -1078,13 +1081,24 @@ final class Layout {
      * already where the cascade says gets no write at all — so a {@code resize} it makes cannot come back
      * round and ask for another. Bounded by the held set, and one volatile read on a client with nothing
      * laid out, which is every client until an addon lays something out.
+     *
+     * <p><b>A hand place follows the screen</b> (166.2). A level the user's hand gave a widget directly on the
+     * screen ({@link LuaWidget.Moved#hand}) is first rewritten as the plain {@code position} its fraction of
+     * the free space stands at in {@code parent}'s size now, then folded like the rest; a place the addon wrote
+     * keeps its pixels. Its two callers are the two screens: {@code GameUI.resize} for the HUD, and
+     * {@link #dispatchResized} for a tree's root (the addon layer's, a session's).
      */
     static void reapply(Widget parent) {
         if(!LuaWidget.anyMoved || (parent == null))
             return;
         List<Widget> ws = LuaWidget.movedUnder(parent);
-        for(int i = 0; i < ws.size(); i++)
-            apply(ws.get(i));
+        for(int i = 0; i < ws.size(); i++) {
+            Widget w = ws.get(i);
+            synchronized(LuaWidget.monitor(w)) {
+                LuaWidget.handsFollow(w);
+            }
+            apply(w);
+        }
     }
 
     /** Is a pending candidate still the same live widget? (Server-bound: by id; client-only: by reachability.) */

@@ -103,6 +103,23 @@ public final class WndPos {
         return (int)Math.round(f * (p - w));
     }
 
+    /**
+     * Both axes of the rule: {@code c} in a parent {@code psz} for a widget {@code wsz}, as {@code {fx, fy}}.
+     * {@code was} is the fraction it had ({@code null}: none), kept per axis with no free space. {@code null}
+     * when the parent has no area yet.
+     */
+    public static double[] frac(Coord c, Coord psz, Coord wsz, double[] was) {
+        if((c == null) || (wsz == null) || !area(psz))
+            return null;
+        return new double[] {frac(c.x, psz.x, wsz.x, (was == null) ? Double.NaN : was[0]),
+                             frac(c.y, psz.y, wsz.y, (was == null) ? Double.NaN : was[1])};
+    }
+
+    /** Both axes back: the {@code c} a fraction {@code {fx, fy}} stands at in a parent {@code psz} for a widget {@code wsz}. */
+    public static Coord place(double[] f, Coord psz, Coord wsz) {
+        return Coord.of(place(f[0], psz.x, wsz.x), place(f[1], psz.y, wsz.y));
+    }
+
     private static double clamp(double f) {
         return Math.max(0.0, Math.min(1.0, f));
     }

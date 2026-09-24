@@ -625,7 +625,8 @@ public final class LuaWidget {
                         Moved rec = recordMoved(owner, w);         // name the level, then resolve it
                         rec.wantPos = Layout.Anchor.at(to);        // 036.3: the parent's top-left, plus (x, y)
                         rec.posSeq = Layout.nextSeq();             // 058.3: the level speaks the sheet's own space,
-                    }                                              //   and Anchor.resolve is where it converts
+                        rec.hand = null;                           //   and Anchor.resolve is where it converts --
+                    }                                              // 166.2: and a place the addon wrote stays pixels
                     // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
                     // into another tree, and that is a second monitor while this one is still held. The
                     // fold ends in Column.applied, so the packed surface it stands in follows (139.4).
@@ -2615,6 +2616,17 @@ public final class LuaWidget {
          * same, which is what makes "the verb wins" a statement about a fold rather than about two mechanisms.
          */
         Layout.Anchor wantPos;
+        /**
+         * <b>Where the user's hand put it</b> (166.2), as a fraction of its parent's free space per axis
+         * ({@code io.brodgar.ui.WndPos}), or {@code null}: {@link #wantPos} is a place the addon wrote. Set from
+         * the landed {@code c} by a {@code :draggable} drag ({@link Gesture}), the title-bar drag of a window the
+         * addon built ({@link LuaWidget#levelFollows}) and a remembered place put back
+         * ({@link LuaWidget#rememberApply}), and only for a widget directly on a {@code GameUI} or its tree's
+         * root -- the screen, which is where {@link LuaWidget#handOf} answers. Cleared by
+         * {@code widget:position(x, y)} and by every drop of the level. {@link Layout#reapply} rewrites
+         * {@link #wantPos} from it when the screen changes size; the level itself stays a plain {@code position}.
+         */
+        double[] hand;
         /** This addon's hand-named size, in design pixels — see {@link #wantPos}. */
         Coord wantSize;
         /**
@@ -2695,6 +2707,49 @@ public final class LuaWidget {
             Moved m = ms.get(i);
             if((m.wdg.parent == parent) && !out.contains(m.wdg))
                 out.add(m.wdg);
+        }
+    }
+
+    /**
+     * <b>Where {@code w} stands as a fraction of the screen's free space</b> (166.2) -- {@link Moved#hand}'s
+     * value, taken from {@code c} as it is now -- or {@code null} when its parent is not the screen: a widget
+     * inside a window of any kind keeps the pixels it was given. The screen is a {@link GameUI} (the HUD) or
+     * the root of the tree the widget stands in (a session's, or the addon layer's). {@code was} is the
+     * fraction it had, kept on an axis with no free space.
+     */
+    static double[] handOf(Widget w, double[] was) {
+        Widget p = (w == null) ? null : w.parent;
+        UI u = (w == null) ? null : w.ui;
+        if((p == null) || !((p instanceof GameUI) || ((u != null) && (p == u.root))))
+            return null;
+        return io.brodgar.ui.WndPos.frac(w.c, p.sz, w.sz, was);
+    }
+
+    /**
+     * <b>The screen changed size: every hand level on {@code w} follows it</b> (166.2) -- each record, over
+     * every live owner, whose position level the user's hand gave ({@link Moved#hand}) is rewritten as the plain
+     * {@code position} its fraction stands at in the parent's size now. Its {@code seq} stays: it is the same
+     * level, re-said. From {@link Layout#reapply}, before the fold. Caller holds {@code w}'s monitor.
+     */
+    static void handsFollow(Widget w) {
+        Widget p = w.parent;
+        if((p == null) || (p.sz == null) || (w.sz == null))
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            handsFollowIn(as.get(i), w, p.sz);
+        handsFollowIn(AddonManager.consoleOwner, w, p.sz);
+    }
+
+    private static void handsFollowIn(Addon a, Widget w, Coord psz) {
+        if(a == null)
+            return;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg != w) || (m.hand == null) || (m.wantPos == null) || (psz.x <= 0) || (psz.y <= 0))
+                continue;
+            m.wantPos = Layout.Anchor.at(Px.out(io.brodgar.ui.WndPos.place(m.hand, psz, w.sz)));
         }
     }
 
@@ -2884,6 +2939,15 @@ public final class LuaWidget {
             }
         }
         Layout.apply(w);        // 112.6: below the block — a follower of this window may be another tree's
+        if(p.pos != null) {
+            // 166.2: a remembered place is where the user's hand left it, so on the screen it follows the
+            // screen: its fraction, taken where it landed (the clamp having had its word).
+            synchronized(monitor(w)) {
+                Moved rec = findMoved(owner, w);
+                if((rec != null) && (rec.wantPos != null))
+                    rec.hand = handOf(w, null);
+            }
+        }
     }
 
     /** {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. */
@@ -3023,6 +3087,7 @@ public final class LuaWidget {
                 return;
             rec.wantPos = Layout.Anchor.at(Px.out(w.c));
             rec.posSeq = Layout.nextSeq();
+            rec.hand = handOf(w, rec.hand);         // 166.2: the user's hand placed it -- on the screen it follows
         } else {
             if((rec.wantSize == null) || (w.sz == null))
                 return;
