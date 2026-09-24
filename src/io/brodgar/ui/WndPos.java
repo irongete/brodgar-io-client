@@ -69,6 +69,8 @@ public final class WndPos {
         }
     }
 
+    // retained: weak keys over a Rec -- the Rec holds its parent through a WeakReference and nothing else that
+    //   reaches a widget, so nothing in the entry reaches the window it is keyed on, and it collects.
     private static final Map<Widget, Rec> recs = new WeakHashMap<Widget, Rec>();
 
     // ---- the rule ------------------------------------------------------------------------------------
