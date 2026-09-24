@@ -587,7 +587,7 @@ public final class LuaWidget {
         // SINCE 036.1 IT ANSWERS ON A NATIVE WIDGET (feature E) — it moves `c`, the very field the user's own drag
         // writes, never a draw-time offset (which would make the widget draw where it cannot be clicked). Touching
         // one records the stock value first (Addon.movedNative), so :reload/disable gives it back and, above all,
-        // the client's own position store never learns about us: GameUI.savewndpos asks for the stock coordinate.
+        // the client's own position store never learns about us: WndPos never takes the user's place from a held one.
         //
         // AND SINCE 036.2 IT IS A LEVEL OF THE CASCADE, not a write beside it (D-077): the verb is the HAND-NAMED
         // top of the same fold a sheet's `pos` rule feeds, so it wins over every rule that merely matched the
@@ -2642,10 +2642,11 @@ public final class LuaWidget {
     }
 
     /**
-     * Does <b>any</b> live owner hold a moved-native record right now? The global-empty fast path for the 036.1
-     * persistence seam ({@link UiApi#stockPos}/{@link UiApi#stockSizeArg}), which {@code GameUI.savewndpos} asks
-     * for six windows every 60 s and again at logout. A plain volatile read is the whole cost for a client no
-     * addon has laid out — which is every client until one calls {@code w:position(x,y)} on a native widget.
+     * Does <b>any</b> live owner hold a moved-native record right now? The global-empty fast path for the
+     * persistence seams ({@link UiApi#stockPos}/{@link UiApi#stockSizeArg}, and {@code AddonManager.posHeld},
+     * which {@code io.brodgar.ui.WndPos} asks for every window it saves or re-places). A plain volatile read is
+     * the whole cost for a client no addon has laid out — which is every client until one calls
+     * {@code w:position(x,y)} on a native widget.
      *
      * <p>Maintained exactly like {@link #anyHidden}: recomputed at the places a layout list changes (the two
      * verbs, their {@code nil} undo, {@link UiApi#teardownMoved}, {@link UiApi#pruneDeadTrees}). A stale

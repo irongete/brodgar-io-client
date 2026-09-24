@@ -24,14 +24,14 @@ inventory:remember("bag")          -- and have it come back there next session
 |---|---|---|---|
 | `widget:position(x, y)` | `self` | Unprotected | Moves it, writing the field the user's own drag writes: what you place is what you click. |
 | `widget:size(w, h)` | `self` | Unprotected | Resizes its content. A window's chrome refits. |
-| `widget:position(nil)`, `widget:size(nil)` | `self` | Unprotected | Drop your level of that half. The widget lands on a rule that still names it, else on the stock: what the client recorded on your first touch, or the builder's default place and box on a [surface of yours](custom.md). |
+| `widget:position(nil)`, `widget:size(nil)` | `self` | Unprotected | Drop your level of that half. The widget lands on a rule that still names it, else on the stock: what the client recorded on your first touch, or the builder's default place and box on a [surface of yours](custom.md). A window on the HUD that follows the screen lands at the user's place for the size the screen is now (*Re-layout*, below). |
 | `widget:position()` | `{x=, y=}` | Unprotected | Within the parent, in [design pixels](pixels.md). The HUD is not the root, so [`:rootPos()`](widget.md#read-methods) is the screen coordinate. |
 | `widget:size()` | `{w=, h=}` | Unprotected | The box `:size(w, h)` writes — a window's content area — so writing a size back is a no-op. The frame is [`:chrome().frame`](widget.md#read-methods). |
 
 | Rule | Detail |
 |---|---|
 | A layer, never a write into the client | The first touch records what the widget was. `:reload` and disable give back everything you held. A relog restores nothing: that session's widgets are gone. |
-| The disk is the user's | The client persists a few window positions of its own: inventory, equipment, character sheet, kin, map, windows tracked by id. It always writes what the user last placed, never your level. Uninstalling your addon leaves the HUD as its owner arranged it. |
+| The disk is the user's | The client persists the places of its own windows: inventory, equipment, character sheet, kin, map, action search, icon settings, crafting, an item's contents, windows tracked by id. Each is saved relative to the screen, so it opens at the same relative place at another window size or interface scale. It always writes what the user last placed, never your level. Uninstalling your addon leaves the HUD as its owner arranged it. |
 | A position always lands. A size may not | A window that packs itself around its contents (the main inventory) honours `:size(w, h)` and undoes it before the call returns: inert, never an error. Read `:size()` back to tell. The sheet's [`padding`](style/chrome.md#padding) follows the same rule. |
 | Two addons | Each may hold a layer on one widget. The last write wins on screen, each restores what it found. |
 | The cascade | The verb is the top level over a sheet's [`position` and `size` rules](style/geometry.md). `:position(nil)` drops your level and falls back to a rule that still names the widget. It reaches the stock value only when none does. A [surface of yours](custom.md) runs the same cascade, its stock the builder's default place and box. |
@@ -63,7 +63,7 @@ chat:draggable(nil)       -- the chat stops being draggable
 | The clamp | At least 100 design pixels of the widget, or the whole of it when smaller, stays inside its parent. That is the client's own rule for its windows. |
 | The gesture holds the pointer | From press to release, off-window included. Nothing underneath is clicked, and the widget follows a pointer that outruns the handle. |
 | The press belongs to the drag | A widget armed as a handle stops answering clicks of its own while the binding stands. Give a widget with clicks a grip of its own. |
-| Re-layout | Resizing the game window re-places the client's panels. A place you or the user named goes back on top, and `:position(nil)` still yields the stock value. |
+| Re-layout | Resizing the game window re-places the client's panels, and a window directly on the HUD keeps its place relative to the screen: the same fraction of its free space per axis, 0 at the left or top edge, 1 at the right or bottom. A window within 10 design pixels of an edge stays on that edge. One left partly off screen comes back whole. A client window follows. A window your addon built follows once the user has dragged it by its title. A window your level holds keeps the pixels the level names, and `:position(nil)` then lands it at the user's relative place. Anything you [anchored](style/geometry.md#anchor) to a window that moved follows it on the next step. |
 | Two addons | May arm one widget: one drag moves it once, both levels take the landing, each `nil` drops its own. Both `Dragged` handlers fire. |
 | Endings | The arming ends when the target or the handle leaves the tree. A grip pressing three targets keeps pressing the other two. `widget:revert()` drops it too. A handle that has left the tree arms nothing and chains, with `:draggable()` reading `nil`. A non-widget raises. A stale target is a no-op. |
 

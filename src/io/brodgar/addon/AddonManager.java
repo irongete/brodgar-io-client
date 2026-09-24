@@ -2301,23 +2301,22 @@ public final class AddonManager {
     }
 
     /**
-     * The <b>layout-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} wherever the
-     * client writes a window's own geometry to disk ({@code GameUI.savewndpos}, {@code cdestroy}'s
-     * {@code wndc-misc}, the crafting window's {@code makewndc}): what should be persisted is what the <b>user</b>
-     * last placed, so a widget an addon's layout is standing on answers with the stock value recorded at first
-     * touch, and every other widget answers with itself.
-     *
-     * <p>Without it a naive move has the client save the addon's position as the user's preference, and
-     * uninstalling the addon leaves those windows displaced forever — the one risk of this feature that is not
-     * reversible in memory. <b>An addon's layout is a layer over the client's, never a write into it.</b>
-     *
-     * <p><b>Threading.</b> UI thread (a 60 s tick, {@code dispose()}, or a window's destroy) and it raises no Lua.
-     * With no addon laying anything out the call is one volatile read and hands the widget's own value straight
-     * back, so a stock client writes exactly the bytes it wrote before.
+     * <b>Does an addon's layout hold {@code w}'s place?</b> (166) — a position level standing on it: a verb's, a
+     * rule's, a remembered place's. Asked by {@code io.brodgar.ui.WndPos}, which leaves such a window to the
+     * layout and never takes the user's fraction from a place an addon wrote. One volatile read for a client no
+     * addon has laid out.
      */
-    public static Coord stockPos(Widget w) {             return UiApi.stockPos(w);       }
+    public static boolean posHeld(Widget w) {           return UiApi.movedOwner(w, true) != null; }
 
-    /** @see #stockPos */
+    /** <b>Did an addon build {@code w}?</b> (166) — itself, or the window around the content it built ({@link Owned#of}). */
+    public static boolean built(Widget w) {             return Owned.of(w) != null;     }
+
+    /**
+     * The <b>size-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} where the client
+     * writes a window's own box to disk ({@code GameUI.savewndpos}'s {@code wndsz-map}): what should be persisted
+     * is what the <b>user</b> last sized, so a widget an addon's layout is standing on answers with the stock
+     * value recorded at first touch, and every other widget answers with itself.
+     */
     public static Coord stockSize(Widget w) {            return UiApi.stockSizeArg(w);   }
 
     /**

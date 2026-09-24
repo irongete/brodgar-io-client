@@ -53,7 +53,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private Text lastmsg;
     private double msgtime;
     private Window invwnd, equwnd, makewnd, srchwnd, iconwnd;
-    private Coord makewndc = Utils.getprefc("makewndc", new Coord(400, 200));
+    private io.brodgar.ui.WndPos.Val makewndc = io.brodgar.ui.WndPos.read("makewndc");	// addon: a fraction of the free space, or the old pixels (166)
     public Inventory maininv;
     public CharWnd chrwdg;
     public MapWnd mapfile;
@@ -390,7 +390,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	syslog = chat.add(new ChatUI.Log("System"));
 	opts = add(new OptWnd());
 	opts.hide();
-	zerg = add(new Zergwnd(), Utils.getprefc("wndc-zerg", UI.scale(new Coord(187, 50))));
+	zerg = new Zergwnd();
+	add(zerg, io.brodgar.ui.WndPos.load(this, zerg, "wndc-zerg", UI.scale(new Coord(187, 50))));	// addon: no size yet: the first resize places it (166)
 	zerg.hide();
     }
 
@@ -1009,22 +1010,25 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     private void savewndpos0() {
-	/* addon: what gets written down is what the USER placed. AddonWidgets.stockc/stockcsz answer the widget's
-	 * own geometry unless an AddOn's layout is standing on it, and then the value it had before that addon
-	 * touched it — otherwise the client would persist the addon's position as the user's own preference, and
-	 * uninstalling it would leave these windows displaced forever (spec 036-ui-layout). */
+	/* addon: what gets written down is what the USER placed, as a fraction of the free space (166). WndPos
+	 * never takes that fraction from a place an AddOn's layout is standing on, so uninstalling it leaves these
+	 * windows where their owner arranged them; stockcsz answers the map's box the same way (spec 036-ui-layout). */
 	if(invwnd != null)
-	    Utils.setprefc("wndc-inv", AddonWidgets.stockc(invwnd));
+	    io.brodgar.ui.WndPos.save("wndc-inv", invwnd);
 	if(equwnd != null)
-	    Utils.setprefc("wndc-equ", AddonWidgets.stockc(equwnd));
+	    io.brodgar.ui.WndPos.save("wndc-equ", equwnd);
 	if(chrwdg != null)
-	    Utils.setprefc("wndc-chr", AddonWidgets.stockc(chrwdg));
+	    io.brodgar.ui.WndPos.save("wndc-chr", chrwdg);
 	if(zerg != null)
-	    Utils.setprefc("wndc-zerg", AddonWidgets.stockc(zerg));
+	    io.brodgar.ui.WndPos.save("wndc-zerg", zerg);
 	if(mapfile != null) {
-	    Utils.setprefc("wndc-map", AddonWidgets.stockc(mapfile));
+	    io.brodgar.ui.WndPos.save("wndc-map", mapfile);
 	    Utils.setprefc("wndsz-map", AddonWidgets.stockcsz(mapfile));
 	}
+	if(srchwnd != null)	// addon: read at its creation and never written upstream (166)
+	    io.brodgar.ui.WndPos.save("wndc-srch", srchwnd);
+	if(iconwnd != null)	// addon: (166)
+	    io.brodgar.ui.WndPos.save("wndc-icon", iconwnd);
     }
 
     private final BMap<String, Window> wndids = new HashBMap<String, Window>();
@@ -1062,11 +1066,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    mapfile.hide();
 		});
 		mapfile.show(Utils.getprefb("wndvis-map", false));
-		add(mapfile, Utils.getprefc("wndc-map", new Coord(50, 50)));
+		add(mapfile, io.brodgar.ui.WndPos.load(this, mapfile, "wndc-map", new Coord(50, 50)));	// addon: (166)
 	    }
 	} else if(place == "menu") {
 	    menu = (MenuGrid)brpanel.add(child, menugridc);
-	    fitwdg(srchwnd = GameUI.this.add(new MenuSearch.Main(menu), Utils.getprefc("wndc-srch", UI.scale(200, 200))));
+	    srchwnd = new MenuSearch.Main(menu);
+	    fitwdg(GameUI.this.add(srchwnd, io.brodgar.ui.WndPos.load(this, srchwnd, "wndc-srch", UI.scale(200, 200))));	// addon: (166)
 	    srchwnd.reqclose(srchwnd::hide).hide();
 	} else if(place == "fight") {
 	    fv = urpanel.add((Fightview)child, 0, 0);
@@ -1081,20 +1086,20 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    invwnd.add(maininv = (Inventory)child, Coord.z);
 	    invwnd.pack();
 	    invwnd.hide();
-	    add(invwnd, Utils.getprefc("wndc-inv", new Coord(100, 100)));
+	    add(invwnd, io.brodgar.ui.WndPos.load(this, invwnd, "wndc-inv", new Coord(100, 100)));	// addon: (166)
 	} else if(place == "equ") {
 	    equwnd = new Hidewnd(Coord.z, "Equipment");
 	    equwnd.add(child, Coord.z);
 	    equwnd.pack();
 	    equwnd.hide();
-	    add(equwnd, Utils.getprefc("wndc-equ", new Coord(400, 10)));
+	    add(equwnd, io.brodgar.ui.WndPos.load(this, equwnd, "wndc-equ", new Coord(400, 10)));	// addon: (166)
 	} else if(place == "hand") {
 	    GItem g = add((GItem)child);
 	    Coord lc = (Coord)args[1];
 	    hand.add(new DraggedItem(g, lc));
 	    updhand();
 	} else if(place == "chr") {
-	    chrwdg = add((CharWnd)child, Utils.getprefc("wndc-chr", new Coord(300, 50)));
+	    chrwdg = add((CharWnd)child, io.brodgar.ui.WndPos.load(this, child, "wndc-chr", new Coord(300, 50)));	// addon: (166)
 	    chrwdg.reqclose(chrwdg::hide).hide();
 	} else if(place == "craft") {
 	    String cap = "";
@@ -1118,14 +1123,17 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			}
 		    }
 		    public void destroy() {
-			if(onscreen())   // rts: (F6)
-			    Utils.setprefc("makewndc", makewndc = AddonWidgets.stockc(this));	// addon: see savewndpos
+			if(onscreen()) {   // rts: (F6)
+			    io.brodgar.ui.WndPos.Val v = io.brodgar.ui.WndPos.save("makewndc", this);	// addon: see savewndpos
+			    if(v != null)
+				makewndc = v;
+			}
 			super.destroy();
 		    }
 		};
 	    makewnd.add(mkwdg, Coord.z);
 	    makewnd.pack();
-	    fitwdg(add(makewnd, makewndc));
+	    fitwdg(add(makewnd, io.brodgar.ui.WndPos.load(this, makewnd, makewndc, new Coord(400, 200))));	// addon: (166)
 	} else if(place == "buddy") {
 	    zerg.ntab(buddies = (BuddyWnd)child, zerg.kin);
 	} else if(place == "pol") {
@@ -1178,7 +1186,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    case "id":
 			String wndid = (String)opta[1];
 			if(child instanceof Window) {
-			    c = Utils.getprefc(String.format("wndc-misc/%s", (String)opta[1]), c);
+			    c = io.brodgar.ui.WndPos.load(this, child, String.format("wndc-misc/%s", (String)opta[1]), c);	// addon: (166)
 			    if(!wndids.containsKey(wndid)) {
 				c = fitwdg(child, c);
 				wndids.put(wndid, (Window)child);
@@ -1275,7 +1283,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    if(wndid != null) {
 		wndids.remove(wndid);
 		if(onscreen())   // rts: (F6)
-		    Utils.setprefc(String.format("wndc-misc/%s", wndid), AddonWidgets.stockc(w));	// addon: see savewndpos
+		    io.brodgar.ui.WndPos.save(String.format("wndc-misc/%s", wndid), w);	// addon: see savewndpos
 	    }
 	}
 	if(w instanceof GItem) {
@@ -1707,11 +1715,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			return;
 		    if(iconwnd == null) {
 			iconwnd = new GobIcon.SettingsWindow(iconconf).reqclose(() -> {
-			    if(iconwnd != null)
+			    if(iconwnd != null) {
+				if(onscreen())	// addon: closing it writes its place, as savewndpos does (166)
+				    io.brodgar.ui.WndPos.save("wndc-icon", iconwnd);
 				iconwnd.reqdestroy();
+			    }
 			    iconwnd = null;
 			});
-			fitwdg(GameUI.this.add(iconwnd, Utils.getprefc("wndc-icon", new Coord(200, 200))));
+			fitwdg(GameUI.this.add(iconwnd, io.brodgar.ui.WndPos.load(GameUI.this, iconwnd, "wndc-icon", new Coord(200, 200))));	// addon: (166)
 		    } else {
 			iconwnd.reqclose();
 		    }
@@ -1802,6 +1813,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     public void resize(Coord sz) {
+	Coord was = this.sz;	// addon: (166)
 	super.resize(sz);
 	/* addon: (audit2 B15) EACH OF THESE IS THIS HUD'S OWN, and only while it still is. Every line below
 	 * writes a place or a size through a field reference, whatever has become of the widget it names --
@@ -1819,6 +1831,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
 	if(mine(beltwdg))
 	    beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));
+	io.brodgar.ui.WndPos.relayout(this, was);	// addon: every window keeps its fraction of the free space (166)...
 	AddonWidgets.relayout(this);	// addon: ...and a place an AddOn or the user named survives that (062)
     }
 

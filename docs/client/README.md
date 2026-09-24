@@ -22,7 +22,8 @@ lookup instead of a search.
 | [reading a widget](widget-introspection.md) | the read-only walk over a live tree: `children()` vs the recursive `children(Class)`, the server id, text sources, the hit-test walk and `xlate`/`parentpos`, and who resizes the root |
 | [the tick and draw traversals](widget-draw.md) | how a frame reaches a widget: the two recursion seams, why an override of `draw` may paint no child at all, where the screen `GOut` is built, and what a frame allocates |
 | [widget input](widget-input.md) | how an event reaches a widget: the grab checked *before* the tree, the three propagation walks, focus bookkeeping vs delivery (`hasfocus` is the wrong read), the per-frame point queries, popup rooting, and the two drop families |
-| [GameUI's own windows](gameui-windows.md) | the `Hidewnd` wrappers, the menu bars, the one private `togglewnd`/`wndstate` path, and the client's own window-position store |
+| [GameUI's own windows](gameui-windows.md) | the `Hidewnd` wrappers, the menu bars, and the one private `togglewnd`/`wndstate` path |
+| [where GameUI's windows stand](window-positions.md) | the `wndc-*` position store: every key, where each is read and written, the clamp, `ContentsWindow`'s three states, and what `GameUI.resize` re-places |
 | [chrome](ui-chrome.md) | what draws a **frame**: `Window.deco` and the `Deco` contract (the ctor's `sz` is the CONTENT size), `IBox`, and the window-less panels |
 | [controls](ui-controls.md) | `SIWidget`'s rasterise-once cache, `Button`, `IButton`, `ACheckBox`'s value spine, the four plain display controls, `RadioGroup` |
 | [panels and tabs](ui-panels.md) | `Tabs`, which is not a widget, `OptWnd`'s panel model: the caption that follows the panel, the list that is the navigation, and where a re-fit stops — and `PackCont`, the container that stays packed |

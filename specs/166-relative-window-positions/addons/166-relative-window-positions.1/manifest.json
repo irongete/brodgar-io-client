@@ -1,0 +1,9 @@
+{
+  "name": "166.1 — the client's windows keep their place relative to the screen",
+  "id": "166-relative-window-positions.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 166.1: a HUD resize keeps every client window at its fraction of the free space, the magnet and the clamp, an addon's window following only once moved, :position(nil) landing relatively, and an anchor following a moved window.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

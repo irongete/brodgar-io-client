@@ -438,6 +438,7 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	private Coord psz = null;
 	private String st;
 	private boolean hovering;
+	private io.brodgar.ui.WndPos.Val saved;	// addon: the stored place, placed once there is a parent (166)
 
 	public ContentsWindow(GItem cont, Widget inv) {
 	    super(Coord.z, cont.contentsnm);
@@ -445,15 +446,26 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    this.inv = add(inv, Coord.z);
 	    this.id = cont.contentsid;
 	    this.tick(0);
-	    Coord c = null;
 	    if(Utils.getprefb(String.format("cont-wndvis/%s", id), false))
-		c = Utils.getprefc(String.format("cont-wndc/%s", id), null);
-	    if(c != null) {
-		this.c = c;
+		saved = io.brodgar.ui.WndPos.read(String.format("cont-wndc/%s", id));	// addon: (166)
+	    if(saved != null) {
 		chstate("wnd");
 	    } else {
 		chstate("hide");
 	    }
+	}
+
+	/* addon: (166) the constructor has no parent to measure a fraction against: the place resolves here. */
+	protected void added() {
+	    super.added();
+	    if((saved != null) && (st == "wnd"))
+		this.c = io.brodgar.ui.WndPos.load(parent, this, saved, Coord.z);
+	    saved = null;
+	}
+
+	/* addon: (166) standing as a window of its own, rather than hovering beside its item or hidden. */
+	public boolean pinned() {
+	    return(st == "wnd");
 	}
 
 	private void chstate(String nst) {
@@ -528,7 +540,8 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 		resize(inv.c.add(psz = inv.sz));
 	    if(st == "wnd") {
 		if(!Utils.eq(lc, this.c) && (id != null))
-		    Utils.setprefc(String.format("cont-wndc/%s", id), lc = this.c);
+		    io.brodgar.ui.WndPos.save(String.format("cont-wndc/%s", id), this);	// addon: (166)
+		lc = this.c;
 	    }
 	}
 
@@ -556,7 +569,7 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    if(show && (st != "wnd")) {
 		Coord wc = null;
 		if(id != null)
-		    wc = Utils.getprefc(String.format("cont-wndc/%s", id), null);
+		    wc = io.brodgar.ui.WndPos.load(parent, this, String.format("cont-wndc/%s", id), null);	// addon: (166)
 		if(st == "hide") {
 		    if(wc == null)
 			wc = cont.rootxlate(ui.mc).add(overlap);

@@ -1304,6 +1304,7 @@ final class UiApi {
                     boolean r = super.mouseup(ev);
                     if(dragged) {
                         dragged = false;
+                        io.brodgar.ui.WndPos.handMoved(this);   // 166: a window the user moved follows the screen
                         LuaWidget.rememberLanded(owner, this, true);
                     }
                     return r;
@@ -2367,30 +2368,27 @@ final class UiApi {
     }
 
     /**
-     * <b>The position {@code GameUI.savewndpos} must persist</b> — what the <i>user</i> last placed, which is the
-     * widget's own {@code c} unless an addon's layout is standing on it, and then the stock value recorded at
-     * first touch (036.1, through {@code haven.AddonWidgets.stockc}).
+     * <b>The stock place a dropped position level gives back</b> — what the <i>user</i> had, read by
+     * {@link Layout}'s position half at the layer's first touch and again at the drop.
      *
-     * <p>This is the acceptance criterion the whole feature exists to satisfy: {@code savewndpos} writes
-     * {@code wndc-inv}/{@code -equ}/{@code -chr}/{@code -zerg}/{@code -map} through {@code Utils.setprefc} from
-     * {@code dispose()} at logout <i>and</i> every 60 s from {@code tick}, so a layer that merely restores at
-     * teardown would still have the client save our position as the user's own preference — and uninstalling the
-     * addon would leave those windows displaced <b>forever</b>, D-070's discipline defeated by a write to disk.
-     * Substituting the value rather than restoring the widget is also what keeps the 60 s tick invisible: nothing
-     * on screen moves, only what is written down. <b>An addon's layout is a layer over the client's, never a
-     * write into it.</b>
+     * <p>A window {@code io.brodgar.ui.WndPos} places (166) answers with the user's place <b>at the current
+     * size</b>: its fraction of the free space, which the rule never takes from a place an addon holds. So a
+     * window laid out across a screen resize comes back where the user's relative place now is, not at the pixels
+     * it left. Anything else answers with the stock value recorded at first touch, and the widget's own {@code c}
+     * where no addon is standing on it.
      *
      * <p>First live owner wins, which is the same order the moves themselves happened in. One volatile read for
      * a client no addon has laid out.
      *
      * <p><b>Standing a window in the 3D world is the same layer, and the same trap</b> (044.6): a standing
-     * widget's {@code c} is pinned at its surface's own origin ({@code WidgetSurface.tick}), so the client
-     * asking a standing window where it is would write {@code 0, 0} down as the user's preference and displace
-     * it forever — the exact failure this method exists to prevent, arriving through a different door. The
-     * answer is the place the entity recorded when it stood, which is by definition what the user last had.
-     * One reference comparison on the widget's own parent, for a question asked six times a minute.
+     * widget's {@code c} is pinned at its surface's own origin ({@code WidgetSurface.tick}), so its own {@code c}
+     * is no place the user had. The answer is the place the entity recorded when it stood. One reference
+     * comparison on the widget's own parent.
      */
     static Coord stockPos(Widget w) {
+        Coord rel = io.brodgar.ui.WndPos.stock(w);
+        if(rel != null)
+            return rel;
         LuaWidget.Moved m = movedOwner(w, true);
         if(m != null)
             return m.pos;
@@ -2412,14 +2410,14 @@ final class UiApi {
         return w.c;
     }
 
-    /** The size argument {@code savewndpos} must persist ({@code wndsz-map}) — see {@link #stockPos}. */
+    /** The size argument {@code savewndpos} must persist ({@code wndsz-map}): the stock box recorded at first touch, else the widget's own. */
     static Coord stockSizeArg(Widget w) {
         LuaWidget.Moved m = movedOwner(w, false);
         return (m != null) ? m.size : ((w == null) ? null : LuaWidget.sizeArg(w));
     }
 
     /** The first live owner holding the asked-for half of a layout record for {@code w}, or {@code null}. */
-    private static LuaWidget.Moved movedOwner(Widget w, boolean pos) {
+    static LuaWidget.Moved movedOwner(Widget w, boolean pos) {
         if(!LuaWidget.anyMoved || (w == null))
             return null;
         List<Addon> as = AddonManager.addons;

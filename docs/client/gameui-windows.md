@@ -1,6 +1,6 @@
-# GameUI's own windows: wrappers, menu bars, the toggle path and the position store
+# GameUI's own windows: wrappers, menu bars and the toggle path
 
-> Covers the windows **the client itself opens, closes and remembers**. Distinct from [widgets.md](widgets.md) (generic tree + create/place/destroy) and [ui-chrome.md](ui-chrome.md) (`Window.Deco`, `IBox`, the `iresize`/`contarea`/`csz` geometry). The **class + method name is the stable anchor**.
+> Covers the windows **the client itself opens and closes**. Distinct from [widgets.md](widgets.md) (generic tree + create/place/destroy), [ui-chrome.md](ui-chrome.md) (`Window.Deco`, `IBox`, the `iresize`/`contarea`/`csz` geometry) and [window-positions.md](window-positions.md) (where each window stands: the `wndc-*` store and the screen resize). The **class + method name is the stable anchor**.
 
 ## The windows GameUI owns — fields on `GameUI`: `invwnd`, `equwnd`, `makewnd`, `srchwnd`, `iconwnd`, `chrwdg`, `zerg`, `opts`, `mapfile`
 
@@ -74,27 +74,6 @@ finds nothing; the walk is up to `SAttrWnd` and back down through `children(Stud
 shape holds for `CharWnd`: a walk from `BAttrWnd` reaches `CharWnd` only because `Tabs.Tab` is a widget
 in between, so the hop count is never one.
 
-## The client's own position store (`wndc-*`, and every place it is written)
-
-| What | Where |
-|---|---|
-| The main writer — **every 60 s while on screen, and again the moment the screen leaves this character** | `savewndpos0` is the body: `wndc-inv/-equ/-chr/-zerg/-map` + `wndsz-map` (`mapfile.csz()`, the CONTENT size). Two doors into it — `savewndpos`, which is the `onscreen()` guard, from `tick` on a `lastwndsave` clock; and `leavingscreen()`, which has none, from `MapView.dormant(true)`. ⚠️ **The guard is false by construction on the leaving path** — the new anchor is published before the frame moves the views ([multi-session.md](multi-session.md)) — so that door must skip it, and `dispose()`, reached only once the screen has already gone, carries no write at all |
-| Two more writers, same shape | `cdestroy` → `wndc-misc/<wndid>` for any server window carrying an `"id"` opt ( reads it back); the crafting window's own `destroy()` → `makewndc` |
-| The reads + the clamp | `Utils.getprefc(key, default)` **at construction** — //// — most through the `private` `fitwdg`, which clamps `wdg.c` so ≥ `UI.scale(100)` px stays inside `GameUI.sz` (cheaper re-derived — `UiApi.fitView` — than widened) |
-
-**This store belongs to what the USER placed** — the one thing an addon cannot undo in memory, since a `setprefc` outlives it. The writes are *unconditional*: no dirty flag, no "only if it changed".
-
-## `GameUI.resize` re-places four of its children, unconditionally, on every screen resize
-
-| What | Where |
-|---|---|
-| The four it writes | `GameUI.resize(Coord)` — `chat.resize(w)` + `chat.move(bottom-left)`, `map.resize(sz)`, `prog.move(centred)`, and `beltwdg.c` **assigned directly**. No condition, no memory of where anything was: whatever placed them before is gone |
-| ⚠️ **`ChatUI` overrides `move(Coord)`** | `ChatUI.move` — `this.c = (this.base = base).add(0, visible ? -sz.y : 0)`. So the argument is the chat's **base** (its bottom edge) and `c` is derived from it: `move(c)` is **not** the identity there, and anything that moves the chat by writing `c` and reads it back gets a different pair while the chat is expanded |
-| The fork's seam | `AddonWidgets.relayout(this)` (`// addon:`), the **last** line of `resize` — so a place the addon layer holds goes back on top of what the four writes above just did, rather than under it |
-
-`Widget.move` itself is **not** hooked anywhere, and deliberately: it is on every drag of every window in the
-client. This one method is the whole of the screen-resize case.
-
 ## The toggle path (one private method, seven call sites)
 
 | What | Where |
@@ -134,17 +113,12 @@ client. This one method is the whole of the screen-resize case.
 `cap` is **not** the `Deco`-rendered `Text` — that is `Deco.cap`, re-rendered by
 `checkcap` on `cap.text != wnd.cap` ([ui-chrome.md](ui-chrome.md)).
 
-## The addon seams (031, 035, 036, 062)
+## The addon seams (031, 035)
 
 All `// addon:` edits sit **inside existing method bodies** — no visibility change, no new call site — and go
 through `AddonWidgets`, so `haven` keeps one file that knows the addon layer exists. `togglewnd` asks
 `toggleWnd(wnd)` first (`true` = handled), `wndstate` asks `wndState(wnd)` (`null` = not owned); ownership is
 029's hide record (`Addon.hiddenNative`) by **widget identity**, which also disposes of the fading corpse from
 [widgets.md](widgets.md#core-tree), and that record carries the view, so `wndState` answers `view.visible()`.
-035's `chrome(wnd)` is in `Window.tick` ([ui-chrome.md](ui-chrome.md)). The position store's seam **is a
-SUBSTITUTION, not a call**: every `Utils.setprefc(key, w.c)` in the three writers above reads
-`AddonWidgets.stockc(w)` instead (`stockcsz` for `wndsz-map`) — the widget's own value unless an addon's layout
-stands on it. It substitutes rather than restores because `savewndpos` also runs on that 60 s tick, and putting
-the widgets back around the write would snap a laid-out HUD once a minute. 062's `relayout(this)` is the fourth
-and the only plain **call**: it goes last in `resize` so it overwrites, and it is idempotent so a `resize` it
-makes cannot come back round through the same line.
+035's `chrome(wnd)` is in `Window.tick` ([ui-chrome.md](ui-chrome.md)). The seams on where a window stands
+and on `GameUI.resize` are [window-positions.md](window-positions.md#the-forks-seams).
