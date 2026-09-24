@@ -2617,8 +2617,8 @@ public final class LuaWidget {
          */
         Layout.Anchor wantPos;
         /**
-         * <b>Where the user's hand put it</b> (166.2), as a fraction of its parent's free space per axis
-         * ({@code io.brodgar.ui.WndPos}), or {@code null}: {@link #wantPos} is a place the addon wrote. Set from
+         * <b>Where the user's hand put it</b> (166.2), as where its centre stands, a fraction of its parent per
+         * axis ({@code io.brodgar.ui.WndPos}), or {@code null}: {@link #wantPos} is a place the addon wrote. Set from
          * the landed {@code c} by a {@code :draggable} drag ({@link Gesture}), the title-bar drag of a window the
          * addon built ({@link LuaWidget#levelFollows}) and a remembered place put back
          * ({@link LuaWidget#rememberApply}), and only for a widget directly on a {@code GameUI} or its tree's
@@ -2711,7 +2711,7 @@ public final class LuaWidget {
     }
 
     /**
-     * <b>Where {@code w} stands as a fraction of the screen's free space</b> (166.2) -- {@link Moved#hand}'s
+     * <b>Where {@code w}'s centre stands as a fraction of the screen</b> (166.2) -- {@link Moved#hand}'s
      * value, taken from {@code c} as it is now -- or {@code null} when its parent is not the screen: a widget
      * inside a window of any kind keeps the pixels it was given. The screen is a {@link GameUI} (the HUD) or
      * the root of the tree the widget stands in (a session's, or the addon layer's). {@code was} is the
@@ -2979,9 +2979,12 @@ public final class LuaWidget {
             Widget par = w.parent;
             if((rec == null) || (par == null) || (par.sz == null) || (par.sz.x <= 0) || (par.sz.y <= 0))
                 return;
-            rec.wantPos = Layout.Anchor.at(Px.out(io.brodgar.ui.WndPos.place(p.frac, par.sz, w.sz)));
+            Coord at = io.brodgar.ui.WndPos.place(p.frac, p.free, par.sz, w.sz);
+            rec.wantPos = Layout.Anchor.at(Px.out(at));
             rec.posSeq = Layout.nextSeq();
-            rec.hand = onScreen(w) ? p.frac.clone() : null;
+            // an older build's free-space row is put back where that build put it, and held as where the
+            // centre stands from here on
+            rec.hand = !onScreen(w) ? null : p.free ? io.brodgar.ui.WndPos.frac(at, par.sz, w.sz, null) : p.frac.clone();
         }
         Layout.apply(w);
     }

@@ -65,18 +65,21 @@ drops the grab and is the one place the end of a drag is known.
 ## The fork's seams
 
 Every read and write in the tables above is an `// addon:` line that routes the place through the fork's
-window-position rule, which keeps a place as a **fraction of the free space** per axis, the server's
-`Coord2d` rule above:
+window-position rule, which keeps a place as **where the window's centre stands, as a fraction of the
+screen** per axis; a window touching an edge, or dropped partly past it, is stored glued to that edge
+(`0` or `1`, values a centre can never take), and a window that fits is always placed whole:
 
-- The keys carry `fx/fy`, each number written by `Double.toString`: locale-free, with no `x`, so a
-  pre-fork `Utils.getprefc` reads it as its default. An `NxM` value still loads as pixels. `wndsz-map`
-  stays pixels.
+- The keys carry `cfx/fy`, each number written by `Double.toString`: locale-free, with no `x`, so a
+  pre-fork `Utils.getprefc` reads it as its default, and the leading `c` makes an earlier fork build's
+  parser fail inside its own catch and default too. Two older values still load: `fx/fy` with no `c`, a
+  fraction of the free space (the server's `Coord2d` rule above), placed as it was written and held as a
+  centre from then on; and `NxM`, pixels. `wndsz-map` stays pixels.
 - Every key above is written by the drop, `wndc-srch` and `wndc-icon` included, which upstream never
   writes.
 - `zerg` waits for the first `resize`. `ContentsWindow` resolves its place in `added()` and `wndshow`,
   and `ContentsWindow.pinned()` (`// addon:`) is true in `"wnd"`.
-- `GameUI.resize` keeps the old size and re-places every top-level `Window` at its fraction of the new free
-  space, skipping an unpinned `ContentsWindow`, **before** `AddonWidgets.relayout(this)`. That call goes
+- `GameUI.resize` keeps the old size and re-places every top-level `Window` with its centre at its fraction
+  of the new size, skipping an unpinned `ContentsWindow`, **before** `AddonWidgets.relayout(this)`. That call goes
   last so a place the addon layer holds overwrites the client's placement, and it is idempotent so a
   `resize` it makes cannot come back round through the same line.
 - `UILoop.Frame.tick` keeps `layer.root`'s old size and runs the same re-placement over it right after

@@ -2373,7 +2373,7 @@ final class UiApi {
      * {@link Layout}'s position half at the layer's first touch and again at the drop.
      *
      * <p>A window {@code io.brodgar.ui.WndPos} places (166) answers with the user's place <b>at the current
-     * size</b>: its fraction of the free space, which the rule never takes from a place an addon holds. So a
+     * size</b>: where its centre stands as a fraction of the screen, which the rule never takes from a place an addon holds. So a
      * window laid out across a screen resize comes back where the user's relative place now is, not at the pixels
      * it left. Anything else answers with the stock value recorded at first touch, and the widget's own {@code c}
      * where no addon is standing on it.

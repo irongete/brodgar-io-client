@@ -15,18 +15,22 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * <b>Where a window stands, relative to the screen</b> (166). A window's place is a <b>fraction of its free
- * space</b> per axis, {@code f = c / (parent size - window size)}: 0 the left or top edge, 1 the right or bottom,
- * 0.5 centred -- the server's own rule for a {@code Coord2d} placement ({@code GameUI.addchild}, {@code misc}).
- * A fraction has no unit, so the interface scale cancels out.
+ * <b>Where a window stands, relative to the screen</b> (166). A window's place is <b>where its centre stands, as
+ * a fraction of the parent</b> per axis, {@code f = (c + window size / 2) / parent size}: the centre keeps its
+ * place relative to the screen whatever size the screen takes. A window that touches an edge is the one
+ * exception, and stays on it: {@code 0} is glued to the left or top edge, {@code 1} to the right or bottom (a
+ * centre can never stand exactly there, so the two values are free to mean it). A fraction has no unit, so the
+ * interface scale cancels out.
  *
  * <ul>
- * <li><b>The rule</b> -- {@link #frac} and {@link #place}. A fraction is clamped to {@code 0..1}, a gap of
- *     {@code UI.scale(10)} or less to an edge is the edge, and an axis with no free space keeps the fraction
- *     it had.</li>
- * <li><b>The value</b> -- the client's own {@code wndc-*} keys carry {@code fx/fy}, each number by
- *     {@code Double.toString} (locale-free, round-trips). An old {@code NxM} value is pixels and loads as it
- *     always did; the next drop rewrites it. A pre-feature build reading the slash falls back to its default.</li>
+ * <li><b>The rule</b> -- {@link #frac} and {@link #place}. A gap of {@code UI.scale(10)} or less to an edge is
+ *     the edge (a window dropped partly off screen too), a window is placed whole on its parent when it fits,
+ *     and an axis with no free space keeps the fraction it had.</li>
+ * <li><b>The value</b> -- the client's own {@code wndc-*} keys carry {@code cfx/fy}, each number by
+ *     {@code Double.toString} (locale-free, round-trips). Two older shapes still read: {@code fx/fy} with no
+ *     {@code c}, a fraction of the FREE space (the parent's size less the window's, the rule of the builds
+ *     before this one), converted where the window is placed; and {@code NxM}, pixels. The next drop rewrites
+ *     either. A build before this one falls back to its default place on the {@code c}, never to an error.</li>
  * <li><b>The one write</b> -- {@link #dropped}: a place is written when the user puts the window down, and at no
  *     other moment. The stored value is a fraction, so a screen of another size changes nothing there, and there
  *     is nothing for a clock, a character switch or the client closing to catch up on.</li>
@@ -44,24 +48,33 @@ import java.util.WeakHashMap;
 public final class WndPos {
     private WndPos() {}
 
-    /** A place as the store holds it: a fraction ({@code px == null}) or the old pixels. */
+    /**
+     * A place as the store holds it: a fraction ({@code px == null}) -- of the parent where the centre stands, or,
+     * {@code free}, of the free space, as the builds before this one wrote it -- or the old pixels.
+     */
     public static final class Val {
-        final double fx, fy;
-        final Coord px;
+        public final double fx, fy;
+        public final Coord px;
+        public final boolean free;
 
-        private Val(double fx, double fy, Coord px) {
+        private Val(double fx, double fy, Coord px, boolean free) {
             this.fx = fx;
             this.fy = fy;
             this.px = px;
+            this.free = free;
         }
 
         public String toString() {
-            return (px != null) ? (px.x + "x" + px.y) : text(new double[] {fx, fy});
+            if(px != null)
+                return(px.x + "x" + px.y);
+            double[] f = {fx, fy};
+            return(free ? textFree(f) : text(f));
         }
     }
 
     private static final class Rec {
         double fx = Double.NaN, fy = Double.NaN;   // NaN: not taken yet
+        boolean free;                               // fx/fy are an older build's free-space fraction, waiting for a size
         Coord at;                                   // where the rule last put it
         Coord psz;                                  // the parent's size then; null: waiting for a size
         boolean follows;
@@ -85,27 +98,39 @@ public final class WndPos {
     }
 
     /**
-     * One axis of the rule: {@code c} in a parent {@code p} wide for a window {@code w} wide, as a fraction of
-     * the free space. {@code was} is the fraction the axis had, kept when there is no free space (NaN: none, and
-     * then a window wider than its parent takes the quotient, clamped, and one exactly as wide takes 0).
+     * One axis of the rule: {@code c} in a parent {@code p} wide for a window {@code w} wide -- {@code 0} glued
+     * to the start edge, {@code 1} glued to the end edge, and otherwise where its centre stands as a fraction of
+     * {@code p}, which then lies strictly between the two. {@code was} is the value the axis had, kept when there
+     * is no free space (NaN: none, and the window is taken as glued to the start).
      */
     public static double frac(int c, int p, int w, double was) {
         int free = p - w;
-        if(free <= 0) {
-            if(!Double.isNaN(was))
-                return was;
-            return (free == 0) ? 0.0 : clamp((double)c / free);
-        }
+        if(free <= 0)
+            return Double.isNaN(was) ? 0.0 : was;
         int mag = magnet();
         if(c <= mag)
             return 0.0;
         if(c >= free - mag)
             return 1.0;
-        return clamp((double)c / free);
+        return (c + (w / 2.0)) / p;
     }
 
-    /** One axis back: the {@code c} a fraction stands at in a parent {@code p} wide for a window {@code w} wide. */
+    /**
+     * One axis back: the {@code c} a value stands at in a parent {@code p} wide for a window {@code w} wide --
+     * glued to an edge for {@code 0} and {@code 1}, otherwise with its centre at {@code f * p}, kept whole on the
+     * parent when it fits.
+     */
     public static int place(double f, int p, int w) {
+        if(f <= 0.0)
+            return 0;
+        if(f >= 1.0)
+            return p - w;
+        int c = (int)Math.round((f * p) - (w / 2.0));
+        return Math.max(Math.min(0, p - w), Math.min(Math.max(0, p - w), c));
+    }
+
+    /** One axis of an older build's free-space fraction back: {@code f} of the space the window leaves free. */
+    private static int placeFree(double f, int p, int w) {
         return (int)Math.round(f * (p - w));
     }
 
@@ -126,6 +151,16 @@ public final class WndPos {
         return Coord.of(place(f[0], psz.x, wsz.x), place(f[1], psz.y, wsz.y));
     }
 
+    /**
+     * {@link #place(double[], Coord, Coord)}, for a stored fraction that may be an older build's: {@code free} is
+     * a fraction of the free space, which stands where that build put the window at this size.
+     */
+    public static Coord place(double[] f, boolean free, Coord psz, Coord wsz) {
+        if(!free)
+            return place(f, psz, wsz);
+        return Coord.of(placeFree(f[0], psz.x, wsz.x), placeFree(f[1], psz.y, wsz.y));
+    }
+
     private static double clamp(double f) {
         return Math.max(0.0, Math.min(1.0, f));
     }
@@ -137,41 +172,40 @@ public final class WndPos {
     // ---- the value -----------------------------------------------------------------------------------
 
     /**
-     * The place stored under {@code key}: a fraction ({@code fx/fy}), the old pixels ({@code NxM}), or
-     * {@code null} for nothing, an empty value or anything that does not parse (NaN and Infinity included).
+     * The place stored under {@code key}: a fraction ({@code cfx/fy}, or an older build's {@code fx/fy}), the
+     * old pixels ({@code NxM}), or {@code null} for nothing, an empty value or anything that does not parse (NaN
+     * and Infinity included).
      */
     public static Val read(String key) {
         return parse(Utils.getpref(key, null));
     }
 
-    /** A fraction {@code {fx, fy}} as the store writes it: {@code fx/fy}, each number by {@code Double.toString}. */
+    /** A fraction {@code {fx, fy}} as the store writes it: {@code cfx/fy}, each number by {@code Double.toString}. */
     public static String text(double[] f) {
+        return "c" + Double.toString(f[0]) + "/" + Double.toString(f[1]);
+    }
+
+    /** An older build's free-space fraction as it wrote it, {@code fx/fy}: for a stored row nothing has replaced. */
+    public static String textFree(double[] f) {
         return Double.toString(f[0]) + "/" + Double.toString(f[1]);
     }
 
-    /**
-     * A stored {@code fx/fy} back as {@code {fx, fy}}, clamped to {@code 0..1} -- {@code null} for the old pixels,
-     * nothing, or anything that does not parse.
-     */
-    public static double[] fraction(String v) {
-        Val p = parse(v);
-        return ((p == null) || (p.px != null)) ? null : new double[] {p.fx, p.fy};
-    }
-
-    static Val parse(String v) {
+    /** A stored value back, as {@link #read} reads one: {@code null} for nothing or anything that does not parse. */
+    public static Val parse(String v) {
         if(v == null)
             return null;
         try {
             int s = v.indexOf('/');
             if(s >= 0) {
-                double fx = Double.parseDouble(v.substring(0, s)), fy = Double.parseDouble(v.substring(s + 1));
+                boolean free = !v.startsWith("c");
+                double fx = Double.parseDouble(v.substring(free ? 0 : 1, s)), fy = Double.parseDouble(v.substring(s + 1));
                 if(Double.isNaN(fx) || Double.isNaN(fy) || Double.isInfinite(fx) || Double.isInfinite(fy))
                     return null;
-                return new Val(clamp(fx), clamp(fy), null);
+                return new Val(clamp(fx), clamp(fy), null, free);
             }
             int x = v.indexOf('x');
             if(x >= 0)
-                return new Val(Double.NaN, Double.NaN, Coord.of(Integer.parseInt(v.substring(0, x)), Integer.parseInt(v.substring(x + 1))));
+                return new Val(Double.NaN, Double.NaN, Coord.of(Integer.parseInt(v.substring(0, x)), Integer.parseInt(v.substring(x + 1))), false);
         } catch(NumberFormatException e) {
         }
         return null;
@@ -205,9 +239,18 @@ public final class WndPos {
                 r.fx = v.fx;
                 r.fy = v.fy;
                 if(area(psz)) {
-                    c = Coord.of(place(r.fx, psz.x, w.sz.x), place(r.fy, psz.y, w.sz.y));
+                    if(v.free) {
+                        // an older build's fraction of the free space: placed as that build placed it, and
+                        // held from here on as where the centre stands
+                        c = Coord.of(placeFree(v.fx, psz.x, w.sz.x), placeFree(v.fy, psz.y, w.sz.y));
+                        r.fx = frac(c.x, psz.x, w.sz.x, Double.NaN);
+                        r.fy = frac(c.y, psz.y, w.sz.y, Double.NaN);
+                    } else {
+                        c = Coord.of(place(r.fx, psz.x, w.sz.x), place(r.fy, psz.y, w.sz.y));
+                    }
                     r.psz = psz;
                 } else {
+                    r.free = v.free;
                     c = (def != null) ? def : Coord.z;
                 }
             } else {
@@ -267,8 +310,9 @@ public final class WndPos {
             }
             if(r.parent() != p)
                 r.parent = new WeakReference<Widget>(p);
-            r.fx = frac(w.c.x, p.sz.x, w.sz.x, r.fx);
-            r.fy = frac(w.c.y, p.sz.y, w.sz.y, r.fy);
+            r.fx = frac(w.c.x, p.sz.x, w.sz.x, r.free ? Double.NaN : r.fx);
+            r.fy = frac(w.c.y, p.sz.y, w.sz.y, r.free ? Double.NaN : r.fy);
+            r.free = false;
             r.at = w.c;
             r.psz = p.sz;
             r.follows = true;
@@ -338,7 +382,14 @@ public final class WndPos {
                     if(Double.isNaN(r.fx) || Double.isNaN(r.fy) || !w.c.equals(r.at)) {
                         r.fx = frac(w.c.x, psz.x, w.sz.x, Double.NaN);
                         r.fy = frac(w.c.y, psz.y, w.sz.y, Double.NaN);
+                    } else if(r.free) {
+                        // an older build's free-space fraction, loaded before there was a size: placed as that
+                        // build placed it, and held as where the centre stands from here on
+                        Coord at = Coord.of(placeFree(r.fx, psz.x, w.sz.x), placeFree(r.fy, psz.y, w.sz.y));
+                        r.fx = frac(at.x, psz.x, w.sz.x, Double.NaN);
+                        r.fy = frac(at.y, psz.y, w.sz.y, Double.NaN);
                     }
+                    r.free = false;
                 } else {
                     sync(w, r);
                 }

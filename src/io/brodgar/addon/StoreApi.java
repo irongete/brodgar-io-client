@@ -861,14 +861,19 @@ final class StoreApi {
      * box, and saying it anyway would pin a size the user never chose.
      *
      * <p>166: the place is held one of two ways, never both. A widget directly on the screen -- the HUD or its
-     * tree's root -- keeps {@link #frac}, its fraction of the free space per axis ({@code io.brodgar.ui.WndPos}),
-     * so a name saved at one screen size puts it back at the same relative place at another. A widget inside a
-     * window keeps {@link #pos}, pixels in that window.
+     * tree's root -- keeps {@link #frac}, where its centre stands as a fraction of the screen per axis
+     * ({@code io.brodgar.ui.WndPos}), so a name saved at one screen size puts it back at the same relative place
+     * at another. A widget inside a window keeps {@link #pos}, pixels in that window.
      */
     static final class Placement {
         Coord pos;
-        /** The place as a fraction {@code {fx, fy}} of the screen's free space, or {@code null} (166). */
+        /** The place as a fraction {@code {fx, fy}} of the screen, or {@code null} (166). */
         double[] frac;
+        /**
+         * {@link #frac} is a row an older build wrote, a fraction of the screen's FREE space: put back as that
+         * build put it, and written back as it was until a new landing replaces it.
+         */
+        boolean free;
         Coord size;
     }
 
@@ -973,10 +978,12 @@ final class StoreApi {
             m.put(name, p = new Placement());
         if(frac != null) {
             p.frac = frac.clone();
+            p.free = false;
             p.pos = null;
         } else if(pos != null) {
             p.pos = pos;
             p.frac = null;
+            p.free = false;
         }
         if(size != null)
             p.size = size;
@@ -1045,7 +1052,7 @@ final class StoreApi {
                 b.append("\"pos\":").append(xyJson(p.pos));
             if(p.frac != null)
                 b.append((b.length() > at) ? "," : "").append("\"frac\":{\"x\":").append(Double.toString(p.frac[0]))
-                 .append(",\"y\":").append(Double.toString(p.frac[1])).append('}');
+                 .append(",\"y\":").append(Double.toString(p.frac[1])).append(p.free ? ",\"free\":true" : "").append('}');
             if(p.size != null)
                 b.append((b.length() > at) ? "," : "").append("\"size\":").append(xyJson(p.size));
             b.append('}');

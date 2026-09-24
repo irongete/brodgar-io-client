@@ -675,9 +675,13 @@ public final class ClientDb {
                 try(java.sql.ResultSet rs = ps.executeQuery()) {
                     while(rs.next()) {
                         StoreApi.Placement p = new StoreApi.Placement();
-                        p.frac = frac(rs, 2, 3);
-                        if(p.frac == null)
+                        WndPos.Val f = frac(rs, 2, 3);
+                        if(f != null) {
+                            p.frac = new double[] {f.fx, f.fy};
+                            p.free = f.free;
+                        } else {
                             p.pos = coord(rs, 2, 3);
+                        }
                         p.size = coord(rs, 4, 5);
                         if((p.pos != null) || (p.frac != null) || (p.size != null))
                             out.put(rs.getString(1), p);
@@ -708,7 +712,7 @@ public final class ClientDb {
                             ps.setString(2, scope);
                             ps.setString(3, e.getKey());
                             if(p.frac != null) {
-                                ps.setString(4, WndPos.text(p.frac));
+                                ps.setString(4, p.free ? WndPos.textFree(p.frac) : WndPos.text(p.frac));
                                 ps.setNull(5, java.sql.Types.INTEGER);
                             } else {
                                 half(ps, 4, p.pos);
@@ -752,16 +756,20 @@ public final class ClientDb {
         }
 
         /**
-         * The place half as a fraction (166): a TEXT {@code fx/fy} in {@code xcol} beside a {@code NULL} in
-         * {@code ycol}, or {@code null} for anything else. The TEXT keeps the column's INTEGER affinity from
-         * turning {@code 1.0} into a pixel, and the {@code NULL} makes a pre-feature client read no place at all.
+         * The place half as a fraction (166): a TEXT {@code cfx/fy} (or an older build's {@code fx/fy}) in
+         * {@code xcol} beside a {@code NULL} in {@code ycol}, or {@code null} for anything else. The TEXT keeps the
+         * column's INTEGER affinity from turning {@code 1.0} into a pixel, and the {@code NULL} makes a pre-feature
+         * client read no place at all.
          */
-        private static double[] frac(java.sql.ResultSet rs, int xcol, int ycol) throws java.sql.SQLException {
+        private static WndPos.Val frac(java.sql.ResultSet rs, int xcol, int ycol) throws java.sql.SQLException {
             String x = rs.getString(xcol);
             if(x == null)
                 return null;
             rs.getInt(ycol);
-            return rs.wasNull() ? WndPos.fraction(x) : null;
+            if(!rs.wasNull())
+                return null;
+            WndPos.Val v = WndPos.parse(x);
+            return ((v == null) || (v.px != null)) ? null : v;
         }
 
         /** Bind one half of a placement to two integer parameters, {@code NULL} when the half is not held. */

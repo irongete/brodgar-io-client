@@ -978,7 +978,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     /* addon: (166) a window's place is written when the user puts it down -- Window.mouseup and a released grip
      * call io.brodgar.ui.WndPos.dropped, which writes the key the window was loaded under -- and at no other
-     * moment. What is stored is a fraction of the free space, so nothing has to catch up on a clock, a character
+     * moment. What is stored is where its centre stands as a fraction of the screen, so nothing has to catch up on a clock, a character
      * switch or the client closing, and a session nobody touches writes nothing. WndPos never takes a place an
      * AddOn's layout is standing on, so uninstalling it leaves these windows where their owner put them. */
 
@@ -1772,7 +1772,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
 	if(mine(beltwdg))
 	    beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));
-	io.brodgar.ui.WndPos.relayout(this, was);	// addon: every window keeps its fraction of the free space (166)...
+	io.brodgar.ui.WndPos.relayout(this, was);	// addon: every window's centre keeps its place relative to the screen (166)...
 	AddonWidgets.relayout(this);	// addon: ...and a place an AddOn or the user named survives that (062)
     }
 

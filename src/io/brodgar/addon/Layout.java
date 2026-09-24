@@ -1083,8 +1083,8 @@ final class Layout {
      * laid out, which is every client until an addon lays something out.
      *
      * <p><b>A hand place follows the screen</b> (166.2). A level the user's hand gave a widget directly on the
-     * screen ({@link LuaWidget.Moved#hand}) is first rewritten as the plain {@code position} its fraction of
-     * the free space stands at in {@code parent}'s size now, then folded like the rest; a place the addon wrote
+     * screen ({@link LuaWidget.Moved#hand}) is first rewritten as the plain {@code position} its fraction (where
+     * its centre stands) comes to in {@code parent}'s size now, then folded like the rest; a place the addon wrote
      * keeps its pixels. Its two callers are the two screens: {@code GameUI.resize} for the HUD, and
      * {@link #dispatchResized} for a tree's root (the addon layer's, a session's).
      */

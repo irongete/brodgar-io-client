@@ -544,7 +544,7 @@ public class Window extends Widget {
      * nobody, so a window an addon built could not follow it -- its canvas, its size level, its remembered box
      * and its "Resized" key all sat where they were. Called after every resize the grip makes (done=false) and
      * once when it is released (done=true). On release the stock window writes its place down, as a drop does
-     * (166): a new box changes the free space its place is a fraction of. The addon's window
+     * (166): a new box moves its centre, which is what its place is. The addon's window
      * (io.brodgar.addon.UiApi) overrides it. */
     public void resizedByHand(boolean done) {
 	if(done)
