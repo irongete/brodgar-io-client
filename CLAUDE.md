@@ -94,11 +94,17 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
 
 ## The API grammar — invariant, every feature obeys it
 
-- **One canonical way** per operation, no dual styles. Namespaced `hafen.*`. Nothing is released,
-  so a replaced API is **hard-cut**: no deprecation alias, and every replaced spelling throws naming
-  its replacement. **A rename is free and a reshape is not**: `Refusal` carries a *name*, so a
-  changed argument, return or payload shape has nothing to key on — it needs a refusal written
-  inside the verb and a line on the page, and neither of those is a row anything sweeps.
+- **One canonical way** per operation, no dual styles. Namespaced `hafen.*`. **The client is
+  released and third-party addons exist, so every change is transparent to a published addon**:
+  - a published verb keeps its name, its arguments, its return and its refusals;
+  - a place or value an addon wrote keeps its meaning;
+  - whatever hangs off something a change moves keeps following it;
+  - a value a new build stores reads in an older build as a default, never as an error.
+
+  New capability is additive. A published spelling is never renamed, reshaped or cut: a rename
+  leaves a published addon calling a verb that throws, and a reshape leaves it reading an answer it
+  cannot parse. A retired spelling throws, naming its replacement (`Refusal`, checked by
+  `tools/refusalverbs.py`).
 - A **section** is called and is a per-addon singleton; everything after it is a **colon verb**; a
   set is a **collection**, and a relation whose members are objects is one too.
 - **Arity is the verb** — one name per property, no `getX`/`setX`, a bare adjective for a boolean.
