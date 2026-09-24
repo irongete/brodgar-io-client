@@ -90,7 +90,7 @@ A change to the enabled set is applied on the next reload, never mid-session.
 | Cause | Fix |
 |---|---|
 | Read too early | The file body runs before the world exists, and much of the character sheet streams in for seconds after `SessionEnteredWorld`. A read answering `nil` is asked again from an [event or a timer](events-and-timers.md). |
-| The hotkey is unbound | An addon hotkey starts with no key. Options ▸ Game ▸ Keybindings, your addon's section. |
+| The hotkey is unbound | An addon hotkey starts with no key. Options ▸ Game ▸ Keybindings, your addon's section, or the addon's [key button](../api/ui/controls/interactive.md#key-button) on its page. |
 | The selector matches nothing, or too much | [What the two lookups promise](../api/ui/selectors.md#one-or-all-of-them): `nil` for none, an error for two or more. Try it in `:lua`, name the one you mean with a [chain](../api/ui/selectors.md#the-grammar), check the widget with the inspector. |
 | The handler threw | The console: an isolated error is a logged line. |
 

@@ -30,7 +30,7 @@ inventory:enabled(false)            -- raises: its state is the client's
 | `:title(s)` | Writes a window's caption. | Works, same. |
 | `:tooltip(s)` | Writes the line shown when the pointer rests on it. | Raises: the client's words about its own button. |
 | `:image(up, down [, hover])` | Gives a [control](controls/interactive.md#a-caption-or-a-picture) being built its pictures. | Raises. |
-| `:value(v)` | Writes what a [control](controls/README.md#setters) holds. A key button refuses: its key is its binding's. | Works, **protected** (`widget.value`): [drives the client's control as the user would](edit.md#driving-one-protected). The server sees it. |
+| `:value(v)` | Writes what a [control](controls/README.md#setters) holds. A key button refuses: its key is its binding's. | Works, **protected** (`widget.value`): [drives the client's control as the user would](edit.md#driving-one-protected). The server sees it. A client key button refuses, before the permission is asked: its key is its binding's, written with `binding:key(key)`. |
 | `:source(h)` | Gives a [picture control](controls/display.md#picture) its content. | Raises. |
 | `:rows(t)` | Gives a [radio](controls/interactive.md#radio) or a [row-source control](lists.md#rows-listbox-dropdown-menu) its rows. | Raises. |
 | `:range(min, max)` | Sets a [slider's or scrollbar's](controls/interactive.md#slider) bounds. | Raises. |

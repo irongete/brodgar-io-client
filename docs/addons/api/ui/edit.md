@@ -116,7 +116,7 @@ end)
 
 ## Reading what a borrowed control holds
 
-`widget:value()` answers on a client control as on [one you built](controls/README.md#setters). A checkbox's boolean. A radio's row, read from any of its buttons. A slider's or scrollbar's number. A text field's string. A list's or dropdown's row. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is an opaque handle: hold it and compare it with `==`. There is nothing inside to read.
+`widget:value()` answers on a client control as on [one you built](controls/README.md#setters). A checkbox's boolean. A radio's row, read from any of its buttons. A slider's or scrollbar's number. A text field's string. A list's or dropdown's row. A [key button](controls/interactive.md#key-button)'s key, spelled as [`binding:key()`](../client/keybindings.md#the-binding-object) spells it, `nil` for unbound. A widget that holds nothing reads `nil`. Unprotected, no layer. A row of one of the client's own lists is an opaque handle: hold it and compare it with `==`. There is nothing inside to read.
 
 ---
 
@@ -144,7 +144,7 @@ options_checkbox:value(not options_checkbox:value())    -- ticked, exactly as a 
 |---|---|
 | An act, not a layer | No `:value(nil)`. Nothing is recorded. Neither `:reload` nor disable puts a driven control back. The write went to the server as an interaction. |
 | It fires nothing | No `Changed` of yours runs from a `:value(v)`. Read the control back to see where it landed. |
-| Refusals | A value of the wrong shape. A row not in the radio's set (naming the rows). A row not the list's. A widget that holds nothing (naming what does). A client progress bar, whose value the client re-reads every frame. |
+| Refusals | A value of the wrong shape. A row not in the radio's set (naming the rows). A row not the list's. A widget that holds nothing (naming what does). A client progress bar, whose value the client re-reads every frame. A key button, before the permission is asked: its key is its binding's, written with [`binding:key(key)`](../client/keybindings.md#the-binding-object) under `client.settings`. |
 
 ---
 

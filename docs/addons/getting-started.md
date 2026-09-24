@@ -109,7 +109,7 @@ hafen.client():options():keybindings():on("toggle", function()
 end)
 ```
 
-Reload, then open Options ▸ Game ▸ Keybindings: a **My Addon** section holds one action, `toggle`. Assign a key, and it hides and shows your window. Your addon owns the window, so both verbs answer on it ([owned vs borrowed](api/ui/writes.md#owned-vs-borrowed)). A hotkey fires inside the tree of the character on screen, and your window stands in the addon layer, a tree of its own. So the toggle is handed to the next step with `hafen.timer():after(0, fn)` ([threading](api/threading.md#getting-onto-the-step-from-a-handler-that-holds-a-tree)).
+Reload, then open Options ▸ Game ▸ Keybindings: a **My Addon** section holds one action, `toggle`. Assign a key, and it hides and shows your window. An addon can put that same key button on its own settings page too ([key button](api/ui/controls/interactive.md#key-button)). Your addon owns the window, so both verbs answer on it ([owned vs borrowed](api/ui/writes.md#owned-vs-borrowed)). A hotkey fires inside the tree of the character on screen, and your window stands in the addon layer, a tree of its own. So the toggle is handed to the next step with `hafen.timer():after(0, fn)` ([threading](api/threading.md#getting-onto-the-step-from-a-handler-that-holds-a-tree)).
 
 ## Step 8: remember it across sessions
 

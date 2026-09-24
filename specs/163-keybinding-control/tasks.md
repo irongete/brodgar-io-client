@@ -17,7 +17,7 @@
       The capture is wrapped: `Changed` once per press that moves the key, after the grab closes; a capture ends by
       itself when the button is disabled, unbound, hidden or its hotkey ends. Claims criteria 2 (shown at once, with a
       real key), 4, 5, 6, 8, 11. Details: [163.2](#1632).
-- [ ] **163.3 — The client's own key button reads its key, and every page that sends a key to the Keybindings panel
+- [x] **163.3 — The client's own key button reads its key, and every page that sends a key to the Keybindings panel
       names the key button too.**
       `widget:value()` reads a borrowed `SetButton`; `:value(v)` and `:bind(binding)` on one are refused naming the
       write and the builder; the prose sweep of the impact set. Claims criterion 9. Details: [163.3](#1633).

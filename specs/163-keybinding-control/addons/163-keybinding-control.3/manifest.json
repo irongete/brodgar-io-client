@@ -1,0 +1,9 @@
+{
+  "name": "163.3 — the client's key button",
+  "id": "163-keybinding-control.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 163.3: the key buttons Options > Game > Keybindings builds read their key with widget:value(), and refuse :value(v) and :bind(binding) naming the write and the builder.",
+  "api_version": "1.1",
+  "files": ["main.lua"]
+}

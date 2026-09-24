@@ -1,6 +1,6 @@
 # hafen.client: Keybindings
 
-`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, read, remap or reset any binding, yours or the client's own, and take a section of the client's own off the keybindings panel. Declaring, reading and hiding are unprotected. A remap needs [`client.settings`](../../guides/permissions.md).
+`hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, read, remap or reset any binding, yours or the client's own, and take a section of the client's own off the keybindings panel. Declaring, reading and hiding are unprotected. A remap from your code needs [`client.settings`](../../guides/permissions.md). The user assigns a key in Options ▸ Game ▸ Keybindings, or with a [key button](../ui/controls/interactive.md#key-button) on your own page.
 
 ```lua
 local keybindings = hafen.client():options():keybindings()
@@ -28,7 +28,26 @@ end)
 
 ## Addon hotkeys start unbound
 
-`on` takes no default key. Your addon names an action and the user assigns the key in Options ▸ Game ▸ Keybindings. Every addon that declared a hotkey has its own section there, by addon name. An addon-chosen default could not claim a key in use under the client's one-key-one-action rule, so it would lose the collision and never fire. Advertise a suggested key in your README instead (*Suggested key: `Ctrl+H`, assign it in Options ▸ Game ▸ Keybindings ▸ myaddon*). The assignment is persisted by the client and survives `:reload` and restarts. Declaring the same name again picks it back up.
+`on` takes no default key. Your addon names an action and the user assigns the key in Options ▸ Game ▸ Keybindings. Every addon that declared a hotkey has its own section there, by addon name. [A key button on your own page](#a-key-button-on-your-own-page) assigns it too. An addon-chosen default could not claim a key in use under the client's one-key-one-action rule, so it would lose the collision and never fire. Advertise a suggested key in your README instead (*Suggested key: `Ctrl+H`, assign it in Options ▸ Game ▸ Keybindings ▸ myaddon*). The assignment is persisted by the client and survives `:reload` and restarts. Declaring the same name again picks it back up.
+
+## A key button on your own page
+
+Each row Options ▸ Game ▸ Keybindings gives a hotkey ends in a key button, and your page can hold that button too: [`hafen.ui():keybinding()`](../ui/controls/interactive.md#key-button), joined to one of your hotkeys with `:bind(binding)`.
+
+```lua
+local keybindings = hafen.client():options():keybindings()
+keybindings:on("toggle", function() hafen.log():write("toggled") end)
+local toggle_binding = keybindings:binding():get("toggle")          -- after on(): your own hotkey
+hafen.client():options():addon():panel(function(root)
+  hafen.ui():keybinding():parent(root):bind(toggle_binding)
+end)
+```
+
+| Rule | Detail |
+|---|---|
+| The same edit | A press on it assigns the key as the panel's row does: persisted, and taken off the binding that was assigned it. Each place shows what the other assigned. |
+| Unprotected | The press is the user's own remap. `binding:key(key)`, the remap your code makes, stays under `client.settings`. |
+| Your own hotkeys | It joins a hotkey your addon declared and has not ended. The client's bindings and other addons' are assigned in the panel. |
 
 ## An assigned key answers to you and to nothing else
 
@@ -71,7 +90,7 @@ end
 
 | Rule | Detail |
 |---|---|
-| Writing persists | As the same edit in Options ▸ Game ▸ Keybindings. `binding:key("Ctrl+I")` on `inv` takes the client's own inventory key. The user undoes it by hand. A write on an undeclared binding raises. A read answers `nil`, except `id()` and the boolean reads, which are `false`. |
+| Writing persists | As the same edit a key button makes, in Options ▸ Game ▸ Keybindings or [on your page](#a-key-button-on-your-own-page). `binding:key("Ctrl+I")` on `inv` takes the client's own inventory key. The user undoes it by hand. A write on an undeclared binding raises. A read answers `nil`, except `id()` and the boolean reads, which are `false`. |
 | Three states, two read as no key | On the client's default, assigned by the user, or unbound by the user: `key()` collapses the first and last to `nil`, `assigned()` tells them apart. `key(nil)` exists so an addon saving a key and writing it back does not turn a default into an assignment it cannot take off. A default another binding holds the key for reads `nil` too. `default()` answers the key it fires on again once the other lets go. |
 | Assigning takes the key off whoever was assigned it | That binding is left unbound with no undo. A binding on the client's default is shadowed, not written: `nil` while your key stands, firing again on release. Where its match is looser it is shadowed for your combination alone and reads its own key (`Shift+B` leaves the menu `B`). Reverting runs no such pass, so two bindings put back on defaults sharing a key both fire. |
 

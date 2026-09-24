@@ -165,6 +165,7 @@ end)
 | `:text(s)` | Refused: the caption is the key. A line beside it is a [label](display.md#label). |
 | `:tooltip(s)` | Replaces the client's own tip, which names Escape, Backspace and Delete. `""` brings that tip back. |
 | Unprotected | Building, binding and pressing it. A press is the user's own edit of their key, made by hand as on the panel's row. `binding:key(key)`, the write your code makes, stays under `client.settings`. |
+| The client's own | The key button a row of Options ▸ Game ▸ Keybindings ends in is this class, borrowed. `widget:value()` reads its key there too, and `:value(v)` and `:bind(binding)` are refused: [edit](../edit.md#reading-what-a-borrowed-control-holds). |
 
 ### A press
 

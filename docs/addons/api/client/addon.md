@@ -1,6 +1,6 @@
 # hafen.client: Your Addon's Own Options
 
-`hafen.client():options():addon()` holds your addon's own settings. An option is a stored value you name and type, kept in the client's preference store, checked on every write and answered on every read. It draws nothing. The page in **Options ▸ AddOns** is yours to fill with [`options:panel(fn)`](#the-page), and a control you build and [bind](#binding-a-control-shows-the-option) shows an option there. Nothing here is protected.
+`hafen.client():options():addon()` holds your addon's own settings. An option is a stored value you name and type, kept in the client's preference store, checked on every write and answered on every read. It draws nothing. The page in **Options ▸ AddOns** is yours to fill with [`options:panel(fn)`](#the-page), a control you build and [bind](#binding-a-control-shows-the-option) shows an option there, and a [key button](../ui/controls/interactive.md#key-button) assigns one of your hotkeys. Nothing here is protected.
 
 ```lua
 local options = hafen.client():options():addon()
@@ -63,6 +63,7 @@ end)
 |---|---|
 | The row | Your addon has a row in the AddOns list exactly while it holds a page. The row is the display name, in load order. |
 | `root` | A [column](../ui/column.md) of your own inside a scrolling box the same size on every page, no heading. `root:role()` reads `"column"`. Its width is pinned to the box and its height follows what you put in it, so a taller page scrolls. `:gap`, `:stock` and `:enabled` answer on it, `:parent(root)` puts a control in, a theme's `["column"]` rule reaches it. Its `:parent()` is the client's: walking up reaches a window titled `Options`, in the tree of the character whose window it is. |
+| A hotkey on the page | [`hafen.ui():keybinding()`](../ui/controls/interactive.md#key-button) bound to one of your hotkeys is the key button Options ▸ Game ▸ Keybindings gives it. The user assigns the key there as on the panel's row. |
 | When `fn` runs | On the [step](../threading.md), one frame after the page is opened, holding no tree (it may build anything and reach any tree, `hafen.client():stepping()` reads `true`). Every time the page is opened: picking the row, coming back, once per Options window, again after `:reload`. |
 | What it built dies with the page | `root` and every control parented into it are destroyed when the user leaves the row, when the list is re-read, when your addon reloads. A kept handle reads `:exists()` `false`, and there is nothing to end. A value belongs to an option, not the page. |
 | An error in `fn` | Logged with the line. The page shows what `fn` built before it stopped. |
@@ -103,7 +104,7 @@ end)
 |---|---|
 | The option fires | The user ticking the box is `show:value(true)`: the option's `Changed` fires first, then a handler on the control (`check:on("Changed", fn)`). `show:value(false)` from your code moves the box and fires no `Changed` on the box, [as on every control](../ui/controls/README.md#subscribing). A bound control in another tree than the write's moves on the next [step](../threading.md). |
 | One option, many controls | A control binds to one option. An option may have any number of controls, moving together. A binding ends with the control (a rebuilt page, `:destroy()`). The option and its value stay. A control `:range`d or `:rows`ed past its option can be moved to a value the option refuses. The refusal is logged and the option keeps its value. |
-| Refused | Different kinds (`slider:bind(show)` names the check a boolean takes). A control holding nothing an option stores (a button, a label, a listbox) names the pairs above. One of the client's own controls names the client, since [driving it](../ui/edit.md#driving-one-protected) is `:value(value)`. |
+| Refused | Different kinds (`slider:bind(show)` names the check a boolean takes). A control holding nothing an option stores (a button, a label, a listbox) names the pairs above. One of the client's own controls names the client, since [driving it](../ui/edit.md#driving-one-protected) is `:value(value)`. A [Binding](keybindings.md#the-binding-object) names `hafen.ui():keybinding()`, the control that joins one of your hotkeys. |
 
 ## The Option object
 

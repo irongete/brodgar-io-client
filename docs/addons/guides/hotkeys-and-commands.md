@@ -1,6 +1,6 @@
 # Hotkeys, Commands and Settings
 
-A key they press, a command they type, a setting they change: the ways a user drives your addon by hand. Declaring one is unprotected, done in your file body, cleaned up when your addon reloads. Changing what the client has (remapping a key, writing one of its settings) is a [protected](permissions.md) write.
+A key they press, a command they type, a setting they change: the ways a user drives your addon by hand. Declaring one is unprotected, done in your file body, cleaned up when your addon reloads. Changing what the client has from your code (remapping a key, writing one of its settings) is a [protected](permissions.md) write.
 
 ```lua
 local window = hafen.ui():window():title("Scout"):size(200, 120)
@@ -19,7 +19,7 @@ end)
 
 ## A hotkey
 
-Your addon names the action. The user assigns the key in Options ▸ Game ▸ Keybindings, where every addon that declared one has a section. `on` takes no default key. The client gives one key to one action, so a default would lose every collision and leave a hotkey that never fires. State a suggested key in your README instead: *Suggested key: Ctrl+H, assign it in Options > Game > Keybindings > My Addon.*
+Your addon names the action. The user assigns the key in Options ▸ Game ▸ Keybindings, where every addon that declared one has a section, or with a [key button](../api/ui/controls/interactive.md#key-button) on your own page. `on` takes no default key. The client gives one key to one action, so a default would lose every collision and leave a hotkey that never fires. State a suggested key in your README instead: *Suggested key: Ctrl+H, assign it in Options > Game > Keybindings > My Addon.*
 
 ```lua
 local toggle_binding = keybindings:binding():get("toggle")     -- your own names resolve; anything else is a registry id
@@ -31,6 +31,7 @@ hafen.log():write("bound to: " .. tostring(toggle_binding:key()))
 | The assignment is the client's | It survives `:reload` and restarts. `keybindings:binding()` is every binding the client knows, yours and its own, so it also reads or remaps a built-in. |
 | Three-valued | On the client's default, assigned by the user, or unbound by the user. `binding:key(nil)` puts it back on the default, which makes saving and restoring a key safe ([the reference](../api/client/keybindings.md)). |
 | Reading is free, writing is not | `binding:key(key)` and `binding:key(nil)` need `client.settings`, since they change what the user set in Options and persist as the user's own edit. `binding:key()`, `:default()`, `:assigned()` and `:down()` need nothing. |
+| The user's press is not your write | A key button's press is the user remapping their own key, unprotected, as on the panel's row. `binding:key(key)` is your code writing it. |
 | `binding:down()` | Whether the key is held right now. `on` gives the moment it goes down and nothing for it coming up. Anything a key is held for (moving, push-to-talk, two keys at once) polls `down()` on a timer ([why key repeat cannot stand in](../api/client/keybindings.md#down-the-key-not-the-hotkey)). |
 | After the client's own bindings | Through the same registry. Intercepting a mouse event before the widget under it is [`widget:on(key, fn)`](../api/ui/widget.md#subscribing) and `event:preventDefault()`. Keyboard input is not a widget option, so a hotkey is the only door onto a key event. |
 | Where it runs | Inside the tree of the character on screen, as a command does: the handler reaches that character and no other tree, your own windows included. `hafen.timer():after(0, fn)` at the top of the body puts the rest on the step, holding nothing ([threading](../api/threading.md#where-each-handler-runs)). |

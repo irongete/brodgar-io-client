@@ -24,6 +24,7 @@ import haven.KeyBinding;
 import haven.Label;
 import haven.Makewindow;
 import haven.MenuGrid;
+import haven.OptWnd;
 import haven.Progress;
 import haven.RadioGroup;
 import haven.Resource;
@@ -1557,6 +1558,9 @@ public final class LuaWidget {
         // addon that declared nothing is told THAT rather than that its argument was the wrong type. It
         // cannot come earlier than the provenance: a control the addon BUILT is its own UI, and writing
         // what your own progress bar holds has never left the client.
+        //   163.3: A KEY BUTTON, the client's or another addon's, is refused BEFORE the gate, naming
+        // binding:key(key): its key is its binding's, and widget.value is not a second door to a remap. The
+        // refusal is a fact of the widget's class, read off the handle alone (D-213).
         m.set("value", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:value() → narg 1 · w:value(v) → narg 2
                 LuaValue self = a.arg1();
@@ -1576,6 +1580,8 @@ public final class LuaWidget {
                 // never been protected: it is read off the handle's own reference, which survives the widget
                 // leaving the tree, so the answer no longer depends on liveness either.
                 Owned c = ownedContent(owner, h.wdg);
+                if((c == null) && (h.wdg instanceof OptWnd.SetButton))   // 163.3: nothing drives a key button — its key
+                    throw new LuaError(CKeybinding.VALUE_REFUSAL);        //   is its binding's; asked of the handle alone
                 if(c == null)                             // BORROWED (or gone): the act, and its gate
                     AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_VALUE);
                 Widget w = live(h);
@@ -1655,7 +1661,8 @@ public final class LuaWidget {
         // Binding of one of the addon's live hotkeys (CKeybinding.hotkey), and shows its key at once.
         //   THE WRITE IS YOURS ALONE, like every builder setter: a borrowed control refuses naming the client --
         // what one of its controls holds is the client's, driven by the server and read back by it, and
-        // widget:value(v) under widget.value is how that one is driven. The read still answers, as nil.
+        // widget:value(v) under widget.value is how that one is driven. The read still answers, as nil. A
+        // borrowed key button (163.3) is refused naming hafen.ui():keybinding(): its key is its binding's.
         m.set("bind", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:bind() → narg 1 · w:bind(opt)/(nil) → narg 2
                 LuaValue self = a.arg1();
@@ -1668,7 +1675,13 @@ public final class LuaWidget {
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 Owned c = ownedContent(owner, w);
-                if(c == null)
+                if(c == null) {
+                    if(w instanceof OptWnd.SetButton)   // 163.3: the client's key button, or another addon's
+                        throw new LuaError(Binding.VERB + "(binding) joins a key button YOUR addon built, and this one"
+                            + " is " + ((Owned.of(w) != null) ? "another addon's" : "one of the client's own")
+                            + " — its key is its binding's: the user assigns it by hand, and binding:key(key) under"
+                            + " client.settings is the write your code makes. To assign one of your hotkeys, build your"
+                            + " own: hafen.ui():keybinding():bind(binding).");
                     throw new LuaError(Binding.VERB + "(opt) joins a control YOUR addon built to an option, and "
                         + typeName(w) + " is " + ((Owned.of(w) != null) ? "another addon's" : "one of the client's own")
                         + " — what it holds is the client's, set by the server and read back by it, so nothing"
@@ -1676,6 +1689,7 @@ public final class LuaWidget {
                         + " the client's controls, widget:value(v) under the widget.value permission is the"
                         + " act; to show an option, build a control of your own: hafen.ui():check(), :slider(),"
                         + " :dropdown(), :radio() or :entry().");
+                }
                 LuaValue v = a.arg(2);
                 if(c instanceof CKeybinding) {          // 163.1: a key button joins a hotkey of the addon's, not an option
                     CKeybinding keyButton = (CKeybinding)c;
@@ -3721,6 +3735,8 @@ public final class LuaWidget {
         if(secret(w))
             return LuaValue.NIL;                   // audit2 B08 (pk-02): a credential is not a value either
         try {
+            if(w instanceof OptWnd.SetButton)      // 163.3: a key button holds its key, as binding:key() spells it
+                return LuaBinding.keyName(((OptWnd.SetButton)w).key);
             if(w instanceof RadioGroup.RadioButton) {
                 String row = ((RadioGroup.RadioButton)w).checked();
                 return (row == null) ? LuaValue.NIL : LuaValue.valueOf(row);
