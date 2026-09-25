@@ -72,11 +72,14 @@ import static io.brodgar.addon.AddonManager.*;
  * character's key, and a window the addon built itself under the <b>client</b> scope — the layer is the
  * addon's and outlives every character, so its windows belong to nobody in particular. Until 092 there was
  * one set for the client, holding whoever was on screen, which wrote a background character's window into
- * the drawn character's rows and read it back out of them. The rows are the client's own file's
- * ({@link ClientDb#placements}), keyed by the addon and the scope: where the user put a window is a record
- * the client keeps <i>about</i> the addon, and it is <b>written when the gesture lands</b> ({@link #land},
- * {@link #forget}) and when a remembered widget is about to go ({@code LuaWidget.rememberCapture}) — never by
- * the timer or by a store's flush, which write the addon's vars and nothing of the client's.
+ * the drawn character's rows and read it back out of them. {@code widget:remember(name, store)} names the
+ * scope instead, wherever the widget stands ({@link #rowScope}): {@code hafen.store()} the client's, so every
+ * character shares the place, and {@code session:store()} that session's character. The rows are the
+ * client's own file's ({@link ClientDb#placements}), keyed by the addon and the scope: where the user put a
+ * window is a record the client keeps <i>about</i> the addon, and it is <b>written when the gesture lands</b>
+ * ({@link #land}, {@link #forget}) and when a remembered widget is about to go
+ * ({@code LuaWidget.rememberCapture}) — never by the timer or by a store's flush, which write the addon's vars
+ * and nothing of the client's.
  *
  * <p><b>The held action-bar slots are the client's rows too</b> (150, {@link BeltHold}), in the same file
  * ({@link ClientDb#holds}), keyed by the character — written by their own tick and never by a write of this
@@ -260,6 +263,7 @@ final class StoreApi {
             }
         });
         LuaValue obj = Section.object("store", store);
+        owner.storeDoors.put((Section)obj.touserdata(), null);   // widget:remember(name, hafen.store()): nobody's rows
         Section.mount(hafen, "store", obj,
                       "hafen.store.<name> is now hafen.store():var(\"<name>\") for a client-scope name and"
                       + " hafen.session():current():store():var(\"<name>\") for a per-character one");
@@ -328,7 +332,42 @@ final class StoreApi {
                 return self;
             }
         });
-        return Section.object("store", m, SS);
+        LuaValue obj = Section.object("store", m, SS);
+        owner.storeDoors.put((Section)obj.touserdata(), user);   // widget:remember(name, s:store()): that character's rows
+        return obj;
+    }
+
+    /**
+     * <b>Whose rows the store handed to {@code widget:remember(name, store)} names</b>: {@link #CLIENT} for this
+     * addon's own {@code hafen.store()}, and the character key a {@code session:store()} of this addon names,
+     * taken at the call — or {@code null} for any other value, which the verb ignores as it always has, and
+     * then files the widget by the tree it stands in. A session store answers only for a character: one whose
+     * session has ended, or has not reached the world yet, raises as {@code :var} does, since there is no key
+     * to file the widget under.
+     */
+    static String rowScope(Addon owner, LuaValue v, String name) {
+        if(!v.isuserdata() || !(v.touserdata() instanceof Section))
+            return null;
+        Section s = (Section)v.touserdata();
+        String user;
+        synchronized(owner.storeDoors) {
+            if(!owner.storeDoors.containsKey(s))
+                return null;
+            user = owner.storeDoors.get(s);
+        }
+        if(user == null)
+            return CLIENT;
+        String call = "widget:remember(\"" + name + "\", " + SS + ")";
+        AddonManager.SessionState st = AddonManager.state(AddonManager.sessionui(user));
+        if(st == null)
+            throw new LuaError(call + " — \"" + user + "\" is not a live session, so it has no character to file"
+                + " this widget's place under. hafen.session() lists the sessions the client holds, and"
+                + " s:exists() is the test.");
+        if(st.charScope == null)
+            throw new LuaError(call + " — that session has no character yet (it is connecting, or on the"
+                + " character list), so there is no character to file this widget's place under: call it from"
+                + " that session's SessionEnteredWorld onwards.");
+        return st.charScope;
     }
 
     /**
@@ -955,7 +994,12 @@ final class StoreApi {
     /** What is saved under {@code name} for {@code w}'s own tree, or {@code null} (no scope, or nothing saved). */
     static Placement placement(Addon a, Widget w, String name) {
         String scope = scopeOf(w);
-        return (scope == null) ? null : set(a, scope).byName.get(name);
+        return (scope == null) ? null : placementIn(a, scope, name);
+    }
+
+    /** What is saved under {@code name} in {@code scope} — the one a store named — or {@code null}. */
+    static Placement placementIn(Addon a, String scope, String name) {
+        return set(a, scope).byName.get(name);
     }
 
     /**
@@ -969,7 +1013,13 @@ final class StoreApi {
      */
     static void land(Addon a, Widget w, String name, Coord pos, double[] frac, Coord size) {
         String scope = scopeOf(w);
-        if((scope == null) || ((pos == null) && (frac == null) && (size == null)))
+        if(scope != null)
+            landIn(a, scope, name, pos, frac, size);
+    }
+
+    /** {@link #land}, into {@code scope} — the one a store named — wherever the widget stands. */
+    static void landIn(Addon a, String scope, String name, Coord pos, double[] frac, Coord size) {
+        if((pos == null) && (frac == null) && (size == null))
             return;
         PlaceSet ps = set(a, scope);
         Map<String, Placement> m = ps.byName;
@@ -993,8 +1043,12 @@ final class StoreApi {
     /** {@code widget:remember(nil)}: the record is <b>deleted</b>, in the file in the same call. */
     static void forget(Addon a, Widget w, String name) {
         String scope = scopeOf(w);
-        if(scope == null)
-            return;
+        if(scope != null)
+            forgetIn(a, scope, name);
+    }
+
+    /** {@link #forget}, in {@code scope} — the one a store named. */
+    static void forgetIn(Addon a, String scope, String name) {
         PlaceSet ps = set(a, scope);
         if(ps.byName.remove(name) != null)
             writePlacements(a, scope, ps);

@@ -74,10 +74,12 @@ Store plain data and rebuild on load.
 
 | The widget | Its row | Because |
 |---|---|---|
-| One of a session's own, `session:ui():match("@ChatUI")` | Keyed by that character. | Where the user dragged that character's chat window is a fact about that character. |
-| One you built, `hafen.ui():window()` | Keyed by nobody, like your addon's own vars. | It stands in your layer, which belongs to no character and outlives all of them. |
+| One standing in a session's tree, `session:ui():match("@ChatUI")` or one of yours you put there | Keyed by that character. | Where the user dragged that character's chat window is a fact about that character. |
+| One standing in your layer, `hafen.ui():window()` | Keyed by nobody, like your addon's own vars. | Your layer belongs to no character and outlives all of them. |
+| Any, remembered with `widget:remember(name, hafen.store())` | Keyed by nobody. | One place every character shares. |
+| Any, remembered with `widget:remember(name, session:store())` | Keyed by that session's character. | That character's place, wherever the widget stands. |
 
-A session's own window has nothing to put back until that session is in world, and tabbing moves nothing. No `flush()` and no timer writes a placement. The row is written when a drag or a resize lands and when the screen changes. It is written when the widget goes: destroyed, closed, torn down with your addon. A place you wrote with `widget:position(x, y)` lands with the widget.
+The store you pass names whose row it is, and the row stays in the client's file. A session's own window has nothing to put back until that session is in world, and tabbing moves nothing. No `flush()` and no timer writes a placement. The row is written when a drag or a resize lands and when the screen changes. It is written when the widget goes: destroyed, closed, torn down with your addon. A place you wrote with `widget:position(x, y)` lands with the widget. With a store, only what moved after the call is written.
 
 ---
 

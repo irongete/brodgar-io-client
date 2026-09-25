@@ -911,8 +911,16 @@ public final class LuaWidget {
         // mind and is accepted, and the record the old name held stands — DROPPING IS NOT FORGETTING. That is
         // the rule the whole verb turns on: widget:revert(), :reload and disable drop the binding and keep the
         // record, and widget:remember(nil) is the only thing that deletes it.
+        //
+        // remember(name, store) — THE SAME, FILED UNDER THE ROWS THE STORE NAMES, wherever the widget stands:
+        // hafen.store() the addon's own, so every character shares one place, and session:store() that
+        // character's. Any other value in that slot is IGNORED, as it always was: the verb never refused a
+        // second argument, and a published addon passing one keeps working. With a store, one name holds one
+        // widget PER TREE (every character's copy of a panel under one name, one row), and what is saved is
+        // what moved after the call — the user's drops as they land, and a :position or :size written after
+        // it — never where a copy merely stands, which may be a place the shared row has since left (Remembered).
         m.set("remember", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {        // :remember() → narg 1 · (nil)/(name) → narg 2
+            public Varargs invoke(Varargs a) {        // :remember() → narg 1 · (nil)/(name) → narg 2 · (name, store) → 3
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "remember"));
                 if(!Args.passed(a, 2)) {
@@ -932,7 +940,8 @@ public final class LuaWidget {
                          "the name YOUR addon saves this widget's place and box under");
                 if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                rememberAs(owner, w, v.tojstring());
+                String nm = v.tojstring();
+                rememberAs(owner, w, nm, StoreApi.rowScope(owner, a.arg(3), nm));   // null: not a store of ours
                 return self;
             }
         });
@@ -2911,13 +2920,39 @@ public final class LuaWidget {
 
     // ---- widget:remember(name): the placement that survives the session (062) ----------------------
 
+    /**
+     * <b>One {@code widget:remember} binding</b> (062): the widget, the name, and — for
+     * {@code widget:remember(name, store)} — the scope that store named ({@link StoreApi#rowScope}). The
+     * one-argument form carries none: its row is filed by the tree the widget stands in, at every write.
+     *
+     * <p><b>The store form writes only what moved after the call</b>, because its row may be shared: every
+     * character's copy of a panel under one {@code hafen.store()} name reads and writes one row, and a capture
+     * writing where each copy stands would put one that is merely still where the row left it over the place
+     * the user has just dropped another at. So {@link #rememberCapture} writes a half of it only where this
+     * addon's level on that half was named since the row last put the widget back or took its place —
+     * {@link #posSeq}/{@link #sizeSeq} are the {@link Moved} {@code seq}s of that moment. What that leaves is
+     * the user's gestures, written as they land, and the addon's own {@code :position}/{@code :size} after the
+     * call; a place nobody chose — a rule's, the stock one — is never saved, and stays a default.
+     */
+    static final class Remembered {
+        final Widget w;
+        final String name;
+        /** The scope the store named, or {@code null}: the one-argument form, filed by the widget's own tree. */
+        final String scope;
+        /** The store form: this addon's {@link Moved#posSeq}/{@link Moved#sizeSeq} when the row last put the widget back or took its place. */
+        volatile long posSeq, sizeSeq;
+
+        Remembered(Widget w, String name, String scope) {
+            this.w = w;
+            this.name = name;
+            this.scope = scope;
+        }
+    }
+
     /** The name THIS addon remembers {@code w} under, or {@code null} — the read arity of the verb. */
     private static String rememberedName(Addon owner, Widget w) {
-        for(Map.Entry<String, Widget> e : owner.remembered.entrySet()) {
-            if(e.getValue() == w)
-                return e.getKey();
-        }
-        return null;
+        Remembered b = (w == null) ? null : owner.remembered.get(w);
+        return (b == null) ? null : b.name;
     }
 
     /**
@@ -2926,20 +2961,33 @@ public final class LuaWidget {
      * is two windows sharing one saved place and each overwriting the other every time the user moves either.
      * A name whose widget has left the tree is free again — the binding was on that widget, and it is gone.
      *
+     * <p>{@code widget:remember(name, store)} ({@code scope} not {@code null}) holds one widget per name <b>per
+     * tree</b>, since there sharing is what was asked for: the same panel on every character, one name, one
+     * row, and {@link Remembered} is what keeps the copies from writing over each other.
+     *
      * <p>Renaming a widget this addon already remembers moves the binding and <b>leaves the old record</b>:
-     * only {@code widget:remember(nil)} deletes one.
+     * only {@code widget:remember(nil)} deletes one. Naming another store is the same change of mind.
      */
-    private static void rememberAs(Addon owner, Widget w, String name) {
-        Widget held = owner.remembered.get(name);
-        if((held != null) && (held != w) && inTree(held))
-            throw new LuaError("widget:remember(\"" + name + "\"): this addon already remembers a "
-                + typeName(held) + " under that name — one name, one widget. Pick another name, or drop that"
-                + " one with widget:remember(nil) first.");
-        String prev = rememberedName(owner, w);
-        if((prev != null) && !prev.equals(name))
-            owner.remembered.remove(prev);            // a change of NAME: the record it held is left standing
-        owner.remembered.put(name, w);
-        rememberApply(owner, w, name);
+    private static void rememberAs(Addon owner, Widget w, String name, String scope) {
+        for(Remembered held : owner.remembered.values()) {
+            if((held.w == w) || !held.name.equals(name) || !inTree(held.w))
+                continue;
+            if((scope == null) || (held.scope == null))
+                throw new LuaError("widget:remember(\"" + name + "\"): this addon already remembers a "
+                    + typeName(held.w) + " under that name — one name, one widget. Pick another name, or drop that"
+                    + " one with widget:remember(nil) first.");
+            if(held.w.ui == w.ui)
+                throw new LuaError("widget:remember(\"" + name + "\", store): this addon already remembers a "
+                    + typeName(held.w) + " under that name in this widget's session — one name, one widget in"
+                    + " each. Pick another name, or drop that one with widget:remember(nil) first.");
+        }
+        for(Remembered gone : owner.remembered.values()) {
+            if((gone.w != w) && gone.name.equals(name) && !inTree(gone.w))
+                owner.remembered.remove(gone.w, gone);   // its widget left the tree: the name is free again
+        }
+        Remembered b = new Remembered(w, name, scope);
+        owner.remembered.put(w, b);                   // a change of NAME or of store: the record it held is left standing
+        rememberApply(owner, b);
     }
 
     /**
@@ -2951,8 +2999,21 @@ public final class LuaWidget {
      *
      * <p>A half the record does not hold is not written at all, so remembering a widget the user only ever
      * dragged does not pin a box they never chose.
+     *
+     * <p>The store form reads the rows its store named, which are there whichever tree the widget stands in and
+     * whether or not that session is in the world yet, and then takes what stands as the row's
+     * ({@link Remembered}): the place put back, or a default nobody chose.
      */
-    private static void rememberApply(Addon owner, Widget w, String name) {
+    private static void rememberApply(Addon owner, Remembered b) {
+        Widget w = b.w;
+        String name = b.name;
+        if(b.scope != null) {
+            StoreApi.Placement p = StoreApi.placementIn(owner, b.scope, name);
+            if(p != null)
+                putBack(owner, w, p);
+            rememberSynced(owner, b, true, true);
+            return;
+        }
         if(!StoreApi.placementScope(w)) {
             // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
             // called it too early, and the answer is a moment rather than a different verb.
@@ -2967,6 +3028,11 @@ public final class LuaWidget {
         StoreApi.Placement p = StoreApi.placement(owner, w, name);
         if(p == null)
             return;                                   // nothing saved under it yet: the name is where it will go
+        putBack(owner, w, p);
+    }
+
+    /** {@link #rememberApply}'s write: what one record holds, as this addon's position and size levels. */
+    private static void putBack(Addon owner, Widget w, StoreApi.Placement p) {
         if(p.frac != null) {
             rememberFrac(owner, w, p);
             return;
@@ -3044,13 +3110,19 @@ public final class LuaWidget {
         return (at.frac == null) ? null : at;
     }
 
-    /** {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. */
+    /**
+     * {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. The
+     * record is the one the binding names: its tree's, or the store's.
+     */
     private static void rememberForget(Addon owner, Widget w) {
-        String nm = rememberedName(owner, w);
-        if(nm == null)
+        Remembered b = owner.remembered.get(w);
+        if(b == null)
             return;
-        owner.remembered.remove(nm);
-        StoreApi.forget(owner, w, nm);
+        owner.remembered.remove(w, b);
+        if(b.scope == null)
+            StoreApi.forget(owner, w, b.name);
+        else
+            StoreApi.forgetIn(owner, b.scope, b.name);
     }
 
     /**
@@ -3059,9 +3131,17 @@ public final class LuaWidget {
      * gives back what the addon took, and where the user dragged a window is not something it took.
      */
     static void rememberDrop(Addon owner, Widget w) {
-        String nm = rememberedName(owner, w);
-        if(nm != null)
-            owner.remembered.remove(nm);
+        if(w != null)
+            owner.remembered.remove(w);
+    }
+
+    /** The store form: take this addon's levels on the widget, as they stand, as the row's ({@link Remembered}). */
+    private static void rememberSynced(Addon owner, Remembered b, boolean pos, boolean size) {
+        Moved rec = findMoved(owner, b.w);
+        if(pos)
+            b.posSeq = (rec == null) ? 0 : rec.posSeq;
+        if(size)
+            b.sizeSeq = (rec == null) ? 0 : rec.sizeSeq;
     }
 
     /** Teardown ({@code :reload}/disable): the same, for every name at once — and the records stay on disk. */
@@ -3076,12 +3156,25 @@ public final class LuaWidget {
      * off the level, so what is saved is where it <b>landed</b> — the clamp, and a window that re-packed
      * itself, both having had their word. From {@link Gesture} ({@code :draggable}/{@code :resizable}) and from
      * the title-bar drag of a window this addon built ({@code UiApi}'s window, its {@code mouseup}). A place on
-     * the screen is saved as its fraction (166), one inside a window as pixels.
+     * the screen is saved as its fraction (166), one inside a window as pixels. The store form writes into the
+     * rows its store named, and takes the level the gesture left as the row's ({@link Remembered}).
      */
     static void rememberLanded(Addon owner, Widget w, boolean pos) {
-        String nm = rememberedName(owner, w);
-        if(nm == null)
+        Remembered b = (w == null) ? null : owner.remembered.get(w);
+        if(b == null)
             return;
+        String nm = b.name;
+        if(b.scope != null) {
+            if(pos) {
+                StoreApi.Placement at = placeNow(owner, w);
+                if(at != null)
+                    StoreApi.landIn(owner, b.scope, nm, at.pos, at.frac, null);
+            } else {
+                StoreApi.landIn(owner, b.scope, nm, null, null, Px.out(sizeArg(w)));
+            }
+            rememberSynced(owner, b, pos, !pos);
+            return;
+        }
         if(pos) {
             StoreApi.Placement at = placeNow(owner, w);
             if(at != null)
@@ -3106,14 +3199,19 @@ public final class LuaWidget {
      * widget it cannot read is one removed itself, whose parent is gone: its place stays what was saved.
      *
      * <p>092.8: each lands in the scope of <b>its own</b> tree, so one capture over an addon's remembered
-     * widgets fills as many folders as the addon has trees with a window in them.
+     * widgets fills as many folders as the addon has trees with a window in them. A store-form binding lands
+     * in the rows its store named, and only what moved since the row last saw it ({@link #captureMoved}).
      */
     static void rememberCapture(Addon a) {
         if((a == null) || a.remembered.isEmpty())
             return;
-        for(Map.Entry<String, Widget> e : a.remembered.entrySet()) {
-            Widget w = e.getValue();
+        for(Remembered b : a.remembered.values()) {
+            Widget w = b.w;
             Moved rec = findMoved(a, w);
+            if(b.scope != null) {
+                captureMoved(a, b, rec);
+                continue;
+            }
             // 144.3: A WINDOW THIS ADDON BUILT STANDS WHERE IT STANDS, level or no level. widget:position(x, y)
             // on an owned widget names a level (158.1), but the chrome's own title-bar drag names none where
             // none stands -- so gating the place on a hand-named level, which is the right question for a
@@ -3135,8 +3233,36 @@ public final class LuaWidget {
             boolean sized = (own != null) ? !((own instanceof AddonWidget) && ((AddonWidget)own).packed)
                                           : ((rec != null) && (rec.wantSize != null));
             Coord size = (!sized || (w.sz == null)) ? null : Px.out(sizeArg(w));
-            StoreApi.land(a, w, e.getKey(), (at == null) ? null : at.pos, (at == null) ? null : at.frac, size);
+            StoreApi.land(a, w, b.name, (at == null) ? null : at.pos, (at == null) ? null : at.frac, size);
         }
+    }
+
+    /**
+     * {@link #rememberCapture} of a store-form binding: a half is written only where this addon's level on it
+     * was named since the row last put the widget back or took its place ({@link Remembered}), so a copy that
+     * merely stands where a shared row left it never writes over the place the user has since dropped another
+     * copy at. The gestures of this layer landed as they happened; what is left to write here is a
+     * {@code :position} or {@code :size} of the addon's after the call, and a client window the user dragged
+     * by its own title bar, which tells this layer nothing and leaves the window standing somewhere other than
+     * where the level puts it. The size half keeps the one-argument form's gate: a packed surface's box is
+     * what its rows measure.
+     */
+    private static void captureMoved(Addon a, Remembered b, Moved rec) {
+        if(rec == null)
+            return;                                   // no level of ours on it: nothing of the addon's to record
+        Widget w = b.w;
+        Owned own = ownedContent(a, w);
+        Layout.Anchor lvl = rec.wantPos;
+        boolean placed = (lvl != null) && ((rec.posSeq != b.posSeq)
+            || (lvl.plain && (w.c != null) && !w.c.equals(Px.in(lvl.offset))));
+        boolean sized = (rec.wantSize != null) && (rec.sizeSeq != b.sizeSeq) && (w.sz != null)
+            && !((own instanceof AddonWidget) && ((AddonWidget)own).packed);
+        StoreApi.Placement at = placed ? placeNow(a, w) : null;
+        Coord size = sized ? Px.out(sizeArg(w)) : null;
+        if((at == null) && (size == null))
+            return;
+        StoreApi.landIn(a, b.scope, b.name, (at == null) ? null : at.pos, (at == null) ? null : at.frac, size);
+        rememberSynced(a, b, at != null, size != null);
     }
 
     /**

@@ -76,7 +76,7 @@ A row is in the file when `:put` returns. Where a character's rows are theirs al
 
 ## Where a window sits is saved for you
 
-[`widget:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's place and box under a name of yours. It puts them back when called, and saves them again in the client's own file each time the user moves the thing. No var, no table, no handler. Per character, so it belongs in `SessionEnteredWorld`. The character is the one whose window it is, while a window you built is your addon's own.
+[`widget:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's place and box under a name of yours. It puts them back when called, and saves them again in the client's own file each time the user moves the thing. No var, no table, no handler. Per character, so it belongs in `SessionEnteredWorld`. The character is the one whose window it is, while a window you built is your addon's own. Pass a store to choose: `widget:remember(name, hafen.store())` keeps one place every character shares.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function()

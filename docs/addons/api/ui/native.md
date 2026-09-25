@@ -122,11 +122,12 @@ end)
 
 ## Remembering where the user put it (unprotected)
 
-`widget:remember(name)` keeps a widget's place and box under a name of yours. It puts back what the name holds the moment you call it, and saves where the widget stands from then on. No handler of yours, nothing in your manifest.
+`widget:remember(name)` keeps a widget's place and box under a name of yours. It puts back what the name holds the moment you call it, and saves where the widget stands from then on. `widget:remember(name, store)` keeps them in the rows the store names: `hafen.store()` for one place every character shares, `session:store()` for that character's. No handler of yours, nothing in your manifest.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `widget:remember(name)` | `self` | Unprotected | Remembers it, and puts back what that name holds. |
+| `widget:remember(name, store)` | `self` | Unprotected | The same, in the rows `store` names: `hafen.store()` shared by every character, `session:store()` that character's. |
 | `widget:remember()` | `string \| nil` | Unprotected | The name your addon remembers it under. |
 | `widget:remember(nil)` | `self` | Unprotected | Stops remembering it and deletes what was saved. |
 
@@ -135,6 +136,11 @@ hafen.event():on("SessionEnteredWorld", function()
   local chat = hafen.session():current():ui():match("@ChatUI")
   chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
   chat:remember("chat")     -- back where it was, and saved again after every drag
+
+  local hud = hafen.session():current():ui():match("@GameUI")
+  local panel = hafen.ui():widget():name("panel"):parent(hud):size(200, 120)
+  panel:draggable(panel)
+  panel:remember("panel", hafen.store())   -- one place for every character
 end)
 ```
 
@@ -142,9 +148,12 @@ end)
 |---|---|
 | It applies on the call | The only correct moment to put a place back is the moment you name it. What it writes is your [`:position` and `:size` levels](#moving-and-resizing-unprotected), exactly as the verbs write them. A `:position(x, y)` written after it wins. `:position(nil)` still gives the stock place back. |
 | What is saved | Where your levels stand, written to the client's own file, never your store. It is written when a gesture lands, when the screen changes and when the widget goes. A place directly on the HUD or in the layer is saved relative to the screen, the fraction [Re-layout](#letting-the-user-drag-it-unprotected) describes, so a name saved at one window size or interface scale puts the widget back at the same relative place at another, following the screen from then on. A place inside another window is saved in pixels of that window. A window [you built](custom.md) is saved where it stands and at the box it has. Your own writes or the user's title bar and corner may have put it there. The one box not saved is a [packed](custom.md#packing-a-surface-around-what-is-inside-it) surface's. A client widget's box is saved only where you named a size. |
-| Whose row | A session's own window is filed under that character, like [a character's var](../store/vars.md). One you built under your [addon's own scope](../store/vars.md#where-a-widget-sits-is-saved-for-you). Called before that session is in the world it has nothing to put back, says so in the log, and remembers the name anyway. |
-| One name, one widget | A second widget under a name your addon holds raises. Renaming a remembered widget is accepted. A name that is not a string raises. A stale widget is a no-op. |
-| Dropping is not forgetting | `widget:revert()`, `:reload` and disable drop the binding and leave the record. `remember(nil)` is the one thing that deletes it. |
+| What a store saves | Only what moved after the call: the user's drag or resize as it lands, a `:position` or `:size` of yours written after it, and a client window dragged by its own title bar off a place your levels gave it. A place nobody chose, a [rule's](style/geometry.md#anchor) or the stock one, is not saved and stays the default. |
+| Whose row | A widget standing in a session's tree, its own window or one of yours you put there, is filed under that character, like [a character's var](../store/vars.md). One standing in your layer under your [addon's own scope](../store/vars.md#where-a-widget-sits-is-saved-for-you). A store names the row instead, wherever the widget stands. Called before that session is in the world, `remember(name)` has nothing to put back, says so in the log, and remembers the name anyway. |
+| Which store | `hafen.store()` or a `session:store()` of your addon. A `session:store()` whose session has ended, or has not reached the world, raises. Any other second argument is ignored, and the widget is remembered as with `remember(name)`. |
+| One place for every character | `remember(name, hafen.store())` on each character's copy of a widget puts each at the one saved place. A drop on one saves it and moves no other copy: call `remember` again from [`SessionSelected`](../event/bus/lifecycle.md#sessions) to put the copy of the character taking the screen there. |
+| One name, one widget | A second widget under a name your addon holds raises. With a store, one per session: each character's copy takes the name, and a second widget in the same session raises. Renaming a remembered widget is accepted, and so is naming another store. A name that is not a string raises. A stale widget is a no-op. |
+| Dropping is not forgetting | `widget:revert()`, `:reload` and disable drop the binding and leave the record. `remember(nil)` is the one thing that deletes it, from the rows it was remembered in. |
 
 ---
 

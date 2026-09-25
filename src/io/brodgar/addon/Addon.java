@@ -468,22 +468,37 @@ public final class Addon {
      */
     public final List<Gesture.Bind> gestures = new CopyOnWriteArrayList<Gesture.Bind>();
     /**
-     * Widgets this addon has asked to <b>survive the session</b> ({@code widget:remember(name)}, 062), by the
-     * name each is remembered under — one name, one widget, which is what makes the name answerable when a
-     * second widget asks for it. This is the <b>binding</b> alone: what is actually saved sits in
-     * {@link #placeSets} and in the client's file, and the two are deliberately dropped by different things.
+     * Widgets this addon has asked to <b>survive the session</b> ({@code widget:remember(name)}, 062), each
+     * with the name it is remembered under and, for {@code widget:remember(name, store)}, whose row the store
+     * named — one name, one widget, which is what makes the name answerable when a second widget asks for it,
+     * and one name, one widget <i>per tree</i> for the store form ({@link LuaWidget.Remembered}). This is the
+     * <b>binding</b> alone: what is actually saved sits in {@link #placeSets} and in the client's file, and
+     * the two are deliberately dropped by different things.
      *
      * <p><b>Dropping is not forgetting.</b> {@code widget:revert()}, {@code :reload} and disable clear the
      * binding and leave the record standing, which is the one place this layer's <i>put everything back</i>
      * instinct is wrong: what the user dragged a window to is theirs, and an addon reloading is not them
      * changing their mind. Only {@code widget:remember(nil)} deletes it.
      */
-    public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
+    // retained: bounded by the names this addon uses -- one binding per name per tree. rememberAs frees a name
+    //   whose widget has left the tree, UiApi.prune drops a dead tree's, and a revert or a teardown the rest.
+    public final Map<Widget, LuaWidget.Remembered> remembered =
+        new ConcurrentHashMap<Widget, LuaWidget.Remembered>();
+    /**
+     * <b>The {@code store} section objects minted for this addon</b>, by the {@link Section} each wraps:
+     * {@code null} for its own {@code hafen.store()}, the session's user for a {@code session:store()}. What
+     * lets {@code widget:remember(name, store)} tell one of this addon's stores from any other value, and
+     * whose rows the store names ({@code StoreApi.rowScope}). Weak keys and string values, so an entry reaches
+     * nothing that holds its key, and a session's store goes when its handle does.
+     */
+    public final Map<Section, String> storeDoors =
+        Collections.synchronizedMap(new WeakHashMap<Section, String>());
     /**
      * What is saved under each of those names, <b>by scope</b> (062, re-keyed by 092.8) — a place, a box, or
      * both, in design pixels. The key is the scope the set belongs to — with this addon's id, the row key in
      * the client's own file ({@code ClientDb.placements}, 150): a character's {@code <genus>_<char>} for a
-     * widget standing in that session's own tree, and {@code ""} for one standing in the addon's layer.
+     * widget standing in that session's own tree, and {@code ""} for one standing in the addon's layer — or,
+     * for {@code widget:remember(name, store)}, the scope that store names, wherever the widget stands.
      *
      * <p><b>Which is the whole of A-087's fix.</b> A single set keyed by the character on SCREEN is the wrong
      * address: a widget of a background session's own tree ({@code s:ui():match("@ChatUI")}, the case

@@ -1162,9 +1162,9 @@ final class UiApi {
             if(dead(b.target) || dead(b.handle))
                 co.gestures.remove(b);
         }
-        for(Map.Entry<String, Widget> e : co.remembered.entrySet()) {   // 062: ...nor remembered by name
-            if(dead(e.getValue()))
-                co.remembered.remove(e.getKey(), e.getValue());
+        for(LuaWidget.Remembered r : co.remembered.values()) {   // 062: ...nor remembered by name
+            if(dead(r.w))
+                co.remembered.remove(r.w, r);
         }
         for(Widget w : co.widgetSubs.keys()) {
             if(dead(w))                              // 041.3/041.4: ...and so is every widget:on() subscription
