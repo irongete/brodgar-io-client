@@ -14,14 +14,16 @@ import org.luaj.vm2.LuaValue;
 /**
  * The adapter behind {@code hafen.ui():keybinding()} — the client's own key button, {@link OptWnd.SetButton}, the very
  * class each row of Options ▸ Game ▸ Keybindings ends in, joined by {@code widget:bind(binding)} to one of the hotkeys
- * its addon declared (spec {@code 163-keybinding-control}). The user presses it, then a key, and the key is assigned
+ * its addon declared (spec {@code 163-keybinding-control}) or, under {@code client.settings}, to any binding the
+ * addon's code may write: another addon's declared hotkey, or one of the client's own (spec
+ * {@code 169-key-button-reach}). The user presses it, then a key, and the key is assigned
  * exactly as on that row: the capture, Escape, Backspace, Delete and the exclusive, persisted edit are
  * {@code SetButton}'s and {@code KeyMatch.Capture}'s own, inherited unchanged.
  *
  * <p>{@link CtlButton}'s shape: the ownership contract over one {@link Owned.State}, the pending draw, the disabled
  * face, the {@code resize} redraw, the art's {@link #minsz}. What it adds is the binding: {@code cmd} is the
- * {@link KeyBinding} it is joined to, {@code null} while none, and a press starts a capture only while that binding's
- * hotkey is live in its addon ({@link #live}). {@code :type()} reads {@code "SetButton"}: {@link LuaWidget#typeName}
+ * {@link KeyBinding} it is joined to, {@code null} while none, and a press starts a capture only while that binding
+ * is live ({@link #live}). {@code :type()} reads {@code "SetButton"}: {@link LuaWidget#typeName}
  * climbs past an {@link Owned.Control}.
  *
  * <p>The press: {@code Changed} fires once per press that moves the key, with the key it now shows ({@code nil} for
@@ -32,6 +34,9 @@ import org.luaj.vm2.LuaValue;
 final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Controls.Value, Controls.Change {
     /** The Keybindings panel's own width for a key button ({@code BindingPanel.addbtn}'s {@code UI.scale(175)}), DESIGN px. */
     static final int DEF_W = 175;
+
+    /** What every addon hotkey's registry id starts with ({@link HookApi#keyBindIdPrefix} with the id after it). */
+    private static final String ADDON_PREFIX = "addon/";
 
     /** {@code widget:value(v)} on a key button — yours ({@link #value(LuaValue)}) and the client's ({@link LuaWidget}). */
     static final String VALUE_REFUSAL = "widget:value(v) on a key button is refused: the key it shows is its"
@@ -66,19 +71,31 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
 
     // ------------------------------------------------------------------ the binding (widget:bind)
 
-    /** Is the hotkey this button is joined to live in its addon right now? {@code false} while unbound. */
+    /**
+     * Is the binding this button is joined to live right now? {@code false} while unbound. An addon's hotkey — this
+     * addon's own or, under {@code client.settings}, another's (169.1) — is live while some addon has it declared;
+     * one of the client's own is live while the registry holds it, which is always for a binding a client class
+     * declares, and until {@link KeyBinding#unregister} for one the client mints and drops (an action-menu entry's).
+     */
     boolean live() {
         KeyBinding kb = cmd;
         if(kb == null)
             return false;
-        for(LuaKeyBind h : own.owner.keybinds) {
-            if(h.alive && (h.binding == kb))
-                return true;
-        }
-        return false;
+        if(kb.id.startsWith(ADDON_PREFIX))
+            return declared(kb.id) != null;
+        return KeyBinding.get(kb.id) == kb;
     }
 
-    /** Would a press here reach the key: joined to a live hotkey, enabled through every Owned above it, and shown? */
+    /** The {@link KeyBinding} of a hotkey some addon has declared and not ended, by registry id; {@code null} for none. */
+    private static KeyBinding declared(String id) {
+        for(LuaKeyBind h : HookApi.keyBinds) {      // every live hotkey of every addon; copy-on-write
+            if(h.alive && h.binding.id.equals(id))
+                return h.binding;
+        }
+        return null;
+    }
+
+    /** Would a press here reach the key: joined to a live binding, enabled through every Owned above it, and shown? */
     boolean answers() {
         return live() && Owned.effective(this) && tvisible();
     }
@@ -90,10 +107,11 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
     }
 
     /**
-     * The hotkey {@code v} names — a live one of {@code owner}'s — or the refusal naming what to do instead
-     * (spec 163, criterion 3). Touches nothing, so a refused bind changes nothing. The order is the plan's: not a
-     * Binding, then the addon's own prefix (live, else ended), then another addon's, then the client's, then a
-     * handle taken before {@code keybindings:on} declared the name.
+     * The binding {@code v} names — a live hotkey of {@code owner}'s, or under {@code client.settings} another
+     * addon's declared hotkey or one of the client's own (169.1) — or the refusal naming what to do instead (spec
+     * 163, criterion 3). Touches nothing, so a refused bind changes nothing. The order is the plan's: not a Binding,
+     * then the addon's own prefix (live, else ended), then another addon's, then the client's, then a handle that
+     * names nothing. The permission is read here, at the bind: a consent is never withdrawn from a running addon.
      */
     static KeyBinding hotkey(Addon owner, LuaValue v) {
         LuaBinding h = LuaBinding.resolve(v);
@@ -120,15 +138,34 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
                 + " your addon has not declared it since it reloaded. keybindings:on(\"" + name + "\", fn) declares it"
                 + " again, and this Binding answers it at once.");
         }
-        if(id.startsWith("addon/"))
-            throw new LuaError("widget:bind(binding): '" + id + "' is another addon's hotkey — the user assigns its key"
-                + " in Options ▸ Game ▸ Keybindings, or on that addon's own page. A key button joins a hotkey your own"
-                + " addon declared with keybindings:on(name, fn).");
-        if(KeyBinding.get(id) != null)
-            throw new LuaError("widget:bind(binding): '" + id + "' is one of the client's own bindings — the user"
-                + " assigns its key in Options ▸ Game ▸ Keybindings, and binding:key(key) under client.settings is the"
-                + " write your code makes. A key button joins a hotkey your own addon declared with"
-                + " keybindings:on(name, fn).");
+        // 169.1: under client.settings the button joins what binding:key(key) may already write.
+        boolean settings = AddonManager.permitted(owner, Permission.CLIENT_SETTINGS);
+        if(id.startsWith(ADDON_PREFIX)) {
+            if(!settings)
+                throw new LuaError("widget:bind(binding): '" + id + "' is another addon's hotkey — the user assigns its"
+                    + " key in Options ▸ Game ▸ Keybindings, or on that addon's own page. A key button joins a hotkey"
+                    + " your own addon declared with keybindings:on(name, fn).");
+            KeyBinding kb = declared(id);
+            if(kb == null)
+                throw new LuaError("widget:bind(binding): '" + id + "' is another addon's hotkey, and no addon has it"
+                    + " declared right now — its addon is off or not loaded, or ended it with sub:off(). A key button"
+                    + " joins one while its addon declares it.");
+            return kb;
+        }
+        KeyBinding client = KeyBinding.get(id);
+        if(client != null) {
+            if(!settings)
+                throw new LuaError("widget:bind(binding): '" + id + "' is one of the client's own bindings — the user"
+                    + " assigns its key in Options ▸ Game ▸ Keybindings, and binding:key(key) under client.settings is"
+                    + " the write your code makes. A key button joins a hotkey your own addon declared with"
+                    + " keybindings:on(name, fn).");
+            return client;
+        }
+        boolean early = KeyBinding.get(mine + id) != null;   // a hotkey of yours, its handle taken before on()
+        if(settings && !early)
+            throw new LuaError("widget:bind(binding): the Binding '" + id + "' names no binding — neither a hotkey of"
+                + " yours, nor one another addon declared, nor one of the client's own. keybindings:binding():list()"
+                + " holds every id there is.");
         throw new LuaError("widget:bind(binding): the Binding '" + id + "' names no hotkey of yours — it was taken"
             + " before keybindings:on declared it, so it is the registry id as written. Take it after keybindings:on(\""
             + id + "\", fn): keybindings:binding():get(\"" + id + "\") then answers your own hotkey.");

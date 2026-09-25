@@ -46,7 +46,7 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 | `ui.resend` | [`event:resend` on a control](../api/ui/edit.md#running-the-action-yourself) | re-run a button you pressed, so the client sends what that press sends |
 | `ui.focus` | [`session:chat():selected(channel)`](../api/chat.md#write-unprotected) | move the keyboard into a chat entry line, so what you type next goes there |
 | `virtual.click` | [`hafen.virtual():click`](../api/virtual/README.md#clicking-what-stands-in-the-world-protected) | click the controls it has standing in the world, which act as if you had clicked them |
-| `client.settings` | [every option write](../api/client/README.md), [`binding:key(key)`](../api/client/keybindings.md) | change your client settings and hotkeys |
+| `client.settings` | [every option write](../api/client/README.md), [`binding:key(key)`](../api/client/keybindings.md), a [key button](../api/ui/controls/interactive.md#another-addons-hotkey-or-one-of-the-clients) bound to a binding not yours | change your client settings and hotkeys |
 | `console.run` | [`session:console():run`](../api/console.md#run-a-line-protected) | run any of the client's console commands, on any of your characters, including ones that run code outside the addon sandbox |
 | `http.get` | [`request:send`](../api/http.md#request) on a GET | fetch data from the servers it lists |
 | `http.post` | [`request:send`](../api/http.md#request) on a POST | send data to the servers it lists |

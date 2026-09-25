@@ -134,7 +134,7 @@ row_scrollbar:on("Changed", function(value) first_row = value end)
 
 ## Key button
 
-The client's own key button, the one each row of Options ▸ Game ▸ Keybindings ends in, joined to one of your hotkeys. The user presses it, then the key, and the key is assigned exactly as on that row. It needs `"api_version": "1.1"` in your [manifest](../../../manifest.md#the-api-version).
+The client's own key button, the one each row of Options ▸ Game ▸ Keybindings ends in, joined to one of your hotkeys, or under `client.settings` to [any binding your code may write](#another-addons-hotkey-or-one-of-the-clients). The user presses it, then the key, and the key is assigned exactly as on that row. It needs `"api_version": "1.1"` in your [manifest](../../../manifest.md#the-api-version).
 
 ```lua
 local keybindings = hafen.client():options():keybindings()
@@ -150,7 +150,7 @@ end)
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `hafen.ui():keybinding()` | [`Widget`](../widget.md) | Unprotected | A key button bound to nothing. It reads `None`, and a press does nothing. |
-| `key_button:bind(binding)` | `self` | Unprotected | Joins it to a hotkey your addon declared and has not ended: the [Binding](../../client/keybindings.md#the-binding-object) `keybindings:binding():get(name)` hands you. It shows that hotkey's key at once. A second call replaces the first. |
+| `key_button:bind(binding)` | `self` | Unprotected for your own hotkey. [`client.settings`](../../../guides/permissions.md) for [any other binding](#another-addons-hotkey-or-one-of-the-clients) | Joins it to a hotkey your addon declared and has not ended: the [Binding](../../client/keybindings.md#the-binding-object) `keybindings:binding():get(name)` hands you. It shows that hotkey's key at once. A second call replaces the first. |
 | `key_button:bind()` | `Binding \| nil` | Unprotected | The Binding it is joined to, the same object `keybindings:binding():get(name)` hands you. `nil` while none. |
 | `key_button:bind(nil)` | `self` | Unprotected | Unbinds. The key stays shown, and a press does nothing. |
 | `key_button:value()` | `string \| nil` | Unprotected | The key it shows, spelled as [`binding:key()`](../../client/keybindings.md#key-strings) spells it. `nil` for unbound. |
@@ -159,13 +159,38 @@ end)
 |---|---|
 | The client's class | `:type()` reads `"SetButton"` and `:role()` `button`, so `@SetButton` names yours and the panel's alike, and a [`button`](../style/surfaces.md#button) rule dresses it. |
 | Width | The panel's own, 175 design px, until `:size(w)`. The height is the button's art. |
-| Your own hotkeys | A binding of the client's (`inv`) or of another addon's is refused, naming Options ▸ Game ▸ Keybindings, where the user assigns those. A Binding taken before `keybindings:on` declared the name is the registry id as written, not yours: refused, naming the order. A hotkey ended with `subscription:off()` is refused. A refused bind changes nothing. |
-| A hotkey that ends while bound | The button keeps the Binding, and a press does nothing. Declaring the name again brings it back: the Binding is the same. |
+| Whose bindings | Your own hotkeys, always. Another addon's hotkey and the client's own bindings (`inv`) under `client.settings` only: without it, each is refused naming Options ▸ Game ▸ Keybindings, where the user assigns those. A Binding taken before `keybindings:on` declared the name is the registry id as written, not yours: refused, naming the order. A hotkey ended with `subscription:off()` is refused. A refused bind changes nothing. |
+| A hotkey that ends while bound | Yours or another addon's: the button keeps the Binding, and a press does nothing. Declaring the name again brings it back: the Binding is the same. |
 | `:value(v)` | Refused, naming `binding:key(key)` under `client.settings`: the key is the binding's. |
 | `:text(s)` | Refused: the caption is the key. A line beside it is a [label](display.md#label). |
 | `:tooltip(s)` | Replaces the client's own tip, which names Escape, Backspace and Delete. `""` brings that tip back. |
-| Unprotected | Building, binding and pressing it. A press is the user's own edit of their key, made by hand as on the panel's row. `binding:key(key)`, the write your code makes, stays under `client.settings`. |
+| Unprotected | Building it, binding it to your own hotkey, and pressing it. A press is the user's own edit of their key, made by hand as on the panel's row. `binding:key(key)`, the write your code makes, stays under `client.settings`. |
 | The client's own | The key button a row of Options ▸ Game ▸ Keybindings ends in is this class, borrowed. `widget:value()` reads its key there too, and `:value(v)` and `:bind(binding)` are refused: [edit](../edit.md#reading-what-a-borrowed-control-holds). |
+
+### Another addon's hotkey, or one of the client's
+
+An addon that declares [`client.settings`](../../../guides/permissions.md) may already write any binding with [`binding:key(key)`](../../client/keybindings.md#the-binding-object). Its key buttons join the same bindings, so the user picks the key for them by hand: a setup window that sets the keys of the addons a bundle carries, or a page gathering the client's own keys.
+
+```lua
+local keybindings = hafen.client():options():keybindings()
+local chat_binding = keybindings:binding():get("addon/simple-chat/toggle")   -- another addon's hotkey, by registry id
+local inventory_binding = keybindings:binding():get("inv")                  -- one of the client's own
+local setup_window = hafen.ui():window():title("Keys")
+local setup_column = hafen.ui():column():gap(4):parent(setup_window)
+for _, binding in ipairs({ chat_binding, inventory_binding }) do
+  local binding_row = hafen.ui():row():gap(8):parent(setup_column)
+  hafen.ui():label():parent(binding_row):text(binding:id())
+  hafen.ui():keybinding():parent(binding_row):bind(binding)
+end
+setup_window:pack()
+```
+
+| Rule | Detail |
+|---|---|
+| Another addon's hotkey | Joins while some addon has it declared. One no addon declares right now, its addon off, not loaded or the hotkey ended, is refused naming that. One that ends while bound keeps its Binding, as your own does. |
+| The client's own | Joins any binding the client holds, and never ends. |
+| A Binding that names nothing | Neither a hotkey of yours, nor another addon's, nor the client's: refused naming `keybindings:binding():list()`, which holds every id there is. |
+| Read at the bind | The permission is asked when `:bind(binding)` runs. A press is the user's own edit, as on your own hotkey. |
 
 ### A press
 
@@ -175,7 +200,7 @@ The user presses the key button and it reads `...`. The next key they press, wit
 |---|---|
 | A key, with any modifiers | Assigned. |
 | `Escape` | Cancels. The key stays. |
-| `Backspace` | Back to the client's default, which for your hotkey is unbound. |
+| `Backspace` | Back to the binding's default: unbound for an addon's hotkey, the client's own key for one of its bindings. |
 | `Delete` | Unbound. |
 | A modifier alone | Nothing yet: the button waits for the key the modifier goes with. |
 

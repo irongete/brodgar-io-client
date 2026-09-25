@@ -47,7 +47,7 @@ end)
 |---|---|
 | The same edit | A press on it assigns the key as the panel's row does: persisted, and taken off the binding that was assigned it. Each place shows what the other assigned. |
 | Unprotected | The press is the user's own remap. `binding:key(key)`, the remap your code makes, stays under `client.settings`. |
-| Your own hotkeys | It joins a hotkey your addon declared and has not ended. The client's bindings and other addons' are assigned in the panel. |
+| Whose hotkeys | It joins a hotkey your addon declared and has not ended. Under `client.settings` it joins another addon's declared hotkey and the client's own bindings too, [the bindings `binding:key(key)` writes](../ui/controls/interactive.md#another-addons-hotkey-or-one-of-the-clients). Without it, those are assigned in the panel. |
 
 ## An assigned key answers to you and to nothing else
 

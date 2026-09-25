@@ -1,0 +1,10 @@
+{
+  "name": "169.1 — a key button for any binding under client.settings",
+  "id": "169-key-button-reach.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 169.1: under client.settings, hafen.ui():keybinding() joins the client's own binding inv and another addon's declared hotkey, refuses what names nothing, and a press assigns that addon's key.",
+  "api_version": "1.1",
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}
