@@ -1,3 +1,15 @@
 # The addons a client release ships, one id per line, taken from the addons repository
 # (build.xml: addons.repo, ../brodgar-io-client-addons by default). A line starting with #
-# is a comment; an empty list ships none.
+# is a comment; an empty list ships none. They travel in release-addons/ beside the client,
+# which installs each into its addons folder once, at the first start that finds it, with
+# the permissions that copy declares granted. A bundle ships with every addon it includes.
+brodgar-ui
+simple-minimap
+simple-chat
+quick-search
+actionbars
+themes
+hider
+hitboxes
+stockpile-take
+multi-session

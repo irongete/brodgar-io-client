@@ -57,15 +57,21 @@ jobs:
           python3 tools/refusalverbs.py
           python3 tools/widgetstate.py
 
-      # the build takes the addons etc/release-addons names from ../brodgar-io-client-addons, a private
-      # repository this token cannot read: a list that names one needs a checkout of it beside this one
+      # the build takes the addons etc/release-addons names from ../brodgar-io-client-addons, where build.xml's
+      # addons.repo looks: a public repository, cloned there. Every id the list names must be a folder of it,
+      # since ant's copy skips a missing one in silence
       - name: The addons a release ships
         if: steps.tagged.outputs.skip != 'true'
         run: |
-          if grep -v '^[[:space:]]*#' etc/release-addons | grep -q '[^[:space:]]'; then
-            echo "etc/release-addons names addons, and CI has no checkout of brodgar-io-client-addons to take them from" >&2
-            exit 1
-          fi
+          ids="$(grep -v '^[[:space:]]*#' etc/release-addons | tr -d '[:blank:]\r' | grep . || true)"
+          if [ -z "$ids" ]; then exit 0; fi
+          git clone --quiet --depth 1 https://github.com/irongete/brodgar-io-client-addons.git ../brodgar-io-client-addons
+          for id in $ids; do
+            if [ ! -f "../brodgar-io-client-addons/$id/manifest.json" ]; then
+              echo "etc/release-addons names $id, which brodgar-io-client-addons does not hold" >&2
+              exit 1
+            fi
+          done
 
       # publish.ps1 hands back the tag it published (the step output `tag`) and writes the step summary
       - name: Publish

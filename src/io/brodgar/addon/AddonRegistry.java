@@ -1369,8 +1369,20 @@ public final class AddonRegistry {
      * room (that would revoke a grant the user did give, to record one they gave now).
      */
     public static void grantConsent(String id, PermissionSet declared, List<String> hosts) {
+        if(recordConsent(id, declared, hosts))
+            setEnabled(id, true);
+    }
+
+    /**
+     * {@link #grantConsent}'s record, alone: the keys and the hosts merged into {@code id}'s row, bounded the same
+     * way, and the enabled set left as it is. Answers whether the record now holds them — {@code false} for a
+     * grant refused over the budget, logged here. The one other caller is {@link ReleaseAddons}, which grants an
+     * addon the client installs from its own release what that copy declares, and leaves enabling it to the
+     * enabled set: an id the player turned off stays off.
+     */
+    static boolean recordConsent(String id, PermissionSet declared, List<String> hosts) {
         if((id == null) || id.isEmpty())
-            return;
+            return false;
         Map<String, Consent> consented = consentedMap();
         Consent cur = consented.get(id);
         // Not EnumSet.copyOf: it refuses an empty collection, and a recorded row whose every key this build
@@ -1389,11 +1401,11 @@ public final class AddonRegistry {
             if(bytes > PREF_VALUE_BYTES) {
                 log("'" + id + "' stays disabled: recording its consent takes the record to " + bytes
                     + " bytes, past the " + PREF_VALUE_BYTES + " one preference value holds");
-                return;                  // refused: nothing written, and nothing enabled
+                return false;            // refused: nothing written, and nothing enabled
             }
             Utils.setprefsl(PREF_CONSENTED, rows);
         }
-        setEnabled(id, true);
+        return true;
     }
 
     /** The loaded addon with this id, or {@code null} if none is loaded (disabled, missing, or errored). */

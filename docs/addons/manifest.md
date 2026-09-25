@@ -36,6 +36,7 @@ savedata/
 | Rule | Detail |
 |---|---|
 | The folder name is the id | The manifest repeats it. A mismatch is a load error. |
+| Addons the client ships | A release carries some in `release-addons/` beside the client. At a start, each one the client has not offered before is copied into `addons/`, unless a folder of its id is there already. None is offered twice: one you delete stays deleted. It arrives with the permissions it declares granted, enabled unless you turned that id off before, and is yours from then on: the [AddOns manager](panel.md#installed) updates it from the hub like a folder you put there. |
 | Files you ship | Read through [`hafen.asset`](api/asset/README.md), which resolves paths inside your folder and rejects everything outside. |
 | Saved data is filed by owner | `client.sqlite` holds everything the client keeps. Every Options setting. The [options](api/client/addon.md) and [hotkeys](api/client/keybindings.md) your addon declares. The permissions consented to. Whether your addon is enabled. What the client remembers about your addon for the user. `map.sqlite` and `rescache.sqlite` are the client's too — the map it records and the resources it downloads, when it is started with `-Dhaven.store=sqlite`; otherwise both live under `%APPDATA%\Haven and Hearth\data`. Neither holds anything of yours. |
 | Your own file | The one under `savedata/` holds what your addon saves through [`hafen.store`](api/store/README.md). The client keeps nothing of its own in it. Both files survive a disable, a `:reload` and a restart. |

@@ -272,13 +272,13 @@
        maintainer's), dist/ holds only what the client needs to run: the jars, the resource jars, the
        natives, the server config, the addons etc/release-addons names, and the three start scripts. Every one of
        those is rebuilt from scratch, so an addon struck from the list leaves nothing of itself
-       behind. savedata/ is the one exception, because it is the store of whoever plays from this
-       folder and the build has no business in it. A folder handed to someone else is zipped WITHOUT
-       savedata/. -->
+       behind. savedata/ and addons/ are the exceptions, because they are the store and the addons of
+       whoever plays from this folder and the build has no business in them. A folder handed to someone
+       else is zipped WITHOUT them. -->
   <target name="dist" depends="deftgt">
     <mkdir dir="dist" />
     <delete includeemptydirs="true">
-      <fileset dir="dist" includes="**/*" excludes="savedata/**" defaultexcludes="no" />
+      <fileset dir="dist" includes="**/*" excludes="savedata/**,addons/**" defaultexcludes="no" />
     </delete>
     <copy todir="dist">
       <fileset dir="build">
@@ -303,7 +303,10 @@
     <!-- The addons a release ships are the ids etc/release-addons lists, one per line, taken from the
          sibling checkout; the suite in flight under addons/ never ships. The list is read into one
          includes pattern (`id/**,` per line) and an empty list sets no property, so nothing is copied;
-         a bare includes="" would take the whole checkout. -->
+         a bare includes="" would take the whole checkout. They go to release-addons/, never addons/: the
+         client installs each into the player's addons folder once, at the first start that finds it
+         (io.brodgar.addon.ReleaseAddons), so a launcher unpacking the next release over this folder never
+         puts a copy back over the player's. -->
     <loadfile property="release-addons" srcFile="etc/release-addons" failonerror="false" quiet="true">
       <filterchain>
 	<striplinecomments><comment value="#" /></striplinecomments>
@@ -312,7 +315,7 @@
 	<striplinebreaks />
       </filterchain>
     </loadfile>
-    <copy todir="dist/addons" failonerror="false" quiet="true" if:set="release-addons">
+    <copy todir="dist/release-addons" failonerror="false" quiet="true" if:set="release-addons">
       <fileset dir="${addons.repo}" includes="${release-addons}" />
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
@@ -324,13 +327,13 @@
     <echo message="Client ready in dist/ -- run dist\windows.bat, dist/linux.sh or dist/macos.command to play." />
   </target>
 
-  <!-- addon: the release asset publish.ps1 uploads: dist/ without savedata/, the client at the zip's root,
-       named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
+  <!-- addon: the release asset publish.ps1 uploads: dist/ without savedata/ and addons/, the client at the
+       zip's root, named by the version. ant's own zip task, so every entry is written with `/` (PowerShell 5.1's
        Compress-Archive writes `\`, which the launcher refuses as a path it cannot trust). The .sh and .command scripts are
        stored with mode 755, since a build on Windows has no executable bit to carry into the zip. -->
   <target name="release" depends="dist">
     <zip destfile="build/brodgar.io-client-v${version}.zip">
-      <zipfileset dir="dist" excludes="savedata/**,*.sh,*.command" />
+      <zipfileset dir="dist" excludes="savedata/**,addons/**,*.sh,*.command" />
       <zipfileset dir="dist" includes="*.sh,*.command" filemode="755" />
     </zip>
     <echo message="Release asset: build/brodgar.io-client-v${version}.zip" />

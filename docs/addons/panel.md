@@ -19,7 +19,7 @@ Every addon the client discovered, sorted by id, in a table under a header namin
 | **Check for updates** | At the right of the **Installed** and **Browse** buttons, while Installed shows. The check also runs each time the tab comes on screen, and sends the hub the id of each addon it checks, nothing else. The line to its left reads `checking`, `no update available` or `1 update available`. Otherwise it reads the hub's own sentence with its status, the failure that kept the client from reaching it, or `no addon to check`. |
 | **Load out of date AddOns** | Loads every addon marked `outdated (…)` as if its [API version](manifest.md#the-api-version) were current. One stance over the list, kept across restarts, off until ticked. Applied at the next reload, with a log line per addon naming why it was out of date. Not a permission: an out-of-date write addon is still disabled until enabled, through its consent dialog. |
 
-An addon's own settings are on the **AddOns** tab of **Options**, where an addon that holds [a page](api/client/addon.md#the-page) has a row. An addon that declares a permission key is disabled the first time the client sees it ([permissions](guides/permissions.md)).
+An addon's own settings are on the **AddOns** tab of **Options**, where an addon that holds [a page](api/client/addon.md#the-page) has a row. An addon that declares a permission key is disabled the first time the client sees it ([permissions](guides/permissions.md)), unless the client installed it from [its own release](manifest.md#where-an-addon-lives).
 
 ## Browse
 

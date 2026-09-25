@@ -94,7 +94,7 @@ A `<prefix>.*` entry stands for every key under that prefix.
 | Step | Detail |
 |---|---|
 | 1. The manifest declares a key or a group for every protected verb you call | `"permissions": ["player.move", "gob.click", "item.*"]`. |
-| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it. Enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. The tooltip of its name lists the entries, and **Enable all** skips it. |
+| 2. The user enables the addon | An addon that declares anything here is disabled the first time the client sees it, unless the client installed it from its own release, which grants what that copy declares ([addons the client ships](../manifest.md#where-an-addon-lives)). Enabling it in the AddOns manager raises a consent dialog listing exactly the entries you wrote, one line each. The tooltip of its name lists the entries, and **Enable all** skips it. |
 
 | Rule | Detail |
 |---|---|

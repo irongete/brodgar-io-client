@@ -209,7 +209,7 @@ Your Lua runs either on the step or answering something. On the step it is insid
 
 | Rule | Detail |
 |---|---|
-| Protected | A verb that starts an action the player could have performed runs only with its permission key. Your addon declares the key in the [manifest](../manifest.md#the-manifest) and the user enables it. Such an addon is disabled the first time the client sees it and enabling it raises a consent dialog. One that never declared the key gets an error naming the verb and the key. |
+| Protected | A verb that starts an action the player could have performed runs only with its permission key. Your addon declares the key in the [manifest](../manifest.md#the-manifest) and the user enables it. Such an addon is disabled the first time the client sees it and enabling it raises a consent dialog, unless the client installed it from its own release, which grants what it declares. One that never declared the key gets an error naming the verb and the key. |
 | A key names the action, not the character | One grant covers every character the client holds. |
 | Named `<section>.<verb>` | `gob.click`, `item.transfer`. `<prefix>.*` asks for the family in one line. No key grants the tier whole. |
 | Outside the client, the same words | `http.get`, `http.post`, `websocket.connect`, `voice.connect`, with the `network` host allowlist as the key's argument. The key says whether, the hosts where, read as one consent line. The approved list gates the call. |
