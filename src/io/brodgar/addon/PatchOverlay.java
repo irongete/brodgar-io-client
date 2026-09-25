@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import haven.Area;
 import haven.Coord;
@@ -63,8 +64,22 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
     /** What the masked ground is re-laid with — the colours, and the carve that cuts the shape out of them. */
     private Material mat;
 
+    /** The ranks handed out so far: every patch laid takes the next one. */
+    private static final AtomicLong LAID = new AtomicLong();
+    /**
+     * Where this patch stacks. Two patches lie at the same depth, so the one drawn last is the one seen where
+     * they overlap; {@code MapMesh.OLOrder} draws a higher rank later, so a patch laid later is drawn over one
+     * laid earlier, and every patch over the server's overlays, whose rank is 0.
+     */
+    private final long rank = LAID.incrementAndGet();
+
     PatchOverlay(List<List<Coord2d>> pieces, Color fill, Color edge, float width, boolean occluded) {
         set(pieces, fill, edge, width, occluded);
+    }
+
+    @Override
+    public long drawrank() {
+        return rank;
     }
 
     /** Read where {@link #set} is given no edge: a colour the band is switched off over and so never reads. */

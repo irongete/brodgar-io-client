@@ -488,8 +488,15 @@ public class MapMesh implements RenderTree.Node, Disposable {
 	}
 
 	private final static Comparator<OLOrder> cmp = (a, b) -> {
+	    int c = Long.compare(rank(a), rank(b));   // addon: an addon's later patch over its earlier ones
+	    if(c != 0)
+		return(c);
 	    return(Utils.idcmp.compare(a.id, b.id));
 	};
+
+	private static long rank(OLOrder order) {   // addon: MapView's grid lines order with no id
+	    return((order.id == null) ? 0 : order.id.drawrank());
+	}
 
 	public Comparator<OLOrder> comparator() {return(cmp);}
     }

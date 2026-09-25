@@ -17,6 +17,7 @@ local patch = hafen.virtual():patch():add(ring, here):tint{40, 200, 120}
 | The collection | `hafen.virtual():patch()` holds the patches your addon laid: `:add(ring, anchor)`, `:list(filter)`, `:remove(patch)`, the [collection shape](README.md#the-collections-unprotected). |
 | On the ground exactly | Over a slope, a ridge or a tile boundary it follows the relief with no float, gap or shimmer. What stands on that ground occludes it, your character included, until [`:occluded(false)`](#drawing-through-the-world). Its edge is the shape's own at every zoom. |
 | A patch and a ring | A footprint or a field is one piece and is the ring it was laid with. Anything not convex is the same patch carrying more pieces. |
+| Laid later, drawn on top | Where two patches overlap, the one laid later covers the one laid earlier, and every patch covers the ground's own overlays (a claim, a province). Which addon laid it does not matter. Tinting, moving or laying a piece into a patch keeps its place in the stack. To bring one to the top, lay it again. |
 | Client-only | No server id, never sent, grants nothing ([the section's note](README.md)). |
 
 ## The anchor
@@ -109,7 +110,7 @@ for _, ring in ipairs(my_gob:hitbox() or {}) do
 end
 ```
 
-> **With occlusion off, two overlapping patches stack in draw order**, which is not yours to set. Give them different ground, or let one be occluded.
+> **With occlusion off, two overlapping patches still stack by when they were laid**: the later one covers the earlier one.
 
 ## Naming and filtering
 

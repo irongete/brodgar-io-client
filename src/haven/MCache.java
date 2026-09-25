@@ -200,6 +200,7 @@ public class MCache implements MapSource {
 	public Collection<String> tags();
 	public Material mat();
 	public default Material omat() {return(null);}
+	public default long drawrank() {return(0);}   // addon: a higher rank is drawn over a lower one (MapMesh.OLOrder)
     }
 
     @Resource.LayerName("overlay")
