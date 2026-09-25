@@ -8,13 +8,14 @@ import java.util.Map;
 
 /**
  * <b>One addon's page</b> — what {@code GET /addons/api/addons/:id} answers: the {@link Entry} the list
- * shows, plus what only the page carries — the links the owner filed, the long description, the screenshots
- * and every live version, newest first. Immutable and a snapshot, like the item it extends: the hub is asked
- * again for a fresh one.
+ * shows, plus what only the page carries — the links the owner filed, the long description, the screenshots,
+ * every live version, newest first, and (168) the addons it needs as the list shows them and the bundles that
+ * include it. Immutable and a snapshot, like the item it extends: the hub is asked again for a fresh one.
  *
  * <p>Read as leniently as an item is: a field that is absent reads {@code null}, empty or {@code 0}; the
  * item's own two refusals (an id that is not one, an answer that is not an object) are this class's too, and
- * a version whose {@code version} is not a string is dropped rather than refusing the page.
+ * a version whose {@code version} is not a string, or a member or a bundle that is not an item, is dropped
+ * rather than refusing the page.
  */
 public final class Detail extends Entry {
     /** Whether the hub hides it from the list — never for what an anonymous client is answered, kept for the record. */
@@ -27,6 +28,14 @@ public final class Detail extends Entry {
     public final List<String> images;
     /** The live versions, newest first; the first is the one the item's own fields describe. Unmodifiable. */
     public final List<Version> versions;
+    /**
+     * 168: the addons its {@link #dependencies} name, as the list shows them, in the manifest's order — a
+     * bundle's contents. One the hub does not list is left out, and {@link #dependencies} still names it.
+     * Empty when it needs none, and from a hub before 168. Unmodifiable.
+     */
+    public final List<Entry> members;
+    /** 168: the listed bundles whose latest version includes it, each an id and a name. Empty when none. Unmodifiable. */
+    public final List<Entry> bundles;
 
     /** One published version, as the page lists it. */
     public static final class Version {
@@ -52,13 +61,31 @@ public final class Detail extends Entry {
     }
 
     private Detail(Entry e, boolean hidden, Map<String, String> links, String descriptionHtml, List<String> images,
-                   List<Version> versions) {
+                   List<Version> versions, List<Entry> members, List<Entry> bundles) {
         super(e);
         this.hidden = hidden;
         this.links = links;
         this.descriptionHtml = descriptionHtml;
         this.images = images;
         this.versions = versions;
+        this.members = members;
+        this.bundles = bundles;
+    }
+
+    /** The items of an array field, in order; one that is not an item is dropped. Empty when absent. Unmodifiable. */
+    static List<Entry> entries(Map<?, ?> m, String key) {
+        Object v = m.get(key);
+        if(!(v instanceof List))
+            return Collections.emptyList();
+        List<Entry> out = new ArrayList<Entry>();
+        for(Object o : (List<?>)v) {
+            try {
+                out.add(Entry.of(o));
+            } catch(IllegalArgumentException e) {
+                // not an item: dropped, as a version that is not one is
+            }
+        }
+        return Collections.unmodifiableList(out);
     }
 
     /** A page as {@code Json.parse} hands one over. Raises {@link IllegalArgumentException} as {@link Entry#of} does. */
@@ -86,6 +113,7 @@ public final class Detail extends Entry {
             }
         }
         return new Detail(e, Boolean.TRUE.equals(m.get("hidden")), Collections.unmodifiableMap(links),
-                          str(m, "description_html"), strs(m, "images"), Collections.unmodifiableList(versions));
+                          str(m, "description_html"), strs(m, "images"), Collections.unmodifiableList(versions),
+                          entries(m, "members"), entries(m, "bundles"));
     }
 }

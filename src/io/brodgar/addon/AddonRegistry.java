@@ -62,6 +62,7 @@ public final class AddonRegistry {
     private static final String PREF_LOAD_OUTDATED = "addons/loadoutdated";
     private static volatile boolean reloadNeeded;        // enabled set, or the load-outdated box, changed since the last (re)load
     private static volatile int reloadGen;               // bumped by each completed reload() (the AddOns panel watches it)
+    private static volatile int enabledGen;              // 168: bumped by each write of the enabled set (enabledGen())
     // 074.2: how many times the Lua layer has been BUILT — once at boot, once per reload. Read beside reloadGen
     // by AddonManager.engineReloads(), whose whole claim is that the difference between the two is 1.
     private static volatile int loadGen;
@@ -135,12 +136,12 @@ public final class AddonRegistry {
     static Addon loaded(String id) { return findLoaded(id); }
     /** Whether {@code a} is the loaded addon of its id right now (a torn-down one is not). */
     static boolean isLoaded(Addon a) { return (a != null) && (a.manifest != null) && (findLoaded(a.manifest.id) == a); }
-    /** The loaded addons whose HARD dependencies name {@code id}. */
+    /** The loaded addons that require {@code id} ({@link Manifest#required}: a bundle requires none of its own). */
     static List<Addon> hardDependants(String id) {
         List<Addon> out = new ArrayList<Addon>();
         for(Addon a : addons)
             if(a.manifest != null)
-                for(Manifest.Dependency d : a.manifest.dependencies)
+                for(Manifest.Dependency d : a.manifest.required())
                     if(d.id.equals(id)) { out.add(a); break; }
         return out;
     }
@@ -360,9 +361,12 @@ public final class AddonRegistry {
         log(addons.size() + " addon(s) loaded");
     }
 
-    /** The first hard dependency of {@code m} that is not standing, as the error the dependant carries; null when all stand. */
+    /**
+     * The first dependency {@code m} requires ({@link Manifest#required}) that is not standing, as the error the
+     * dependant carries; null when all stand, and always for a bundle, which loads with whichever of its own do.
+     */
     static String unmetDependency(Manifest m, Map<String, Discovered> found, Set<String> disabled) {
-        for(Manifest.Dependency dep : m.dependencies) {
+        for(Manifest.Dependency dep : m.required()) {
             Discovered d = found.get(dep.id);
             if(d == null) return "needs " + dep.id + ", which is not installed";
             if(d.manifestError != null) return "needs " + dep.id + ", which has a manifest error";
@@ -991,6 +995,16 @@ public final class AddonRegistry {
     private static void writeDisabled(Set<String> d) {
         Utils.setprefsl(PREF_DISABLED, d);
         disabledCache = freeze(new LinkedHashSet<String>(d));
+        enabledGen++;
+    }
+
+    /**
+     * 168: bumped by every write of the enabled set. The AddOns panel rebuilds its rows when it has moved: one
+     * press can enable several addons (a bundle and what it includes), and an install enables them from the
+     * Browse tab, where no row was pressed.
+     */
+    public static int enabledGen() {
+        return enabledGen;
     }
 
     /** Insertion order is the persisted order, so the copy stays a LinkedHashSet. */

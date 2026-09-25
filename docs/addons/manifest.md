@@ -57,6 +57,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | `network` | `object` | `{"hosts": [...]}`, the argument of the network keys `http.get`, `http.post`, `websocket.connect` and `voice.connect`: a key says whether, this says where. Declaring it with none of them is a load error ([`hafen.http`](api/http.md), [`hafen.websocket`](api/websocket.md), [`hafen.voice`](api/voice/README.md)). |
 | `dependencies` | `string[]` | Addon ids this addon needs, each `<id>` or `<id>>=MAJOR.MINOR.PATCH`. They run before it; a missing one is a load error naming it ([addons](api/client/addons.md#dependencies-and-load-order)). |
 | `optional_dependencies` | `string[]` | The same form. They run before it when installed; a missing one changes nothing. |
+| `bundle` | `boolean` | `true`: a bundle, the addons its `dependencies` name packed as one. The [AddOns manager](panel.md#browse) marks its card and lists it under the **Bundles** chip. Installing or ticking it enables them all, one dialog asking for their permissions. Each stays the player's to turn off: a bundle requires none of them, and one that is off, missing or below its minimum is, to it, absent ([bundles](guides/bundles.md)). Anything else is not a bundle. |
 
 | Rule | Detail |
 |---|---|

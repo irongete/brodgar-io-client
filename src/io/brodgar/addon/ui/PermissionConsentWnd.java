@@ -8,6 +8,7 @@ import haven.UI;
 import haven.Widget;
 import haven.Window;
 
+import io.brodgar.addon.AddonRegistry;
 import io.brodgar.addon.Permission;
 import io.brodgar.addon.PermissionSet;
 
@@ -18,12 +19,19 @@ import java.util.Set;
 /**
  * The <b>enable-time permission consent dialog</b> (task 4c; {@code decisions.md} D-027, and the
  * "exact wording and placement of the permission notice" the security spec
- * {@code 12-security-and-permissions.md} left open). When the user ticks the enable checkbox of an
- * addon that declared any protected permission in the {@link AddonPanel}, this confirm appears
- * first and spells out what the addon will be able to do on the player's behalf. The addon is enabled
- * (persisted; applied on reload, D-006) <b>only</b> if the user clicks <b>Enable</b> — <b>Cancel</b> or
- * the close box leaves it disabled, and confirming records what was consented to, so a manifest that
+ * {@code 12-security-and-permissions.md} left open). When the user enables addons that declared a protected
+ * permission — ticking one in the {@link AddonPanel}, or installing one ({@link InstallWnd}) — this confirm
+ * appears first and spells out what each will be able to do on the player's behalf. The addons are enabled
+ * (persisted; applied on reload, D-006) <b>only</b> if the user clicks <b>Enable</b> — <b>Cancel</b> or the
+ * close box leaves them disabled, and confirming records what each was consented to, so a manifest that
  * later asks for MORE comes back and asks again.
+ *
+ * <p><b>One dialog for everything one action enables</b> (168). Ticking an addon enables the disabled ones it
+ * needs as well, and installing a bundle enables every addon it includes: each of them that asks for
+ * something the user has not approved is listed here under its own name, with its own lines, and the one
+ * answer covers them all. Enable grants each exactly its own ({@link AddonRegistry#grantConsent}) and enables
+ * every addon the action names; the ones that ask for nothing are named under the list and enabled with
+ * them. Where none of them asks for anything, {@link #enable} enables them all at once and opens nothing.
  *
  * <p><b>It enumerates</b> (050.2): one plain-language line per DECLARED ENTRY, read off the
  * {@link Permission} catalogue, with a group ({@code item.*}) rendered as the one line it is written as
@@ -31,8 +39,8 @@ import java.util.Set;
  * tier — <i>the permission the user grants is the list they read</i> — so this window says what an addon
  * asked for instead of making one blanket statement that over-warns about a movement addon and under-warns
  * about one sending raw widget messages. The lines live in a {@link Scrollport} sized to its content up to
- * {@link #MAXLIST}, so a declaration of one entry costs one line of chrome and one of twenty-two still fits
- * on screen.
+ * {@link #MAXLIST}, so a declaration of one entry costs one line of chrome and a bundle's twenty still fit on
+ * screen.
  *
  * <p><b>A re-prompt names the escalation.</b> An addon whose manifest widens is disabled and asked again
  * (the consent record is per addon, {@code AddonRegistry.grantConsent}); the entries the user has not
@@ -49,10 +57,10 @@ import java.util.Set;
  * <p>Pure {@code haven}-public composition (a {@link Window} of {@link Label}s + {@link Button}s), so it
  * lives in the addon package like {@link AddonPanel}. It is a <b>top-level floating window</b> (added to
  * {@code ui.root}, centered and raised), so it drags freely like any window rather than being clipped
- * inside the AddOns panel; the {@link AddonPanel} closes it explicitly when that panel leaves the screen
- * (see {@code AddonPanel.tick}), so nothing is left orphaned. Being a client-side widget with no server
- * binding, its close box is redirected to a plain {@code destroy()} (there is no {@code wdgmsg("close")}
- * to send — cf. the 2a {@code hafen.ui():window()}).
+ * inside the AddOns panel. One asks at a time: a new action drops the dialog an older one left open, and the
+ * {@link AddonPanel} drops it ({@link #close}) when that panel leaves the screen, so nothing is left orphaned.
+ * Being a client-side widget with no server binding, its close box is redirected to a plain answer of Cancel
+ * (there is no {@code wdgmsg("close")} to send — cf. the 2a {@code hafen.ui():window()}).
  */
 public class PermissionConsentWnd extends Window {
     private static final int WRAP = UI.scale(340);
@@ -61,62 +69,139 @@ public class PermissionConsentWnd extends Window {
     /** What every enumerated entry opens with, so the list reads as a list and never as another paragraph. */
     private static final String BULLET = "- ";
 
+    /** One addon an action enables: its id and name, and what its manifest declares — the keys, and the hosts they take. */
+    static final class Step {
+        final String id, name;
+        final PermissionSet declared;
+        final List<String> hosts;
+
+        Step(String id, String name, PermissionSet declared, List<String> hosts) {
+            this.id = id;
+            this.name = name;
+            this.declared = declared;
+            this.hosts = hosts;
+        }
+    }
+
+    private static PermissionConsentWnd open;     // the dialog on screen, or null
+
     /**
-     * @param addonName the addon's display name (for the title + notice).
-     * @param declared  what its manifest asked for — one line is rendered per {@link PermissionSet#entries()}.
-     * @param consented what the user already approved for this addon; every entry not covered by it is marked
-     *                  NEW. Empty on a first prompt, where nothing is marked (it is all new, and saying so on
-     *                  every line would say nothing).
-     * @param hosts     the manifest's {@code network.hosts} allowlist, appended to the line of a network
-     *                  key so the user reads WHERE as well as whether (093.4). Ignored by every other entry.
-     * @param known     the hosts already in this addon's consent record; every declared host it does not
-     *                  cover is marked NEW inside the line. Empty on a first prompt, where nothing is marked.
-     * @param onConfirm run once, on the UI thread, if the user clicks <b>Enable</b> (record the consent +
-     *                  persist-enable the addon + refresh the panel). Never run on Cancel / close.
+     * Enable every step's addon, all at once. The ones that declare something the user has not approved are
+     * asked for first, in one dialog titled {@code Enable <subject>?}: Enable grants each its own, enables them
+     * all and runs {@code then}; Cancel enables none and runs nothing. Where none asks for anything, they are
+     * enabled at once, with no dialog, and {@code then} runs. {@code then} may be null.
      */
-    public PermissionConsentWnd(String addonName, PermissionSet declared, Set<Permission> consented,
-                                List<String> hosts, List<String> known, Runnable onConfirm) {
-        super(Coord.z, "Enable " + addonName + "?", true);
-        // Build the lines first: a Label sizes itself in its constructor, so their total height is what decides
-        // how tall the list box is — and that has to be known BEFORE anything below it is positioned.
-        List<Label> lines = new ArrayList<Label>();
-        // A FIRST prompt marks nothing — all of it is new, and saying so on every line says nothing. The one
-        // guard covers both levels, which is why the host marking is handed null rather than the empty record.
-        boolean reprompt = !consented.isEmpty();
+    static void enable(Widget root, String subject, List<Step> steps, Runnable then) {
+        close();
+        List<Step> asking = new ArrayList<Step>();
+        List<String> silent = new ArrayList<String>();
+        for(Step s : steps) {
+            if(s.declared.isEmpty() || approved(s))
+                silent.add(s.name);
+            else
+                asking.add(s);
+        }
+        Runnable accept = () -> {
+            for(Step s : steps) {
+                if(asking.contains(s))
+                    AddonRegistry.grantConsent(s.id, s.declared, s.hosts);   // records the consent, and enables
+                else
+                    AddonRegistry.setEnabled(s.id, true);
+            }
+            if(then != null)
+                then.run();
+        };
+        if(asking.isEmpty()) {
+            accept.run();
+            return;
+        }
+        open = root.adda(new PermissionConsentWnd(subject, asking, silent, accept), root.sz.div(2), 0.5, 0.5);
+        open.raise();
+    }
+
+    /** Drop the dialog on screen, unanswered: nothing is enabled and nothing runs. */
+    static void close() {
+        if((open != null) && (open.parent != null))
+            open.destroy();                       // destroy() is not the close box: no Cancel runs, nor anything else
+        open = null;
+    }
+
+    /** Everything the step declares is in the addon's consent record already: the keys and, as written, the hosts. */
+    private static boolean approved(Step s) {
+        return AddonRegistry.consentedKeys(s.id).containsAll(s.declared.granted())
+            && AddonRegistry.consentedHosts(s.id).containsAll(s.hosts);
+    }
+
+    /**
+     * @param subject what the action enables, for the title: an addon's name, or a bundle's.
+     * @param asking  the addons that declare what the user has not approved, each listed with its own lines. For
+     *                each, the entries its consent record does not cover are marked NEW — none on a first prompt,
+     *                where all of it is new and saying so on every line would say nothing — and so are the hosts
+     *                it declares that the record does not cover (093.4).
+     * @param silent  the names of the addons enabled with them that ask for nothing, or nothing new.
+     * @param accept  run once, on the UI thread, if the user clicks <b>Enable</b>. Never run on Cancel / close.
+     */
+    private PermissionConsentWnd(String subject, List<Step> asking, List<String> silent, Runnable accept) {
+        super(Coord.z, "Enable " + subject + "?", true);
+        // Build the list first: a Label sizes itself in its constructor, so the total height is what decides how
+        // tall the list box is — and that has to be known BEFORE anything below it is positioned.
+        List<Label> items = new ArrayList<Label>();
+        List<Integer> indents = new ArrayList<Integer>();
         boolean anyNew = false;
         int lh = 0;
-        for(String entry : declared.entries()) {
-            boolean isnew = reprompt && PermissionSet.isNew(entry, consented, hosts, known);
-            anyNew = anyNew || isnew;
-            Label l = new Label(BULLET + (isnew ? PermissionSet.NEW + ": " : "")
-                                + PermissionSet.describe(entry, hosts, reprompt ? known : null)
-                                + "  (" + entry + ")", WRAP - UI.scale(34));   // room for the indent + the bar
-            lines.add(l);
-            lh += l.sz.y + UI.scale(3);
+        for(Step s : asking) {
+            Set<Permission> consented = AddonRegistry.consentedKeys(s.id);
+            List<String> known = AddonRegistry.consentedHosts(s.id);
+            // A FIRST prompt marks nothing. The one guard covers both levels, which is why the host marking is
+            // handed null rather than the empty record.
+            boolean reprompt = !consented.isEmpty();
+            Label head = new Label("“" + s.name + "” asks to act on your behalf. If you enable it, it will be able to:",
+                                   WRAP - UI.scale(24));   // room for the bar
+            items.add(head);
+            indents.add(UI.scale(4));
+            lh += head.sz.y + UI.scale(3);
+            for(String entry : s.declared.entries()) {
+                boolean isnew = reprompt && PermissionSet.isNew(entry, consented, s.hosts, known);
+                anyNew = anyNew || isnew;
+                Label l = new Label(BULLET + (isnew ? PermissionSet.NEW + ": " : "")
+                                    + PermissionSet.describe(entry, s.hosts, reprompt ? known : null)
+                                    + "  (" + entry + ")", WRAP - UI.scale(42));   // room for the indent + the bar
+                items.add(l);
+                indents.add(UI.scale(12));
+                lh += l.sz.y + UI.scale(3);
+            }
+            lh += UI.scale(6);                    // the room between one addon and the next
         }
-        Widget prev = add(new Label("“" + addonName + "” asks to act on your behalf. If you enable it, it will"
-            + " be able to:", WRAP), 0, 0);
         // Exactly as tall as its content up to MAXLIST — the slack is what Scrollport's own bar arithmetic
         // needs to report "nothing to scroll" when everything already fits, so a two-entry declaration shows
-        // no live scrollbar and a twenty-two-entry one does.
-        Scrollport list = add(new Scrollport(new Coord(WRAP, Math.min(lh + UI.scale(12), MAXLIST))),
-                              prev.pos("bl").adds(0, 6));
+        // no live scrollbar and a bundle's long list does.
+        Scrollport list = add(new Scrollport(new Coord(WRAP, Math.min(lh + UI.scale(12), MAXLIST))), Coord.z);
         int y = 0;
-        for(Label l : lines) {
-            list.cont.add(l, new Coord(UI.scale(4), y));
+        for(int i = 0; i < items.size(); i++) {
+            Label l = items.get(i);
+            if((i > 0) && (indents.get(i) < indents.get(i - 1)))
+                y += UI.scale(6);                 // a new addon's sentence, under the last one's lines
+            list.cont.add(l, new Coord(indents.get(i), y));
             y += l.sz.y + UI.scale(3);
         }
-        prev = list;
+        Widget prev = list;
+        boolean one = (asking.size() == 1);
+        if(!silent.isEmpty())
+            prev = add(new Label("Enabled with " + (one ? "it" : "them") + ", asking for nothing: "
+                + String.join(", ", silent) + ".", WRAP), prev.pos("bl").adds(0, 8));
         if(anyNew)
-            prev = add(new Label("You have enabled this addon before, but it is now asking for what is"
-                + " marked NEW.", WRAP), prev.pos("bl").adds(0, 8));
-        prev = add(new Label("Enable it only if you trust it — you are granting exactly these permissions, to"
-            + " this addon alone. You can disable it again here in the AddOns panel at any time.", WRAP),
-            prev.pos("bl").adds(0, 8));
-        Button enable = add(new Button(UI.scale(150), "Enable", false).action(() -> { destroy(); onConfirm.run(); }),
+            prev = add(new Label(one ? "You have enabled this addon before, but it is now asking for what is marked NEW."
+                                     : "You have enabled some of these before, but they are now asking for what is"
+                                       + " marked NEW.", WRAP), prev.pos("bl").adds(0, 8));
+        prev = add(new Label(one ? "Enable it only if you trust it — you are granting exactly these permissions, to"
+                                   + " this addon alone. You can disable it again here in the AddOns panel at any time."
+                                 : "Enable them only if you trust them — you are granting exactly these permissions,"
+                                   + " each to its own addon alone. You can disable any of them again here in the"
+                                   + " AddOns panel at any time.", WRAP), prev.pos("bl").adds(0, 8));
+        Button enable = add(new Button(UI.scale(150), "Enable", false).action(() -> { close(); accept.run(); }),
             prev.pos("bl").adds(0, 12));
-        add(new Button(UI.scale(150), "Cancel", false).action(this::destroy), enable.pos("ur").adds(10, 0));
-        reqclose(this::destroy);   // client-side widget: the X = Cancel (no server "close" to send)
+        add(new Button(UI.scale(150), "Cancel", false).action(PermissionConsentWnd::close), enable.pos("ur").adds(10, 0));
+        reqclose(PermissionConsentWnd::close);    // client-side widget: the X = Cancel (no server "close" to send)
         pack();
     }
 }

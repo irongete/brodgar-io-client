@@ -25,11 +25,14 @@ import java.util.List;
 
 /**
  * <b>The Browse tab</b> — the hub's own front page, drawn with the client's widgets: a search field with the
- * order beside it, the tags as a row of chips, one {@link AddonCard} per addon in a scrolling list, and on the
+ * order beside it, the tags as a row of chips with <b>Bundles</b> beside <b>All</b> (168: the addons whose
+ * manifest says {@code "bundle": true}, alone), one {@link AddonCard} per addon in a scrolling list, and on the
  * manager's own bottom line, right-aligned beside its <b>Back</b>, a line saying which of how many and
  * <b>Previous</b> / <b>Next</b> ({@link #pagerBar}, which {@link AddonPanel} places there). A card opens the addon's page,
  * {@link AddonDetail}, in the same box; <b>Back to list</b> on the page puts the list back exactly as it
- * was — the field, the page and the scroll all kept, the list being hidden rather than rebuilt.
+ * was — the field, the page and the scroll all kept, the list being hidden rather than rebuilt. A page opened
+ * from another page (168: the card of an addon a bundle includes, an addon it needs, a bundle it is part of)
+ * says <b>Back to</b> that page instead, and Back walks the pages back one at a time to the list.
  *
  * <p>Everything the hub answers is read from {@link #tick}, never called back: the page in flight
  * ({@link Registry#page}), the tags ({@link Registry#meta}, asked once and kept for the client's life), and
@@ -59,6 +62,8 @@ final class BrowsePanel extends Widget {
         "Relevance", "Most downloaded", "Recently updated", "Name"));
     /** The caption colour of the chip that is on -- the one state a button shows. */
     static final Color CHIP_ON = new Color(255, 224, 128);
+    /** The Bundles chip's place among the names the chips are built from: no tag the hub hands out can be it. */
+    static final String BUNDLES = "\u0000bundles";
 
     private final Widget listing;            // the front page: hidden while a detail is open
     private final TextEntry field;
@@ -71,8 +76,10 @@ final class BrowsePanel extends Widget {
     private final List<AddonCard> cards = new ArrayList<AddonCard>();
     private Label notice;                    // the port's own word while it holds no cards, or null
     private AddonDetail detail;              // the page open over the list, or null
+    private final List<Entry> trail = new ArrayList<Entry>();   // 168: the pages Back returns to, the latest last
     // -- the search
     private String q = "", tag = "";
+    private boolean bundle = false;          // 168: the Bundles chip is on -- the bundles alone
     private int sort = 0, page = 1;
     private String lastText = "";            // the field's text as tick last saw it
     private double still = 0;                // how long it has been that, in seconds
@@ -269,10 +276,20 @@ final class BrowsePanel extends Widget {
     /** The tag chip pressed — the one on, or none — from the strip, or from an addon's page. */
     void filter(String t) {
         tag = (t == null) ? "" : t;
+        bundle = false;
         page = 1;
-        chips.select(tag);
+        chips.select();
         load();
-        back();
+        list();
+    }
+
+    /** The Bundles chip pressed (168): the bundles alone, or everything again; a tag is dropped either way. */
+    private void bundles() {
+        bundle = !bundle;
+        tag = "";
+        page = 1;
+        chips.select();
+        load();
     }
 
     /** One page on, or back; the buttons are greyed at either end, so this is never asked past them. */
@@ -292,20 +309,20 @@ final class BrowsePanel extends Widget {
             pending = null;
         }
         notice("Searching…");
-        pending = Registry.page(q, tag, Registry.SORTS[sort], page, LIMIT);
+        pending = Registry.page(q, tag, bundle, Registry.SORTS[sort], page, LIMIT);
     }
 
     /** The cards for an answer, in the hub's order, and the line and the pager for it. */
     private void show(Registry.Page p) {
         clear();
         if(p.items.isEmpty()) {
-            notice((q.isEmpty() && tag.isEmpty()) ? "Nothing published yet." : "No addon matches.");
+            notice((q.isEmpty() && tag.isEmpty() && !bundle) ? "Nothing published yet." : "No addon matches.");
             bar(p);
             return;
         }
         int m = UI.scale(MARGIN), w = port.cont.sz.x - 2 * m;
         for(Entry e : p.items)
-            cards.add(port.cont.add(new AddonCard(this, e, w), Coord.z));
+            cards.add(port.cont.add(new AddonCard(this::open, e, w), Coord.z));
         stack();
         bar(p);
     }
@@ -349,16 +366,36 @@ final class BrowsePanel extends Widget {
 
     // ------------------------------------------------------------- the page
 
-    /** Open the addon's page over the list. */
+    /**
+     * Open the addon's page over the list. Opened from another page (168: a card under a bundle's Includes,
+     * an addon it needs, a bundle it is part of), that page goes on the trail, and Back returns to it.
+     */
     void open(Entry e) {
+        if(detail != null)
+            trail.add(detail.entry());
+        display(e);
+    }
+
+    /** The page of {@code e} in the box, its Back naming the page on the trail, or the list when there is none. */
+    private void display(Entry e) {
         if(detail != null)
             detail.destroy();
         listing.hide();
-        detail = add(new AddonDetail(this, e), Coord.z);
+        String from = trail.isEmpty() ? null : trail.get(trail.size() - 1).name;
+        detail = add(new AddonDetail(this, e, from), Coord.z);
     }
 
-    /** Back to the list, as it was. */
+    /** The page's Back: to the page it was opened from, else to the list as it was. */
     void back() {
+        if(!trail.isEmpty())
+            display(trail.remove(trail.size() - 1));
+        else
+            list();
+    }
+
+    /** Back to the list, as it was, from however many pages deep. */
+    void list() {
+        trail.clear();
         if(detail != null) {
             detail.destroy();
             detail = null;
@@ -377,8 +414,8 @@ final class BrowsePanel extends Widget {
     // ------------------------------------------------------------- the chips
 
     /**
-     * The tags as a row of chips — <b>All</b> first, then the hub's, in its order — each a button, the one
-     * on drawn with its caption in colour. They wrap when a row is full, and the strip is as tall as the
+     * The tags as a row of chips — <b>All</b> first, then <b>Bundles</b> (168), then the hub's tags, in its
+     * order — each a button, the one on drawn with its caption in colour. They wrap when a row is full, and the strip is as tall as the
      * rows it took; nothing here knows the tags before the hub has said them, so the strip is rebuilt on
      * {@link #set} and its owner lays the rest out under it.
      */
@@ -398,29 +435,40 @@ final class BrowsePanel extends Widget {
             buttons.clear();
             names.clear();
             names.add("");
+            names.add(BUNDLES);
             if(tags != null)
                 names.addAll(tags);
             int x = 0, y = 0, gap = UI.scale(4);
             for(final String t : names) {
-                String cap = t.isEmpty() ? "All" : t;
+                String cap = caption(t);
                 int w = capf.strsize(cap).x + UI.scale(20);
                 if((x > 0) && (x + w > sz.x)) {
                     x = 0;
                     y += Button.hs + gap;
                 }
-                Button b = add(new Button(w, cap, false).action(() -> filter(t.equals(tag) ? "" : t)), new Coord(x, y));
+                Runnable press = t.equals(BUNDLES) ? BrowsePanel.this::bundles : () -> filter(t.equals(tag) ? "" : t);
+                Button b = add(new Button(w, cap, false).action(press), new Coord(x, y));
                 buttons.add(b);
                 x += w + gap;
             }
             resize(new Coord(sz.x, y + Button.hs));
-            select(tag);
+            select();
         }
 
-        /** Mark the chip of {@code t} on, every other off — by caption colour, the one state a button shows. */
-        void select(String t) {
+        /** What a chip reads: All, Bundles, or the tag itself. */
+        private String caption(String n) {
+            return n.isEmpty() ? "All" : n.equals(BUNDLES) ? "Bundles" : n;
+        }
+
+        /**
+         * Mark the chip in force on, every other off — by caption colour, the one state a button shows: Bundles
+         * while it is on, else the tag's own chip, All for no tag.
+         */
+        void select() {
             for(int i = 0; i < buttons.size(); i++) {
-                String n = names.get(i), cap = n.isEmpty() ? "All" : n;
-                if(n.equals(t))
+                String n = names.get(i), cap = caption(n);
+                boolean on = n.equals(BUNDLES) ? bundle : (!bundle && n.equals(tag));
+                if(on)
                     buttons.get(i).change(cap, CHIP_ON);
                 else
                     buttons.get(i).change(cap);

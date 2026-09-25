@@ -1,0 +1,9 @@
+{
+  "name": "168.1 — bundles: the Bundles chip, an install with what it needs, an enable with what it needs",
+  "id": "168-addon-bundles.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 168.1: a bundle from the test hub is listed under Browse's Bundles chip, installs with its dependencies and their consent, and loads whole after the reload.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

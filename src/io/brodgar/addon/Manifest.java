@@ -29,12 +29,27 @@ public final class Manifest {
         public String toString() { return (min == null) ? id : (id + ">=" + min); }
     }
     public final List<Dependency> dependencies, optionalDependencies;
+    /**
+     * 168: {@code "bundle": true} — a bundle, the addons its {@link #dependencies} name packed as one. They are
+     * installed and enabled with it, and each stays the player's to turn off: the bundle requires none of them
+     * ({@link #required}). Anything else in the field, or none, is not a bundle.
+     */
+    public final boolean bundle;
 
     /** Both lists, hard first — what the load order reads. */
     public List<Dependency> allDependencies() {
         List<Dependency> out = new ArrayList<Dependency>(dependencies);
         out.addAll(optionalDependencies);
         return out;
+    }
+
+    /**
+     * What this addon cannot load without: its {@link #dependencies}, each standing at the version it names. A
+     * bundle's are the addons it packs (168), and it loads with whichever of them stand, each other one being
+     * to it what a missing optional dependency is — so a bundle requires nothing.
+     */
+    public List<Dependency> required() {
+        return bundle ? Collections.<Dependency>emptyList() : dependencies;
     }
 
     private static List<Dependency> deplist(Map<String, Object> m, String key) {
@@ -232,7 +247,7 @@ public final class Manifest {
 
     private Manifest(String id, String name, String version, String author, String description,
                      ApiVersion apiVersion, List<String> files, List<Dependency> dependencies,
-                     List<Dependency> optionalDependencies,
+                     List<Dependency> optionalDependencies, boolean bundle,
                      PermissionSet permissions, List<String> network, boolean internal) {
         this.internal = internal;
         this.id = id;
@@ -244,6 +259,7 @@ public final class Manifest {
         this.files = files;
         this.dependencies = dependencies;
         this.optionalDependencies = optionalDependencies;
+        this.bundle = bundle;
         this.permissions = permissions;
         this.network = network;
     }
@@ -263,7 +279,7 @@ public final class Manifest {
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
         return new Manifest(id, id, "0", "brodgar", "engine-internal owner", ApiVersion.CURRENT, none, noDeps,
-                            noDeps, allperms, allnet, true);
+                            noDeps, false, allperms, allnet, true);
     }
 
     /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
@@ -271,7 +287,7 @@ public final class Manifest {
         List<String> none = Collections.emptyList();
         List<Dependency> noDeps = Collections.<Dependency>emptyList();
         return new Manifest(id, id, "0", "brodgar", "probe owner", ApiVersion.CURRENT, none, noDeps, noDeps,
-                            PermissionSet.NONE, none, false);
+                            false, PermissionSet.NONE, none, false);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -316,7 +332,7 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), ApiVersion.parse(m.get("api_version")),
                             files, deplist(m, "dependencies"), deplist(m, "optional_dependencies"),
-                            perms, hosts, false);
+                            Boolean.TRUE.equals(m.get("bundle")), perms, hosts, false);
     }
 
     /**

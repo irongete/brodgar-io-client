@@ -1,0 +1,9 @@
+{
+  "name": "168.2 — bundles: one dialog for their permissions, each addon the player's to turn off, and updates that add addons",
+  "id": "168-addon-bundles.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 168.2: a bundle loads with one of its addons turned off, an update that adds addons installs and enables them through one dialog, and ticking the bundle turns every addon it includes on.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

@@ -10,6 +10,7 @@ One page per task, start to finish. Each shows the shape of a solution and links
 | [Saved data](saved-data.md) | Keep settings and layouts across sessions. |
 | [Hotkeys, commands and settings](hotkeys-and-commands.md) | Let the user drive your addon by hand. |
 | [Libraries](libraries.md) | Export functions for other addons, and use another addon's. |
+| [Bundles](bundles.md) | Pack a set of addons into one the player installs, set up to work together. |
 | [Permissions](permissions.md) | Drive the character: the catalogue of keys, and what declaring one costs. |
 | [Theming](theming.md) | Restyle the client's own surfaces, and ship a theme as a file. |
 | [Translating](translating.md) | Change what the client says, and ship a translation as a file. |

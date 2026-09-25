@@ -52,13 +52,16 @@ import java.util.Map;
  * out. A by-hand row carries neither button: the client never replaces or deletes a folder the player put there.
  *
  * <p><b>Browse</b> is the hub's own front page in the client's widgets — {@link BrowsePanel}: a search
- * field with the order beside it, the tags as chips, one {@link AddonCard} per addon and a pager, and a
+ * field with the order beside it, the tags as chips with <b>Bundles</b> beside <b>All</b> (168: the addons whose
+ * manifest says {@code "bundle": true}, whose card says how many addons it includes), one {@link AddonCard} per
+ * addon and a pager, and a
  * card opens the addon's page, {@link AddonDetail}, in the same box. A card's right-hand side is this
  * client's own word on the item — {@code installed v…} where the folder carries the hub's
  * {@code InstallRecord}, {@code in addons/ by hand} where it carries none (the client never replaces a
  * player's own folder), the out-of-date label where its {@code api_version} is not this client's — and
  * <b>Install</b> where the folder is absent, on the card and on the page both. A press is
- * {@link AddonRegistry#install}, and the rest is the registry's — the download runs on the hub client's
+ * {@link AddonRegistry#install}, through {@link InstallWnd} for an addon whose manifest names dependencies
+ * (168), and the rest is the registry's — the download runs on the hub client's
  * worker and the layer's step stages what lands — with the card reading which step it is at every tick
  * ({@code downloading n%}, {@code staged v - Reload UI to apply}, {@code failed: why}); the folder itself
  * changes at the next reload, which is when every other change on this panel is applied too, and an
@@ -68,8 +71,14 @@ import java.util.Map;
  *
  * <p>The protected verbs are a <b>per-addon</b> permission (D-027; D-028 — no global master switch): an
  * addon that declares any of them lists its declared entries in its name's tooltip, defaults to disabled, and
- * enabling it raises the {@link PermissionConsentWnd} consent dialog (via {@link #confirmEnablePermissions},
- * slice 4c) — so it only ever runs after the user knowingly grants it, for exactly the keys it asked for.
+ * enabling it raises the {@link PermissionConsentWnd} consent dialog (slice 4c) — so it only ever runs after
+ * the user knowingly grants it, for exactly the keys it asked for. Enabling an addon enables the disabled
+ * addons it needs as well (168, {@link #enabling}) — a bundle, every addon it includes — all at once, one
+ * dialog asking for what any of them declares. Disabling one changes no other. One press can move several
+ * rows, and an install from the Browse tab moves rows no press here touched, so the rows are built again
+ * whenever the enabled set is written ({@link AddonRegistry#enabledGen}). <b>Update</b> on an addon that
+ * names dependencies goes through {@link InstallWnd} as <b>Install</b> does, so an update that adds an addon
+ * to a bundle installs it too.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package via the qualified
  * {@code opt.super()} / {@code opt.new PButton(...)} forms; every widget it uses ({@link Scrollport},
@@ -109,7 +118,7 @@ public class AddonPanel extends OptWnd.Panel {
     private final List<Row> rows = new ArrayList<Row>();
     private Label empty;                    // "No addons installed", centred in the list, exactly while it is empty
     private int builtGen = Integer.MIN_VALUE;
-    private PermissionConsentWnd consent;   // the live enable-time permission consent dialog (4c), or null/destroyed
+    private int enabledBuilt = AddonRegistry.enabledGen();   // 168: the enabled set the rows were built from
     // -- the update check (145.3)
     private final Button check;             // Check for updates, right of the tab buttons, while Installed shows
     private final Label checked;            // the check's own line: checking / how many / why the hub did not answer
@@ -215,6 +224,7 @@ public class AddonPanel extends OptWnd.Panel {
             empty.c = list.cont.sz.sub(empty.sz).div(2);
         }
         builtGen = AddonRegistry.reloadGen();
+        enabledBuilt = AddonRegistry.enabledGen();   // after describeAddons, whose scan may have written it
         browsing.rescan();
         for(Iterator<Map.Entry<String, Entry>> it = updates.entrySet().iterator(); it.hasNext();) {
             Map.Entry<String, Entry> u = it.next();
@@ -237,7 +247,7 @@ public class AddonPanel extends OptWnd.Panel {
     /**
      * Bulk-enable every discovered addon (applied on the next reload), then reflect the checkboxes.
      * D-027 (4c): permission-declaring addons are <b>skipped</b> — they stay opt-in per addon behind the
-     * enable-time consent gate ({@link #confirmEnablePermissions}), so a bulk "Enable all" can never turn
+     * enable-time consent gate ({@link PermissionConsentWnd}), so a bulk "Enable all" can never turn
      * one on without the user knowingly consenting to it. The skip widens with the predicate: it is now
      * "declared ANY key", so a bulk enable cannot grant one either.
      */
@@ -249,41 +259,47 @@ public class AddonPanel extends OptWnd.Panel {
     }
 
     /**
-     * D-027 (4c): the enable-time consent gate for a permission-declaring addon. Pops an
-     * {@link PermissionConsentWnd} as a <b>top-level floating window</b> (a {@code ui.root} child, centered on
-     * screen and raised to the front — so it drags freely like any window, not clipped inside this panel) and
-     * <b>records what was consented to</b> + enables the addon (persisted; applied on reload) + rebuilds the
-     * rows <b>only</b> if the user confirms. The record is the door: consent is granted for the keys this
-     * manifest declared <b>and for the {@code hosts} this dialog showed beside them</b>, so one that later asks
-     * for more is disabled again and asks again — and the dialog is handed <b>both halves</b> of that record
-     * as well as the declaration, so the re-prompt can mark what is NEW in it (050.2), a host as readily as a
-     * key, rather than repeating a list the user has already read once. The same {@code hosts} go on the screen
-     * and into the record, from the one variable, because a record of hosts the user was not shown is not a
-     * record of anything they agreed to.
-     * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
-     * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
+     * D-027 (4c), 168: <b>what enabling {@code ai} enables</b> -- the addon itself, and before it every
+     * dependency that is here and disabled, and theirs in turn, each once: for a bundle, every addon it
+     * includes. A dependency that is not here, or whose manifest does not parse, is left out: nothing can
+     * enable it. The steps go to {@link PermissionConsentWnd#enable}, which enables them all at once, asking
+     * first in one dialog for what any of them declares that the user has not approved.
      */
-    private void confirmEnablePermissions(String id, String name, PermissionSet declared, List<String> hosts) {
-        if((consent != null) && (consent.parent != null))
+    private static List<PermissionConsentWnd.Step> enabling(AddonInfo ai) {
+        Map<String, AddonInfo> byId = new HashMap<String, AddonInfo>();
+        for(AddonInfo other : AddonRegistry.describeAddons())
+            byId.put(other.id, other);
+        List<PermissionConsentWnd.Step> steps = new ArrayList<PermissionConsentWnd.Step>();
+        collect(ai, byId, new java.util.HashSet<String>(), steps);
+        return steps;
+    }
+
+    /** {@code ai}'s disabled dependencies first, depth first, then {@code ai} itself: the order they are enabled in. */
+    private static void collect(AddonInfo ai, Map<String, AddonInfo> byId, java.util.Set<String> seen,
+                                List<PermissionConsentWnd.Step> steps) {
+        if(!seen.add(ai.id))
             return;
-        consent = ui.root.adda(new PermissionConsentWnd(name, declared, AddonRegistry.consentedKeys(id), hosts,
-                                                       AddonRegistry.consentedHosts(id),
-                                                       () -> { AddonRegistry.grantConsent(id, declared, hosts); rebuild(); }),
-                               ui.root.sz.div(2), 0.5, 0.5);
-        consent.raise();
+        for(String need : ai.needs) {
+            int at = need.indexOf(">=");
+            AddonInfo dep = byId.get((at < 0) ? need : need.substring(0, at));
+            if((dep != null) && !dep.enabled && (dep.manifestError == null))
+                collect(dep, byId, seen, steps);
+        }
+        steps.add(new PermissionConsentWnd.Step(ai.id, ai.name, ai.permissions, ai.networkHosts));
     }
 
     public void tick(double dt) {
         super.tick(dt);
-        if(AddonRegistry.reloadGen() != builtGen)   // a :reload / Reload UI rebuilt the addon layer
+        if((AddonRegistry.reloadGen() != builtGen)  // a :reload / Reload UI rebuilt the addon layer
+           || (AddonRegistry.enabledGen() != enabledBuilt))   // 168: the enabled set was written
             rebuild();
         hint.settext(AddonRegistry.reloadNeeded() ? "Changes pending - Reload UI to apply." : "");
-        // The consent dialog (4c) is a top-level ui.root window, so close it explicitly once this panel
+        // The consent dialog (4c) is a top-level ui.root window, so it is dropped explicitly once this panel
         // leaves the screen (switched away via Back, or Options hidden) — a floating dialog would otherwise
         // linger with no context. This panel keeps ticking while hidden (invisible widgets still tick), and
         // OptWnd is only hidden (never destroyed) on close, so this cleanup always runs.
-        if((consent != null) && (consent.parent != null) && !tvisible())
-            consent.destroy();
+        if(!tvisible())
+            PermissionConsentWnd.close();
         // 145.3: the Installed tab coming on screen is the one transition the check hangs on -- the manager
         // opened on it, or the tab switched to -- read here rather than from show() and the tab button both,
         // because a Panel is shown by chpanel and a Tab by showtab and this is the one place that sees either.
@@ -525,9 +541,6 @@ public class AddonPanel extends OptWnd.Panel {
             // images' own height. Rows stack with no gap, so the bands tile.
             super(new Coord(UI.scale(LIST_W), Button.hs + UI.scale(4)));
             final String rid = ai.id;
-            final boolean writes = ai.declaresPermissions();   // D-027: enabling this addon needs consent (4c)
-            final PermissionSet declared = ai.permissions;
-            final String aname = ai.name;
             // A manifest that does not parse leaves NOTHING to enable: the addon cannot load whatever the
             // persisted bit says, so the box is shown unticked and does not answer — a ticked box beside a row
             // that will never load is the panel claiming a state the client cannot reach.
@@ -537,18 +550,18 @@ public class AddonPanel extends OptWnd.Panel {
             box = new CheckBox("") {
                     { a = ai.enabled && !broken; }
                     public void set(boolean v) {
-                        if(broken) {
+                        if(broken)
                             return;
-                        } else if(v && writes) {
-                            // Enabling a permission-declaring addon: ask for consent first, and leave the box
-                            // unticked (a stays false) until the user confirms in the dialog — which then
-                            // records the grant, enables it and rebuilds the rows. Disabling (v=false) and
-                            // read-only addons fall straight through with no prompt.
-                            confirmEnablePermissions(rid, aname, declared, ai.networkHosts);
-                        } else {
-                            AddonRegistry.setEnabled(rid, v);
-                            a = v;
+                        if(!v) {
+                            // Disabling: this addon alone, at once, with no prompt.
+                            AddonRegistry.setEnabled(rid, false);
+                            a = false;
+                            return;
                         }
+                        // 168: enabling it enables what it needs too, all at once, asking first in one dialog
+                        // where any of them declares a permission. The box stays as it was until they are
+                        // enabled, and the rows follow on the next tick (AddonRegistry.enabledGen).
+                        PermissionConsentWnd.enable(ui.root, (ai.name != null) ? ai.name : rid, enabling(ai), null);
                     }
                 };
             add(box, new Coord(0, (sz.y - box.sz.y) / 2));
@@ -605,7 +618,7 @@ public class AddonPanel extends OptWnd.Panel {
             update = offer(this, update, act && (latest != null), "Update", BUTTON_X, () -> {
                     Entry e = updates.get(id);
                     if(e != null)
-                        AddonRegistry.install(e);
+                        InstallWnd.update(this, e);   // 168: what the new version needs comes with it
                 });
             if(update == null) {
                 offered = null;

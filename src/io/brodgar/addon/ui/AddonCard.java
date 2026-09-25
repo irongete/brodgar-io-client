@@ -17,6 +17,7 @@ import io.brodgar.addon.ApiVersion;
 import io.brodgar.addon.registry.Entry;
 
 import java.awt.Color;
+import java.util.function.Consumer;
 
 /**
  * <b>One card of the Browse list</b> — the hub's item as its own front page shows one, on two lines: the
@@ -59,7 +60,7 @@ final class AddonCard extends Frame {
     static final Color HOVER = new Color(255, 255, 255, 18);
 
     final Entry entry;
-    private final BrowsePanel owner;
+    private final Consumer<Entry> opener; // what a press on the card does: open the addon's page
     private final HubImage icon;
     private final Label name, version, by, net, status, summary, meta;   // version, by, net: null where the item has none
     private final String summaryText;     // the summary whole, cut again when the room changes
@@ -75,16 +76,18 @@ final class AddonCard extends Frame {
     /**
      * @param w the card's outer width, device pixels
      */
-    AddonCard(BrowsePanel owner, Entry e, int w) {
+    AddonCard(Consumer<Entry> opener, Entry e, int w) {
         super(new Coord(w, height()), false, Window.wbox);
-        this.owner = owner;
+        this.opener = opener;
         this.entry = e;
         int px = UI.scale(ICON);
         icon = add(new HubImage(e.icon, new Coord(px, px), e.name), Coord.z);
         // Every label is added at Coord.z and placed by layout(): the client's shared zero is never written
         // to, only replaced -- a card assigns fresh Coords and mutates none.
         name = add(HubText.in(e.name, HubText.NAME, null), Coord.z);
-        version = (e.version != null) ? add(HubText.muted("v" + e.version), Coord.z) : null;
+        // 168: a bundle's card says what it is and how many addons it includes where another says its version,
+        // its downloads and its last update, as the hub's own card does.
+        version = ((e.version != null) && !e.bundle) ? add(HubText.muted("v" + e.version), Coord.z) : null;
         by = (e.by() != null) ? add(HubText.muted("by " + e.by()), Coord.z) : null;
         net = e.hosts.isEmpty() ? null : add(mark(e), Coord.z);
         status = add(new Label(""), Coord.z);
@@ -92,7 +95,9 @@ final class AddonCard extends Frame {
         summaryText = (s == null) ? "No summary yet." : s;
         summary = add((s == null) ? HubText.muted("") : new Label(""), Coord.z);
         String ago = HubText.ago(e.updatedAt);
-        meta = add(HubText.muted(HubText.count(e.downloads, "download") + (ago.isEmpty() ? "" : " · updated " + ago)),
+        meta = add(e.bundle
+                   ? HubText.in("Bundle · " + HubText.count(e.dependencies.size(), "addon"), Text.std, HubText.BUNDLE)
+                   : HubText.muted(HubText.count(e.downloads, "download") + (ago.isEmpty() ? "" : " · updated " + ago)),
                    Coord.z);
 
         String lead, label;
@@ -192,7 +197,7 @@ final class AddonCard extends Frame {
         tipped = AddonPanel.failTip(status, why, tipped);
         // The button stands in the tree exactly while it is offered, as a row's does; layout() places it.
         if(button && (install == null)) {
-            install = add(new Button(UI.scale(BUTTON_W), "Install", false).action(() -> AddonRegistry.install(entry)),
+            install = add(new Button(UI.scale(BUTTON_W), "Install", false).action(() -> InstallWnd.install(this, entry)),
                           Coord.z);
         } else if(!button && (install != null)) {
             install.destroy();
@@ -296,7 +301,7 @@ final class AddonCard extends Frame {
         if(ev.propagate(this))      // the Install button, and the mark's tooltip, take theirs first
             return true;
         if(ev.b == 1) {
-            owner.open(entry);
+            opener.accept(entry);
             return true;
         }
         return false;

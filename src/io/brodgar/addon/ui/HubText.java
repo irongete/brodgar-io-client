@@ -30,6 +30,8 @@ final class HubText {
 
     /** What stands beside the name — the version, the author, a date — and the hub's {@code net} badge and the protected marker. */
     static final Color MUTED = new Color(176, 176, 176), NET = new Color(210, 168, 255), PROTECTED = new Color(255, 158, 100);
+    /** A bundle's mark on its card (168), in the hub's own badge colour for it. */
+    static final Color BUNDLE = new Color(126, 231, 135);
     /** A card's name, and a page's — sans, bold, at the two sizes the hub's page uses. */
     static final Text.Foundry NAME = new Text.Foundry(Text.sans.deriveFont(Font.BOLD), 11).aa(true);
     static final Text.Foundry TITLE = new Text.Foundry(Text.sans.deriveFont(Font.BOLD), 15).aa(true);

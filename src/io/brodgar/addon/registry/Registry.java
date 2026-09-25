@@ -294,14 +294,17 @@ public final class Registry {
      * Browse the hub — {@code GET <base>/addons?q=&tag=&sort=&page=&limit=}: the items whose id, name,
      * summary, author, publisher or tags match {@code q}, filed under {@code tag} when one is named, in the
      * order {@code sort} names ({@link #SORTS}; the hub's default is relevance with a {@code q} and downloads
-     * without), at most {@code limit} of them from page {@code page}. An empty {@code q} and an empty
-     * {@code tag} are everything the hub publishes, which is what its own front page shows.
+     * without), at most {@code limit} of them from page {@code page}. {@code bundle} (168) asks for the bundles
+     * alone, the items whose manifest says {@code "bundle": true} -- {@code &bundle=1}. An empty {@code q}, an
+     * empty {@code tag} and no {@code bundle} are everything the hub publishes, which is what its own front
+     * page shows.
      */
-    public static Request<Page> page(final String q, final String tag, final String sort, final int page,
-                                     final int limit) {
+    public static Request<Page> page(final String q, final String tag, final boolean bundle, final String sort,
+                                     final int page, final int limit) {
         return submit(new Fetch<Page>() {
             public Page run(Request<Page> r) throws IOException {
                 Map<?, ?> doc = object(getJson(base() + "/addons?q=" + enc(q) + "&tag=" + enc(tag)
+                                              + (bundle ? "&bundle=1" : "")
                                               + "&sort=" + enc(sort) + "&page=" + page + "&limit=" + limit, r));
                 List<Entry> items;
                 try {

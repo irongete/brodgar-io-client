@@ -22,6 +22,8 @@ import io.brodgar.addon.registry.Registry;
 
 import java.awt.Font;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,11 +34,13 @@ import java.util.Map;
  * {@code [net]} mark, the summary, and <b>Install</b> beside this client's own word on the addon — the very
  * status a card shows — with <b>Open at brodgar.io</b> for the page in a browser. Under the head, once the
  * hub has answered ({@link Registry#detail}, polled from {@link #tick}): the screenshots in a
- * {@link Gallery}, the long description as text, every published version with its changelog, the
- * permissions it asks for in the words this client's consent dialog uses, and the facts the hub's
- * <i>About</i> box lists. The head is built at once from the list's own item, so the page is never blank;
- * {@code Loading the page…} stands under it until the rest lands, or the hub's own sentence when it did
- * not answer.
+ * {@link Gallery}, the long description as text, on a bundle what it includes (168: the list's own
+ * {@link AddonCard} for each addon), every published version with its changelog, the permissions it asks for
+ * in the words this client's consent dialog uses, and the facts the hub's <i>About</i> box lists, among them
+ * the addons it needs and the bundles it is part of, each a button to its page. The head is built at once
+ * from the list's own item, so the page is never blank; {@code Loading the page…} stands under it until the
+ * rest lands, or the hub's own sentence when it did not answer. A page the hub has already answered, the one
+ * Back returns to, is built whole at once and not asked for again.
  *
  * <p><b>The page is a column of {@link Row}s, placed from what its widgets measure</b> ({@link #place}):
  * built once, and placed again whenever a size on it moved — a sheet's rule reaches a label when it is
@@ -68,10 +72,15 @@ final class AddonDetail extends Widget {
     static final int LEFT = 0, AFTER = 1, RIGHT = 2;
     /** ...and how it sits on the row: on its top, on its foot, in its middle, or on the row's baseline. */
     static final int TOP = 0, FOOT = 1, MID = 2, BASE = 3;
+    /** The most of a page's name Back names, cut at a word. */
+    static final int FROM_MAX = 32;
 
     private final BrowsePanel owner;
     private final Entry item;
     private final Scrollport port;
+    /** A chip's caption face, the client's own button caption, bold serif 12: what a chip is measured with. */
+    private final Text.Foundry capf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
+    private final List<AddonCard> cards = new ArrayList<AddonCard>();   // 168: a bundle's, under Includes
     private Registry.Request<Detail> req;
     private Detail page;                  // the hub's page, once in
     private String failed;                // why it did not come, once known
@@ -82,32 +91,46 @@ final class AddonDetail extends Widget {
     private Row actions;
     private Label status;
     private Button install;               // in the tree exactly while it is offered, as a row's is
-    private final String outdated;        // the label an Installed row would carry for this api_version, or null
+    private String outdated;              // the label an Installed row would carry for this api_version, or null: build()'s
     private boolean folder;               // addons/<id>/ exists -- a fact on disk, read by rescan()
     private String hub;                   // ...and the hub's record in it, or null for a by-hand folder
     private String tipped;                // the failure the status label's tooltip holds, or null
 
-    AddonDetail(BrowsePanel owner, Entry e) {
+    /**
+     * @param from the name of the page Back returns to, or {@code null} for the list
+     */
+    AddonDetail(BrowsePanel owner, Entry e, String from) {
         super(UI.scale(new Coord(BrowsePanel.W, BrowsePanel.H)));
         this.owner = owner;
         this.item = e;
-        Button back = add(new Button(UI.scale(BACK_W), "Back to list", false).action(owner::back), Coord.z);
+        String caption = (from == null) ? "Back to list" : "Back to " + cut(from, FROM_MAX);
+        int backW = Math.max(UI.scale(BACK_W), capf.strsize(caption).x + UI.scale(20));
+        Button back = add(new Button(backW, caption, false).action(owner::back), Coord.z);
         Label where = HubText.muted(site() + "/" + e.id);
         add(where, new Coord(back.sz.x + UI.scale(10), (back.sz.y - where.sz.y) / 2));
         int y = back.sz.y + UI.scale(8);
         port = add(new Scrollport(new Coord(sz.x, sz.y - y)), new Coord(0, y));
-        String label;
-        try {
-            ApiVersion v = ApiVersion.parse(e.apiVersion);
-            label = ApiVersion.label(v);
-        } catch(IllegalArgumentException x) {
-            label = "manifest error (hover)";
-        }
-        this.outdated = label;
         folder = AddonRegistry.hasFolder(e.id);
         hub = folder ? AddonRegistry.hubVersion(e.id) : null;
-        req = Registry.detail(e.id);
+        if(e instanceof Detail)             // a page Back returns to: the hub's answer is in already
+            page = (Detail)e;
+        else
+            req = Registry.detail(e.id);
         build();
+    }
+
+    /** What the page shows: the hub's page once it is in, else the list's item. What Back comes back to. */
+    Entry entry() {
+        return (page != null) ? page : item;
+    }
+
+    /** The label an Installed row would carry for {@code e}'s {@code api_version}: null for a current one. */
+    static String outdated(Entry e) {
+        try {
+            return ApiVersion.label(ApiVersion.parse(e.apiVersion));
+        } catch(IllegalArgumentException x) {
+            return "manifest error (hover)";
+        }
     }
 
     /** The hub's own site, for a page's address: its API base less the {@code /api}. */
@@ -116,11 +139,13 @@ final class AddonDetail extends Widget {
         return b.endsWith("/api") ? b.substring(0, b.length() - 4) : b;
     }
 
-    /** Re-read the two facts on disk: the folder, and the hub's record in it. At every reload. */
+    /** Re-read the two facts on disk: the folder, and the hub's record in it. At every reload, for the cards too. */
     void rescan() {
         folder = AddonRegistry.hasFolder(item.id);
         hub = folder ? AddonRegistry.hubVersion(item.id) : null;
         refresh();
+        for(AddonCard c : cards)
+            c.rescan();
     }
 
     public void tick(double dt) {
@@ -251,10 +276,14 @@ final class AddonDetail extends Widget {
         if(content != null)
             content.destroy();
         rows.clear();
+        cards.clear();
         install = null;
         int cw = port.cont.sz.x;
         content = port.cont.add(new Widget(new Coord(cw, 0)), Coord.z);
-        Entry e = (page != null) ? page : item;
+        Entry e = entry();
+        // From the page once it is in: a page opened from a bundle's name alone knows no api_version before,
+        // and says nothing of it until then.
+        outdated = ((page == null) && (e.packageUrl == null)) ? null : outdated(e);
         head(e, cw);
         if(page != null) {
             if(!page.images.isEmpty())
@@ -264,6 +293,8 @@ final class AddonDetail extends Widget {
                 heading("Description");
                 row(12).add(new Label(desc, cw), LEFT, 0, TOP);
             }
+            if(page.bundle)
+                includes(page, cw);
             versions(page, cw);
             permissions(e, cw);
             about(page, cw);
@@ -289,7 +320,6 @@ final class AddonDetail extends Widget {
         // The tags as chips, each a press that filters the list by it, then the mark beside them.
         if(!e.tags.isEmpty() || !e.hosts.isEmpty()) {
             Row tags = row(8);
-            Text.Foundry capf = new Text.Foundry(Text.serif.deriveFont(Font.BOLD, UI.scale(12f))).aa(true);
             boolean first = true;
             for(final String t : e.tags) {
                 int w = capf.strsize(t).x + UI.scale(20);
@@ -308,6 +338,32 @@ final class AddonDetail extends Widget {
         Button site = actions.add(new Button(UI.scale(SITE_W), "Open at brodgar.io", false).action(this::browse), RIGHT, 0, MID);
         int statusW = cw - site.sz.x - UI.scale(10) - (left + UI.scale(INSTALL_W) + UI.scale(10));
         status = actions.first(new Label("", statusW), LEFT, left, MID);
+    }
+
+    /**
+     * 168: what a bundle includes, in its manifest's order: the list's own card for each addon the hub lists,
+     * its press opening that addon's page with Back returning here, and a line for one the hub does not list.
+     */
+    private void includes(Detail d, int cw) {
+        heading("Includes");
+        row(8).add(HubText.muted("A set of addons that work together, each one started where the bundle puts it."
+                                 + " Install installs them all with it.", cw), LEFT, 0, TOP);
+        Map<String, Entry> listed = new HashMap<String, Entry>();
+        for(Entry m : d.members)
+            listed.put(m.id, m);
+        for(Entry.Dependency dep : d.dependencies) {
+            Entry m = listed.get(dep.id);
+            if(m != null)
+                cards.add(row(4).add(new AddonCard(owner::open, m, cw), LEFT, 0, TOP));
+            else
+                row(4).add(HubText.muted(need(dep) + " is not on the hub", cw), LEFT, 0, TOP);
+        }
+        row(8);    // the room under the cards
+    }
+
+    /** A dependency as the page writes it: the id, and the version it needs at least where it names one. */
+    static String need(Entry.Dependency dep) {
+        return (dep.min == null) ? dep.id : (dep.id + " >= " + dep.min);
     }
 
     /** The versions, newest first: a header row, one row each, and the changelog under a version that has one. */
@@ -367,12 +423,30 @@ final class AddonDetail extends Widget {
         }
     }
 
-    /** The facts the hub's About box lists: id, author, API, downloads, the dates, the digest, the links. */
+    /**
+     * The facts the hub's About box lists: id, author, API, what it needs and the bundles it is part of (168),
+     * downloads, the dates, the digest, the links.
+     */
     private void about(Detail d, int cw) {
         heading("About");
         fact("id", d.id, cw);
         fact("author", d.by(), cw);
         fact("API", api(d.apiVersion), cw);
+        if(!d.dependencies.isEmpty() && !d.bundle) {  // a bundle's are its Includes
+            Map<String, Entry> listed = new HashMap<String, Entry>();
+            for(Entry m : d.members)
+                listed.put(m.id, m);
+            Map<String, Entry> needs = new LinkedHashMap<String, Entry>();
+            for(Entry.Dependency dep : d.dependencies)
+                needs.put(need(dep), listed.get(dep.id));
+            pressables("needs", needs, cw);
+        }
+        if(!d.bundles.isEmpty()) {
+            Map<String, Entry> packs = new LinkedHashMap<String, Entry>();
+            for(Entry b : d.bundles)            // a name the hub has twice keeps both, by the id
+                packs.put(packs.containsKey(b.name) ? b.name + " (" + b.id + ")" : b.name, b);
+            pressables("part of", packs, cw);
+        }
         fact("downloads", Long.toString(d.downloads), cw);
         fact("first published", HubText.date(d.createdAt), cw);
         fact("last update", HubText.date(d.updatedAt), cw);
@@ -380,6 +454,28 @@ final class AddonDetail extends Widget {
         fact("sha256", d.sha256, cw);
         for(Map.Entry<String, String> l : d.links.entrySet())
             fact(l.getKey(), l.getValue(), cw);
+    }
+
+    /**
+     * 168: a row of the About box whose value is addons: each caption a chip opening that addon's page, Back
+     * returning here, or muted text where the hub lists no such addon ({@code null}). The chips wrap to the
+     * width, each further row starting where the value does.
+     */
+    private void pressables(String name, Map<String, Entry> items, int cw) {
+        Row r = row(3);
+        r.add(HubText.muted(name), LEFT, 0, MID);
+        int vx = UI.scale(VALUE_X), gap = UI.scale(4), x = vx;
+        for(Map.Entry<String, Entry> it : items.entrySet()) {
+            final Entry target = it.getValue();
+            Widget w = (target == null) ? HubText.muted(it.getKey() + " (not on the hub)")
+                : new Button(capf.strsize(it.getKey()).x + UI.scale(20), it.getKey(), false).action(() -> owner.open(target));
+            if((x > vx) && (x + w.sz.x > cw)) {
+                r = row(3);
+                x = vx;
+            }
+            r.add(w, (x == vx) ? LEFT : AFTER, (x == vx) ? vx : gap, MID);
+            x += w.sz.x + gap;
+        }
     }
 
     /** One row of the About box: the name muted, the value beside it, wrapped to the rest of the width; a dash for none. */
@@ -424,7 +520,8 @@ final class AddonDetail extends Widget {
             s = "in addons/ by hand";
         } else {
             s = (outdated != null) ? outdated : "";
-            button = true;
+            // A page opened from a bundle's name alone has no package to fetch until the hub's page is in.
+            button = (entry().packageUrl != null);
         }
         status.settext(s, status.wrapw());
         tipped = AddonPanel.failTip(status, why, tipped);
@@ -434,7 +531,7 @@ final class AddonDetail extends Widget {
         int left = UI.scale(ICON) + UI.scale(12);
         if(button && (install == null)) {
             install = actions.first(new Button(UI.scale(INSTALL_W), "Install", false)
-                                    .action(() -> AddonRegistry.install((page != null) ? page : item)), LEFT, left, MID);
+                                    .action(() -> InstallWnd.install(this, entry())), LEFT, left, MID);
             actions.at.set(1, new int[] {AFTER, UI.scale(10), MID});
             sizes = -1;
         } else if(!button && (install != null)) {

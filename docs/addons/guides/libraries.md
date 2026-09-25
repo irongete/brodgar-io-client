@@ -81,3 +81,4 @@ end)
 - [The manifest](../manifest.md) — the two dependency lists.
 - [Saved data](saved-data.md) — whose file a value belongs in.
 - [Permissions](permissions.md) — whose consent a call runs under.
+- [Bundles](bundles.md) — an addon that packs others, and sets them up through what they export.
