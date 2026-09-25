@@ -621,16 +621,19 @@ public final class LuaWidget {
                 }
                 Coord to = pixels(a, "widget:position", "x", "y");          // DESIGN pixels, as written
                 if(w != null) {
+                    double[] was;
                     synchronized(monitor(w)) {
                         Moved rec = recordMoved(owner, w);         // name the level, then resolve it
                         rec.wantPos = Layout.Anchor.at(to);        // 036.3: the parent's top-left, plus (x, y)
                         rec.posSeq = Layout.nextSeq();             // 058.3: the level speaks the sheet's own space,
-                        rec.hand = null;                           //   and Anchor.resolve is where it converts --
-                    }                                              // 166.2: and a place the addon wrote stays pixels
+                        was = rec.hand;                            //   and Anchor.resolve is where it converts --
+                        rec.hand = null;                           //   the fraction is taken where it lands, below
+                    }
                     // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
                     // into another tree, and that is a second monitor while this one is still held. The
                     // fold ends in Column.applied, so the packed surface it stands in follows (139.4).
                     Layout.apply(w);
+                    landHand(owner, w, was);                       // 167: on the screen it follows the screen
                 }
                 return self;
             }
@@ -711,6 +714,7 @@ public final class LuaWidget {
                         rec.sizeSeq = Layout.nextSeq();
                     }
                     Layout.apply(w);                      // 112.6: below the block — see :position above
+                    retakeHand(owner, w);                 // 167: the place follows from where it stands now
                     return self;
                 }
                 Coord to = pixels(a, "widget:size", "w", "h");              // DESIGN pixels, as written
@@ -748,6 +752,7 @@ public final class LuaWidget {
                         rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
                     }
                     Layout.apply(w);                      // 112.6: below the block — see :position above
+                    retakeHand(owner, w);                 // 167: the place follows from where it stands now
                 }
                 return self;
             }
@@ -2617,14 +2622,16 @@ public final class LuaWidget {
          */
         Layout.Anchor wantPos;
         /**
-         * <b>Where the user's hand put it</b> (166.2), as where its centre stands, a fraction of its parent per
-         * axis ({@code io.brodgar.ui.WndPos}), or {@code null}: {@link #wantPos} is a place the addon wrote. Set from
-         * the landed {@code c} by a {@code :draggable} drag ({@link Gesture}), the title-bar drag of a window the
-         * addon built ({@link LuaWidget#levelFollows}) and a remembered place put back
-         * ({@link LuaWidget#rememberApply}), and only for a widget directly on a {@code GameUI} or its tree's
-         * root -- the screen, which is where {@link LuaWidget#handOf} answers. Cleared by
-         * {@code widget:position(x, y)} and by every drop of the level. {@link Layout#reapply} rewrites
-         * {@link #wantPos} from it when the screen changes size; the level itself stays a plain {@code position}.
+         * <b>Where the level stands on the screen</b> (166.2, 167), as where its centre stands, a fraction of its
+         * parent per axis ({@code io.brodgar.ui.WndPos}), or {@code null}: {@link #wantPos} is a place inside a
+         * window, which keeps its pixels. Set from the landed {@code c} by {@code widget:position(x, y)}
+         * ({@link LuaWidget#landHand}), a {@code :draggable} drag ({@link Gesture}), the title-bar drag of a window
+         * the addon built ({@link LuaWidget#levelFollows}) and a remembered place put back
+         * ({@link LuaWidget#rememberApply}), and taken again after the addon's own {@code widget:size}
+         * ({@link LuaWidget#retakeHand}) -- only for a widget directly on a {@code GameUI} or its tree's root, the
+         * screen, which is where {@link LuaWidget#handOf} answers. Cleared by every drop of the level.
+         * {@link Layout#reapply} rewrites {@link #wantPos} from it when the screen changes size; the level itself
+         * stays a plain {@code position}.
          */
         double[] hand;
         /** This addon's hand-named size, in design pixels — see {@link #wantPos}. */
@@ -2721,6 +2728,34 @@ public final class LuaWidget {
         if(!onScreen(w))
             return null;
         return io.brodgar.ui.WndPos.frac(w.c, w.parent.sz, w.sz, was);
+    }
+
+    /**
+     * <b>A place the addon wrote on the screen follows the screen</b> (167) -- {@code widget:position(x, y)} takes
+     * the fraction where the level landed, after the fold and its clamp, as a drag does ({@link Gesture}). Off
+     * the screen {@link #handOf} answers {@code null} and the place stays pixels. {@code was} is the fraction the
+     * level had. Called after {@link Layout#apply}, holding no monitor.
+     */
+    private static void landHand(Addon owner, Widget w, double[] was) {
+        synchronized(monitor(w)) {
+            Moved rec = findMoved(owner, w);
+            if((rec != null) && (rec.wantPos != null))
+                rec.hand = handOf(w, was);
+        }
+    }
+
+    /**
+     * <b>A size of the addon's moved the box under a place that follows the screen</b> (167): the fraction is taken
+     * again where the widget stands now, so the next resize of the screen keeps it there rather than where its
+     * centre stood before. A position level with no fraction -- inside a window -- is left alone. Called after
+     * {@link Layout#apply}, holding no monitor.
+     */
+    private static void retakeHand(Addon owner, Widget w) {
+        synchronized(monitor(w)) {
+            Moved rec = findMoved(owner, w);
+            if((rec != null) && (rec.hand != null) && (rec.wantPos != null))
+                rec.hand = handOf(w, rec.hand);
+        }
     }
 
     /** Is {@code w} directly on the screen -- a {@link GameUI} or the root of the tree it stands in? (166) */

@@ -1,0 +1,9 @@
+{
+  "name": "167.1 — a place an addon writes on the screen follows the screen",
+  "id": "167-relative-addon-positions.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 167.1: widget:position(x, y) on the HUD and in the layer follows a resize of the screen, against an edge included, a size written after it takes the fraction again, and a place inside a surface keeps its pixels.",
+  "api_version": "1.0",
+  "files": ["main.lua"]
+}

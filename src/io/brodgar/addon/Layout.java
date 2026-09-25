@@ -1082,10 +1082,11 @@ final class Layout {
      * round and ask for another. Bounded by the held set, and one volatile read on a client with nothing
      * laid out, which is every client until an addon lays something out.
      *
-     * <p><b>A hand place follows the screen</b> (166.2). A level the user's hand gave a widget directly on the
-     * screen ({@link LuaWidget.Moved#hand}) is first rewritten as the plain {@code position} its fraction (where
-     * its centre stands) comes to in {@code parent}'s size now, then folded like the rest; a place the addon wrote
-     * keeps its pixels. Its two callers are the two screens: {@code GameUI.resize} for the HUD, and
+     * <p><b>A place on the screen follows the screen</b> (166.2, 167). A position level on a widget directly on the
+     * screen ({@link LuaWidget.Moved#hand}) -- the user's hand's or the addon's own {@code widget:position(x, y)} --
+     * is first rewritten as the plain {@code position} its fraction (where its centre stands) comes to in
+     * {@code parent}'s size now, then folded like the rest; a place inside a window keeps its pixels, and so does
+     * a rule's {@code position}. Its two callers are the two screens: {@code GameUI.resize} for the HUD, and
      * {@link #dispatchResized} for a tree's root (the addon layer's, a session's).
      */
     static void reapply(Widget parent) {

@@ -23,7 +23,7 @@ hafen.ui():scale()           -- 1.5 on a client the user scaled up; nothing mult
 
 | Where | Rule |
 |---|---|
-| Widget geometry | `:position(x, y)`, `:size(w, h)`, `:rootPos()`, `:info().pos`, `:info().size` — [a size in `w`/`h`, a place in `x`/`y`](../shapes.md#the-anonymous-shapes). What you write is what you read back, at any scale: the conversion happens once, at the edge, and is exact in that direction. |
+| Widget geometry | `:position(x, y)`, `:size(w, h)`, `:rootPos()`, `:info().pos`, `:info().size` — [a size in `w`/`h`, a place in `x`/`y`](../shapes.md#the-anonymous-shapes). What you write is what you read back, at any scale: the conversion happens once, at the edge, and is exact in that direction. A place on the HUD or in the layer then follows a resize of the game window, and reads back where it has moved to ([native](native.md#moving-and-resizing-unprotected)). |
 | The screen's questions | The box a widget occupies, the point [`hafen.ui():hit(x, y)`](selectors.md#hit-testing) tests, [the pointer](mouse.md), and the `:x()`/`:y()` an [input event](widget.md#subscribing) carries are one space. None is reached through a [Session](../session.md), since the client draws one screen however many characters it holds. |
 | The world | [`s:world():worldToScreen(p)`](../world.md#the-screen-and-the-world) answers a root pair in this unit, and `s:world():screenToWorld(pt, fn)` takes that table back. A projected point is hit-tested, drawn and fed to the ground with nothing between. |
 | Drawing | Every coordinate, width and radius a [`g:` verb](drawing.md) takes. The `:w()`/`:h()` a `Draw` reports. The `w, h` an [overlay](overlay.md) painter gets. The `screen_x, screen_y` at a [gob overlay](../overlay.md). |
