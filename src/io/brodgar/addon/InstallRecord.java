@@ -15,9 +15,11 @@ import java.util.Map;
 /**
  * <b>The install record</b> — {@code .registry.json} inside an addon's folder, the one mark that says the hub
  * put it there: the version the hub named, the sha256 of the package it came from, and when. A folder
- * without one is the player's own, put there by hand, and the client never replaces it; a folder with one
- * is the hub's to update and remove, and the version here is what the update check compares against the
- * hub's latest, semver, because the hub's versions are ordered and a by-hand manifest's need not be.
+ * with one is the hub's to update and remove, and the version here is what the update check compares against
+ * the hub's latest, semver, because the hub's versions are ordered. A folder without one is the player's own,
+ * put there by hand: the client never deletes it, and the update check compares its manifest's
+ * {@code version} instead, where that is a version the hub's order reads — a by-hand manifest's need not be.
+ * An Update press on it installs the hub's newer version over it, and the folder carries a record from then on.
  *
  * <p>It lives in the folder rather than in a preference because it belongs to the folder: it travels with
  * it under a launcher update and dies with it when the player deletes the folder. It is written

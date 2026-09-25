@@ -15,8 +15,9 @@ import java.util.regex.Pattern;
  * one that starts with it.
  *
  * <p>Only the hub's order needs the rule. An addon's own {@code manifest.json} may carry any string as its
- * {@code version} — the client's {@code Manifest} takes it as it is — so this class is asked about the hub's
- * versions and about the install record the hub wrote, never about a by-hand folder.
+ * {@code version} — the client's {@code Manifest} takes it as it is — so a by-hand folder's version is asked
+ * {@link #valid} first, and one that is not a version is never compared: it is not behind the hub's, and it
+ * meets no minimum. The hub's versions and the install record the hub wrote are versions.
  */
 public final class Semver implements Comparable<Semver> {
     private static final Pattern FORM = Pattern.compile(

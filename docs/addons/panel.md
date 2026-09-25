@@ -1,6 +1,6 @@
 # The AddOns Manager
 
-**AddOns**, on the game menu `Ctrl+O` opens, switches your addons on and off and finds new ones. The **Installed** tab lists every addon in `addons/` as a table with an enable box, and updates or removes the ones the hub installed. The **Browse** tab is the front page of `brodgar.io/addons`, the hub, drawn in the client, bundles included. The client reads the hub anonymously: the request carries nothing about you or your character.
+**AddOns**, on the game menu `Ctrl+O` opens, switches your addons on and off and finds new ones. The **Installed** tab lists every addon in `addons/` as a table with an enable box, updates any the hub has a newer version of, and removes the ones the hub installed. The **Browse** tab is the front page of `brodgar.io/addons`, the hub, drawn in the client, bundles included. The client reads the hub anonymously: the request carries nothing about you or your character.
 
 ---
 
@@ -13,10 +13,10 @@ Every addon the client discovered, sorted by id, in a table under a header namin
 | A checkbox | Applied on the next reload, never mid-session. A "changes pending" line says so until **Reload UI**. Ticking an addon ticks the disabled addons it needs too, its `dependencies` and theirs: for a [bundle](guides/bundles.md), every addon it includes. They are ticked at once, one [consent dialog](#the-consent-dialog) asking first for what any of them declares. Unticking an addon unticks that one alone: a bundle loads with whichever of its addons are ticked. |
 | **Enable all** | Turns on every addon that declares no permission. A write addon is enabled one at a time, through the consent dialog ticking it raises. |
 | **Open addons folder** | Opens `addons/` in your file browser. |
-| **Update**, **Remove** | Stand on a row the hub installed, a folder carrying the record [an install writes](#how-an-install-lands), and no other. A folder you put in `addons/` is yours, never replaced or deleted. Neither is offered while something already waits on the folder. |
-| **Remove** | Marks the folder. The next reload deletes it and [forgets the addon](#what-an-install-keeps-and-a-removal-forgets). Both buttons leave the row until then. |
-| **Update** | Stands once a check has found the hub's latest version greater than the installed one (ordered `MAJOR.MINOR.PATCH`, a pre-release below the release it precedes). Its tooltip names that version. The press is [an install](#how-an-install-lands), through [the install window](#installing-an-addon-that-needs-others) when the new version needs an addon that is not here. Both buttons leave the row while the download runs and until the reload that applies it. |
-| **Check for updates** | At the right of the **Installed** and **Browse** buttons, while Installed shows. The check also runs each time the tab comes on screen. The line to its left reads `checking`, `no update available` or `1 update available`. Otherwise it reads the hub's own sentence with its status, the failure that kept the client from reaching it, or `no addon installed from the hub`. |
+| **Update**, **Remove** | Neither is offered while something already waits on the folder: a download, a stage, a removal. |
+| **Remove** | Stands on a row the hub installed, a folder carrying the record [an install writes](#how-an-install-lands), and no other: a folder you put in `addons/` by hand is never deleted. Marks the folder. The next reload deletes it and [forgets the addon](#what-an-install-keeps-and-a-removal-forgets). Both buttons leave the row until then. |
+| **Update** | Stands on any row once a check has found the hub's latest version of that id greater than the one here: the version the hub installed, or the manifest's `version` on a folder you put in `addons/` by hand. Ordered `MAJOR.MINOR.PATCH`, a pre-release below the release it precedes: a by-hand `version` in another form is never checked. Its tooltip names that version. The press is [an install](#how-an-install-lands), through [the install window](#installing-an-addon-that-needs-others) when the new version needs an addon that is not here. It replaces a by-hand folder as it does any other, and from then on the folder is one the hub installed, with **Remove**. Both buttons leave the row while the download runs and until the reload that applies it. |
+| **Check for updates** | At the right of the **Installed** and **Browse** buttons, while Installed shows. The check also runs each time the tab comes on screen, and sends the hub the id of each addon it checks, nothing else. The line to its left reads `checking`, `no update available` or `1 update available`. Otherwise it reads the hub's own sentence with its status, the failure that kept the client from reaching it, or `no addon to check`. |
 | **Load out of date AddOns** | Loads every addon marked `outdated (…)` as if its [API version](manifest.md#the-api-version) were current. One stance over the list, kept across restarts, off until ticked. Applied at the next reload, with a log line per addon naming why it was out of date. Not a permission: an out-of-date write addon is still disabled until enabled, through its consent dialog. |
 
 An addon's own settings are on the **AddOns** tab of **Options**, where an addon that holds [a page](api/client/addon.md#the-page) has a row. An addon that declares a permission key is disabled the first time the client sees it ([permissions](guides/permissions.md)).
@@ -40,7 +40,7 @@ The hub's front page in the client's own widgets.
 |---|---|
 | Nothing, and **Install** | Published, not in your `addons/`. |
 | `installed v<version>` | Installed from the hub, at that version. |
-| `in addons/ by hand` | A folder of that id the hub did not put there. Yours, so nothing is offered. |
+| `in addons/ by hand` | A folder of that id the hub did not put there. Nothing is offered here: **Update** on Installed replaces it with a newer version. |
 | `downloading <n>%` | The package is on its way. |
 | `staged <version> - Reload UI to apply` | Checked and unpacked, waiting for the reload that [moves it into place](#how-an-install-lands). |
 | `staged <version> - restart to apply` | The last reload could not replace the folder. The next start does. |
@@ -58,9 +58,9 @@ A card's status is truncated to the width the name line leaves. The tooltip and 
 
 | Line | Meaning |
 |---|---|
-| It installs them with it | Each dependency not in your `addons/`, or installed by the hub at a version below the one needed, at the hub's latest. `asks for permissions` marks the ones that declare a key. |
+| It installs them with it | Each dependency not in your `addons/`, or in it at a version below the one needed, at the hub's latest. A folder you put there by hand is replaced as one the hub installed is. `asks for permissions` marks the ones that declare a key. |
 | Already here | In your `addons/` at a version that does, or staged for the next reload. |
-| Not installed | An id the hub does not list, a hub version older than the one needed, a folder you put in `addons/` by hand at an older version (yours, so never replaced), or one marked for removal. The addon does not load until it is there. A bundle loads without it. |
+| Not installed | An id the hub does not list, a hub version older than the one needed, or one marked for removal. The addon does not load until it is there. A bundle loads without it. |
 
 | Control | Effect |
 |---|---|
@@ -102,7 +102,7 @@ Nothing that asks for nothing new opens it: those are enabled at once. A theme c
 
 | Rule | Detail |
 |---|---|
-| An install replaces the folder whole | Nothing of the old folder survives, a file you edited included. An addon you mean to change is one you keep by hand. Everything the client holds about the addon is untouched, since none of it lives in the folder. That is the enabled state, consented permissions, options, hotkeys, window placements, held action-bar slots. A version asking for more than you approved is disabled and asked again. |
+| An install replaces the folder whole | Nothing of the old folder survives, a file you edited included. A folder you put there by hand is replaced only on a press of yours: **Update** on its row, or the button of [the install window](#installing-an-addon-that-needs-others) that lists it. Everything the client holds about the addon is untouched, since none of it lives in the folder. That is the enabled state, consented permissions, options, hotkeys, window placements, held action-bar slots. A version asking for more than you approved is disabled and asked again. |
 | A removal forgets the addon | With the folder, the reload deletes every row in [the client's file](manifest.md#where-an-addon-lives). That is options, assigned hotkeys, consented permissions, the enabled-set entry, window placements and held slots, on every character. Removed and installed again, it starts as a first install. |
 | What a removal leaves | [Your addon's file](api/store/README.md) under `savedata/<id>/`, where the addon made one, stays yours to delete by hand. A folder deleted by hand leaves those rows dormant. Put it back and everything is as it was. |
 

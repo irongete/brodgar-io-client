@@ -42,14 +42,16 @@ import java.util.Map;
  * reload, no permission and no per-row grant), and the global <b>Reload UI</b>, <b>Enable all</b> and <b>Open
  * addons folder</b> controls. A row the hub installed — one whose folder carries the hub's {@code InstallRecord}
  * — carries <b>Remove</b> ({@link AddonRegistry#markRemove}: the folder is marked and the next reload deletes
- * it) and, once a check has found the hub's latest greater than the record's version ({@link Semver#compare},
- * the hub's own order), <b>Update</b>, which is the install path ({@link AddonRegistry#install}) run on the
- * hub's item (145.3), with that version as its tooltip. The check is {@link Registry#lookup} of the
- * hub-installed ids, run whenever the tab comes on screen — watched from {@link #tick}, one transition, so the
- * manager being opened and the tab being switched to are the one door — and by <b>Check for updates</b>, which
- * stands at the right of the tab buttons while Installed is showing, its own line beside it saying
- * {@code checking}, how many, or why the hub did not answer; with nothing installed from the hub, nothing goes
- * out. A by-hand row carries neither button: the client never replaces or deletes a folder the player put there.
+ * it); a by-hand row carries none, because the client never deletes a folder the player put there. Any row
+ * carries <b>Update</b> once a check has found the hub's latest greater than the version here
+ * ({@link Semver#compare}, the hub's own order) — the record's where the hub installed the folder, the
+ * manifest's where the player put it there by hand — which is the install path ({@link AddonRegistry#install})
+ * run on the hub's item (145.3), with that version as its tooltip: a by-hand folder it replaces carries the
+ * record from then on, and is the hub's. The check is {@link Registry#lookup} of every id with a version to
+ * compare, run whenever the tab comes on screen — watched from {@link #tick}, one transition, so the manager
+ * being opened and the tab being switched to are the one door — and by <b>Check for updates</b>, which stands at
+ * the right of the tab buttons while Installed is showing, its own line beside it saying {@code checking}, how
+ * many, or why the hub did not answer; with no version to compare, nothing goes out.
  *
  * <p><b>Browse</b> is the hub's own front page in the client's widgets — {@link BrowsePanel}: a search
  * field with the order beside it, the tags as chips with <b>Bundles</b> beside <b>All</b> (168: the addons whose
@@ -57,8 +59,9 @@ import java.util.Map;
  * addon and a pager, and a
  * card opens the addon's page, {@link AddonDetail}, in the same box. A card's right-hand side is this
  * client's own word on the item — {@code installed v…} where the folder carries the hub's
- * {@code InstallRecord}, {@code in addons/ by hand} where it carries none (the client never replaces a
- * player's own folder), the out-of-date label where its {@code api_version} is not this client's — and
+ * {@code InstallRecord}, {@code in addons/ by hand} where it carries none (a folder that is there is the
+ * Installed tab's to update, never Browse's to install over), the out-of-date label where its
+ * {@code api_version} is not this client's — and
  * <b>Install</b> where the folder is absent, on the card and on the page both. A press is
  * {@link AddonRegistry#install}, through {@link InstallWnd} for an addon whose manifest names dependencies
  * (168), and the rest is the registry's — the download runs on the hub client's
@@ -122,7 +125,7 @@ public class AddonPanel extends OptWnd.Panel {
     // -- the update check (145.3)
     private final Button check;             // Check for updates, right of the tab buttons, while Installed shows
     private final Label checked;            // the check's own line: checking / how many / why the hub did not answer
-    private final Map<String, Entry> updates = new HashMap<String, Entry>();   // id -> the hub's item, newer than the record
+    private final Map<String, Entry> updates = new HashMap<String, Entry>();   // id -> the hub's item, newer than the version here
     private Registry.Request<List<Entry>> checking;   // the lookup in flight, the only one ever read
     private boolean checkedOk = false;      // the line shows a count (else nothing, or a failure)
     private boolean showing = false;        // the Installed tab was on screen at the last tick
@@ -200,7 +203,7 @@ public class AddonPanel extends OptWnd.Panel {
     /**
      * (Re)build the Installed rows from {@link AddonRegistry#describeAddons()} (reads manifests from disk), and
      * re-read every Browse card's folder status: a reload is the moment {@code addons/} may have changed. The
-     * updates the last check found are held to the folders as they are now — one whose record has caught up
+     * updates the last check found are held to the folders as they are now — one whose version has caught up
      * with the hub's item, or whose folder is gone, is dropped — and the line says what is left. An empty
      * list says so in its middle, and says it exactly while it is empty: the word goes with the rows it stood
      * in for, so an install never leaves it standing under the first row.
@@ -329,9 +332,10 @@ public class AddonPanel extends OptWnd.Panel {
     // ------------------------------------------------------------- the update check (145.3)
 
     /**
-     * Ask the hub for the latest of every hub-installed id — {@link Registry#lookup}, one request, read by
-     * {@link #pollCheck}. A check still out is cancelled first: only the latest is ever read. Nothing goes out
-     * when no row carries the hub's record: there is nothing to ask about, and the line says so.
+     * Ask the hub for the latest of every row with a version to compare ({@link Row#comparable}) — the hub's
+     * installs and the by-hand folders alike — {@link Registry#lookup}, read by {@link #pollCheck}. A check
+     * still out is cancelled first: only the latest is ever read. Nothing goes out when no row has a version to
+     * compare: there is nothing to ask about, and the line says so.
      */
     private void checkUpdates() {
         if(checking != null) {
@@ -340,12 +344,12 @@ public class AddonPanel extends OptWnd.Panel {
         }
         List<String> ids = new ArrayList<String>();
         for(Row r : rows) {
-            if(r.hub != null)
+            if(r.comparable())
                 ids.add(r.id);
         }
         checkedOk = false;
         if(ids.isEmpty()) {
-            checked.settext("no addon installed from the hub");
+            checked.settext("no addon to check");
             return;
         }
         checked.settext("checking");
@@ -353,10 +357,11 @@ public class AddonPanel extends OptWnd.Panel {
     }
 
     /**
-     * The check's answer, once it is in: every item whose version is greater than the record's, by the hub's
+     * The check's answer, once it is in: every item whose version is greater than the row's, by the hub's
      * order, becomes an update the row offers; a record that is not a version at all is logged and skipped, so
-     * a tampered record never reads as an update. An id the hub no longer carries is simply not in the answer.
-     * The line then says how many, or why the hub did not answer.
+     * a tampered record never reads as an update. An id the hub does not carry — an addon of the player's own
+     * that was never published — is simply not in the answer. The line then says how many, or why the hub did
+     * not answer.
      */
     private void pollCheck() {
         if((checking == null) || !checking.done())
@@ -376,12 +381,12 @@ public class AddonPanel extends OptWnd.Panel {
         checkedLine();
     }
 
-    /** Whether the hub's item {@code e} is a greater version than the record {@code row} carries; never for a by-hand row. */
+    /** Whether the hub's item {@code e} is a greater version than the one {@code row} has ({@link Row#current}). */
     private static boolean newer(Entry e, Row row) {
-        if((row == null) || (row.hub == null))
+        if((row == null) || !row.comparable())
             return false;
         try {
-            return Semver.compare(e.version, row.hub) > 0;
+            return Semver.compare(e.version, row.current) > 0;
         } catch(IllegalArgumentException x) {
             AddonManager.log("update check of " + e.id + ": " + x.getMessage());
             return false;
@@ -511,12 +516,13 @@ public class AddonPanel extends OptWnd.Panel {
 
     /**
      * One row of the Installed table: an enable checkbox, then the name, the version and the author, each cut
-     * to its column with an ellipsis, over a faint band on every other row — and, on a row the hub installed,
-     * <b>Remove</b> at {@link #BUTTON2_X} and <b>Update</b> at {@link #BUTTON_X} once a check has found a
-     * greater version (145.3), that version its tooltip. The name's tooltip carries everything else
-     * ({@link #tip}), on the name alone: the other columns carry none. The buttons stand only while nothing
-     * waits on the folder and nothing is in flight for it: what is staged, marked or downloading is applied on
-     * reload, and a second word on the same folder before then would be one the reload could not keep.
+     * to its column with an ellipsis, over a faint band on every other row — and <b>Update</b> at
+     * {@link #BUTTON_X} once a check has found a greater version on the hub (145.3), that version its tooltip,
+     * and, on a row the hub installed, <b>Remove</b> at {@link #BUTTON2_X}. The name's tooltip carries
+     * everything else ({@link #tip}), on the name alone: the other columns carry none. The buttons stand only
+     * while nothing waits on the folder and nothing is in flight for it: what is staged, marked or downloading
+     * is applied on reload, and a second word on the same folder before then would be one the reload could not
+     * keep.
      *
      * <p>The three cells take the row's colour ({@link #colour}), the first of these that is true: red where
      * the addon declares an API version this client does not implement, unless <b>Load out of date AddOns</b>
@@ -526,6 +532,12 @@ public class AddonPanel extends OptWnd.Panel {
     private final class Row extends Widget {
         final String id;
         final String hub;                     // the hub's record in the folder, or null for a by-hand folder
+        /**
+         * The version the update check compares the hub's with: the record's where the hub installed the
+         * folder, the manifest's where the player put it there by hand; {@code null} for a by-hand folder whose
+         * manifest does not parse.
+         */
+        final String current;
         private final boolean odd;            // every other row carries the band
         private final boolean apiOld;         // declares an API version this client does not implement
         private final CheckBox box;
@@ -582,8 +594,19 @@ public class AddonPanel extends OptWnd.Panel {
             this.apiOld = (ai.outdated != null);
             this.id = rid;
             this.hub = ai.hub;
+            this.current = (ai.hub != null) ? ai.hub : ai.version;
             fit();
             refresh();
+        }
+
+        /**
+         * Whether the update check has a version of this row's to compare ({@link #current}): always on a row
+         * the hub installed, whose record names the hub's own version; on a by-hand row, where its manifest's
+         * {@code version} is one the hub's order reads — a manifest may carry any string there, and one the
+         * order does not read has no answer to "is the hub's newer", so it is never asked.
+         */
+        boolean comparable() {
+            return (hub != null) || Semver.valid(current);
         }
 
         /** An empty text cell at column {@code x}, centred on the row's height. */
@@ -610,9 +633,10 @@ public class AddonPanel extends OptWnd.Panel {
 
         private void refresh() {
             // The buttons stand while nothing waits on the folder: no download in flight, no stage or removal
-            // pending. A failed download or stage leaves them standing, so a retry is one press away.
+            // pending. A failed download or stage leaves them standing, so a retry is one press away. Update
+            // stands on any row a check found behind the hub, Remove on a row the hub installed alone.
             Entry latest = updates.get(id);
-            boolean act = (hub != null) && (AddonRegistry.downloading(id) < 0) && (AddonRegistry.pending(id) == null);
+            boolean act = (AddonRegistry.downloading(id) < 0) && (AddonRegistry.pending(id) == null);
             // The press reads the map at press time, not the item the button was built for: a later check
             // may have found a newer version still, and the button stands through it.
             update = offer(this, update, act && (latest != null), "Update", BUTTON_X, () -> {
@@ -626,7 +650,7 @@ public class AddonPanel extends OptWnd.Panel {
                 update.settip("Update to " + latest.version);
                 offered = latest.version;
             }
-            remove = offer(this, remove, act, "Remove", BUTTON2_X, () -> AddonRegistry.markRemove(id));
+            remove = offer(this, remove, act && (hub != null), "Remove", BUTTON2_X, () -> AddonRegistry.markRemove(id));
             Color c = colour(latest != null);
             name.setcolor(c);
             version.setcolor(c);

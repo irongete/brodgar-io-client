@@ -1473,8 +1473,9 @@ public final class AddonRegistry {
         public final String warning;           // e.g. auto-disabled by the CPU watchdog, until the next load; or null
         /**
          * The version the hub installed here — the {@link InstallRecord}'s — or {@code null} for a folder the
-         * player put there by hand, which the client never replaces (145.2). A record that does not read is
-         * logged and counts as none: the folder is then the player's, and theirs to delete.
+         * player put there by hand, which the client never deletes (145.2), and replaces only on an Update
+         * press, with the hub's newer version. A record that does not read is logged and counts as none: the
+         * folder is then the player's, and theirs to delete.
          */
         public final String hub;
         /** The version staged under {@code addons/.staging/} for this id, waiting for the next reload, or {@code null}. */
@@ -1643,10 +1644,11 @@ public final class AddonRegistry {
 
     /**
      * <b>Whether {@code addons/<id>/} exists on disk</b>, whatever it holds — the AddOns panel's Browse tab asks
-     * it about every item the hub lists. A folder that is there is the player's: the client never replaces
-     * it, so the row reads {@code in addons/ by hand} and offers nothing, where an absent one is a candidate
-     * for an install. An id that could name anything but a direct child (a separator, a {@code ..}) is not
-     * a folder here and answers {@code false}.
+     * it about every item the hub lists. A folder that is there is not Browse's to install over — the Installed
+     * tab's Update is the one press that replaces it — so the row reads {@code installed v…} or
+     * {@code in addons/ by hand} and offers nothing, where an absent one is a candidate for an install. An id
+     * that could name anything but a direct child (a separator, a {@code ..}) is not a folder here and answers
+     * {@code false}.
      */
     public static boolean hasFolder(String id) {
         if((id == null) || id.isEmpty() || id.contains("/") || id.contains("\\") || id.equals(".") || id.equals(".."))

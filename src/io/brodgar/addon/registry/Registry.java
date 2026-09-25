@@ -357,15 +357,27 @@ public final class Registry {
         });
     }
 
+    /** The most ids one {@link #lookup} request names: the hub reads the first hundred of a list and drops the rest. */
+    static final int LOOKUP_IDS = 100;
+
     /**
-     * Look ids up — {@code GET <base>/addons?ids=a,b,c}: the same items for up to a hundred ids, unpaged;
-     * an id the hub does not carry is simply absent from the answer. What the update check asks.
+     * Look ids up — {@code GET <base>/addons?ids=a,b,c}: the same items, unpaged; an id the hub does not carry
+     * is simply absent from the answer. The hub reads a hundred ids to a request, so a longer list goes out
+     * {@link #LOOKUP_IDS} at a time, one request after the other on the worker, and the answer is the items of
+     * them all; no id, no request. What the update check asks.
      */
     public static Request<List<Entry>> lookup(final Collection<String> ids) {
-        final String joined = String.join(",", ids);
+        final List<String> all = new java.util.ArrayList<String>(ids);
         return submit(new Fetch<List<Entry>>() {
             public List<Entry> run(Request<List<Entry>> r) throws IOException {
-                return items(getJson(base() + "/addons?ids=" + enc(joined), r));
+                List<Entry> out = new java.util.ArrayList<Entry>();
+                for(int i = 0; i < all.size(); i += LOOKUP_IDS) {
+                    if(r.cancelled())                // given up between two requests: the next never goes out
+                        throw new IOException("cancelled");
+                    String joined = String.join(",", all.subList(i, Math.min(all.size(), i + LOOKUP_IDS)));
+                    out.addAll(items(getJson(base() + "/addons?ids=" + enc(joined), r)));
+                }
+                return out;
             }
         });
     }

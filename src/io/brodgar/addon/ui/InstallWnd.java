@@ -25,8 +25,9 @@ import java.util.Map;
  * manifest names dependencies, a bundle above all. It asks the hub for every addon the manifest's
  * {@code dependencies} name that is not here at the version it needs, and for what those need in turn, then
  * says what the press will do: what it installs with the addon, what is here already, and what it cannot
- * install -- an id the hub does not carry, a hub version older than the one needed, a folder put in
- * {@code addons/} by hand at an older version, which is the player's and never replaced.
+ * install -- an id the hub does not carry, a hub version older than the one needed. One here below the version
+ * it needs is replaced by the hub's, whether the hub installed it or the player put it in {@code addons/} by
+ * hand, as the Installed tab's Update would.
  *
  * <p><b>Install</b> enables the addon and every dependency that is on its way or here and disabled — for a
  * bundle, every addon it includes — all at once: where any of them declares a permission the user has not
@@ -124,11 +125,8 @@ final class InstallWnd extends Window {
                 queue.add(d.id);
             } else if(atLeast(ai.version, d.min)) {
                 here.add(d.id);
-            } else if(ai.hub != null) {
-                queue.add(d.id);                  // the hub put it here: the newer one replaces it
             } else {
-                problems.add(label(d.id) + " is in addons/ by hand at " + ai.version + ", and " + target.name
-                    + " needs " + d.min + ". Replace it yourself.");
+                queue.add(d.id);                  // by the hub or by hand, below what it needs: the newer one replaces it
             }
         }
     }
@@ -191,8 +189,8 @@ final class InstallWnd extends Window {
             for(Entry e : installing.values()) {
                 AddonInfo ai = onDisk.get(e.id);
                 sb.append("\n- ").append(e.name).append(" ").append(e.version);
-                if(ai != null)
-                    sb.append(", replacing ").append(ai.version);
+                if(ai != null)                    // no version where the manifest here does not parse
+                    sb.append(", replacing ").append((ai.version != null) ? ai.version : "the folder here");
                 if(!e.permissions.isEmpty())
                     sb.append(" -- asks for permissions");
             }

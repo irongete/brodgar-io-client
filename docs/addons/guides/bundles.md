@@ -15,7 +15,7 @@ A bundle is an addon that packs others: its manifest says `"bundle": true` and n
 | Rule | Detail |
 |---|---|
 | `"bundle": true` | Marks it as a bundle, on the hub and in the client's Browse tab: its card says how many addons it includes, the **Bundles** chip lists the bundles alone, and its page shows the card of each addon it includes. The page of each of those says which bundles it is part of. |
-| `dependencies` | What it includes, at least one. Name the version you tested with as each minimum: installing the bundle installs the hub's latest of every one missing, and updates one the hub installed below it. |
+| `dependencies` | What it includes, at least one. Name the version you tested with as each minimum: installing the bundle installs the hub's latest of every one missing, and updates one below it, installed by the hub or put in `addons/` by hand. |
 | Its own permissions | None, unless its own code calls a protected verb. The permissions of the addons it includes are asked for in one dialog when the bundle is installed or ticked. |
 | Its files | Run after every dependency's, like any addon's ([libraries](libraries.md)). A bundle with nothing to set up still names one file. |
 
