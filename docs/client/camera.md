@@ -28,7 +28,8 @@ camera moves and the image does not, which reads as a zoom that is stuck.
 | What | Where |
 |---|---|
 | **The registry** | `MapView.camtypes`, private static, name → `Class<? extends Camera>`. Each camera class is followed by its own `static {camtypes.put(…)}` block, so **a camera class nobody registered is unreachable**: `OrthoCam` is real and has no name, `SOrthoCam` is `ortho`. Fork: it is a `LinkedHashMap`, so its key order is the order those blocks appear in the file — Java runs static initialisers in source order, which is what makes that order something a caller may rely on |
-| The names the client has | `follow` (`FollowCam`), `worse` (`SimpleCam`), `bad` (`FreeCam`), `ortho` (`SOrthoCam`), `rts` (`RTSCam`) — in that order |
+| The names the client has | `follow` (`FollowCam`), `worse` (`SimpleCam`), `bad` (`FreeCam`), `default` (`DefaultCam`, fork), `ortho` (`SOrthoCam`), `rts` (`RTSCam`) — in that order |
+| **The default camera** | Fork: `MapView.DefaultCam`, an orbit on `FreeCam`'s gestures, standing alone rather than extending it so that `RTSCam` keeps `FreeCam` as it is. Its options are the `MapView.dcam*` statics ([prefs-and-options.md](prefs-and-options.md)), read every tick: a proportional wheel, a **vertical** field of view (the horizontal derived from the aspect, where `Camera.resized` holds the horizontal), a projection rebuilt every tick for that reason, collision, first person, a tilt below the horizon independent of the collision (off, the eye goes under the terrain), and the wheel's ease. The ground's limit is a hard ceiling on the eye's distance, since the ground only ever moves continuously; the objects', which cross the line in one frame, is eased in at the wheel's own pace (`dcamzsmooth`), and let out slower still, only after the way has stayed open a moment. **Collision** pulls the eye in along its own line to `CLEAR` short of whatever is first: the ground, sampled through `MCache.getcz` and bisected (a `Loading` is ground not in the way), and the objects, whose `obst` rings bar `build` are stood up as prisms from `Gob.getc` to the top of the resource's meshes (`FastMesh.pbounds`). **First person** is `Camera.firstperson()`; `MapView.fpsync` withholds the player's `Drawable` through `Gob.camvisible`, a flag beside the addon layer's `addoninvis` on the same surgery, so neither undoes the other |
 | Reading the names from outside | Fork: `MapView.camnames()`, public static, a fresh `List` of the registry's keys in that order. The registry itself is private, so this is the only way anything else learns which cameras exist, and both the selector below and `setcam`'s own refusal read it rather than keeping a second list |
 | Building one | `MapView.makecam(Class, String...)` reflects for a `(MapView, String[])` constructor, then for `(MapView)`; with neither it throws naming the class. The `String[]` is the console's trailing words, and a camera that wants none simply declares the shorter constructor |
 | **The two preferences** | `defcam` is the name, `Utils.getpref`/`setpref`; `camargs` is the argument array, serialized whole through `Utils.getprefb`/`setprefb` + `Utils.serialize`/`deserialize`. They are written together, by the one writer below |
@@ -42,9 +43,11 @@ camera moves and the image does not, which reads as a zoom that is stuck.
 | The camera's own input | `Camera.keydown`, `click`, `drag`, `release`, `wheel` — all no-ops on the base class. `MapView.keydown` runs the fork's dispatch **before** `camera.keydown`, so a camera never sees a key the client has already claimed |
 | **The middle button is the camera's alone** | `MapView.mousedown` tests `ev.b == 2` first and sends it straight to `camera.click`, with **no modifier branch and no fallthrough** — the plob placement, the map grab, the RTS layer and `Click` all sit in the `else` chain below it. `mouseup` mirrors it against `camdrag`, and `mousemove` gives the drag to `camera.drag` whenever `camdrag` is held. So a camera may claim any modifier it likes on a middle drag without colliding with anything else on the widget |
 
-**Gotcha — an unknown `defcam` is silent, not an error.** `restorecam` returns `new SOrthoCam()` both
-when `camtypes.get` misses and when `makecam` throws anything at all. A preference naming a camera the
-client does not have therefore comes up on `ortho` with nothing said, and the pref keeps its dead
+**Gotcha — an unknown `defcam` is silent, not an error.** `restorecam` returns a bare camera both
+when `camtypes.get` misses and when `makecam` throws anything at all — upstream's `SOrthoCam`, the fork's
+`DefaultCam`, which is therefore also what a new player, with no `defcam` at all, comes up on. A
+preference naming a camera the client does not have comes up on `default` with nothing said, and the
+pref keeps its dead
 value until something writes it — so a camera that loses its name reads as "my setting was ignored",
 never as a failure anyone can see.
 

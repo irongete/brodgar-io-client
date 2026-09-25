@@ -838,7 +838,19 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
      * and nothing else is: its overlays are not attribs, and the attribs that are RenderTree.Nodes beside it
      * (a Speaking bubble, a Following's transform) say things ABOUT the object rather than draw it. */
     private boolean addonhidden(GAttrib a) {
-	return(addoninvis && (a instanceof Drawable));
+	return((addoninvis || caminvis) && (a instanceof Drawable));
+    }
+
+    /* cam: the "bad" camera in first person withholds the player's own model, through the same surgery as an
+     * addon's hide but on a flag of its own -- so neither undoes the other, and an addon reading
+     * gob:visible() still reads its own answer. */
+    public volatile boolean caminvis = false;
+
+    public void camvisible(boolean vis) {
+	if(caminvis == !vis)
+	    return;
+	caminvis = !vis;
+	defer(this::addonsyncvis);
     }
 
     /* addon: 114.3 -- draw this copy, or do not. The flag settles an add that has yet to happen; the deferred
@@ -859,7 +871,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	Drawable d = getattr(Drawable.class);
 	if(d == null)
 	    return;
-	if(addoninvis) {
+	if(addoninvis || caminvis) {
 	    if(d.slots != null)
 		RUtils.multirem(new ArrayList<>(d.slots));
 	} else if((d.slots == null) || d.slots.isEmpty()) {

@@ -61,6 +61,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static double plobagran = Utils.getprefd("plobagran", 12);
     public static boolean invcamx = Utils.getprefb("invcamx", false);
     public static boolean invcamy = Utils.getprefb("invcamy", false);
+    /* cam: the default camera's options (Options -> Camera). DefaultCam reads them every time it needs one,
+     * so a box ticked in the panel takes effect on the camera in use at once. */
+    public static boolean dcamzoom = Utils.getprefb("dcamzoom", true);   // proportional zoom
+    public static int dcamzsmooth = Utils.getprefi("dcamzsmooth", 15);   // zoom ease, hundredths of a second
+    public static int dcamfov = Utils.getprefi("dcamfov", 31);           // vertical field of view, degrees
+    public static boolean dcamgnd = Utils.getprefb("dcamgnd", true);     // collide with the ground
+    public static boolean dcamobj = Utils.getprefb("dcamobj", true);     // collide with objects
+    public static boolean dcamfp = Utils.getprefb("dcamfp", true);       // first person past the closest zoom
+    public static boolean dcamup = Utils.getprefb("dcamup", true);       // tilt below the horizon
     /* addon: (120.1) the remembered ground's three settings. They are the CLIENT's and not one view's:
      * every session up draws its own recalled ground out of its own record, and a switch the user flips
      * once must move all of them -- so these are statics with like-named prefs, written in one statement
@@ -128,6 +137,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	
 	public abstract float angle();
 	public abstract void tick(double dt);
+
+	/* cam: is the eye inside the player's own model? The view withholds the model while it is (fpsync). */
+	public boolean firstperson() {return(false);}
 
 	public String stats() {return("N/A");}
 
@@ -380,6 +392,249 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
     static {camtypes.put("bad", FreeCam.class);}
+
+    /* cam: the default camera, `:cam default`. An orbit around the player on the middle-button drag and the
+     * wheel, like "bad" (FreeCam), with what a player of any third-person game expects of one -- each an
+     * option in Options -> Camera, read live off the statics above:
+     *   - a proportional zoom (dcamzoom): 15% a notch, where a fixed step is a shove up close and
+     *     imperceptible far out;
+     *   - a fixed VERTICAL field of view (dcamfov), the horizontal derived from the aspect, so a wider screen
+     *     sees more to the sides instead of less above and below;
+     *   - collision with the ground (dcamgnd) and with the objects that block a walker (dcamobj): the eye is
+     *     pulled in at once and let back out smoothly;
+     *   - first person past the closest zoom (dcamfp), and tilting below the horizon to look up (dcamup).
+     * It also remembers where it was -- distance, tilt and turn -- across logins. That has no option: it is
+     * what a camera setting is. */
+    public class DefaultCam extends Camera {
+	/* The pivot stands this far above the ground under the player -- about head height, which is where
+	 * first person puts the eye. */
+	private static final float PIVOT = 15f;
+	/* The closest a third-person eye comes. Past FPIN, with first person on, it goes to distance 0; one
+	 * notch out of first person brings it back at FPOUT. */
+	private static final float MINDIST = 5f, FPIN = 6f, FPOUT = 8f;
+	/* The model is withheld below this distance -- the distance actually used, so it vanishes as the eye
+	 * reaches the head, and also when a wall or the ground has pushed the eye up against it. */
+	private static final float FPHIDE = 3f;
+	/* How far the eye keeps from the ground and from objects. The near plane is 1 unit out and half a
+	 * unit wide, so anything closer shows their inside. */
+	private static final float CLEAR = 3f;
+	private static final float MINELEV = -(float)Math.PI / 3f, MAXELEV = (float)Math.PI / 2f;
+	private static final float MINFOV = 20f, MAXFOV = 110f;
+
+	private float dist, tdist, elev, telev, angl, tangl;
+	private Coord dragorig = null;
+	private float elevorig, anglorig;
+	private final float pi2 = (float)(Math.PI * 2);
+	private Coord3f cc = null;
+	/* The distance the eye actually stands at -- dist, pulled in by what is in the way. Negative until the
+	 * first tick. `free` while nothing is in the way and it has caught up, so that it then follows dist
+	 * exactly and a zoom is not smoothed twice. `clear` is how long the way out has stayed open. */
+	private float cdist = -1;
+	private boolean free = false;
+	private float clear = 0;
+	/* The distance moves are each an ease-out, reaching 95% of the way in three time constants, and all of
+	 * them are paced by the one the player sets (dcamzsmooth, hundredths of a second): the wheel's glide, and
+	 * an object's pull-in -- so a trunk crossing the line is a swoop at the pace of a zoom, not a cut. The
+	 * release is RELK times slower, and starts only once the way has stayed open for RELHOLD seconds: a line
+	 * brushing an edge opens and closes from frame to frame, and a release on every opening is what bounced. */
+	private static final float RELK = 2.3f, RELHOLD = 0.3f;
+	/* The ground's own limit on the eye, from the last room(). The ground is continuous -- it moves with the
+	 * tilt and the step, never a jump -- so it is a hard ceiling rather than an eased target: eased, a tilt
+	 * down toward it would carry the eye under the terrain for as long as the ease lags. Only the objects,
+	 * which do cross the line in one frame, are eased. */
+	private float groom = Float.MAX_VALUE;
+
+	/* How much of the remaining way an ease with time constant `t` covers in `dt`; all of it for none. */
+	private float ease(double dt, float t) {
+	    return((t <= 0) ? 1f : (1f - (float)Math.exp(-dt / t)));
+	}
+
+	public DefaultCam() {
+	    dist = tdist = (float)Utils.getprefd("dcamdist", 50);
+	    elev = telev = (float)Utils.getprefd("dcamelev", Math.PI / 4);
+	    angl = tangl = (float)Utils.getprefd("dcamangl", 0);
+	    bound();
+	    dist = tdist;
+	    elev = telev;
+	    resized();
+	}
+
+	/* What the options allow of the targets: a stored place, or one the panel has just ruled out. */
+	private void bound() {
+	    if(!dcamfp && (tdist < MINDIST))
+		tdist = MINDIST;
+	    if(dcamfp && (tdist > 0) && (tdist < MINDIST))
+		tdist = MINDIST;
+	    /* Below the horizon the eye drops behind the player and toward the ground. With ground collision
+	     * on it comes to rest against the head; off, it goes under the terrain -- a view of its own, and
+	     * the player's to choose, so the two options stay independent. */
+	    float lo = dcamup ? MINELEV : 0f;
+	    if(telev < lo) telev = lo;
+	    if(telev > MAXELEV) telev = MAXELEV;
+	}
+
+	private void save() {
+	    Utils.setprefd("dcamdist", tdist);
+	    Utils.setprefd("dcamelev", telev);
+	    Utils.setprefd("dcamangl", tangl);
+	}
+
+	/* Every tick, not only on a resize: the field of view is a live option. Camera's own constructor calls
+	 * this before this class's fields are set, which is why it reads nothing but the statics and sz. */
+	private void setproj() {
+	    float aspect = ((float)sz.y) / ((float)sz.x);
+	    float fov = Math.max(MINFOV, Math.min(dcamfov, MAXFOV));
+	    float fy = (float)Math.tan(Math.toRadians(fov / 2));
+	    proj = Projection.frustum(-fy / aspect, fy / aspect, -fy, fy, 1, 2000);
+	}
+
+	public void resized() {
+	    setproj();
+	}
+
+	public boolean firstperson() {
+	    return((cdist >= 0) && (cdist < FPHIDE));
+	}
+
+	public void tick(double dt) {
+	    bound();
+	    float cf = (1f - (float)Math.pow(500, -dt * 3));
+	    angl = angl + ((tangl - angl) * cf);
+	    while(angl > pi2) {angl -= pi2; tangl -= pi2; anglorig -= pi2;}
+	    while(angl < 0)   {angl += pi2; tangl += pi2; anglorig += pi2;}
+	    if(Math.abs(tangl - angl) < 0.0001) angl = tangl;
+
+	    elev = elev + ((telev - elev) * cf);
+	    if(Math.abs(telev - elev) < 0.0001) elev = telev;
+
+	    float zt = dcamzsmooth / 100f;
+	    dist = dist + ((tdist - dist) * ease(dt, zt));
+	    if(Math.abs(tdist - dist) < 0.001) dist = tdist;
+
+	    Coord3f mc = getcc().invy();
+	    if((cc == null) || (Math.hypot(mc.x - cc.x, mc.y - cc.y) > 250))
+		cc = mc;
+	    else
+		cc = cc.add(mc.sub(cc).mul(cf));
+	    Coord3f pivot = cc.add(0.0f, 0.0f, PIVOT);
+	    float room = room(pivot, dist);
+	    boolean hit = room < dist;
+	    if((cdist < 0) || (!hit && free)) {
+		/* Nothing in the way and caught up: the eye is where the (already eased) zoom puts it. */
+		cdist = room;
+	    } else if(room < cdist) {
+		clear = 0;
+		cdist = cdist + ((room - cdist) * ease(dt, zt));
+	    } else if(room > cdist) {
+		clear += (float)dt;
+		if(clear >= RELHOLD)
+		    cdist = cdist + ((room - cdist) * ease(dt, zt * RELK));
+	    }
+	    if(Math.abs(room - cdist) < 0.01)
+		cdist = room;
+	    if(cdist > groom)
+		cdist = groom;
+	    free = !hit && (cdist == room);
+	    setproj();
+	    view = haven.render.Camera.pointed(pivot, cdist, elev, angl);
+	}
+
+	/* How far out along the eye's own line, up to `want`, the eye can stand before the ground or an object
+	 * comes within CLEAR of it. */
+	private float room(Coord3f pivot, float want) {
+	    groom = Float.MAX_VALUE;
+	    if((want <= 0) || !(dcamgnd || dcamobj))
+		return(want);
+	    Coord3f dir = haven.render.Camera.makepointed(new Matrix4f(), pivot, 1f, elev, angl).invert()
+		.mul4(Coord3f.o).sub(pivot);
+	    float lim = want;
+	    if(dcamgnd) {
+		lim = ground(pivot, dir, want);
+		if(lim < want)
+		    groom = lim;
+	    }
+	    if(dcamobj) {
+		/* The camera works y-inverted (getcc().invy()), the objects do not. */
+		lim = io.brodgar.camera.Obstruction.room(glob.oc, pivot.invy(), dir.invy(), lim, player(), CLEAR);
+	    }
+	    return(lim);
+	}
+
+	/* The ground is sampled along the line, then the crossing bisected, so the eye slides along a slope
+	 * instead of stepping. Ground that is not loaded is not in the way. */
+	private float ground(Coord3f pivot, Coord3f dir, float want) {
+	    int n = Math.max(8, Math.min(64, (int)(want / 2)));
+	    float lo = 0;
+	    for(int i = 1; i <= n; i++) {
+		float t = (want * i) / n;
+		if(blocked(pivot, dir, t)) {
+		    float hi = t;
+		    for(int j = 0; j < 5; j++) {
+			float mid = (lo + hi) / 2;
+			if(blocked(pivot, dir, mid))
+			    hi = mid;
+			else
+			    lo = mid;
+		    }
+		    return(lo);
+		}
+		lo = t;
+	    }
+	    return(want);
+	}
+
+	private boolean blocked(Coord3f pivot, Coord3f dir, float t) {
+	    Coord3f p = pivot.add(dir.mul(t));
+	    try {
+		return(p.z < glob.map.getcz(p.x, -p.y) + CLEAR);
+	    } catch(Loading e) {
+		return(false);
+	    }
+	}
+
+	public float angle() {
+	    return(angl);
+	}
+
+	public boolean click(Coord c) {
+	    elevorig = elev;
+	    anglorig = angl;
+	    dragorig = c;
+	    return(true);
+	}
+
+	public void drag(Coord c) {
+	    telev = elevorig - (invdy(c.y - dragorig.y) / 100.0f);
+	    tangl = anglorig + (invdx(c.x - dragorig.x) / 100.0f);
+	    bound();
+	}
+
+	public void release() {
+	    save();
+	}
+
+	public boolean wheel(MouseWheelEvent ev) {
+	    float d = tdist;
+	    if(d <= 0) {
+		d = (ev.s > 0) ? FPOUT : 0;
+	    } else {
+		d = dcamzoom ? (d * (float)Math.pow(1.15, ev.s)) : (d + (float)(ev.s * 25));
+		/* Only a zoom IN goes to first person: out of MINDIST the first notch can land short of FPIN. */
+		if(dcamfp && (ev.s < 0) && (d < FPIN))
+		    d = 0;
+		else if(d < MINDIST)
+		    d = MINDIST;
+	    }
+	    tdist = d;
+	    save();
+	    return(true);
+	}
+
+	public String stats() {
+	    return(String.format("%.1f (%.1f) %.2f %.2f", dist, cdist, elev, angl));
+	}
+    }
+    static {camtypes.put("default", DefaultCam.class);}
     
     public class OrthoCam extends Camera {
 	public boolean exact = true;
@@ -2576,6 +2831,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return((plgob < 0) ? null : glob.oc.getgob(plgob));
     }
     
+    /* cam: the player's own model is withheld while the eye is inside it (Camera.firstperson). The view holds
+     * the hide, not the camera: a camera replaced by :cam is simply dropped, and its successor's answer on the
+     * next tick is what gives the model back. */
+    private Gob fphid = null;
+
+    private void fpsync() {
+	Gob pl = camera.firstperson() ? player() : null;
+	if(pl == fphid)
+	    return;
+	if(fphid != null)
+	    fphid.camvisible(true);
+	if(pl != null)
+	    pl.camvisible(false);
+	fphid = pl;
+    }
+
     public Coord3f getcc() {
 	Gob pl = player();
 	if(pl != null)
@@ -3221,6 +3492,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    camoff.y = (float)((Math.random() - 0.5) * shake);
 	    camoff.z = (float)((Math.random() - 0.5) * shake);
 	    camera.tick(dt);
+	    fpsync();
 	} catch(Loading e) {
 	    /* addon: (terrain loading) URGENT, not 5: nothing is drawn until the camera has its ground, so
 	     * the cut under it goes before the other forty-eight and gets the worker Defer keeps for it. */
@@ -4097,16 +4369,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	camera.restate(from, off);
     }
 
+    /* cam: a player who has never picked a camera -- or whose pick names none the client has -- comes up
+     * on the default camera, where upstream came up on ortho. */
     private Camera restorecam() {
 	Class<? extends Camera> ct = camtypes.get(Utils.getpref("defcam", null));
 	if(ct == null)
-	    return(new SOrthoCam());
+	    return(new DefaultCam());
 	String[] args = (String [])Utils.deserialize(Utils.getprefb("camargs", null));
 	if(args == null) args = new String[0];
 	try {
 	    return(makecam(ct, args));
 	} catch(Exception e) {
-	    return(new SOrthoCam());
+	    return(new DefaultCam());
 	}
     }
 

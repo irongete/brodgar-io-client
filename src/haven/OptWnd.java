@@ -886,22 +886,27 @@ public class OptWnd extends Window {
 	     * in without writing it. Before login there is no map view and the pref is all there is.
 	     * It answers the REGISTRY's own instance of the name, never the equal one the pref store
 	     * hands back: SDropBox compares its selection by reference (`item != sel`, `sel == item`),
-	     * so an equal-but-distinct string shows in the closed box and highlights no row. A name the
-	     * registry does not have is null -- a dead pref reads as no selection, not as a camera. */
+	     * so an equal-but-distinct string shows in the closed box and highlights no row. Before login, a
+	     * pref naming no camera the registry has -- none at all, for a new player -- reads as `default`,
+	     * the camera MapView.restorecam brings the session up on; logged in, it is the camera in force. */
 	    private String current() {
 		MapView mv = mapview();
 		String nm = (mv == null) ? Utils.getpref("defcam", null) : mv.camname();
+		String dflt = null;
 		for(String cand : MapView.camnames()) {
 		    if(cand.equals(nm))
 			return(cand);
+		    if(cand.equals("default"))
+			dflt = cand;
 		}
-		return(null);
+		return((mv == null) ? dflt : null);
 	    }
 
 	    /* change(I) is the ONLY way to set what the closed box shows -- it both writes sel and
 	     * rebuilds that widget -- so a re-sync runs super's half and none of the pick below. */
 	    private void sync() {
 		super.change(current());
+		dcshow();
 	    }
 
 	    public void change(String nm) {
@@ -910,6 +915,7 @@ public class OptWnd extends Window {
 		 * pan started for no gesture the user made. */
 		boolean same = (nm == this.sel);
 		super.change(nm);
+		dcshow();
 		if((nm == null) || same)
 		    return;
 		MapView mv = mapview();
@@ -927,6 +933,94 @@ public class OptWnd extends Window {
 	private MapView mapview() {
 	    GameUI gui = getparent(GameUI.class);
 	    return((gui == null) ? null : gui.map);
+	}
+
+	/* cam: the default camera's own options, shown only while it is the one picked. Null while the
+	 * constructor has yet to build it -- the selector exists first.
+	 *
+	 * Re-packed on every change: contentsz() skips a hidden child, so a panel packed while the group
+	 * was hidden is too short for it, and its children draw clipped to it -- the group would show and
+	 * be cut away whole. */
+	private Widget dcopts = null;
+
+	private void dcshow() {
+	    if(dcopts == null)
+		return;
+	    dcopts.show("default".equals(cam.sel));
+	    pack();
+	}
+
+	/* `write`, never `set`: ACheckBox has a public Consumer<Boolean> field of that very name, and inside
+	 * the anonymous subclass the inherited field shadows the parameter -- so `set.accept` compiles and
+	 * runs the box's own default, which ticks it and writes nothing. */
+	private CheckBox dcbox(String text, boolean val, java.util.function.Consumer<Boolean> write) {
+	    return(new CheckBox(text) {
+		    {a = val;}
+		    public void set(boolean nval) {write.accept(nval); a = nval;}
+		});
+	}
+
+	private Widget dcbuild() {
+	    Widget w = new Widget(Coord.z);
+	    Widget prev = w.add(new Label("Default camera"), 0, 0);
+	    prev = w.add(dcbox("Proportional zoom", MapView.dcamzoom,
+			       v -> Utils.setprefb("dcamzoom", MapView.dcamzoom = v)), prev.pos("bl").adds(0, 10));
+	    prev.settip("Each wheel notch moves the camera by the same share of its distance, so zooming is as fine " +
+			"up close as far out. Off, every notch moves it a fixed 25 units.", true);
+	    prev = w.add(new Label("Zoom smoothness"), prev.pos("bl").adds(0, 8));
+	    Label zdpy = new Label("");
+	    w.addhlp(prev.pos("bl").adds(0, 2), UI.scale(5),
+		     prev = new HSlider(UI.scale(160), 0, 40, MapView.dcamzsmooth) {
+			     protected void added() {
+				 dpy();
+			     }
+			     void dpy() {
+				 zdpy.settext((this.val == 0) ? "Off" : String.format("%.2f s", this.val / 100.0));
+			     }
+			     public void changed() {
+				 Utils.setprefi("dcamzsmooth", MapView.dcamzsmooth = this.val);
+				 dpy();
+			     }
+			 }, zdpy);
+	    prev.settip("How gently the camera glides to a new distance -- after a wheel notch, and when an object " +
+			"comes between it and the character (it moves back out a little slower still). Off, it jumps " +
+			"there at once; the further right, the slower and softer the glide. The ground always stops " +
+			"the camera at once.", true);
+	    prev = w.add(new Label("Field of view (vertical)"), prev.pos("bl").adds(0, 8));
+	    Label dpy = new Label("");
+	    w.addhlp(prev.pos("bl").adds(0, 2), UI.scale(5),
+		     prev = new HSlider(UI.scale(160), 20, 110, MapView.dcamfov) {
+			     protected void added() {
+				 dpy();
+			     }
+			     void dpy() {
+				 dpy.settext(this.val + "°");
+			     }
+			     public void changed() {
+				 Utils.setprefi("dcamfov", MapView.dcamfov = this.val);
+				 dpy();
+			     }
+			 }, dpy);
+	    prev.settip("How much the camera sees from top to bottom. The sides follow the shape of the screen, " +
+			"so a wider screen sees more to the sides. 31° is what the other cameras show on a 16:9 screen.", true);
+	    prev = w.add(dcbox("Collide with the ground", MapView.dcamgnd,
+			       v -> Utils.setprefb("dcamgnd", MapView.dcamgnd = v)), prev.pos("bl").adds(0, 10));
+	    prev.settip("A hill between the character and the camera pulls the camera in, instead of letting it " +
+			"pass through the ground.", true);
+	    prev = w.add(dcbox("Collide with objects", MapView.dcamobj,
+			       v -> Utils.setprefb("dcamobj", MapView.dcamobj = v)), prev.pos("bl").adds(0, 8));
+	    prev.settip("Trees, walls, palisades and buildings -- whatever a character cannot walk through -- pull " +
+			"the camera in, instead of letting it pass through them.", true);
+	    prev = w.add(dcbox("First person at the closest zoom", MapView.dcamfp,
+			       v -> Utils.setprefb("dcamfp", MapView.dcamfp = v)), prev.pos("bl").adds(0, 8));
+	    prev.settip("Zooming all the way in puts the eye in the character's head and hides the character. " +
+			"One notch out brings the camera back.", true);
+	    prev = w.add(dcbox("Tilt below the horizon", MapView.dcamup,
+			       v -> Utils.setprefb("dcamup", MapView.dcamup = v)), prev.pos("bl").adds(0, 8));
+	    prev.settip("Dragging past level lowers the camera behind the character to look up. With ground " +
+			"collision on, it comes to rest against the character's head; off, it goes under the ground.", true);
+	    w.pack();
+	    return(w);
 	}
 
 	/* The panel is built once and kept, so the box is re-read every time it is shown rather than
@@ -952,7 +1046,9 @@ public class OptWnd extends Window {
 		    public void set(boolean val) {Utils.setprefb("invcamy", MapView.invcamy = val); a = val;}
 		}, prev.pos("bl").adds(0, 8));
 	    prev.settip("Reverses the vertical mouse-drag direction when tilting the camera. " +
-			"Only affects cameras that support tilting (not the default ortho camera).", true);
+			"Only affects cameras that support tilting (not the ortho camera).", true);
+	    dcopts = add(dcbuild(), prev.pos("bl").adds(0, 20));
+	    dcshow();
 	    pack();
 	}
     }
