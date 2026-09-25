@@ -5,7 +5,8 @@
   <property name="ext-lib-base" value="http://www.havenandhearth.com/java" />
   <!-- addon: the maintainer's addons live in their own repository, brodgar-io-client-addons, checked out
        beside this one. bin/ (the sandbox) takes every addon it holds; a release takes only the ones
-       etc/release-addons names. Override with an `addons.repo=` line in build.properties. -->
+       etc/release-addons names, with the addons they name in "dependencies". Override with an `addons.repo=`
+       line in build.properties. -->
   <property name="addons.repo" value="../brodgar-io-client-addons" />
   <!-- addon: the version is what publish.ps1 passes (-Dversion=1.2.3) and `dev` for every other build. -->
   <property name="version" value="dev" />
@@ -270,11 +271,11 @@
   <!-- addon: dist/, a self-contained, playable install: what a release is made of. Unlike bin/ (the
        development sandbox, which also carries whatever suite is in flight and every addon of the
        maintainer's), dist/ holds only what the client needs to run: the jars, the resource jars, the
-       natives, the server config, the addons etc/release-addons names, and the three start scripts. Every one of
-       those is rebuilt from scratch, so an addon struck from the list leaves nothing of itself
-       behind. savedata/ and addons/ are the exceptions, because they are the store and the addons of
-       whoever plays from this folder and the build has no business in them. A folder handed to someone
-       else is zipped WITHOUT them. -->
+       natives, the server config, the addons etc/release-addons names with their dependencies, and the
+       three start scripts. Every one of those is rebuilt from scratch, so an addon struck from the list
+       leaves nothing of itself behind. savedata/ and addons/ are the exceptions, because they are the
+       store and the addons of whoever plays from this folder and the build has no business in them. A
+       folder handed to someone else is zipped WITHOUT them. -->
   <target name="dist" depends="deftgt">
     <mkdir dir="dist" />
     <delete includeemptydirs="true">
@@ -300,13 +301,16 @@
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
       <fileset dir="lib/brodgar"><include name="*.jar" /></fileset>
     </copy>
-    <!-- The addons a release ships are the ids etc/release-addons lists, one per line, taken from the
-         sibling checkout; the suite in flight under addons/ never ships. The list is read into one
-         includes pattern (`id/**,` per line) and an empty list sets no property, so nothing is copied;
-         a bare includes="" would take the whole checkout. They go to release-addons/, never addons/: the
-         client installs each into the player's addons folder once, at the first start that finds it
-         (io.brodgar.addon.ReleaseAddons), so a launcher unpacking the next release over this folder never
-         puts a copy back over the player's. -->
+    <!-- The addons a release ships are the ids etc/release-addons lists, one per line, and the addons each
+         of them names in its manifest's "dependencies" (so a bundle ships with every addon it includes),
+         all taken from the sibling checkout; the suite in flight under addons/ never ships. The list is read
+         into one includes pattern (`id/**,` per line) and an empty list sets no property, so nothing is
+         copied; a bare includes="" would take the whole checkout. The listed addons' manifest.json files are
+         then read as one line, each "dependencies" array is cut out onto a line of its own, and each of its
+         entries becomes `id/**,` without its ">=version"; none found leaves that pattern empty. They go to
+         release-addons/, never addons/: the client installs each into the player's addons folder once, at
+         the first start that finds it (io.brodgar.addon.ReleaseAddons), so a launcher unpacking the next
+         release over this folder never puts a copy back over the player's. -->
     <loadfile property="release-addons" srcFile="etc/release-addons" failonerror="false" quiet="true">
       <filterchain>
 	<striplinecomments><comment value="#" /></striplinecomments>
@@ -315,8 +319,31 @@
 	<striplinebreaks />
       </filterchain>
     </loadfile>
+    <loadresource property="release-dependencies" quiet="true" if:set="release-addons">
+      <concat>
+	<fileset dir="${addons.repo}" includes="${release-addons}" erroronmissingdir="false">
+	  <filename name="*/manifest.json" />
+	</fileset>
+      </concat>
+      <filterchain>
+	<striplinebreaks />
+	<tokenfilter>
+	  <replaceregex pattern='"dependencies"\s*:\s*\[([^\]]*)\]' replace="&#10;@\1&#10;" flags="g" />
+	</tokenfilter>
+	<linecontainsregexp><regexp pattern="^@" /></linecontainsregexp>
+	<tokenfilter>
+	  <replaceregex pattern='[@"\s]' replace="" flags="g" />
+	  <replaceregex pattern='>=[^,]*' replace="" flags="g" />
+	  <replaceregex pattern=',' replace="/**," flags="g" />
+	  <ignoreblank />
+	</tokenfilter>
+	<suffixlines suffix="/**," />
+	<striplinebreaks />
+      </filterchain>
+    </loadresource>
+    <property name="release-dependencies" value="" />
     <copy todir="dist/release-addons" failonerror="false" quiet="true" if:set="release-addons">
-      <fileset dir="${addons.repo}" includes="${release-addons}" />
+      <fileset dir="${addons.repo}" includes="${release-addons}${release-dependencies}" />
     </copy>
     <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
     <fixcrlf srcdir="etc" includes="windows.bat" destdir="dist" eol="crlf" />

@@ -15,13 +15,16 @@ import static io.brodgar.addon.AddonManager.log;
 
 /**
  * <b>The addons a client release carries</b> — {@code release-addons/} beside the client jar, one folder per
- * addon, the ones {@code etc/release-addons} named when the release was built. They are not the player's
+ * addon, the ones {@code etc/release-addons} named when the release was built and the addons their
+ * {@code dependencies} name: a bundle travels with every addon it includes. They are not the player's
  * {@code addons/}: a launcher unpacks every release over the client's folder, replacing what the zip holds, so a
  * release carrying them in {@code addons/} would put its own copy back, at every update, over one the player
  * had updated from the hub, edited or deleted. They are <b>offered</b> instead, each once: at a start,
  * {@link #install} copies into {@code addons/} every one the client has not offered before and whose id has no
  * folder there yet, and remembers every id it offered, installed or not — so one the player deletes is never
- * put back, and one that was already there is left as it is.
+ * put back, and one that was already there is left as it is. Then the folder itself goes: the launcher replaces
+ * what a zip holds and keeps everything else, so nothing else ever removes it, and the next release brings its
+ * own.
  *
  * <p><b>An addon installed from the release arrives with its permissions granted</b>: the keys and the hosts its
  * copy in {@code release-addons/} declares are recorded as consented ({@link AddonRegistry#recordConsent}), as
@@ -36,7 +39,7 @@ import static io.brodgar.addon.AddonManager.log;
  * loads, so the first load finds the folder and its consent together. A copy is made under
  * {@code addons/.staging/} and moved into place whole, so an interrupted one is never scanned as an addon — the
  * next apply sweeps it, since it carries no install record — and an id whose copy failed is not remembered, so
- * the next start tries it again.
+ * the next start tries it again, from the folder that stays for it.
  */
 final class ReleaseAddons {
     private ReleaseAddons() {}
@@ -64,8 +67,9 @@ final class ReleaseAddons {
      * Offer every addon in {@code from} the client has not offered before: copy it into {@code addons} where no
      * folder of its id stands and no stage of the hub's waits for one, record what its manifest declares as
      * consented, and remember the id either way. One whose manifest does not parse is skipped with a log line
-     * and not remembered, so a later release carrying it mended offers it. No {@code from} folder is a client
-     * that carries none — a development build — and nothing happens.
+     * and not remembered, so a later release carrying it mended offers it. Then {@code from} is removed, unless
+     * a copy failed: that one is tried again at the next start, from the folder kept for it. No {@code from}
+     * folder is a client that carries none — a development build — and nothing happens.
      */
     static void install(File from, File addons) {
         File[] subs = from.listFiles(File::isDirectory);
@@ -74,6 +78,7 @@ final class ReleaseAddons {
         Arrays.sort(subs, (x, y) -> x.getName().compareTo(y.getName()));
         Set<String> offered = offered();
         Set<String> now = new LinkedHashSet<String>(offered);
+        boolean retry = false;
         for(File src : subs) {
             String id = src.getName();
             if(offered.contains(id) || !new File(src, "manifest.json").isFile())
@@ -95,6 +100,7 @@ final class ReleaseAddons {
                 copyIn(src, live, addons);
             } catch(IOException e) {
                 log("release: could not install " + id + ": " + Refusal.reason(e) + " -- tried again at the next start");
+                retry = true;
                 continue;
             }
             now.add(id);
@@ -107,6 +113,12 @@ final class ReleaseAddons {
         }
         if(!now.equals(offered))
             Utils.setprefsl(PREF_OFFERED, now);
+        if(retry)
+            return;
+        if(Staging.deleteTree(from))
+            log("release: removed " + from + ", every addon in it offered");
+        else
+            log("release: could not remove all of " + from + " -- tried again at the next start");
     }
 
     /** The ids offered so far, in the order they were. */

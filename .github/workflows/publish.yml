@@ -57,20 +57,28 @@ jobs:
           python3 tools/refusalverbs.py
           python3 tools/widgetstate.py
 
-      # the build takes the addons etc/release-addons names from ../brodgar-io-client-addons, where build.xml's
-      # addons.repo looks: a public repository, cloned there. Every id the list names must be a folder of it,
-      # since ant's copy skips a missing one in silence
+      # the build takes the addons etc/release-addons names, each with the addons its manifest names in
+      # "dependencies", from ../brodgar-io-client-addons, where build.xml's addons.repo looks: a public repository,
+      # cloned there. Every one of them must be a folder of it, since ant's copy skips a missing one in silence
       - name: The addons a release ships
         if: steps.tagged.outputs.skip != 'true'
         run: |
           ids="$(grep -v '^[[:space:]]*#' etc/release-addons | tr -d '[:blank:]\r' | grep . || true)"
           if [ -z "$ids" ]; then exit 0; fi
-          git clone --quiet --depth 1 https://github.com/irongete/brodgar-io-client-addons.git ../brodgar-io-client-addons
+          repo=../brodgar-io-client-addons
+          git clone --quiet --depth 1 https://github.com/irongete/brodgar-io-client-addons.git "$repo"
           for id in $ids; do
-            if [ ! -f "../brodgar-io-client-addons/$id/manifest.json" ]; then
+            if [ ! -f "$repo/$id/manifest.json" ]; then
               echo "etc/release-addons names $id, which brodgar-io-client-addons does not hold" >&2
               exit 1
             fi
+            deps="$(jq -r '(.dependencies // [])[] | sub(">=.*"; "")' "$repo/$id/manifest.json")"
+            for dep in $deps; do
+              if [ ! -f "$repo/$dep/manifest.json" ]; then
+                echo "$id names $dep in its dependencies, which brodgar-io-client-addons does not hold" >&2
+                exit 1
+              fi
+            done
           done
 
       # publish.ps1 hands back the tag it published (the step output `tag`) and writes the step summary
