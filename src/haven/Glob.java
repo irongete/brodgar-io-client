@@ -59,6 +59,9 @@ public class Glob {
     public double skyblend = 0.0;
     private final Map<String, CAttr> cattr = new HashMap<String, CAttr>();
     private Map<Indir<Resource>, Object> wmap = new HashMap<Indir<Resource>, Object>();
+    /* addon: ambience (spike) -- the weather set the server last sent, as it sent it: each resource with
+     * its arguments. wmap keeps them only until a Weather is made of them; this keeps the numbers. */
+    public volatile Map<Indir<Resource>, Object[]> wthargs = Collections.emptyMap();
     
     public Glob(Session sess) {
 	this.sess = sess;
@@ -307,9 +310,11 @@ public class Glob {
 			wmap.clear();
 		    }
 		    Collection<Object> old = new ArrayList<Object>(wmap.keySet());
+		    Map<Indir<Resource>, Object[]> sent = new LinkedHashMap<>();   // addon: ambience (spike)
 		    while(n < a.length) {
 			Indir<Resource> res = sess.getresv(a[n++]);
 			Object[] args = (Object[])a[n++];
+			sent.put(res, args);   // addon: ambience (spike)
 			Object curv = wmap.get(res);
 			if(curv instanceof Weather) {
 			    Weather cur = (Weather)curv;
@@ -329,6 +334,7 @@ public class Glob {
 			    ((Disposable)cur).dispose();
 			wmap.remove(p);
 		    }
+		    wthargs = sent;   // addon: ambience (spike) -- the message is the whole set, so it replaces
 		}
 	    } else {
 		System.err.println("Unknown globlob type: " + t);
