@@ -144,7 +144,8 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
             if(!settings)
                 throw new LuaError("widget:bind(binding): '" + id + "' is another addon's hotkey — the user assigns its"
                     + " key in Options ▸ Game ▸ Keybindings, or on that addon's own page. A key button joins a hotkey"
-                    + " your own addon declared with keybindings:on(name, fn).");
+                    + " your own addon declared with keybindings:on(name, fn), and under client.settings any binding"
+                    + " your code may write, this one included.");
             KeyBinding kb = declared(id);
             if(kb == null)
                 throw new LuaError("widget:bind(binding): '" + id + "' is another addon's hotkey, and no addon has it"
@@ -158,7 +159,8 @@ final class CKeybinding extends OptWnd.SetButton implements Owned.Control, Contr
                 throw new LuaError("widget:bind(binding): '" + id + "' is one of the client's own bindings — the user"
                     + " assigns its key in Options ▸ Game ▸ Keybindings, and binding:key(key) under client.settings is"
                     + " the write your code makes. A key button joins a hotkey your own addon declared with"
-                    + " keybindings:on(name, fn).");
+                    + " keybindings:on(name, fn), and under client.settings any binding your code may write, this"
+                    + " one included.");
             return client;
         }
         boolean early = KeyBinding.get(mine + id) != null;   // a hotkey of yours, its handle taken before on()

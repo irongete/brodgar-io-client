@@ -1,0 +1,9 @@
+{
+  "name": "169.2 — the refusals name client.settings",
+  "id": "169-key-button-reach.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 169.2: with no permission, a key button still binds its own hotkey and refuses the client's inv and another addon's hotkey, each refusal naming client.settings.",
+  "api_version": "1.1",
+  "files": ["main.lua"]
+}

@@ -17,7 +17,7 @@
       line the suite prints names `F9`, and that addon's row in Options ▸ Game ▸ Keybindings reads `F9`; then press it
       and `Delete` to leave it unbound. Press the `inv` button and `Escape` — expect the key unchanged and no line.
 
-- [ ] **169.2 — Without client.settings the refusals name the permission.** The two refusals in
+- [x] **169.2 — Without client.settings the refusals name the permission.** The two refusals in
       `CKeybinding.hotkey` for another addon's hotkey and for a client binding keep their opening words and add that
       under `client.settings` a key button joins it. `interactive.md` quotes the rule. Criterion 5.
       *Its suite* declares no permission. It asserts `inv` is refused naming both "one of the client's own" and

@@ -159,7 +159,7 @@ end)
 |---|---|
 | The client's class | `:type()` reads `"SetButton"` and `:role()` `button`, so `@SetButton` names yours and the panel's alike, and a [`button`](../style/surfaces.md#button) rule dresses it. |
 | Width | The panel's own, 175 design px, until `:size(w)`. The height is the button's art. |
-| Whose bindings | Your own hotkeys, always. Another addon's hotkey and the client's own bindings (`inv`) under `client.settings` only: without it, each is refused naming Options ▸ Game ▸ Keybindings, where the user assigns those. A Binding taken before `keybindings:on` declared the name is the registry id as written, not yours: refused, naming the order. A hotkey ended with `subscription:off()` is refused. A refused bind changes nothing. |
+| Whose bindings | Your own hotkeys, always. Another addon's hotkey and the client's own bindings (`inv`) under `client.settings` only: without it, each is refused naming Options ▸ Game ▸ Keybindings, where the user assigns those, and `client.settings`, under which the button joins it. A Binding taken before `keybindings:on` declared the name is the registry id as written, not yours: refused, naming the order. A hotkey ended with `subscription:off()` is refused. A refused bind changes nothing. |
 | A hotkey that ends while bound | Yours or another addon's: the button keeps the Binding, and a press does nothing. Declaring the name again brings it back: the Binding is the same. |
 | `:value(v)` | Refused, naming `binding:key(key)` under `client.settings`: the key is the binding's. |
 | `:text(s)` | Refused: the caption is the key. A line beside it is a [label](display.md#label). |
