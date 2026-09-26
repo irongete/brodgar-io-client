@@ -299,59 +299,6 @@ public class PerformancePanel extends OptWnd.Panel {
                     + " once, without the server re-sending anything. A scent trail's smoke is never"
                     + " withheld.", true);
 
-        prev = body.add(new Label("Weather"), prev.pos("bl").adds(0, 15));
-
-        prev = body.add(new CheckBox("Cloud shadows") {
-                {a = Performance.clouds;}
-                public void set(boolean val) {Performance.clouds(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.clouds;
-                }
-            }, prev.pos("bl").adds(0, 10));
-        prev.settip("Cloud shadows moving over the ground, the game's or, with Sky & weather on, its clouds'."
-                    + " Takes effect the next frame.", true);
-
-        prev = body.add(new CheckBox("Rain") {
-                {a = Performance.rain;}
-                public void set(boolean val) {Performance.rain(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.rain;
-                }
-            }, prev.pos("bl").adds(0, 5));
-        prev.settip("Rain particles and their splashes. Takes effect the next frame.", true);
-
-        prev = body.add(new CheckBox("Snow") {
-                {a = Performance.snow;}
-                public void set(boolean val) {Performance.snow(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.snow;
-                }
-            }, prev.pos("bl").adds(0, 5));
-        prev.settip("Snow particles. Takes effect the next frame.", true);
-
-        prev = body.add(new CheckBox("Wet ground") {
-                {a = Performance.wetGround;}
-                public void set(boolean val) {Performance.wetGround(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.wetGround;
-                }
-            }, prev.pos("bl").adds(0, 5));
-        prev.settip("The sheen the ground takes on after rain. Takes effect the next frame.", true);
-
-        prev = body.add(new CheckBox("Seasonal tint") {
-                {a = Performance.seasonTint;}
-                public void set(boolean val) {Performance.seasonTint(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.seasonTint;
-                }
-            }, prev.pos("bl").adds(0, 5));
-        prev.settip("The seasonal tint of the ground. Takes effect the next frame.", true);
-
         body.pack();
         if(body.sz.y > OptWnd.PAGE.y) {
             Scrollport port = add(new Scrollport(OptWnd.PAGE), 0, 0);

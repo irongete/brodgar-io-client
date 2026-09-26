@@ -13,7 +13,8 @@
 | Where one is made | `Glob.Weather.Factory`, published code (`@Resource.PublishedCode(name = "wtr", …)`) on the resource's `Resource.CodeEntry` layer. `Glob.weather()` instantiates a `wmap` entry the first time it is read, under `synchronized(this)`, and leaves the `Weather` in place of the raw args from then on |
 | Composing the scene | `MapView.updweather()`, called every `MapView.tick`: reads `glob.weather()`, composes every `state()` into `basic(Glob.Weather.class, …)`, and adds every `Weather` that is a `RenderTree.Node` into `MapView.rweather` (a `Map<RenderTree.Node, RenderTree.Slot>`). A node no longer in the list is pulled out of `rweather` and the tree |
 | Simulating it | `Glob.ctick()`, under `synchronized(this)`: ticks every live `Weather` in `wmap`, removing (and, if `Disposable`, disposing) one whose `tick(dt)` answers `true` |
-| The numbers the server sent | ⚠️ **Not kept.** Once an entry is a `Weather`, a later `"wth"` hands its args to `update(Object...)` and nothing holds them after; what `wmap` answers is the published object, whose fields are its own. One `"wth"` message is the **whole** set: an entry it does not name is removed. Fork: `Glob.wthargs`, a `volatile` `Map<Indir<Resource>, Object[]>` of the last message's resources and args in the order sent, replaced whole by each message. The shapes, as the published code reads them: `gfx/fx/clouds` (v11) a whole-number scale, four percentages and optionally a drift velocity (two numbers); `gfx/fx/rain` (v2) the intensity and optionally a wind (three numbers); `gfx/fx/snow` (v2) the intensity |
+| The numbers the server sent | ⚠️ **Not kept.** Once an entry is a `Weather`, a later `"wth"` hands its args to `update(Object...)` and nothing holds them after; what `wmap` answers is the published object, whose fields are its own. One `"wth"` message is the **whole** set: an entry it does not name is removed. Fork: `Glob.wthargs`, a `volatile` `Map<Indir<Resource>, Object[]>` of the last message's resources and args in the order sent, replaced whole by each message. The shapes, as the published code reads them: `gfx/fx/clouds` (v11) a whole-number scale, four percentages and optionally a drift velocity (two numbers); `gfx/fx/rain` (v2) the intensity, optionally a wind (three numbers) and optionally that wind's spread (three more); `gfx/fx/snow` (v2) the intensity |
+| What the rain and the snow draw | Served code (`get-code` fetches it). `gfx/fx/rain` (v2, `Rain`) keeps every drop on the CPU: a point of the ground (`MCache.getzp`) within `75 * 11` units of `MapView.getcc()` each way, a velocity of the wind plus a random share of its spread each way, a life of 1.5 s, then four splashes of 0.15 to 0.3 s; it refills a `LINES` buffer of all of them every frame (`lib/vertspr`'s `DynSprite`, `LineWidth(1)`, a blue-white `Light.PhongLight`, vertex colours from half opaque to none, `maskdepth`, order 20000), and its first tick fills a whole drop's life at once. `gfx/fx/snow` (v2, `Snow`) makes textured quads (the one material of `gfx/fx/snow-1`, order 5500, alpha-clipped) 350 units over such a point, moves each one on the CPU under random tumbling forces every tick, drops one found under the ground (each flake checked once a second), and refills its whole vertex and index buffers every frame, up to `maxflakes`, 50,000 |
 | The world's light | the `"light"` branch of `Glob.blob` ([game-clock.md](game-clock.md)); `MapView.amblight()` builds the scene's `DirLight` from `glob.lightamb`/`lightdif`/`lightspc`/`lightelev`/`lightang` every tick, at `prio(100)`. Fork: a light the client previews takes that place while one is set, ahead of the server's |
 
 **Fork.** Both readers ask the same question by the resource's own name before touching an entry:
@@ -22,8 +23,8 @@ node on the next composition), and `Glob.ctick()` skips ticking a withheld one *
 — a rained-off `rain` still exists in `wmap`, ready the moment it stops being withheld. Neither loop
 needs a second pass: the same per-resource decision answers both "should this draw" and "should this
 simulate". A weather is withheld by its setting or because the fork draws it another way — the
-clouds, while the client draws its own sky — and `MapView.tick` hands the scene to that drawing right
-after `updweather()`.
+clouds, the rain or the snow, while the client draws its own — and `MapView.tick` hands the scene to
+that drawing right after `updweather()`.
 
 ## Tree sway: where it lives
 
@@ -84,6 +85,17 @@ not an instance of the local class and is left alone, which is right: the settin
 
 ## Gotchas
 
+- **The snow has no wind.** `Snow.move` has its wind read commented out (`av = Coord3f.o`) and `update`
+  reads the rate alone: a snowfall comes straight down whatever the rain's wind says.
+- **A blizzard reaches the flake ceiling.** A flake falls its 350 units in about 14 s, so at 5,000 a second
+  some 69,000 would be in the air; `Snow` stops making them at 50,000.
+- **`Rain` packs its normals into overlapping bytes.** `snorm8(nz) << 8` ORs the third component into the
+  second's byte, so a drop's normal is `(nx, ny | nz, 0)` and it is lit accordingly. A copy meant to look the
+  same keeps the packing.
+- **A `Glob.Weather` made outside `Glob` is ticked by nobody.** The served classes find their `MapView` in
+  `added` through the slot's `RenderContext`, so one made from its `Glob.Weather.Factory` draws anywhere in
+  a map view's tree (`MapView.drawadd`), but only `Glob.ctick` ticks the ones in `wmap`: whoever makes one
+  calls its `tick(dt)`.
 - **A weather not yet loaded throws `Loading`.** `Indir<Resource>.get()` on a `wmap` key can throw before
   the resource resolves; the withheld check swallows it and treats the entry as not-withheld for that
   frame — the very same `Loading` the factory branch of `Glob.weather()` would throw a line later, so

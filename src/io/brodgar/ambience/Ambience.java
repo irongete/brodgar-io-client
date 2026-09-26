@@ -4,31 +4,48 @@ import java.awt.Color;
 import java.util.*;
 import haven.*;
 import haven.render.*;
+import io.brodgar.perf.Performance;
 
 /* The server's weather and light, drawn our way.
  *
  * The server stays the authority for WHAT the world is doing -- its "wth" set (clouds, rain, snow)
  * and its "light" -- and this decides HOW it looks: a sky with a sun, stars and a handful of separate
- * clouds drawn wherever nothing else was, distance fog of the sky's own colour, and the clouds' shadows
- * on the ground. Rain and snow stay the game's own: they only heap and darken the sky here.
+ * clouds drawn wherever nothing else was, distance fog of the sky's own colour, the clouds' shadows on
+ * the ground, and the rain and the snow, drawn on the graphics card as the game's own look (AmbRain,
+ * AmbSnow). Rain and snow also heap and darken the sky.
  *
  * The clouds are made up here, not read off the server: how many there are, how big and how dark
  * follows how much cloud and rain the server says there is -- a clear day has none or a stray few, a
  * wet one many, large and grey -- and each one forms, drifts with the wind, and after a while breaks up.
  *
- * Three parts, each switched on its own -- the sky, the clouds, the fog -- and each one off hands its
- * part back to the game: no sky of ours is the game's own background, no clouds of ours the game's own
- * cloud shadows, no fog of ours none at all. Off by default (:amb on switches all three). The previews (:amb time, :amb weather, :amb clouds) stand in for what the
- * server would say, so a sky it is not sending right now can be looked at. Every number the server's
- * arguments are read against is a guess from the game's own code (gfx/fx/clouds v11, gfx/fx/rain v2,
- * gfx/fx/snow v2). */
+ * One switch over all of it (on), and under it four parts, each switched on its own -- the sky, the
+ * clouds, the fog, the rain and snow -- each one off handing its part back to the game: no sky of ours is
+ * the game's own background, no clouds of ours the game's own cloud shadows, no fog of ours none at all,
+ * no rain and snow of ours the game's own. Off by default (:amb on switches all of it on). The previews
+ * (:amb time, :amb weather, :amb clouds) stand in for what the server would say, so a sky it is not
+ * sending right now can be looked at, and :amb gamefx puts the game's own rain and snow in place of ours
+ * to compare them. Every number the server's arguments are read against is a guess from the game's own
+ * code (gfx/fx/clouds v11, gfx/fx/rain v2, gfx/fx/snow v2). */
 public class Ambience {
-    /* The three parts. Each defaults to the one switch they shared before, `ambience`, so a sky that was
-     * on stays on whole. */
+    /* The three parts of the sky. Each defaults to the one switch they shared before, `ambience`, so a sky
+     * that was on stays on whole. */
     private static final boolean was = Utils.getprefb("ambience", false);
     public static volatile boolean skyon = Utils.getprefb("ambience-sky", was);
     public static volatile boolean cloudson = Utils.getprefb("ambience-clouds", was);
     public static volatile boolean fogon = Utils.getprefb("ambience-fogon", was);
+    /* The rain and the snow: on under the one switch where the game's own both are, since they look the
+     * same; where either was switched off, it stays so, as the game's. */
+    public static volatile boolean precipon = Utils.getprefb("ambience-precip", Performance.rain && Performance.snow);
+    /* Our clouds' shadows on the ground: as the game's cloud shadows were, until switched on their own. */
+    public static volatile boolean cloudshadows = Utils.getprefb("ambience-cloudshadows", Performance.clouds);
+    /* The one switch: off, all of it is the game's, whatever the parts say. Seeded from the parts, so a
+     * sky that was on stays on, and kept from then on. */
+    public static volatile boolean on = Utils.getprefb("ambience-on", skyon || cloudson || fogon);
+    static {
+	Utils.setprefb("ambience-on", on);
+    }
+    /* The game's own rain and snow in place of ours, to compare them (:amb gamefx): for this session. */
+    static volatile boolean gamefx = false;
     /* Set when drawing failed: every part goes back to the game for this session, prefs untouched. */
     static volatile boolean failed = false;
     static volatile Double ptime = null;
@@ -82,12 +99,31 @@ public class Ambience {
 	failed = false;
     }
 
+    public static void cloudshadows(boolean on) {
+	Utils.setprefb("ambience-cloudshadows", cloudshadows = on);
+    }
+
+    public static void precipon(boolean on) {
+	Utils.setprefb("ambience-precip", precipon = on);
+	failed = false;
+    }
+
+    public static void on(boolean on) {
+	Utils.setprefb("ambience-on", Ambience.on = on);
+	failed = false;
+    }
+
     /* Whether drawing failed and every part went back to the game (the Sky & weather page says so). */
     public static boolean failed() {return(failed);}
 
     /* Whether any part is drawn: the one question the tick, the pass and the light preview ask. */
     public static boolean enabled() {
-	return(!failed && (skyon || cloudson || fogon));
+	return(!failed && on && (skyon || cloudson || fogon || precipon));
+    }
+
+    /* Whether any part of the sky is: the sky pass is drawn only then. */
+    static boolean skyparts() {
+	return(skyon || cloudson || fogon);
     }
 
     private static float finite(String what, float v) {
@@ -113,10 +149,18 @@ public class Ambience {
     }
 
     /* Is this weather resource one this draws instead of the game? Asked by Performance.withheldWeather,
-     * so the game's own renderer of it is held out of the scene while this is on. The clouds alone: the
-     * game's rain and snow fall under this sky as they are. */
+     * so the game's own renderer of it is held out of the scene while this is on. The clouds go back to
+     * the game indoors; the rain and the snow do not -- indoors and underground none of either falls. With
+     * :amb gamefx the game's own rain and snow are the server's again, unless a preview stands in for the
+     * server's weather: then the preview's own are drawn by the game's code (View.gamefx). */
     public static boolean replaces(String name) {
-	return(enabled() && cloudson && !indoors && CLOUDS.equals(name));
+	if(!enabled())
+	    return(false);
+	if(CLOUDS.equals(name))
+	    return(cloudson && !indoors);
+	if(RAIN.equals(name) || SNOW.equals(name))
+	    return(precipon && (!gamefx || (pweather != null)));
+	return(false);
     }
 
     /* What a weather is, in the server's own terms: Clouds' and Rain's and Snow's arguments. */
@@ -128,7 +172,8 @@ public class Ambience {
 	float scale = 1f / 1500, cmin = -0.1f, cmax = 0f, rmin = 1f, rmax = 1f;
 	float cvx = 0.001f, cvy = 0.002f;
 	float rain = 0, snow = 0;
-	Coord3f wind = Coord3f.of(50, 20, -300);
+	/* The rain's wind, and how far each drop's own strays from it each way (gfx/fx/rain's defaults). */
+	Coord3f wind = Coord3f.of(50, 20, -300), windvar = Coord3f.of(15, 15, 150);
 
 	Weather(String name) {this.name = name;}
 
@@ -148,7 +193,7 @@ public class Ambience {
 	    if(clouds)
 		buf.append(String.format(" clouds(1/%d, c %.2f-%.2f, r %.2f-%.2f, v %.4f,%.4f)", Math.round(1 / scale), cmin, cmax, rmin, rmax, cvx, cvy));
 	    if(rain > 0)
-		buf.append(String.format(" rain(%.0f/s, wind %.0f,%.0f,%.0f)", rain, wind.x, wind.y, wind.z));
+		buf.append(String.format(" rain(%.0f/s, wind %.0f,%.0f,%.0f +-%.0f,%.0f,%.0f)", rain, wind.x, wind.y, wind.z, windvar.x, windvar.y, windvar.z));
 	    if(snow > 0)
 		buf.append(String.format(" snow(%.0f/s)", snow));
 	    if(!clouds && (rain <= 0) && (snow <= 0))
@@ -191,6 +236,8 @@ public class Ambience {
 		    w.rain(num(a[0]));
 		    if(a.length > 3)
 			w.wind(num(a[1]), num(a[2]), num(a[3]));
+		    if(a.length > 6)
+			w.windvar = Coord3f.of(num(a[4]), num(a[5]), num(a[6]));
 		} else if(nm.equals(SNOW)) {
 		    w.snow(num(a[0]));
 		}
@@ -1089,6 +1136,7 @@ public class Ambience {
 	    spawncool = farcool = 0;
 	    lastgt = -1;
 	    gz = Float.NaN;
+	    lastsnow = null;
 	}
 
 	Cloud spawnfar(Coord3f focus, float size, float dark, float cover, float wet, float flake, boolean upwind) {
@@ -1220,6 +1268,12 @@ public class Ambience {
 	 * failed add rolls itself back (RenderTree.TreeSlot.add), so each one is simply tried again next
 	 * tick, as MapView.updweather does with the game's own weather. */
 	void sync(MapView mv, Weather w) {
+	    /* The rain and the snow alone draw no pass over the scene. */
+	    if(!skyparts()) {
+		if(sky != null) {sky.remove(); sky = null;}
+		mv.basic(cskey, null);
+		return;
+	    }
 	    TexRender ct = cloudtex();
 	    if(ct == null)
 		return;
@@ -1237,10 +1291,9 @@ public class Ambience {
 		} catch(Loading e) {
 		}
 	    }
-	    /* The performance panel's weather switches still hold: off there is off here too. */
 	    try {
 		/* One instance, whose numbers are uniforms over the frame: installed once, never re-pushed. */
-		if(!clouds.isEmpty() && io.brodgar.perf.Performance.clouds)
+		if(!clouds.isEmpty() && cloudshadows)
 		    mv.basic(cskey, AmbShadow.instance);
 		else
 		    mv.basic(cskey, null);
@@ -1262,9 +1315,150 @@ public class Ambience {
 	    return((buf.length() > 0) ? buf.toString() : "none");
 	}
 
+	/* How much rain and snow of ours is falling, and whether the game's own is drawn in its place. */
+	String precipcensus() {
+	    double now = Utils.rtime();
+	    AmbRain r = rain;
+	    AmbSnow s = snow;
+	    String ret = String.format("%d drops (ring %d), %d flakes (ring %d)",
+				       (r == null) ? 0 : r.live(now), (r == null) ? 0 : r.cap,
+				       (s == null) ? 0 : s.live(now), (s == null) ? 0 : s.cap);
+	    if(!gfx.isEmpty())
+		ret += "; the game's own: " + String.join(", ", gfx.keySet());
+	    return(ret);
+	}
+
+	/* Our rain and snow, each drawn while there is some of it, and the snow's material once it has come. */
+	AmbRain rain;
+	RenderTree.Slot rainslot;
+	AmbSnow snow;
+	RenderTree.Slot snowslot;
+	Material snowmat = null;
+	/* Whether it was snowing the tick before, or null since this view was last reset: a snow drawn anew
+	 * while it already was snowing starts filled, one that has only begun starts falling from the top. */
+	Boolean lastsnow = null;
+
+	/* Every tick while this is on and outdoors: the rain and the snow of the weather in force, switched by
+	 * precipon alone -- the game's own switches are the game's rain's and snow's. The rain starts filled,
+	 * as the game's does; either one stops being born when its weather stops, and is taken away once the
+	 * last of it has fallen -- at once when switched off. */
+	void precip(MapView mv, Glob glob, Weather w, Coord3f cc, double dt) {
+	    boolean ours = precipon && !gamefx;
+	    Coord2d c2 = Coord2d.of(cc.x, cc.y);
+	    if(!ours) {
+		droprain();
+	    } else {
+		if((rain == null) && (w.rain > 0)) {
+		    AmbRain nr = new AmbRain();
+		    rainslot = mv.drawadd(nr);
+		    rain = nr;
+		}
+		if(rain != null) {
+		    rain.spawn(glob.map::getzp, c2, dt, w.rain, w.wind, w.windvar);
+		    if((w.rain <= 0) && rain.gone(Utils.rtime()))
+			droprain();
+		}
+	    }
+	    boolean falling = w.snow > 0;
+	    boolean pending = false;
+	    if(!ours) {
+		dropsnow();
+	    } else if(snow == null) {
+		if(falling) {
+		    try {
+			if(snowmat == null)
+			    snowmat = AmbSnow.material();
+			AmbSnow ns = new AmbSnow(snowmat);
+			snowslot = mv.drawadd(ns);
+			snow = ns;
+			snow.spawn(glob.map::getzp, c2, dt, w.snow, (lastsnow == null) || lastsnow);
+		    } catch(Loading l) {
+			/* The material or its texture not here yet: again next tick, deciding the same. */
+			pending = true;
+		    }
+		}
+	    } else {
+		snow.spawn(glob.map::getzp, c2, dt, w.snow, false);
+		if(!falling && snow.gone(Utils.rtime()))
+		    dropsnow();
+	    }
+	    if(!pending)
+		lastsnow = falling;
+	    gamefx(mv, glob, w, dt);
+	}
+
+	void droprain() {
+	    if(rainslot != null)
+		rainslot.remove();
+	    rain = null;
+	    rainslot = null;
+	}
+
+	void dropsnow() {
+	    if(snowslot != null)
+		snowslot.remove();
+	    snow = null;
+	    snowslot = null;
+	}
+
+	/* The game's own rain and snow, made by its own code out of a previewed weather, in place of ours
+	 * while :amb gamefx is on, each under the game's own switch: the server's weather needs none of this,
+	 * the game draws it itself then. */
+	final Map<String, Glob.Weather> gfx = new HashMap<>();
+	final Map<String, RenderTree.Slot> gfxslots = new HashMap<>();
+	final Map<String, Object[]> gfxargs = new HashMap<>();
+
+	void gamefx(MapView mv, Glob glob, Weather w, double dt) {
+	    boolean want = precipon && gamefx && (pweather != null);
+	    gamefx1(mv, glob, RAIN, want && Performance.rain && (w.rain > 0),
+		    new Object[] {w.rain, w.wind.x, w.wind.y, w.wind.z, w.windvar.x, w.windvar.y, w.windvar.z}, dt);
+	    gamefx1(mv, glob, SNOW, want && Performance.snow && (w.snow > 0), new Object[] {w.snow}, dt);
+	}
+
+	private void gamefx1(MapView mv, Glob glob, String name, boolean want, Object[] args, double dt) {
+	    Glob.Weather cur = gfx.get(name);
+	    if(!want) {
+		if(cur != null)
+		    dropgfx(name);
+		return;
+	    }
+	    if(cur == null) {
+		try {
+		    Resource res = Resource.remote().load(name).get();
+		    Glob.Weather.Factory f = res.flayer(Resource.CodeEntry.class).get(Glob.Weather.Factory.class);
+		    cur = f.weather(glob, args);
+		    if(!(cur instanceof RenderTree.Node))
+			return;
+		    gfxslots.put(name, mv.drawadd((RenderTree.Node)cur));
+		    gfx.put(name, cur);
+		    gfxargs.put(name, args);
+		} catch(Loading l) {
+		    return;
+		}
+	    } else if(!Arrays.equals(gfxargs.get(name), args)) {
+		cur.update(args);
+		gfxargs.put(name, args);
+	    }
+	    cur.tick(dt);
+	}
+
+	private void dropgfx(String name) {
+	    RenderTree.Slot slot = gfxslots.remove(name);
+	    if(slot != null)
+		slot.remove();
+	    Glob.Weather cur = gfx.remove(name);
+	    if(cur instanceof Disposable)
+		((Disposable)cur).dispose();
+	    gfxargs.remove(name);
+	}
+
 	void off(MapView mv) {
 	    if(sky != null) {sky.remove(); sky = null;}
 	    mv.basic(cskey, null);
+	    droprain();
+	    dropsnow();
+	    for(String name : new ArrayList<>(gfx.keySet()))
+		dropgfx(name);
 	}
     }
 
@@ -1354,6 +1548,7 @@ public class Ambience {
 	frame = compute(l, focus, w, v, glob.ast);
 	try {
 	    v.sync(mv, w);
+	    v.precip(mv, glob, w, cc, dt);
 	} catch(Loading e) {
 	    throw(e);
 	} catch(RuntimeException e) {
@@ -1389,12 +1584,30 @@ public class Ambience {
 	String sub = (args.length > 1) ? args[1] : "";
 	switch(sub) {
 	case "on":
+	    /* All of it ours: the one switch and every part. */
+	    skyon(true);
+	    cloudson(true);
+	    fogon(true);
+	    precipon(true);
+	    on(true);
+	    say(cons, "ambience on");
+	    return;
 	case "off":
-	    skyon(sub.equals("on"));
-	    cloudson(sub.equals("on"));
-	    fogon(sub.equals("on"));
-	    failed = false;
-	    say(cons, "ambience " + sub);
+	    /* All of it the game's; the parts are kept for the next time. */
+	    on(false);
+	    say(cons, "ambience off");
+	    return;
+	case "precip":
+	    if((args.length < 3) || !(args[2].equals("on") || args[2].equals("off")))
+		throw(new RuntimeException("usage: amb precip on|off"));
+	    precipon(args[2].equals("on"));
+	    say(cons, "ambience: rain and snow " + (precipon ? "ours" : "the game's"));
+	    return;
+	case "gamefx":
+	    if((args.length < 3) || !(args[2].equals("on") || args[2].equals("off")))
+		throw(new RuntimeException("usage: amb gamefx on|off"));
+	    gamefx = args[2].equals("on");
+	    say(cons, "ambience: " + (gamefx ? "the game's own rain and snow, to compare" : "our rain and snow"));
 	    return;
 	case "time":
 	    if((args.length < 3) || args[2].equals("server")) {
@@ -1444,8 +1657,9 @@ public class Ambience {
 	    say(cons, "ambience: fog x" + fogmul);
 	    return;
 	case "":
-	    say(cons, "ambience: sky " + (skyon ? "on" : "off") + ", clouds " + (cloudson ? "on" : "off") +
-		", fog " + (fogon ? "on" : "off") + (failed ? " (switched off after an error)" : "") + (indoors ? " (indoors: nothing drawn)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
+	    say(cons, "ambience " + (on ? "on" : "off") + ": sky " + (skyon ? "on" : "off") + ", clouds " + (cloudson ? "on" : "off") +
+		", fog " + (fogon ? "on" : "off") + ", rain and snow " + (precipon ? (gamefx ? "the game's (gamefx)" : "on") : "off") +
+		(failed ? " (switched off after an error)" : "") + (indoors ? " (indoors: nothing drawn)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
 		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s", cloudamount, cloudbase, fogmul, starsmoon ? "on" : "off"));
@@ -1453,10 +1667,10 @@ public class Ambience {
 	    synchronized(views) {es = new ArrayList<>(views.entrySet());}
 	    for(Map.Entry<MapView, View> e : es)
 		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census() +
-		    String.format("; sky closed %.2f", e.getValue().close));
+		    String.format("; sky closed %.2f", e.getValue().close) + "; " + e.getValue().precipcensus());
 	    return;
 	default:
-	    throw(new RuntimeException("usage: amb [on|off|clouds auto|clouds <n>|moon <0-1>|moon server|cloudalt <units>|time <hour>|time server|weather <" +
+	    throw(new RuntimeException("usage: amb [on|off|precip on|off|gamefx on|off|clouds auto|clouds <n>|moon <0-1>|moon server|cloudalt <units>|time <hour>|time server|weather <" +
 				       String.join("|", presets.keySet()) + "|server>|fog <x>]"));
 	}
     }

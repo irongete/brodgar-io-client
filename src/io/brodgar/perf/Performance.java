@@ -14,11 +14,12 @@ import haven.Utils;
 import io.brodgar.session.Sessions;
 
 /**
- * The whole state of the <b>Performance</b> panel (spec 160-performance, task 160.1) — thirteen
- * {@code public static volatile} fields, each read from its own preference at class init and moved
- * live by one setter that persists it in the same statement (the shape {@link haven.MapView#recallon}
- * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on the panel and a write from
- * {@code hafen.client():options():performance()} are the same act.
+ * The whole state of {@code hafen.client():options():performance()} (spec 160-performance, task 160.1) —
+ * thirteen {@code public static volatile} fields, each read from its own preference at class init and
+ * moved live by one setter that persists it in the same statement (the shape {@link haven.MapView#recallon}
+ * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on a panel and a write from Lua are
+ * the same act. The <b>Performance</b> page shows all but the five weather switches, which stand on the
+ * <b>Sky &amp; weather</b> page as the game's own weather: they reach only what the game draws.
  *
  * <p>{@code flavorGeneration()} is what {@link haven.MCache.Grid#getfo} compares a cut's stamp against
  * (160.3) and {@code groundGeneration()} what {@link haven.MCache.Grid#getcut} compares against for the

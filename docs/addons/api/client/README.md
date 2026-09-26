@@ -95,11 +95,11 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | `flatTerrain()` / `flatTerrain(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the terrain flat: every tile corner at one height, objects standing on that plane, cliffs standing on that plane at their real height, water keeping its depth. Default `false`. |
 | `treeEffects()` / `treeEffects(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether trees and bushes sway in the wind. Default `true`. |
 | `smoke()` / `smoke(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether smoke plumes are drawn: kilns, furnaces, ovens, chimneys, fires. Default `true`. |
-| `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | Cloud shadows moving over the ground: the game's clouds', or, with Options ▸ Game ▸ Sky & weather drawing its clouds, those clouds'. Default `true`. |
-| `rain()` / `rain(flag)` | `boolean` | read Unprotected / write `client.settings` | Rain particles and their splashes. Default `true`. |
-| `snow()` / `snow(flag)` | `boolean` | read Unprotected / write `client.settings` | Snow particles. Default `true`. |
-| `wetGround()` / `wetGround(flag)` | `boolean` | read Unprotected / write `client.settings` | The sheen the ground takes on after rain. Default `true`. |
-| `seasonTint()` / `seasonTint(flag)` | `boolean` | read Unprotected / write `client.settings` | The seasonal tint of the ground. Default `true`. |
+| `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | The game's own cloud shadows moving over the ground. Default `true`. |
+| `rain()` / `rain(flag)` | `boolean` | read Unprotected / write `client.settings` | The game's own rain particles and their splashes. Default `true`. |
+| `snow()` / `snow(flag)` | `boolean` | read Unprotected / write `client.settings` | The game's own snow particles. Default `true`. |
+| `wetGround()` / `wetGround(flag)` | `boolean` | read Unprotected / write `client.settings` | The game's own sheen on the ground after rain. Default `true`. |
+| `seasonTint()` / `seasonTint(flag)` | `boolean` | read Unprotected / write `client.settings` | The game's own seasonal tint of the ground. Default `true`. |
 
 | Rule | Detail |
 |---|---|
@@ -107,6 +107,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | The floor differs | `0` is the floor of `flavor`: at `0` a tile still seeds the pieces that carry ambient sound. `0` is the floor of `groundBlend`, which the panel shows as *Off*. `1` is the floor of `crops` and `forage`: a plant tile never draws nothing, so its growth stage stays readable. |
 | The defaults draw the upstream picture | Every setting at its default is an exact no-op: the scene is what it has always been. |
 | Applies live | A write takes effect with no relogin. `flavor`, `groundBlend`, `transitions` and `flatTerrain` rebuild the ground lazily, cut by cut, as the scene draws it; `crops` and `forage` re-create the plants already in view; `treeEffects` shows on the next tick; `smoke`, `clouds`, `rain`, `snow`, `wetGround` and `seasonTint` show within a frame. |
+| The weather switches are the game's | `clouds`, `rain`, `snow`, `wetGround` and `seasonTint` switch the weather the game itself draws; their boxes stand on the Options ▸ Game ▸ Sky & weather page, under *The game's own weather*. Where that page draws the clouds, or the rain and snow, its own way, the game's are not drawn, and these switches do not reach what the page draws: it has switches of its own. |
 | Flat terrain changes the picture only | The server's heights, the recorded map and [`session:world():height`](../world.md#terrain-and-coordinates) stay real; the minimap and the map window draw their cliff lines as before. A click lands on the tile under the cursor. It applies live, cut by cut: objects reach the plane a moment before their hill does. |
 | `smoke` is symmetric | Turning it back on shows a plume already burning without the server re-sending anything. A scent trail's smoke is never withheld: it is information, not decoration. |
 | Answers before the world is up | Its backing is the client's own statics, built with the class — like `interface()`, `camera()` and `client()`. |
