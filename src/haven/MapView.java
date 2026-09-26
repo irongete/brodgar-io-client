@@ -70,18 +70,24 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static boolean dcamobj = Utils.getprefb("dcamobj", true);     // collide with objects
     public static boolean dcamfp = Utils.getprefb("dcamfp", true);       // first person past the closest zoom
     public static boolean dcamup = Utils.getprefb("dcamup", true);       // tilt below the horizon
-    /* addon: (120.1) the remembered ground's three settings. They are the CLIENT's and not one view's:
-     * every session up draws its own recalled ground out of its own record, and a switch the user flips
-     * once must move all of them -- so these are statics with like-named prefs, written in one statement
-     * the way invcamx above is, and there is no second place a value could be left behind in.
+    /* addon: (120.1) the view distance's two settings -- the remembered ground, drawn past the streamed
+     * ring out of the client's own record. They are the CLIENT's and not one view's: every session up
+     * draws its own recalled ground out of its own record, and a switch the user flips once must move all
+     * of them -- so these are statics with like-named prefs, written in one statement the way invcamx
+     * above is, and there is no second place a value could be left behind in.
      *
      * recallrange is the drawn reach in grids around where the camera looks; Recall reads one grid further
      * for the fill margin. The bounds are stated here, once, because the panel's slider, the Lua option's
-     * refusal and this field's own clamp are three readers of one fact. */
-    public static final int recallrangemin = 1, recallrangemax = 8;
+     * refusal and this field's own clamp are three readers of one fact. The Performance page's slider
+     * starts at recallrangepanel, the default; a 1 written from Lua stands and shows at its lowest end. */
+    public static final int recallrangemin = 1, recallrangemax = 16, recallrangepanel = 2;
     public static boolean recallon = Utils.getprefb("recallon", true);
     public static int recallrange = Utils.clip(Utils.getprefi("recallrange", 2), recallrangemin, recallrangemax);
-    public static boolean recallgrey = Utils.getprefb("recallgrey", true);
+    /* How far from its centre the recalled ground can stand, in world units: the range and the grid the
+     * centre is in, corner-on. What a camera's far plane has to reach for the view distance to be seen. */
+    public static float recallreach() {
+	return((float)((recallrange + 1) * MCache.cmaps.x * MCache.tilesz.x * Math.sqrt(2)));
+    }
     /* addon: (066.2) linked, so camnames() -- and the Options ▸ Camera dropdown reading it -- comes
      * out in the order the camera classes are declared, rather than in a hash order nobody chose. */
     private static final Map<String, Class<? extends Camera>> camtypes = new LinkedHashMap<String, Class<? extends Camera>>();
@@ -492,6 +498,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    float d = Math.max(cdist, 0f);
 	    float near = Math.max(1f, d / 200f);
 	    float far = Math.max(2000f, (d * 2.5f) + 1500f);
+	    /* addon: and past the view distance while it is on. The recalled ground reaches recallrange
+	     * grids and the fill margin beyond, around the character, and is seen corner-on: a far plane
+	     * short of that clips what the client has read and meshed. */
+	    if(recallon)
+		far = Math.max(far, d + recallreach());
 	    fy *= near;
 	    proj = Projection.frustum(-fy / aspect, fy / aspect, -fy, fy, near, far);
 	}
@@ -1957,31 +1968,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
 
-    /* 068.3: the wash that tells remembered ground from live ground.
-     *
-     * It is the COLOUR that is taken out, and that is not something a sheet laid over the ground can do.
-     * Alpha blending interpolates toward one colour: a translucent white sheet moves every fragment the
-     * same fraction toward white, so the ground goes pale and stays green, brown and blue -- which is a
-     * haze over live-looking ground, not a memory of it. Desaturating is an operation on the fragment's own
-     * three channels against each other, and the fragment shader is the only place that can be written.
-     *
-     * io.brodgar.session.Greyscale is that state, and the reason it reaches ground whose colour comes from a
-     * tileset's own Material is that a program here is compiled from the COMPOSED Pipe of the slot being
-     * drawn -- so a State installed once at this subtree's root is compiled into every material under it.
-     * BaseColor and ColorMask work exactly this way.
-     *
-     * It costs one shader program, compiled on the first frame that needs it: no second mesh, no second
-     * draw, no second pass.
-     *
-     * 120.1: it is a SWITCH, because an amount is two spellings of one setting -- an off state and a wash of
-     * zero say the same thing and neither can be told from the other. recallgrey is the boolean and this is
-     * the one instance behind it, cached because Slot.ostate compares by reference: pushing the same object
-     * twice changes nothing, and pushing null takes the state off the subtree without rebuilding a cut. */
-    private static final Pipe.Op grey = new io.brodgar.session.Greyscale(1f);
-    /* What s_recall's ostate is carrying, so the switch is only pushed when it has actually moved: ostate
-     * takes the render tree's lock, and this tick runs every ctick. */
-    private boolean greyed = false;
-
     /* 068.2: the remembered ground, in the scene.
      *
      * The client's own Terrain centres its area on getcc() -- the player's own cut -- so a camera panned
@@ -2238,11 +2224,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(recall == null)
 	    recall = new io.brodgar.session.Recall(glob.sess);
 	/* Where the ground is read around. The RTS camera is the one that leaves the character, and it
-	 * is the reason the record is read at all; every other camera is bolted to the player, where
-	 * getcc() says the same thing. */
-	boolean rts = camera instanceof RTSCam;
+	 * says where it looks; every other camera is bolted to the player, where getcc() says the same
+	 * thing. */
 	Coord2d c = null;
-	if(rts)
+	if(camera instanceof RTSCam)
 	    c = ((RTSCam)camera).center();
 	if(c == null) {
 	    try {
@@ -2268,17 +2253,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * the next one -- and what is read is what the raster asks for, which it cannot say until it has
 	 * been told whether it is in the scene at all. */
 	recall.tick(mm, plgc);
-	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
-	 * the character, where the live Terrain already draws everything in view and this would have
-	 * nothing to add but a second mesh over the first -- and with the raster out of the tree its
-	 * grids stop being meshed at all, which is the whole of what it costs.
+	/* addon: the raster is the client's view distance, so it stands under EVERY camera: the RTS
+	 * camera's reach off the character and every other camera's reach past the streamed ring alike.
+	 * The live Terrain's cuts are yielded either way (RecallTerrain.tick), so around the character it
+	 * adds nothing but the ground beyond them.
 	 *
-	 * It also comes out whenever the source cannot vouch for where its ground goes. Walking into a
+	 * It comes out with the switch, and whenever the source cannot vouch for where its ground goes. Walking into a
 	 * house or a cave re-bases the session coordinate space while sessloc still names the segment just
 	 * left, and everything read through that offset is now ground drawn somewhere it never was --
 	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
 	 * new base, and in the right place. */
-	if(!recallon || !rts || (c == null) || !recall.ready()) {
+	if(!recallon || (c == null) || !recall.ready()) {
 	    /* Out of the scene FIRST, and everything that can dispose a mesh after it: Grid.removed clears
 	     * the cut map, so from here this raster is holding nothing, which is what lets both of the calls
 	     * below dispose freely. A raster still in the tree holding a cut goes on drawing it. */
@@ -2309,14 +2294,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
 	     * and adding the node is what uses it. */
 	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
-	    greyed = false;
-	}
-	/* The wash. On the slot rather than in the raster, because it is one state over the whole subtree
-	 * and because ostate is what lets the switch move without touching anything the raster built --
-	 * not the program, not the slot tree, not a single cut. */
-	if(greyed != recallgrey) {
-	    s_recall.ostate(recallgrey ? grey : null);
-	    greyed = recallgrey;
 	}
 	/* 120.3: every ctick, and no clock of its own. What the raster decides is what it is holding in
 	 * flight, so the rate it is asked at IS the rate a finished build is replaced at: at a fifth of a
@@ -4450,16 +4427,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	cmdmap.put("recall", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
 		    if(args.length >= 2)
-			throw(new Exception("recall: takes no argument -- the settings are Options \u25b8 Game \u25b8 Client,"
-					    + " under Remembered ground"));
+			throw(new Exception("recall: takes no argument -- the settings are Options \u25b8 Game \u25b8 Performance,"
+					    + " under View distance"));
 		    io.brodgar.session.Recall r = recall;
 		    if(r == null)
 			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
 		    for(String ln : r.report())
 			cons.out.println(ln);
-		    cons.out.println(String.format("recall: drawing %s, wash %s, range %d grids, raster %s",
+		    cons.out.println(String.format("recall: drawing %s, range %d grids, raster %s",
 						   recallon ? "on" : "off",
-						   recallgrey ? "on" : "off",
 						   recallrange,
 						   (s_recall == null) ? "out of the scene" : "in the scene"));
 		    /* The other two of the four are the source's own, on the line report() prints above:

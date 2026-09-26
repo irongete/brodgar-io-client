@@ -131,7 +131,7 @@ Something standing at a point is in the scene only while the terrain under it is
 
 | Rule | Detail |
 |---|---|
-| Remembered ground does not hold one up | The greyed ground the client draws from disk is a picture with no height. One standing there is not drawn, and [`session:world`](../world.md) answers `nil` for its tile. `:drawn()` answers whether the ground is locatable. |
+| Remembered ground does not hold one up | The ground the client draws from disk past the stream, its [view distance](../client/README.md#client), is a picture with no height. One standing there is not drawn, and [`session:world`](../world.md) answers `nil` for its tile. `:drawn()` answers whether the ground is locatable. |
 | The numbers move. It does not | A cave or a house re-bases the map, so one world coordinate names different ground before and after. The entity holds the durable place. `entity:position():info()` reads the same grid and offset across the trip. `:x()` and `:y()` are the drawn character's answer and may differ. |
 | A place the screen's character cannot locate is legal | A Position out of [`hafen.store`](../store/README.md) or recorded in another part of the world. Nothing raises. `:position():info()` answers the grid given, `:x()` answers `nil`, `:drawn()` is `false`. It stands itself up when that ground resolves. `entity:visible()` still reads what you last told it. |
 | No timeout | A place you never walk to waits forever, the state a cave puts every overworld thing of yours into. [`hafen.client():profiling():entities()`](../client/profiling/counters.md#entities) counts them. |

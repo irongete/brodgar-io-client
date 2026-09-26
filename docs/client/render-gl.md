@@ -59,6 +59,13 @@ tie-break is now the attribute's generated name (`ctx.symtab`), which the source
 keys on a program's *input* across runs needs the same care: the sources are stable, the identity of the
 objects behind them is not.
 
+**Gotcha — the shadow map covers a box, and upstream shaded everything outside it.** `ShadowMap` renders a
+depth map over `MapView`'s 750-unit box around the player, sampled with `Texture.Wrapping.CLAMP` and cleared to
+`1.0`. `ShadowMap.Shader.shcalc` counts the lit samples of a 4×4 PCF around the fragment's map coordinates, so
+a fragment outside the box read the clamped edge texel, and one past the light's far depth failed every
+comparison: distant ground came out in blocky black smears once anything drew that far. Fork: `shcalc` returns
+fully lit when the coordinates leave `[0,1]` in x or y or the depth passes `1` (`// addon:`).
+
 ## The 2D blit path (what `g.image` actually does)
 
 | What | Where |

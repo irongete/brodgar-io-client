@@ -17,7 +17,7 @@ options:interface():angGran(15)                       -- write: needs client.set
 | `options:video()` | Shadows, render scale, vsync, framerate, lighting. | [Below](#video) |
 | `options:audio()` | Volumes and output latency. | [Below](#audio) |
 | `options:camera()` | The camera in force, and drag inversion. | [Below](#camera) |
-| `options:client()` | Client-wide toggles, remembered ground. | [Below](#client) |
+| `options:client()` | Client-wide toggles, the view distance. | [Below](#client) |
 | `options:keybindings()` | Declare, inspect and remap hotkeys; hide a section of the client's own from the panel. | [Keybindings](keybindings.md) |
 | `options:addon()` | Options of your own, and the page the window shows them on. | [Addon options](addon.md) |
 | `hafen.client():profiling()` | The frame profiler. | [Profiling](profiling/README.md) |
@@ -90,6 +90,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | Flat terrain changes the picture only | The server's heights, the recorded map and [`session:world():height`](../world.md#terrain-and-coordinates) stay real; the minimap and the map window draw their cliff lines as before. A click lands on the tile under the cursor. It applies live, cut by cut: objects reach the plane a moment before their hill does. |
 | `smoke` is symmetric | Turning it back on shows a plume already burning without the server re-sending anything. A scent trail's smoke is never withheld: it is information, not decoration. |
 | Answers before the world is up | Its backing is the client's own statics, built with the class — like `interface()`, `camera()` and `client()`. |
+| The view distance is `client()`'s | The page's **View distance** section is [`client():recall()` and `client():recallRange()`](#client). |
 
 ```lua
 local performance = hafen.client():options():performance()
@@ -165,27 +166,26 @@ if camera:mode() ~= "rts" then camera:mode("rts") end
 
 ## `client()`
 
-Client-wide toggles, the Options ▸ Game ▸ Client panel.
+Client-wide toggles: the Options ▸ Game ▸ Client panel, and the **View distance** section of the Performance panel.
 
 | Method | Type | Permission | Description |
 |---|---|---|---|
 | `profiling()` / `profiling(flag)` | `boolean` | read Unprotected / write `client.settings` | Arm the client's profiler. |
-| `recall()` / `recall(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the ground the character has already explored, from the client's own record. |
-| `recallRange()` / `recallRange(grids)` | `number` | read Unprotected / write `client.settings` | How far around the camera that ground reaches, in grids, `1`..`8`. |
-| `recallGrey()` / `recallGrey(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw that ground without colour. |
+| `recall()` / `recall(flag)` | `boolean` | read Unprotected / write `client.settings` | The view distance: draw the ground the character has already explored past what the server streams, from the client's own record. Default `true`. |
+| `recallRange()` / `recallRange(grids)` | `number` | read Unprotected / write `client.settings` | How far around the camera that ground reaches, in grids, `1`..`16`. Default `2`. |
 
 | Rule | Detail |
 |---|---|
 | Profiling is the client's own profiler | Arming it is what `:profile on` does: the client builds its per-frame CPU and GPU trees, which every [profiling read](profiling/README.md) is built on. The checkbox, `:profile` and this option agree. The state persists. Default off. Off it costs nothing, on it is live instrumentation of every frame. A write moves an open panel's checkbox at once. Arming takes effect on the next frame. |
-| Remembered ground | Every tile the character has walked, drawn back into the world where the [`"rts"` camera](#camera) looks: nothing asked of the server, nothing alive on it. The panel's **Remembered ground** section is these settings. |
-| `recallRange` is a maximum | In grids of 100 tiles. What is drawn is bounded by the view and the client's mesh budget. Outside `1`..`8`, or not a whole number, is refused naming the bounds and leaves the range as it was. |
-| `recallGrey` | A switch, not a strength: an off state and a wash of nothing are the same picture. |
+| View distance | Every tile the character has walked, drawn back into the world in the colours it was recorded in, under every [camera](#camera): around where the `"rts"` camera looks, around the character under the others. Nothing is asked of the server for it and nothing alive stands on it. The default camera's view reaches as far as the range while it is on. The Performance panel's **View distance** section is these two settings. |
+| `recallRange` is a maximum | In grids of 100 tiles. What is drawn is bounded by the view and the client's mesh budget. Outside `1`..`16`, or not a whole number, is refused naming the bounds and leaves the range as it was. The panel's slider runs `2`..`16`; a `1` you write stands, and the slider shows it at its lowest end. |
+| `recallGrey` is gone | There is no grey wash. `recallGrey()` and `recallGrey(flag)` raise saying so. |
 | The client's, not a character's | Each applies live, moves an open panel, persists, and moves every session up. The cost is the `recall` keys on [`render()`](profiling/counters.md#render). |
 
 ```lua
 local client_options = hafen.client():options():client()
-client_options:recall(true):recallRange(4):recallGrey(true)     -- needs client.settings
-hafen.log():write("remembered ground reaches " .. client_options:recallRange() .. " grids")
+client_options:recall(true):recallRange(4)     -- needs client.settings
+hafen.log():write("the view distance reaches " .. client_options:recallRange() .. " grids")
 ```
 
 ## Before the client is up

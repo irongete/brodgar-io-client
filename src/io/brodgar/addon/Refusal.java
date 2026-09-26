@@ -137,6 +137,10 @@ final class Refusal {
                   + " Steam player's display name, nil without Steam");
         MOVED.put("achievement:achieved", "achievement:achieved() is achievement:unlocked(): whether it is"
                   + " achieved on Steam, false while locked or not loaded");
+        // The view distance draws explored ground in the colours it was recorded in: there is no wash to switch.
+        MOVED.put("client:recallGrey", "client:recallGrey() is gone: there is no grey wash any more, and the"
+                  + " explored ground the view distance draws is always in the colours it was recorded in."
+                  + " client:recall(flag) and client:recallRange(grids) are its settings");
         KEYS.put("widget|Destroy", "widget:on(\"Destroy\", fn): the key is Removed — widget:on(\"Removed\","
                  + " fn) fires when the widget leaves its tree");
         // A key the client fires is PascalCase and closed; these two were spelled like an open emitter's own

@@ -6,9 +6,11 @@ import haven.GSettings;
 import haven.GameUI;
 import haven.HSlider;
 import haven.Label;
+import haven.MapView;
 import haven.OptWnd;
 import haven.Scrollport;
 import haven.UI;
+import haven.Utils;
 import haven.Widget;
 
 import io.brodgar.perf.Performance;
@@ -71,7 +73,57 @@ public class PerformancePanel extends OptWnd.Panel {
         prev.settip("Leaves out the ground the camera cannot see. Ground left out casts no shadow either, so a"
                     + " hill behind the camera may lose the shadow it throws into view. Applies the next frame.", true);
 
-        prev = body.add(new Label("Ground"), prev.pos("bl").adds(0, 15));
+        /* The view distance: MapView's two recall statics, written live-and-persisted in one statement the
+         * way hafen.client():options():client() writes them. */
+        prev = body.add(new CheckBox("View distance") {
+                {a = MapView.recallon;}
+                public void set(boolean val) {Utils.setprefb("recallon", MapView.recallon = val); a = val;}
+                public void tick(double dt) {
+                    super.tick(dt);
+                    a = MapView.recallon;
+                }
+            }, prev.pos("bl").adds(0, 5));
+        prev.settip("Draws the ground your character has already explored past what the server streams, out of"
+                    + " the client's own map database, under every camera. Nothing is asked of the server for"
+                    + " it, and nothing stands on it.", true);
+
+        Label rangeLbl = body.add(new Label("Range"), prev.pos("bl").adds(5, 5));
+        Coord rangeEnd;
+        {
+            Label dpy = new Label("");
+            /* The knob stands at the panel's floor when a 1 was written from Lua; the label says the 1. */
+            HSlider sl = new HSlider(UI.scale(140), MapView.recallrangepanel, MapView.recallrangemax,
+                                     Math.max(MapView.recallrange, MapView.recallrangepanel)) {
+                    protected void added() {
+                        dpy();
+                    }
+                    int said = -1;
+                    void dpy() {
+                        int r = MapView.recallrange;
+                        if(r != said)
+                            dpy.settext(r + ((r == 1) ? " grid" : " grids"));
+                        said = r;
+                    }
+                    public void changed() {
+                        Utils.setprefi("recallrange", MapView.recallrange = this.val);
+                        dpy();
+                    }
+                    public void tick(double dt) {
+                        super.tick(dt);
+                        int shown = Math.max(MapView.recallrange, MapView.recallrangepanel);
+                        if(this.val != shown)
+                            this.val = shown;
+                        dpy();
+                    }
+                };
+            rangeEnd = body.addhlp(Coord.of(rangeLbl.pos("ur").x + UI.scale(5), rangeLbl.c.y), UI.scale(5), sl, dpy);
+            sl.settip("How far around the camera explored ground is drawn, in grids. A grid is 100 tiles across."
+                      + " A larger range reaches further and costs more memory and more meshes to build; what is"
+                      + " drawn is bounded by the view and by the client's own mesh budget either way.", true);
+        }
+
+        prev = body.add(new Label("Ground"),
+                        Coord.of(0, Math.max(rangeLbl.pos("bl").y, rangeEnd.y) + UI.scale(15)));
 
         Label flavorLbl = body.add(new Label("Flavor objects"), prev.pos("bl").adds(5, 10));
         Coord flavorEnd;

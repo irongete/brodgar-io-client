@@ -11,7 +11,8 @@ import org.luaj.vm2.LuaValue;
  * Client options subsystem (spec 019-profiling, task 019.1) — {@code hafen.client:options():client()}, the Lua
  * side of the Options → <b>Client</b> panel ({@link io.brodgar.ui.ClientPanel}). This class is the
  * <b>addon surface</b> over client features that live in packages of their own: {@link Prof}, and the
- * remembered ground's three statics on {@link haven.MapView}. The handle lives here, the engine does not.
+ * view distance's two statics on {@link haven.MapView}, which the Performance panel shows. The handle lives here,
+ * the engine does not.
  *
  * <p>One OptWnd panel is one options subsystem — the shape 018 already ships for
  * {@code interface}/{@code video}/{@code audio}/{@code camera}/{@code keybindings} — which is why the switch
@@ -45,7 +46,7 @@ public final class ClientOptions {
             }
         });
 
-        // recall() — whether the remembered ground is drawn at all. The live field and its pref go in one
+        // recall() — whether the view distance's explored ground is drawn at all. The live field and its pref go in one
         // statement, exactly as the panel's checkbox writes them, so a Lua write and a click are the same act.
         m.set("recall", new OptionsMethod(owner, handle, "client:recall") {
             protected LuaValue onRead() {
@@ -75,17 +76,6 @@ public final class ClientOptions {
             }
         });
 
-        // recallGrey() — whether remembered ground is drawn without colour. A switch and not an amount: an
-        // off state and a wash of zero would be two spellings of one setting.
-        m.set("recallGrey", new OptionsMethod(owner, handle, "client:recallGrey") {
-            protected LuaValue onRead() {
-                return LuaValue.valueOf(MapView.recallgrey);
-            }
-            protected void onWrite(LuaValue value) {
-                Utils.setprefb("recallgrey", MapView.recallgrey = bool(value, "on",
-                                                                      "whether it is drawn without colour"));
-            }
-        });
         return m;
     }
 }

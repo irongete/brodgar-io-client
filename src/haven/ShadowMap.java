@@ -286,6 +286,13 @@ public class ShadowMap extends State {
 		    {
 			LValue sdw = code.local(FLOAT, l(0.0)).ref();
 			Expression mapc = code.local(VEC3, div(pick(stc.ref(), "xyz"), pick(stc.ref(), "w"))).ref();
+			/* addon: the map covers a box around the player and nothing past it. A fragment outside
+			 * that box read the CLAMPed edge texel, or lay past the light's far depth, and came out
+			 * shadowed -- black smears over all distant ground. Outside the box is lit. */
+			code.add(new If(or(or(lt(min(pick(mapc, "x"), pick(mapc, "y")), l(0.0)),
+					      gt(max(pick(mapc, "x"), pick(mapc, "y")), l(1.0))),
+					   gt(pick(mapc, "z"), l(1.0))),
+					new Return(l(1.0))));
 			double xr = xd * (res - 1), yr = yd * (res - 1);
 			boolean unroll = false;
 			if(!unroll) {
