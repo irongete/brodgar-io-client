@@ -22,6 +22,8 @@ import haven.Light;
 import haven.Loading;
 import haven.MCache;
 import haven.MapFile;
+import haven.MapView;
+import haven.ClickLocation;
 import haven.Material;
 import haven.Resource;
 import haven.TexI;
@@ -115,18 +117,23 @@ public class RecallLod implements RenderTree.Node {
 	final Model model;
 	final TexI tex;
 	final RenderTree.Node node;
+	/* The same ground for the click pass: the cell's surface without its skirts, carrying
+	 * ClickLocation's 0..1 place over the cell, and none of the holes where nothing was recorded. */
+	final Model click;
 	final float zlo, zhi;
 
-	Built(Model model, TexI tex, RenderTree.Node node, float zlo, float zhi) {
+	Built(Model model, TexI tex, RenderTree.Node node, Model click, float zlo, float zhi) {
 	    this.model = model;
 	    this.tex = tex;
 	    this.node = node;
+	    this.click = click;
 	    this.zlo = zlo;
 	    this.zhi = zhi;
 	}
 
 	void dispose() {
 	    model.dispose();
+	    click.dispose();
 	    tex.dispose();
 	}
     }
@@ -153,6 +160,19 @@ public class RecallLod implements RenderTree.Node {
     /** What is in the scene right now, and the slot it is in. */
     private final Map<Key, RenderTree.Slot> inscene = new HashMap<Key, RenderTree.Slot>();
     private RenderTree.Slot slot = null;
+    /** The same cells in the view's click pass, so a click on far ground is a click on the ground. */
+    private final Map<Key, RenderTree.Slot> inclick = new HashMap<Key, RenderTree.Slot>();
+    private RenderTree.Slot cslot = null;
+    public final RenderTree.Node clicks = new RenderTree.Node() {
+	    public void added(RenderTree.Slot slot) {
+		cslot = slot;
+	    }
+
+	    public void removed(RenderTree.Slot slot) {
+		cslot = null;
+		inclick.clear();
+	    }
+	};
     /** The base the cells in the scene were placed through. */
     private Recall.Base placed = null;
 
@@ -186,6 +206,9 @@ public class RecallLod implements RenderTree.Node {
 	    for(RenderTree.Slot s : inscene.values())
 		s.remove();
 	    inscene.clear();
+	    for(RenderTree.Slot s : inclick.values())
+		s.remove();
+	    inclick.clear();
 	    placed = base;
 	}
 	boolean flat = Performance.flatTerrain;
@@ -272,15 +295,23 @@ public class RecallLod implements RenderTree.Node {
 		i.remove();
 	    }
 	}
-	if(slot != null) {
-	    for(Key k : want) {
-		if(inscene.containsKey(k))
-		    continue;
-		Built b = cells.get(k).built;
-		Coord tc = k.sc.sub(base.off).mul(MCache.cmaps);
-		Coord3f at = Coord3f.of((float)(tc.x * MCache.tilesz.x), -(float)(tc.y * MCache.tilesz.y), 0);
-		inscene.put(k, slot.add(b.node, Location.xlate(at)));
+	for(Iterator<Map.Entry<Key, RenderTree.Slot>> i = inclick.entrySet().iterator(); i.hasNext();) {
+	    Map.Entry<Key, RenderTree.Slot> e = i.next();
+	    if(!want.contains(e.getKey())) {
+		e.getValue().remove();
+		i.remove();
 	    }
+	}
+	for(Key k : want) {
+	    Built b = cells.get(k).built;
+	    Coord tc = k.sc.sub(base.off).mul(MCache.cmaps);
+	    Coord3f at = Coord3f.of((float)(tc.x * MCache.tilesz.x), -(float)(tc.y * MCache.tilesz.y), 0);
+	    if((slot != null) && !inscene.containsKey(k))
+		inscene.put(k, slot.add(b.node, Location.xlate(at)));
+	    /* The click's 0..1 place spans the cell's tiles, in session tile coords: the view turns it into
+	     * the ground position the click is sent with. */
+	    if((cslot != null) && !inclick.containsKey(k))
+		inclick.put(k, cslot.add(MapView.farclick(tc, MCache.cmaps.mul(1 << k.lvl), b.click), Location.xlate(at)));
 	}
 	ndrawn = inscene.size();
 	trim();
@@ -341,7 +372,7 @@ public class RecallLod implements RenderTree.Node {
 	int over = cells.size() - CACHECAP;
 	for(Iterator<Map.Entry<Key, Cell>> i = cells.entrySet().iterator(); i.hasNext() && (over > 0);) {
 	    Map.Entry<Key, Cell> e = i.next();
-	    if(inscene.containsKey(e.getKey()))
+	    if(inscene.containsKey(e.getKey()) || inclick.containsKey(e.getKey()))
 		continue;
 	    Cell c = e.getValue();
 	    if(c.building != null)
@@ -358,6 +389,9 @@ public class RecallLod implements RenderTree.Node {
 	for(RenderTree.Slot s : inscene.values())
 	    s.remove();
 	inscene.clear();
+	for(RenderTree.Slot s : inclick.values())
+	    s.remove();
+	inclick.clear();
 	for(Cell c : cells.values()) {
 	    if(c.building != null)
 		c.building.cancel();
@@ -573,6 +607,41 @@ public class RecallLod implements RenderTree.Node {
 				     Light.PhongLight.defspc, new FColor(0, 0, 0), 0f),
 		Material.nofacecull,
 	    });
-	return(new Built(model, tex, mat.apply(model), zlo, zhi));
+	/* The click mesh: the surface's vertices with their texcoords as ClickLocation's place, and every
+	 * quad that has a recorded sample in it -- a click on a hole reaches whatever lies behind. */
+	float[] cvert = new float[nv * nv * 5];
+	for(int v = 0; v < nv * nv; v++) {
+	    System.arraycopy(vert, v * 8, cvert, v * 5, 3);
+	    cvert[(v * 5) + 3] = vert[(v * 8) + 6];
+	    cvert[(v * 5) + 4] = vert[(v * 8) + 7];
+	}
+	short[] cidx = new short[n * n * 6];
+	int cp = 0;
+	for(int j = 0; j < n; j++) {
+	    for(int i = 0; i < n; i++) {
+		boolean any = false;
+		for(int sy = j * step; (sy < (j + 1) * step) && !any; sy++) {
+		    for(int sx = i * step; (sx < (i + 1) * step) && !any; sx++)
+			any = !nil[g.tiles[sx + (sy * MCache.cmaps.x)]];
+		}
+		if(!any)
+		    continue;
+		int a = i + (j * nv), b = a + 1, c = a + nv, d = c + 1;
+		cidx[cp++] = (short)a; cidx[cp++] = (short)c; cidx[cp++] = (short)b;
+		cidx[cp++] = (short)b; cidx[cp++] = (short)c; cidx[cp++] = (short)d;
+	    }
+	}
+	VertexArray.Layout cfmt = new VertexArray.Layout(
+	    new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0, 20),
+	    new VertexArray.Layout.Input(ClickLocation.vertex, new VectorFormat(2, NumberFormat.FLOAT32), 0, 12, 20));
+	VertexArray cvao = new VertexArray(cfmt, new VertexArray.Buffer(cvert.length * 4, DataBuffer.Usage.STATIC,
+								       DataBuffer.Filler.of(cvert)));
+	short[] cidxf = java.util.Arrays.copyOf(cidx, Math.max(cp, 3));
+	Model click = new Model(Model.Mode.TRIANGLES, cvao,
+				new Model.Indices(cidxf.length, NumberFormat.UINT16, DataBuffer.Usage.STATIC,
+						  DataBuffer.Filler.of(cidxf)),
+				0, Math.max(cp, 3));   // a cell of holes alone: one degenerate triangle, no pixel
+
+	return(new Built(model, tex, mat.apply(model), click, zlo, zhi));
     }
 }

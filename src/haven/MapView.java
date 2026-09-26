@@ -2000,6 +2000,48 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * falls with distance. It decides which grids the full-detail raster draws, too. */
     private io.brodgar.session.RecallLod recalllod = null;
     private RenderTree.Slot s_lod = null;
+    /* addon: and both in the click pass, so a click on recorded ground -- near or far -- is a click on
+     * the ground like any other: the full-detail cuts the recorded raster has in the scene, and the far
+     * cells the rings have in theirs. */
+    private RecallClick recallclick = null;
+    private RenderTree.Slot s_recallclick = null, s_lodclick = null;
+
+    private class RecallClick extends MapRaster {
+	final Grid<MapMesh> grid = new Grid<MapMesh>() {
+		MapMesh getcut(Coord cc) {
+		    return(map.getcut(cc));
+		}
+		RenderTree.Node produce(MapMesh cut) {
+		    return(new MapClick(cut).apply(cut.flat));
+		}
+	    };
+
+	RecallClick(MCache map) {
+	    super(map);
+	}
+
+	/* Exactly the cuts the drawn raster has in the scene: nothing clickable that is not seen. */
+	boolean skipcut(Coord cc) {
+	    RecallTerrain t = recallterrain;
+	    return((t == null) || !t.main.cuts.containsKey(cc));
+	}
+
+	boolean liveground() {
+	    return(false);
+	}
+
+	void tick() {
+	    RecallTerrain t = recallterrain;
+	    area = (t == null) ? null : t.area;
+	    if(area != null)
+		grid.tick();
+	}
+
+	public void added(RenderTree.Slot slot) {
+	    slot.add(grid);
+	    super.added(slot);
+	}
+    }
 
     /* 068.2: the remembered ground, in the scene.
      *
@@ -2290,6 +2332,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    s_lod.remove();
 	    s_lod = null;
 	}
+	if(s_recallclick != null) {
+	    s_recallclick.remove();
+	    s_recallclick = null;
+	}
+	if(s_lodclick != null) {
+	    s_lodclick.remove();
+	    s_lodclick = null;
+	}
 	/* 120.6: and what it says it wants goes out with it, because a raster out of the scene is not
 	 * ticked -- there is no centre to tick it on and nothing drawn to tick it for -- so every number
 	 * its last tick left behind would stand for as long as it stays out. Cuts drawn falls to zero of
@@ -2426,6 +2476,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * disposed. */
 	recallterrain.center = c;
 	recallterrain.tick();
+	if(recallclick == null)
+	    recallclick = new RecallClick(recall.map);
+	if(s_recallclick == null)
+	    s_recallclick = clmaptree.add(recallclick);
+	if(s_lodclick == null)
+	    s_lodclick = clmaptree.add(recalllod.clicks);
+	recallclick.tick();
 	/* 120.2: what the raster just decided it wants is what the source reads, and it is handed over
 	 * here rather than taken, so there is one place the wiring is stated. 120.4: and what it is holding
 	 * goes over with it, because that is what the source's own budget may not drop. Both after the tick
@@ -2680,14 +2737,34 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     static class MapClick extends Clickable {
 	final MapMesh cut;
+	/* addon: the tiles the click's 0..1 location spans, and the map they are the tiles of -- a cut's
+	 * own, or a far cell's of the view distance, which has no cut and whose tiles are the session's. */
+	final Coord ul, sz;
+	final MCache map;
 
 	MapClick(MapMesh cut) {
 	    this.cut = cut;
+	    this.ul = cut.ul;
+	    this.sz = cut.sz;
+	    this.map = cut.map;
+	}
+
+	MapClick(Coord ul, Coord sz) {
+	    this.cut = null;
+	    this.ul = ul;
+	    this.sz = sz;
+	    this.map = null;
 	}
 
 	public String toString() {
-	    return(String.format("#<mapclick %s>", cut));
+	    return(String.format("#<mapclick %s>", (cut != null) ? cut : (ul + "+" + sz)));
 	}
+    }
+
+    /* addon: a far cell of the view distance made clickable: `mesh` carries ClickLocation's per-vertex
+     * 0..1 location over the `sz` tiles from `ul`, in session tile coords. */
+    public static RenderTree.Node farclick(Coord ul, Coord sz, RenderTree.Node mesh) {
+	return(new MapClick(ul, sz).apply(mesh));
     }
 
     private final ClickMap clickmap;
@@ -3237,7 +3314,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private void checkmapclick(Render out, Pipe.Op basic, Coord c, Consumer<Coord2d> cb) {
 	new Object() {
-	    MapMesh cut;
+	    MapClick cut;
 	    Coord2d pos;
 
 	    {
@@ -3253,7 +3330,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			if(clickdb)
 			    Debug.log.printf("map-id: %s\n", cd);
 			if(cd != null)
-			    this.cut = ((MapClick)cd.ci).cut;
+			    this.cut = (MapClick)cd.ci;
 			ckdone(1);
 		    });
 		out.pget(clmaplist.basic, ClickLocation.fragloc, Area.sized(Coord.of(c.x, clmaplist.sz().y - c.y), new Coord(1, 1)), new VectorFormat(2, NumberFormat.FLOAT32), data -> {
@@ -3272,12 +3349,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    cb.accept(null);
 			} else {
 			    Coord2d wc = new Coord2d(cut.ul).add(pos.mul(new Coord2d(cut.sz))).mul(tilesz);
+			    /* addon: a far cell has no map of its own; its tiles are the session's already. */
 			    /* rts: (F7) the coordinate is derived from the CUT, so it comes out in the frame
 			     * of whichever session's map that cut belongs to -- the scene translation above
 			     * it does not touch this arithmetic at all. A cut from a merged member view is
 			     * brought back into the anchor's frame here, once, so that everything downstream
 			     * (an order, a move, a placement) goes on speaking one coordinate system. */
-			    Coord2d off = io.brodgar.session.Sessions.offsetfor(cut.map);
+			    Coord2d off = (cut.map == null) ? null : io.brodgar.session.Sessions.offsetfor(cut.map);
 			    if(off != null)
 				wc = wc.sub(off);
 			    cb.accept(wc);
@@ -4023,6 +4101,43 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
 	    clickhit(pc, mc, inf, clickb);
 	}
+
+	/* addon: a click where no ground is drawn -- ground never explored, past what the record holds --
+	 * still goes to the server as a click on the ground: where the pointer's ray meets the level of the
+	 * character's own ground. The server walks the character there as it would to any ground click. */
+	protected void nohit(Coord pc) {
+	    Coord2d mc = groundless(pc);
+	    if(mc != null)
+		clickhit(pc, mc, null, clickb);
+	}
+    }
+
+    /* addon: where the pointer's ray at `pc` (map-view pixels) comes down to the horizontal plane at the
+     * character's height, in map coords; null with no character, a ray that does not come down to it,
+     * or a meeting past the far plane. The pick pass answers for every drawn surface; this is only for
+     * where none is. */
+    Coord2d groundless(Coord pc) {
+	float pz;
+	try {
+	    pz = getcc().z;
+	} catch(Loading e) {
+	    return(null);
+	}
+	Pipe st = basic.state();
+	Matrix4f inv = Homo3D.prjxf(st).mul(Homo3D.camxf(st)).mul(Homo3D.locxf(st)).invert();
+	if(inv == null)
+	    return(null);
+	float nx = ((pc.x * 2f) / sz.x) - 1f, ny = 1f - ((pc.y * 2f) / sz.y);
+	Coord3f a = inv.mul4(HomoCoord4f.of(nx, ny, -1f, 1f)).pdiv();
+	Coord3f b = inv.mul4(HomoCoord4f.of(nx, ny, 1f, 1f)).pdiv();
+	float dz = b.z - a.z;
+	if(Math.abs(dz) < 1e-6f)
+	    return(null);
+	float t = (pz - a.z) / dz;
+	if((t < 0) || (t > 1))
+	    return(null);
+	/* The scene's y runs the other way from the map's (clipxf). */
+	return(new Coord2d(a.x + ((b.x - a.x) * t), -(a.y + ((b.y - a.y) * t))));
     }
 
     /* rts: what an ordinary left click does, said apart from the pick pass that resolved it, because
