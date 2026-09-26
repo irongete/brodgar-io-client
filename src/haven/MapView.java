@@ -79,15 +79,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * recallrange is the drawn reach in grids around where the camera looks; Recall reads one grid further
      * for the fill margin. The bounds are stated here, once, because the panel's slider, the Lua option's
      * refusal and this field's own clamp are three readers of one fact. The Performance page's slider
-     * starts at recallrangepanel, the default; a 1 written from Lua stands and shows at its lowest end.
+     * starts at recallrangepanel; a 1 written from Lua stands and shows at its lowest end. recallrangedef is
+     * what a client with no stored range starts at.
      *
      * recalldetail is how far of that is drawn at full detail, as real cut meshes; past it the far rings
      * (io.brodgar.session.RecallLod) draw the map database's zoom grids at a detail that falls with
      * distance. */
-    public static final int recallrangemin = 1, recallrangemax = 64, recallrangepanel = 2;
+    public static final int recallrangemin = 1, recallrangemax = 512, recallrangepanel = 2, recallrangedef = 8;
     public static final int recalldetail = 2;
     public static boolean recallon = Utils.getprefb("recallon", true);
-    public static int recallrange = Utils.clip(Utils.getprefi("recallrange", 2), recallrangemin, recallrangemax);
+    public static int recallrange = Utils.clip(Utils.getprefi("recallrange", recallrangedef), recallrangemin, recallrangemax);
     /* How far from its centre the recalled ground can stand, in world units: the range and the grid the
      * centre is in, corner-on. What a camera's far plane has to reach for the view distance to be seen. */
     public static float recallreach() {
