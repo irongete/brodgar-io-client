@@ -47,9 +47,9 @@ at a permanent offset once the gap has closed.
   the domain is `0..3`. The `"astro"` branch defaults the field to `1` when the server omits it, which is
   a hint that 1 is the neutral season and not proof. Which index is which season appears nowhere in
   `src/haven`: read it off the calendar the client draws.
-- **`Astronomy.dt` is 0 at noon, not at midnight.** `Cal` draws the sun on its dial at the angle
-  `(dt + 0.75) * 2π` and the moon at `(dt + 0.25) * 2π`, so the sun stands at the top at `dt == 0` and the
-  moon at `dt == 0.5`. Nothing else in `src/haven` reads `dt`: the night flag is the only other word the
+- **`Astronomy.dt` is 0 at midnight and 0.5 at noon.** `Cal` draws the sun on its dial at the angle
+  `(dt + 0.75) * 2π` and the moon at `(dt + 0.25) * 2π`, through `Coord.sc`, which turns the angle's y
+  upward (`-sin`): so the sun stands at the top at `dt == 0.5` and the moon at `dt == 0`. Nothing else in `src/haven` reads `dt`: the night flag is the only other word the
   server gives on the time of day, and it is a separate field, not a range of `dt`.
 - **The calendar's moon ignores its phase.** `Cal` always puts it across the dial from the sun, whatever
   `mp` says; `mp` only picks which frame of `gfx/hud/calendar/moon` is drawn.

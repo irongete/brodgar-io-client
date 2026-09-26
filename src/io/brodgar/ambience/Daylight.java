@@ -100,7 +100,7 @@ final class Daylight {
     /* The server's day, as its night flag shows it: its day fraction at noon, and where its night ends and
      * begins, as fractions of a day from noon (rise before it, set after). Kept as prefs, since every login
      * learns them afresh otherwise. */
-    static double noon = 0.0;
+    static double noon = 0.5;
     static double rise = span("ambience-nightend", -0.30, -0.45, -0.05);
     static double set = span("ambience-nightstart", 0.30, 0.05, 0.45);
     private static Boolean lastnight = null;
@@ -134,8 +134,9 @@ final class Daylight {
 	}
 	prevdt = ast.dt;
 	prevgt = gt;
-	/* The game's calendar (Cal) draws the sun at its top at 0 and the moon at its top at 0.5: so noon is
-	 * 0, unless the server's night is seen to stand round 0 instead. */
+	/* The game's calendar (Cal) draws the sun at its top at 0.5 and the moon at its top at 0 (Coord.sc
+	 * turns the angle's y upward): so noon is 0.5, unless the server's night is seen to stand round 0.5
+	 * instead. */
 	if(ast.night)
 	    noon = (Math.abs(ast.dt - 0.5) < 0.25) ? 0.0 : 0.5;
 	double y = wrap(ast.dt - noon);
