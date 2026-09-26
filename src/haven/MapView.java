@@ -3731,6 +3731,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	wdgmsg("initload", time);
     }
 
+    /* addon: what the camera's state standing in `basic` was made of -- see tick(). */
+    private Pipe.Op camstate = null;
+    private haven.render.Camera camview = null;
+    private Projection camproj = null;
+
     public void tick(double dt) {
 	super.tick(dt);
 	if(dormant) {
@@ -3773,7 +3778,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    e.boostprio(Defer.URGENT);
 	    camload = e;
 	}
-	basic(Camera.class, camera);
+	/* addon: the camera's state is its view and projection as they stand, set again whenever either moves.
+	 * basic() applies a state again only when it differs from the one standing, and the camera is the same
+	 * object every tick: upstream's picture followed the camera only because lights() set a new light state
+	 * every frame, which applied everything standing again. lights() keeps its state while nothing it was
+	 * compiled from moves, so the camera, set as itself, froze on screen -- moving only when the sun turned --
+	 * while the clicks read the camera as it is. */
+	if((camstate == null) || !Utils.eq(camera.view, camview) || !Utils.eq(camera.proj, camproj)) {
+	    camview = camera.view;
+	    camproj = camera.proj;
+	    basic(Camera.class, camstate = Pipe.Op.compose(camproj, camview));
+	}
 	amblight();
 	updsmap(amblight);
 	updweather();
