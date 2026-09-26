@@ -98,10 +98,11 @@ tilted the light camera is not a pure rotation: the player lands off the box's c
 "does this reach the shadow map" is asked through `lproj × lcam`, as `ShadowList.cull` does, never by distance
 from the player.
 
-**Gotcha — `MapView.amblight()` builds a new `DirLight` every tick**, removing the old light's slot and adding
-the new one, and `updsmap` hands it to `ShadowMap.light`, which compares by identity. So the `ShadowMap` state
-is a new object every frame though nothing moved. Anything deciding whether the map changed compares what it
-holds (`samezone`), never the object.
+**Gotcha — a new sun means a new `ShadowMap`.** `updsmap` hands the sun to `ShadowMap.light`, which compares by
+identity, and upstream `MapView.amblight()` built a new `DirLight` every tick: a new `ShadowMap` state every frame
+though nothing moved. Fork: the sun is kept while its values hold ([world-effects.md](world-effects.md)), but it
+is still made anew each tick while it turns, and a colour change turns out a new state that moves nothing. Anything
+deciding whether the map changed compares what it holds (`samezone`), never the object.
 
 ## The 2D blit path (what `g.image` actually does)
 

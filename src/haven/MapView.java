@@ -2916,8 +2916,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * map drawn one frame earlier from the very same camera -- the only thing it misses is how far a moving or
      * animated caster got in that one frame. A map whose camera has moved since (the player walked past the
      * 50 units updsmap waits for, or the sun turned) is drawn in the same frame, never skipped: that is
-     * ShadowMap.samezone, which compares the camera rather than the object because amblight() makes a new
-     * ShadowMap every tick. Half the shadow pass's draw calls and GPU time, for one frame of lag. */
+     * ShadowMap.samezone, which compares the camera rather than the object: every new sun brings a new ShadowMap
+     * (ShadowMap.light compares by identity), and amblight() makes a new sun whenever its colours move, which do
+     * not move the map. Half the shadow pass's draw calls and GPU time, for one frame of lag. */
     private ShadowMap smapdrawn = null;
     private boolean smapskip = false;
 
@@ -2944,9 +2945,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public DirLight amblight = null;
     private RenderTree.Slot s_amblight = null;
+    /* addon: what the sun standing in the scene was built from. This is asked every tick, and the server's light
+     * holds still but for its two-second turns (Glob.ticklight), a previewed hour for as long as it is previewed;
+     * building a new DirLight every tick anyway took the sun out of the scene and put it back each frame, and
+     * handed updsmap a new ShadowMap state for it, which every shadowed program re-read its uniforms for. A sun
+     * whose values are the ones already standing is left standing. */
+    private Object[] sunkey = null;
     private void amblight() {
 	synchronized(glob) {
 	    io.brodgar.ambience.Ambience.Sun pv = io.brodgar.ambience.Ambience.sunpreview();   // addon: ambience -- a previewed hour
+	    Object[] key = (pv != null) ? new Object[] {pv.amb, pv.dif, pv.spc, pv.elev, pv.ang} :
+		(glob.lightamb != null) ? new Object[] {glob.lightamb, glob.lightdif, glob.lightspc, glob.lightelev, glob.lightang} :
+		null;
+	    if(Arrays.equals(key, sunkey) && ((key == null) == (s_amblight == null)))   // addon: the same sun
+		return;
+	    sunkey = key;
 	    if(pv != null) {
 		amblight = new DirLight(pv.amb, pv.dif, pv.spc, Coord3f.o.sadd(pv.elev, pv.ang, 1f));
 		amblight.prio(100);
@@ -3007,14 +3020,44 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private LightCompiler lighting;
+    /* addon: what the light state standing in `basic` was compiled from: the lights' parameters, the projection and
+     * the compiler. PView.draw asks for the state every frame, and upstream compiled it anew each time whatever
+     * had moved -- for ZONED lighting a whole new 64x64x64 cell grid, two new textures uploaded while the last pair
+     * was deleted, and a new state every program re-read its light uniforms for. It depends on those three alone,
+     * so while none of them moves (the camera still, no light moving) the state already standing is kept. It must
+     * still be the one standing: `basic` is asked, so a state anybody else took out is compiled again. */
+    private Object[][] lightparams = null;
+    private Projection lightproj = null;
+    private Pipe.Op lightstate = null;
     protected void lights() {
 	GSettings gprefs = basic.state().get(GSettings.slot);
 	if((lighting == null) || !lighting.valid(gprefs)) {
 	    basic(Light.class, null);
 	    lighting = new LightCompiler(gprefs);
+	    lightstate = null;   // addon: a new compiler compiles anew
 	}
 	Projection proj = (camera == null) ? new Projection(Matrix4f.id) : camera.proj;
-	basic(Light.class, Pipe.Op.compose(lights, lighting.compile(lights.params(), proj)));
+	Object[][] params = lights.params();
+	if((lightstate != null) && (basic(Light.class) == lightstate) && Utils.eq(proj, lightproj) && Arrays.deepEquals(params, lightparams))
+	    return;   // addon: nothing it was compiled from has moved
+	lightparams = lightcopy(params);
+	lightproj = proj;
+	basic(Light.class, lightstate = Pipe.Op.compose(lights, lighting.compile(params, proj)));
+    }
+
+    /* addon: the parameters as they were, each float[] copied: a light's colours are its own arrays, handed out
+     * as they are, so one that changed them in place would otherwise compare equal to itself. */
+    private static Object[][] lightcopy(Object[][] params) {
+	Object[][] ret = new Object[params.length][];
+	for(int i = 0; i < params.length; i++) {
+	    Object[] p = params[i].clone();
+	    for(int o = 0; o < p.length; o++) {
+		if(p[o] instanceof float[])
+		    p[o] = ((float[])p[o]).clone();
+	    }
+	    ret[i] = p;
+	}
+	return(ret);
     }
 
     public static final Uniform amblight_idx = new Uniform(Type.INT, p -> {

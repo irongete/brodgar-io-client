@@ -333,8 +333,9 @@ public class ShadowMap extends State {
     }
 
     /* addon: does `that` hold the depth this one would draw -- the same buffer, seen from the same light
-     * camera? Not identity: MapView.amblight() builds a new DirLight every tick, and light() a new ShadowMap
-     * for it, though neither moves the map. What the map holds depends on the camera alone. */
+     * camera? Not identity: light() makes a new ShadowMap for every new DirLight, and MapView.amblight() makes a
+     * new one whenever the sun's values move, its colours included, which do not move the map. What the map
+     * holds depends on the camera alone. */
     public boolean samezone(ShadowMap that) {
 	return((that != null) && (that.lbuf == this.lbuf) && Utils.eq(that.lcam, this.lcam));
     }
