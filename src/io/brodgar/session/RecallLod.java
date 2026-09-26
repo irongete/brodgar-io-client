@@ -62,9 +62,10 @@ import io.brodgar.perf.Performance;
  *
  * <p><b>A cell</b> is one mesh: a height map of {@link #QUADS}² quads over the zoom grid's heights, lit
  * through normals of its own, textured with the minimap's own colours of its tiles (one texel per sample),
- * and skirted: each edge hangs a strip down, so two cells whose sampled heights disagree along a shared
- * edge show no crack between them. It is built on a {@link Defer} thread, cached by level, place and
- * flat-terrain state, and dropped least-recently-drawn first past {@link #CACHECAP}.
+ * and skirted: each edge hangs a strip down, as deep as the slope there, so two cells whose sampled
+ * heights disagree along a shared edge show no crack between them. It is built on a {@link Defer} thread,
+ * cached by level, place and flat-terrain state, and dropped least-recently-drawn first past
+ * {@link #CACHECAP}.
  *
  * <p>Nothing stands on it and nothing reaches it: no objects, no overlays, no clicks, no shadow cast.
  */
@@ -475,7 +476,6 @@ public class RecallLod implements RenderTree.Node {
 	    if(Float.isNaN(z[k]))
 		z[k] = zlo;
 	}
-	float skirt = (q * 3) + 20;
 
 	/* Interleaved position, normal, texcoord: the main grid, then one ring of skirt vertices. */
 	int nskirt = 4 * n;
@@ -511,12 +511,24 @@ public class RecallLod implements RenderTree.Node {
 	    for(int j = n; j > 0; j--) ring[k++] = j * nv;                     // left edge, upward
 	}
 	int sbase = nv * nv;
+	/* Each skirt vertex hangs only as far as the ground around it moves: a crack between two cells is
+	 * the two disagreeing about a height the slope there puts within that reach. A fixed deep skirt
+	 * stands as a wall wherever no neighbour is drawn -- unexplored ground, a cell still loading. */
+	float deepest = 0;
 	for(int k = 0; k < nskirt; k++) {
-	    int src = ring[k] * 8, o = (sbase + k) * 8;
+	    int v = ring[k], vi = v % nv, vj = v / nv;
+	    float zc = z[v], dz = 0;
+	    if(vi > 0) dz = Math.max(dz, Math.abs(zc - z[v - 1]));
+	    if(vi < n) dz = Math.max(dz, Math.abs(zc - z[v + 1]));
+	    if(vj > 0) dz = Math.max(dz, Math.abs(zc - z[v - nv]));
+	    if(vj < n) dz = Math.max(dz, Math.abs(zc - z[v + nv]));
+	    float depth = 10 + (dz * 2);
+	    deepest = Math.max(deepest, depth);
+	    int src = v * 8, o = (sbase + k) * 8;
 	    System.arraycopy(vert, src, vert, o, 8);
-	    vert[o + 2] -= skirt;
+	    vert[o + 2] -= depth;
 	}
-	zlo -= skirt;
+	zlo -= deepest;
 
 	int nidx = (n * n * 6) + (nskirt * 6);
 	short[] idx = new short[nidx];

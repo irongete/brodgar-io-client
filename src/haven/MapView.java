@@ -1809,6 +1809,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(boxvisible(ul, ul.add(new Coord2d(MCache.cmaps).mul(tilesz)).add(csz.mul(2))));
     }
 
+    /* addon: the same two tests over a height range of the caller's -- recorded ground knows its own. */
+    private boolean gridvisible(Coord gc, float zlo, float zhi) {
+	Coord2d csz = new Coord2d(MCache.cutsz).mul(tilesz);
+	Coord2d ul = new Coord2d(gc.mul(MCache.cmaps)).mul(tilesz).sub(csz);
+	return(boxvisible(ul, ul.add(new Coord2d(MCache.cmaps).mul(tilesz)).add(csz.mul(2)), zlo, zhi));
+    }
+
+    private boolean cutvisible(Coord anc, float zlo, float zhi) {
+	Coord2d csz = new Coord2d(MCache.cutsz).mul(tilesz);
+	Coord2d ul = new Coord2d(anc.mul(MCache.cutsz)).mul(tilesz).sub(csz);
+	return(boxvisible(ul, ul.add(csz.mul(3)), zlo, zhi));
+    }
+
     /** rts: the same test for a single object -- a couple of tiles across, tall enough for a tree. */
     private boolean gobvisible(Coord2d rc) {
 	Coord2d m = tilesz.mul(3);
@@ -2100,23 +2113,43 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * cutvisible would have kept, and the two sides cannot disagree about the edge. */
 	    Set<Coord> want = new HashSet<>();
 	    List<Coord> held = new ArrayList<>();
+	    Map<Coord, float[]> heights = new HashMap<>();
+	    float[] cband = null;
+	    try {
+		Coord3f pc = getcc();
+		cband = new float[] {pc.z - 100, pc.z + 100};
+	    } catch(Loading e) {
+	    }
 	    for(Coord g : grids) {
-		if(!gridvisible(g))
+		/* addon: tested over the grid's OWN heights as well as the character's band. The band alone
+		 * is a box at the character's height, and recorded ground far below it (the character on a
+		 * hill, a tower, a pyramid) projects elsewhere on screen: the box leaves the frustum while
+		 * the ground is in view, and the ground vanishes as the camera zooms in or tilts. A wider
+		 * box is only ever MORE visible, so the union drops nothing the band kept. A grid not read
+		 * yet has no heights, and is asked about over a generous range. */
+		MCache.Grid lg = AddonWidgets.loadedGrid(map, g);
+		float[] zr = (lg == null) ? new float[] {-1000, 3000} : zrange(lg);
+		if(cband != null)
+		    zr = new float[] {Math.min(zr[0], cband[0]), Math.max(zr[1], cband[1])};
+		if(!gridvisible(g, zr[0], zr[1]))
 		    continue;
 		want.add(g);
+		heights.put(g, zr);
 		/* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
 		 * getgrid, which on a miss queues a request -- harmless on a source nothing sends for,
 		 * but it fills that queue with every unrecorded grid in the area and buries the one
 		 * number :recall exists to report. Ground the character has never walked is simply not
 		 * drawn -- and it is wanted all the same, because what is read is what the camera frames
 		 * and whether the record has anything there is the source's own question. */
-		if(AddonWidgets.loadedGrid(map, g) != null)
+		if(lg != null)
 		    held.add(g);
 	    }
 	    wantgrids = want;
 	    List<Coord> cand = new ArrayList<>();
 	    Area own = terrain.area;
+	    Map<Coord, Boolean> loaded = new HashMap<>();
 	    for(Coord g : held) {
+		float[] zr = heights.get(g);
 		Coord ul = g.mul(MCache.cutn);
 		for(int cy = 0; cy < MCache.cutn.y; cy++) {
 		    for(int cx = 0; cx < MCache.cutn.x; cx++) {
@@ -2126,7 +2159,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			 * twin, and two twins in one place is z-fighting. */
 			if((own != null) && own.contains(cc))
 			    continue;
-			if(!cutvisible(cc))
+			if(!cutvisible(cc, zr[0], zr[1]))
+			    continue;
+			/* addon: and only a cut whose mesh CAN be built: every grid it reads a tile of held.
+			 * One on the edge of explored ground reads across into a grid the record never had,
+			 * throws LoadingMap for good, and -- counted as in flight -- holds a slot of the build
+			 * budget forever; enough of them and no other cut ever starts. */
+			if(!buildable(cc, loaded))
 			    continue;
 			cand.add(cc);
 		    }
@@ -2165,6 +2204,45 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		draw.add(cc);
 	    }
 	    main.tick();
+	}
+
+	/* addon: a held grid's height range, with a margin for what a tileset lays over the ground, and
+	 * the plane flat terrain draws it on. Kept per grid object and its fill sequence, since a grid's
+	 * heights are read once off the disk and never move after. */
+	private final Map<MCache.Grid, float[]> zranges = new WeakHashMap<>();
+	float[] zrange(MCache.Grid g) {
+	    float[] r = zranges.get(g);
+	    if((r == null) || (r[2] != g.seq)) {
+		float lo = Float.POSITIVE_INFINITY, hi = Float.NEGATIVE_INFINITY;
+		for(float v : g.z) {
+		    lo = Math.min(lo, v);
+		    hi = Math.max(hi, v);
+		}
+		zranges.put(g, r = new float[] {lo - 20, hi + 50, g.seq});
+	    }
+	    if(io.brodgar.perf.Performance.flatTerrain)
+		return(new float[] {Math.min(r[0], -20), Math.max(r[1], 50)});
+	    return(r);
+	}
+
+	/* addon: are all the grids this cut's mesh reads held? MapMesh reads its own tiles, the corner
+	 * heights one past them, and dotrans one tile across every edge -- so the cut's tiles grown by one
+	 * each way, which reaches at most the four grids around one corner. */
+	boolean buildable(Coord cc, Map<Coord, Boolean> loaded) {
+	    Coord tul = cc.mul(MCache.cutsz).sub(1, 1);
+	    Coord tbr = cc.add(1, 1).mul(MCache.cutsz);
+	    Coord glo = tul.div(MCache.cmaps), ghi = tbr.div(MCache.cmaps);
+	    for(int y = glo.y; y <= ghi.y; y++) {
+		for(int x = glo.x; x <= ghi.x; x++) {
+		    Coord g = Coord.of(x, y);
+		    Boolean has = loaded.get(g);
+		    if(has == null)
+			loaded.put(g, has = (AddonWidgets.loadedGrid(map, g) != null));
+		    if(!has)
+			return(false);
+		}
+	    }
+	    return(true);
 	}
 
 	private long dist2(Coord a, Coord b) {
