@@ -21,6 +21,10 @@ import static haven.render.sl.Type.*;
  * sphere tests a pixel, no marching -- and it stops at the scene: a hill in front hides a cloud, and
  * from above the clouds hide the ground.
  *
+ * Each of the three is switched on its own (Ambience.skyon, .cloudson, .fogon): with the sky off the
+ * open sky is left to the game's own background and only clouds are laid over it; with the fog off its
+ * reach is nothing; with the clouds off there are none to draw.
+ *
  * The clouds are the dear part, so they are worked out in a pass of their own at half the screen's
  * resolution each way (a quarter of the rays), into a texture of their own, and the sky pass reads them
  * back filtered: soft shapes lose nothing to it. The sky, the stars, the moon and the fog stay at full
@@ -79,6 +83,8 @@ public class SkyPass implements RenderTree.Node {
     static final Uniform mcol = new Uniform(VEC3, p -> Ambience.frame().mcol, FrameInfo.slot);
     static final Uniform mphase = new Uniform(FLOAT, p -> Ambience.frame().mphase, FrameInfo.slot);
     static final Uniform mvis = new Uniform(FLOAT, p -> Ambience.frame().mvis, FrameInfo.slot);
+    /* Whether the open sky is ours to paint: 0 leaves it to the game's own background, clouds over it. */
+    static final Uniform skyon = new Uniform(FLOAT, p -> Ambience.skyon ? 1f : 0f, FrameInfo.slot);
     /* Where the player is: seen from above, the clouds clear a circle round it. */
     static final Uniform focus = new Uniform(VEC3, p -> Ambience.frame().focus, FrameInfo.slot);
     /* The clouds this camera sees (Ambience.Seen): how many; each one's bounding sphere (centre, radius);
@@ -288,7 +294,7 @@ public class SkyPass implements RenderTree.Node {
 	LValue fc = code.local(VEC3, null).ref();
 	code.add(new If(gt(issky, l(0.5)), stmt(ass(fc, skyopen.call(v))),
 			stmt(ass(fc, skybase.call(normalize(vec3(pick(v, "xy"), l(0.03))))))));
-	Expression ff = code.local(FLOAT, mix(f, l(1.0), issky)).ref();
+	Expression ff = code.local(FLOAT, mix(f, skyon.ref(), issky)).ref();
 	Expression m = code.local(VEC4, texture2D(scl.ref(), Tex2D.rtexcoord.ref())).ref();
 	Expression tr = code.local(FLOAT, sub(l(1.0), pick(m, "a"))).ref();
 	Expression a = code.local(FLOAT, sub(l(1.0), mul(tr, sub(l(1.0), ff)))).ref();

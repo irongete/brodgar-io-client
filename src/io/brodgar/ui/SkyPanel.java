@@ -1,5 +1,7 @@
 package io.brodgar.ui;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
@@ -17,60 +19,63 @@ import io.brodgar.ambience.Ambience;
 /**
  * The in-game <b>Sky &amp; weather</b> options panel -- {@link PerformancePanel}'s
  * pattern over {@link Ambience}: every control re-reads its static every frame in {@code tick} and
- * writes through the matching setter, so the console's {@code :amb} moves an open panel.
+ * writes through the matching setter, so the console's {@code :amb} moves an open panel. Three sections, the
+ * sky, the clouds and the fog, each switched on its own and holding its own settings.
  */
 public class SkyPanel extends OptWnd.Panel {
     public SkyPanel(OptWnd opt) {
         opt.super();
 
         Widget prev = add(new Label("Sky"), 0, 0);
+        prev = toggle(prev.pos("bl").adds(0, 10), "Sky", () -> Ambience.skyon, Ambience::skyon,
+                      "Draws a sky of the client's own over the open horizon: a gradient off the server's light,"
+                      + " the sun's disc and glow, and at night the stars and the moon. Off, the game's own"
+                      + " background shows. Applies at once.");
+        prev = toggle(prev.pos("bl").adds(5, 5), "Stars and moon", () -> Ambience.starsmoon, Ambience::starsmoon,
+                      "Whether the night sky has its stars and its moon. Off, the moon's light and the shadows"
+                      + " it casts stay. Applies at once.");
 
-        prev = add(new CheckBox("Sky, clouds and fog") {
-                {a = Ambience.enabled;}
-                public void set(boolean val) {Ambience.enabled(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Ambience.enabled;
-                }
-            }, prev.pos("bl").adds(0, 10));
-        prev.settip("Draws the server's weather our way: a sky with a sun, a moon and stars, separate"
-                    + " clouds drifting with the wind and their shadows on the ground, and distance fog the"
-                    + " colour of the sky. Rain and snow stay the game's own. Applies at once.", true);
-
-        int y = slider(prev.pos("bl").y + UI.scale(8), "Fog", 0, 200,
-                       () -> Math.round(Ambience.fogmul * 100), v -> Ambience.fog(v / 100f),
-                       v -> (v == 0) ? "Off" : (v + " %"),
-                       "How thick the distance fog is against the weather's own: 100 % is as the weather"
-                       + " has it. Rain and snow thicken it.");
-
-        prev = add(new Label("Clouds"), 0, y + UI.scale(15));
-
-        y = slider(prev.pos("bl").y + UI.scale(10), "Cloud amount", 0, 200,
-                   () -> Math.round(Ambience.cloudamount * 100), v -> Ambience.cloudamount(v / 100f),
-                   v -> (v == 0) ? "None" : (v + " %"),
-                   "How many clouds the sky has against what the weather alone would give it: 100 % is"
-                   + " as the weather has it. None leaves a clear sky whatever the weather.");
-
+        prev = add(new Label("Clouds"), prev.pos("bl").adds(-5, 15));
+        prev = toggle(prev.pos("bl").adds(0, 10), "Clouds", () -> Ambience.cloudson, Ambience::cloudson,
+                      "Draws separate clouds drifting with the wind, how many and how dark following the"
+                      + " server's weather, and their shadows on the ground. Off, the game's own cloud shadows"
+                      + " come back. Applies at once.");
+        int y = slider(prev.pos("bl").y + UI.scale(8), "Cloud amount", 0, 200,
+                       () -> Math.round(Ambience.cloudamount * 100), v -> Ambience.cloudamount(v / 100f),
+                       v -> (v == 0) ? "None" : (v + " %"),
+                       "How many clouds the sky has against what the weather alone would give it: 100 % is"
+                       + " as the weather has it. None leaves a clear sky whatever the weather.");
         y = slider(y + UI.scale(8), "Cloud height", 200, 1500,
                    () -> Math.round(Ambience.cloudbase), v -> Ambience.cloudalt(v),
                    v -> Math.round(v / 11f) + " tiles",
                    "How high the clouds stand above the ground under you. The clouds already up move"
                    + " with it.");
 
-        prev = add(new Label("Night"), 0, y + UI.scale(15));
-
-        prev = add(new CheckBox("Stars and moon") {
-                {a = Ambience.starsmoon;}
-                public void set(boolean val) {Ambience.starsmoon(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Ambience.starsmoon;
-                }
-            }, prev.pos("bl").adds(0, 10));
-        prev.settip("Whether the night sky has its stars and its moon. Off, the moon's light and the"
-                    + " shadows it casts stay. Applies at once.", true);
+        prev = add(new Label("Fog"), 0, y + UI.scale(15));
+        prev = toggle(prev.pos("bl").adds(0, 10), "Fog", () -> Ambience.fogon, Ambience::fogon,
+                      "Distance fog the colour of the sky, so the far ground dissolves into the horizon"
+                      + " instead of ending at it. Rain and snow thicken it. Applies at once.");
+        slider(prev.pos("bl").y + UI.scale(8), "Density", 0, 200,
+               () -> Math.round(Ambience.fogmul * 100), v -> Ambience.fog(v / 100f),
+               v -> (v == 0) ? "None" : (v + " %"),
+               "How thick the distance fog is against the weather's own: 100 % is as the weather has it.");
 
         pack();
+    }
+
+    /* One checkbox at `at` over a switch: `read` every frame, `write` on a click. Not `set`: CheckBox has a
+     * public field of that name and type, which would shadow it inside the box. */
+    private Widget toggle(Coord at, String name, BooleanSupplier read, Consumer<Boolean> write, String tip) {
+        Widget box = add(new CheckBox(name) {
+                {a = read.getAsBoolean();}
+                public void set(boolean val) {write.accept(val); a = val;}
+                public void tick(double dt) {
+                    super.tick(dt);
+                    a = read.getAsBoolean();
+                }
+            }, at);
+        box.settip(tip, true);
+        return(box);
     }
 
     /* One labelled slider at `y`, its value printed after it: `get` read every frame, `set` on a drag.

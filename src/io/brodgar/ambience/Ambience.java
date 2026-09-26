@@ -16,12 +16,21 @@ import haven.render.*;
  * follows how much cloud and rain the server says there is -- a clear day has none or a stray few, a
  * wet one many, large and grey -- and each one forms, drifts with the wind, and after a while breaks up.
  *
- * Off by default (:amb on). The previews (:amb time, :amb weather, :amb clouds) stand in for what the
+ * Three parts, each switched on its own -- the sky, the clouds, the fog -- and each one off hands its
+ * part back to the game: no sky of ours is the game's own background, no clouds of ours the game's own
+ * cloud shadows, no fog of ours none at all. Off by default (:amb on switches all three). The previews (:amb time, :amb weather, :amb clouds) stand in for what the
  * server would say, so a sky it is not sending right now can be looked at. Every number the server's
  * arguments are read against is a guess from the game's own code (gfx/fx/clouds v11, gfx/fx/rain v2,
  * gfx/fx/snow v2). */
 public class Ambience {
-    public static volatile boolean enabled = Utils.getprefb("ambience", false);
+    /* The three parts. Each defaults to the one switch they shared before, `ambience`, so a sky that was
+     * on stays on whole. */
+    private static final boolean was = Utils.getprefb("ambience", false);
+    public static volatile boolean skyon = Utils.getprefb("ambience-sky", was);
+    public static volatile boolean cloudson = Utils.getprefb("ambience-clouds", was);
+    public static volatile boolean fogon = Utils.getprefb("ambience-fogon", was);
+    /* Set when drawing failed: every part goes back to the game for this session, prefs untouched. */
+    static volatile boolean failed = false;
     static volatile Double ptime = null;
     static volatile Weather pweather = null;
     /* A number of clouds to show whatever the weather, or -1 for the weather's own (:amb clouds). */
@@ -52,8 +61,21 @@ public class Ambience {
     }
 
     /* The settings, as the Sky & weather page and the console write them: each one kept as a pref. */
-    public static void enabled(boolean on) {
-	Utils.setprefb("ambience", enabled = on);
+    public static void skyon(boolean on) {
+	Utils.setprefb("ambience-sky", skyon = on);
+    }
+
+    public static void cloudson(boolean on) {
+	Utils.setprefb("ambience-clouds", cloudson = on);
+    }
+
+    public static void fogon(boolean on) {
+	Utils.setprefb("ambience-fogon", fogon = on);
+    }
+
+    /* Whether any part is drawn: the one question the tick, the pass and the light preview ask. */
+    public static boolean enabled() {
+	return(!failed && (skyon || cloudson || fogon));
     }
 
     public static void fog(float mul) {
@@ -76,7 +98,7 @@ public class Ambience {
      * so the game's own renderer of it is held out of the scene while this is on. The clouds alone: the
      * game's rain and snow fall under this sky as they are. */
     public static boolean replaces(String name) {
-	return(enabled && CLOUDS.equals(name));
+	return(enabled() && cloudson && CLOUDS.equals(name));
     }
 
     /* What a weather is, in the server's own terms: Clouds' and Rain's and Snow's arguments. */
@@ -189,7 +211,7 @@ public class Ambience {
 
     public static Sun sunpreview() {
 	Double t = ptime;
-	if(!enabled || (t == null))
+	if(!enabled() || (t == null))
 	    return(null);
 	float h = (float)(((t % 24) + 24) % 24);
 	int i = 0;
@@ -493,6 +515,8 @@ public class Ambience {
 	float[] e = eyeof(cam);
 	float dx = e[0] - f.focus.x, dy = e[1] - f.focus.y, dz = e[2] - f.focus.z;
 	float fd = (float)Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+	if(!fogon)
+	    return(new float[] {0, 1, 0, 0});
 	float end = far * 0.96f;
 	float start = Math.min(fd + ((end - fd) * 0.40f), end * 0.9f);
 	/* And none of it from high up: a camera pulled far back is looking down at the map, not out over it. */
@@ -842,6 +866,14 @@ public class Ambience {
 	}
 
 	/* How many clouds the weather wants, how big and how dark: made up, and meant to be. */
+	/* The clouds switched off: none near, none on the horizon -- but how closed the sky is still follows
+	 * the weather, since the sky's own colour reads it. */
+	void noclouds(Weather w) {
+	    clouds.clear();
+	    far.clear();
+	    close = closed(cover(), rainy(w), snowy(w));
+	}
+
 	void populate(Weather w, Coord3f focus, double dt, double gt) {
 	    float cover = cover(), wet = rainy(w), flake = snowy(w);
 	    int target;
@@ -1168,7 +1200,7 @@ public class Ambience {
 	synchronized(views) {
 	    v = views.get(mv);
 	}
-	if(!enabled) {
+	if(!enabled()) {
 	    if(v != null) {
 		v.off(mv);
 		synchronized(views) {views.remove(mv);}
@@ -1191,7 +1223,10 @@ public class Ambience {
 	Weather w = (pweather != null) ? pweather : fromserver(glob);
 	v.ease(w, dt);
 	v.astro(glob.ast, dt);
-	v.populate(w, focus, dt, glob.globtime());
+	if(cloudson)
+	    v.populate(w, focus, dt, glob.globtime());
+	else
+	    v.noclouds(w);
 	frame = compute(l, focus, w, v, glob.ast);
 	try {
 	    v.sync(mv, w);
@@ -1201,7 +1236,7 @@ public class Ambience {
 	    /* The ambience must never take the client down: what it cannot draw, it stops drawing, for this
 	     * session, and says why on the console. The pref is left as it was. */
 	    new Exception("ambience: switched off after an error", e).printStackTrace();
-	    enabled = false;
+	    failed = true;
 	    try {
 		v.off(mv);
 	    } catch(RuntimeException e2) {
@@ -1221,7 +1256,10 @@ public class Ambience {
 	switch(sub) {
 	case "on":
 	case "off":
-	    enabled(sub.equals("on"));
+	    skyon(sub.equals("on"));
+	    cloudson(sub.equals("on"));
+	    fogon(sub.equals("on"));
+	    failed = false;
 	    say(cons, "ambience " + sub);
 	    return;
 	case "time":
@@ -1272,7 +1310,8 @@ public class Ambience {
 	    say(cons, "ambience: fog x" + fogmul);
 	    return;
 	case "":
-	    say(cons, "ambience " + (enabled ? "on" : "off") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
+	    say(cons, "ambience: sky " + (skyon ? "on" : "off") + ", clouds " + (cloudson ? "on" : "off") +
+		", fog " + (fogon ? "on" : "off") + (failed ? " (switched off after an error)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
 		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s", cloudamount, cloudbase, fogmul, starsmoon ? "on" : "off"));
