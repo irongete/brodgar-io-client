@@ -32,20 +32,44 @@ public class Ambience {
     static final String[] PHASES = {"new moon", "waxing crescent", "first quarter", "waxing gibbous",
 				     "full moon", "waning gibbous", "last quarter", "waning crescent"};
     static String phase(double mp) {return(PHASES[(int)Math.round(mp * 8) % 8]);}
-    static volatile float fogmul = (float)Utils.getprefd("ambience-fog", 1.0);
+    public static volatile float fogmul = (float)Utils.getprefd("ambience-fog", 1.0);
 
     static final String CLOUDS = "gfx/fx/clouds", RAIN = "gfx/fx/rain", SNOW = "gfx/fx/snow";
     /* How high the clouds' bases stand above the player's ground, in world units (a tile is 11). */
-    static volatile float cloudbase = (float)Utils.getprefd("ambience-cloudalt", 600);
+    public static volatile float cloudbase = (float)Utils.getprefd("ambience-cloudalt", 600);
     /* Near clouds form within SPAWN of the player and break up past DESPAWN. Far ones stand on the
      * horizon, between FARIN and FAROUT, and break up past FARGONE. */
     static final float SPAWN = 3500, DESPAWN = 5000;
     static final float FARIN = 7000, FAROUT = 22000, FARGONE = 30000;
-    /* Every sky a fifth more cloud than the weather alone would give it, near and far alike. */
-    static final float MORE = 1.2f;
+    /* How much cloud every sky has against what the weather alone would give it, near and far alike: by
+     * default a fifth more. 0 is a sky with none. */
+    public static volatile float cloudamount = (float)Utils.getprefd("ambience-cloudamount", 1.2);
+    /* Whether the night sky has its stars and its moon. The moon's light, and the shadows it casts, stay. */
+    public static volatile boolean starsmoon = Utils.getprefb("ambience-stars", true);
 
     static {
 	Console.setscmd("amb", Ambience::command);
+    }
+
+    /* The settings, as the Sky & weather page and the console write them: each one kept as a pref. */
+    public static void enabled(boolean on) {
+	Utils.setprefb("ambience", enabled = on);
+    }
+
+    public static void fog(float mul) {
+	Utils.setprefd("ambience-fog", fogmul = Math.max(0, mul));
+    }
+
+    public static void cloudalt(float units) {
+	Utils.setprefd("ambience-cloudalt", cloudbase = units);
+    }
+
+    public static void cloudamount(float mul) {
+	Utils.setprefd("ambience-cloudamount", cloudamount = Math.max(0, mul));
+    }
+
+    public static void starsmoon(boolean on) {
+	Utils.setprefb("ambience-stars", starsmoon = on);
     }
 
     /* Is this weather resource one this draws instead of the game? Asked by Performance.withheldWeather,
@@ -210,6 +234,8 @@ public class Ambience {
     static final class Frame {
 	final float[] zen, hor, sun, sdir, ccol;
 	final float night, disc, fogmax, fogdens;
+	/* How bright the stars are: the night's darkness, or none with the stars switched off. */
+	final float stars;
 	final Coord3f focus;
 	/* The clouds, as SkyPass and AmbShadow read them (see SkyPass.cl, .ci, .pf), and the ground
 	 * shadow's run toward the sun per unit of rise. Set before the frame is published. */
@@ -227,6 +253,7 @@ public class Ambience {
 	      float night, float disc, float fogmax, float fogdens, Coord3f focus) {
 	    this.zen = zen; this.hor = hor; this.sun = sun; this.sdir = sdir; this.ccol = ccol;
 	    this.night = night; this.disc = disc;
+	    this.stars = starsmoon ? night : 0;
 	    this.fogmax = fogmax; this.fogdens = fogdens; this.focus = focus;
 	}
     }
@@ -437,7 +464,7 @@ public class Ambience {
 	if(mc != null)
 	    f.mcol = new float[] {mc.getRed() / 255f, mc.getGreen() / 255f, mc.getBlue() / 255f};
 	/* Only at night, as the server has it, and only up; a heavy cover hides it, as the clouds do. */
-	f.mvis = smooth(-0.02f, 0.06f, f.mdir[2]) * v.nightfade * (1 - (0.7f * ovc));
+	f.mvis = starsmoon ? (smooth(-0.02f, 0.06f, f.mdir[2]) * v.nightfade * (1 - (0.7f * ovc))) : 0;
     }
 
     /* The camera, out of the matrices the shaders are given. */
@@ -823,7 +850,7 @@ public class Ambience {
 	    if(pclouds < 0) {
 		/* A sky closing over takes every cloud there can be. */
 		target = Math.max(target, Math.round(SkyPass.NEAR * smooth(0.3f, 0.9f, close)));
-		target = Math.round(target * MORE);
+		target = Math.round(target * cloudamount);
 	    }
 	    target = Math.max(0, Math.min(SkyPass.NEAR, target));
 	    /* Rain draws its clouds in overhead; a closed sky needs them out to the disc's edge as well. */
@@ -905,7 +932,7 @@ public class Ambience {
 	    else
 		target = Math.round(4 + (cover * 6) + (Math.max(wet, flake) * 4));
 	    target = Math.max(target, Math.round(SkyPass.FAR * close));
-	    target = Math.max(0, Math.min(SkyPass.FAR, Math.round(target * MORE)));
+	    target = Math.max(0, Math.min(SkyPass.FAR, Math.round(target * cloudamount)));
 	    for(Cloud c : far) {
 		c.x += wx * dgt;
 		c.y += wy * dgt;
@@ -1180,7 +1207,7 @@ public class Ambience {
 	switch(sub) {
 	case "on":
 	case "off":
-	    Utils.setprefb("ambience", enabled = sub.equals("on"));
+	    enabled(sub.equals("on"));
 	    say(cons, "ambience " + sub);
 	    return;
 	case "time":
@@ -1214,8 +1241,7 @@ public class Ambience {
 	    }
 	    return;
 	case "cloudalt":
-	    cloudbase = Float.parseFloat(args[2]);
-	    Utils.setprefd("ambience-cloudalt", cloudbase);
+	    cloudalt(Float.parseFloat(args[2]));
 	    say(cons, String.format("ambience: cloud bases %.0f above the ground", cloudbase));
 	    return;
 	case "moon":
@@ -1228,15 +1254,14 @@ public class Ambience {
 	    }
 	    return;
 	case "fog":
-	    fogmul = Float.parseFloat(args[2]);
-	    Utils.setprefd("ambience-fog", fogmul);
+	    fog(Float.parseFloat(args[2]));
 	    say(cons, "ambience: fog x" + fogmul);
 	    return;
 	case "":
 	    say(cons, "ambience " + (enabled ? "on" : "off") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
-		String.format(" at %.0f, fog x%.2f", cloudbase, fogmul));
+		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s", cloudamount, cloudbase, fogmul, starsmoon ? "on" : "off"));
 	    for(Map.Entry<MapView, View> e : new ArrayList<>(views.entrySet()))
 		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census() +
 		    String.format("; sky closed %.2f", e.getValue().close));

@@ -209,7 +209,8 @@ public class PerformancePanel extends OptWnd.Panel {
                     a = Performance.clouds;
                 }
             }, prev.pos("bl").adds(0, 10));
-        prev.settip("Cloud shadows moving over the ground. Takes effect the next frame.", true);
+        prev.settip("Cloud shadows moving over the ground, the game's or, with Sky & weather on, its clouds'."
+                    + " Takes effect the next frame.", true);
 
         prev = add(new CheckBox("Rain") {
                 {a = Performance.rain;}

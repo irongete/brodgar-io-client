@@ -58,7 +58,7 @@ public class SkyPass implements RenderTree.Node {
     static final Uniform hor = new Uniform(VEC3, p -> Ambience.frame().hor, FrameInfo.slot);
     static final Uniform sun = new Uniform(VEC3, p -> Ambience.frame().sun, FrameInfo.slot);
     static final Uniform sdir = new Uniform(VEC3, p -> Ambience.frame().sdir, FrameInfo.slot);
-    static final Uniform night = new Uniform(FLOAT, p -> Ambience.frame().night, FrameInfo.slot);
+    static final Uniform stars = new Uniform(FLOAT, p -> Ambience.frame().stars, FrameInfo.slot);
     static final Uniform disc = new Uniform(FLOAT, p -> Ambience.frame().disc, FrameInfo.slot);
     static final Uniform ccol = new Uniform(VEC3, p -> Ambience.frame().ccol, FrameInfo.slot);
     static final Uniform mdir = new Uniform(VEC3, p -> Ambience.frame().mdir, FrameInfo.slot);
@@ -110,7 +110,7 @@ public class SkyPass implements RenderTree.Node {
 	code.add(aadd(c, mul(sun.ref(), mul(smoothstep(l(0.9990), l(0.9996), mu), disc.ref()))));
 	Expression cell = floor(mul(v, l(360.0)));
 	Expression hash = fract(mul(sin(dot(cell, vec3(12.9898, 78.233, 37.719))), l(43758.5453)));
-	code.add(aadd(c, vec3(mul(step(l(0.997), hash), night.ref(), clamp(mul(pick(v, "z"), l(6.0)), l(0.0), l(1.0)), l(1.1)))));
+	code.add(aadd(c, vec3(mul(step(l(0.997), hash), stars.ref(), clamp(mul(pick(v, "z"), l(6.0)), l(0.0), l(1.0)), l(1.1)))));
 	/* The moon: a disc MOONR across, shaded as a ball lit from the side its phase puts the sun on -- the
 	 * right at first quarter, the front at full -- mottled by the cloud noise, with a little earthshine
 	 * on its dark part (which hides the stars behind it too) and a halo as bright as it is full. */

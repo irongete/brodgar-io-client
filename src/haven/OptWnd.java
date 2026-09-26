@@ -1130,6 +1130,7 @@ public class OptWnd extends Window {
 	    ret.add(new PanelEntry("Performance", () -> new io.brodgar.ui.PerformancePanel(OptWnd.this)));
 	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
 	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui)));
+	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience (spike)
 	    ret.add(new PanelEntry("Audio settings", () -> new AudioPanel(ui)));
 	    // addon: `true` — rebuilt on every visit, so a hotkey an addon declared since the last one is listed.
 	    ret.add(new PanelEntry("Keybindings", () -> new BindingPanel(), true));
