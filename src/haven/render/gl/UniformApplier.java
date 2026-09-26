@@ -212,6 +212,13 @@ public interface UniformApplier<T> {
 		    gl.glActiveTexture(GL.GL_TEXTURE0 + var.sampler);
 		    smp.bind(gl);
 		});
+	    // addon: upstream declares Type.SAMPLER2DSHADOW and maps no value to it. Bound as any 2D texture;
+	    // the comparison is the texture's own state (Texture.Sampler.compare).
+	    TypeMapping.register(Type.SAMPLER2DSHADOW, GLTexture.Tex2D.class, (gl, var, type, smp) -> {
+		    if(var.sampler < 0) throw(new RuntimeException());
+		    gl.glActiveTexture(GL.GL_TEXTURE0 + var.sampler);
+		    smp.bind(gl);
+		});
 	    TypeMapping.register(Type.ISAMPLER2D, GLTexture.Tex2D.class, (gl, var, type, smp) -> {
 		    if(var.sampler < 0) throw(new RuntimeException());
 		    gl.glActiveTexture(GL.GL_TEXTURE0 + var.sampler);

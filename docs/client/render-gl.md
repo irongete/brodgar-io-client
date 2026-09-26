@@ -23,7 +23,7 @@ backend has no VRAM or program counts at all. Report an **absent** value, never 
 
 | What | Where |
 |---|---|
-| The 3D scene draw boundary | `PView.draw` → `instancer.commit(out)` then `maindraw(out)` = `back.draw(out)`, the draw-list dispatch; `resolve(g)` + `list2d.draw(g)` follow it. `MapView.maindraw` prepends `drawsmap` → `smap.update(out, slist)` — **the entire shadow render in one call** |
+| The 3D scene draw boundary | `PView.draw` → `instancer.commit(out)` then `maindraw(out)` = `back.draw(out)`, the draw-list dispatch; `resolve(g)` + `list2d.draw(g)` follow it. `MapView.maindraw` prepends `drawsmap` → `smap.update(out, slist)` — **the entire shadow render in one call**; fork: one frame in two ([The shadow map](#the-shadow-map)) |
 | Batched submission (per frame) | `GLDrawList.draw(Render)` walks the sorted `DrawSlot` list on the **UI/dispatch** thread: `gl.bglCallList(cur.compiled)` per slot = **one draw call each**, and a program bind wherever `cur.prog` changes (the list is sorted by program, so binds ≪ calls means the sort works) |
 | Slot **compile** (rare, not per frame) | `GLDrawList.SlotRender.draw(Pipe,Model)`, from the `DrawSlot` ctor — the only place the `Model` is in hand; `glupdate` bakes `GLProgram.apply` + settings into `compiled`. Fork: `DrawSlot.nverts/ntris` are computed **here**, once |
 | Immediate submission | `GLRender.draw(Pipe,Model)` — every 2D blit and ephemeral model, `state.apply` then `glDrawArrays`/`glDrawElements`(`Instanced`) |
@@ -74,12 +74,34 @@ the component count `GL_MAX_FRAGMENT_UNIFORM_COMPONENTS` reports: measured on a 
 past 1,018 was refused at link (`C6020: Constant register limit exceeded`). GL 3.x only guarantees 1,024
 components (256 vec4).
 
-**Gotcha — the shadow map covers a box, and upstream shaded everything outside it.** `ShadowMap` renders a
-depth map over `MapView`'s 750-unit box around the player, sampled with `Texture.Wrapping.CLAMP` and cleared to
-`1.0`. `ShadowMap.Shader.shcalc` counts the lit samples of a 4×4 PCF around the fragment's map coordinates, so
-a fragment outside the box read the clamped edge texel, and one past the light's far depth failed every
-comparison: distant ground came out in blocky black smears once anything drew that far. Fork: `shcalc` returns
-fully lit when the coordinates leave `[0,1]` in x or y or the depth passes `1` (`// addon:`).
+## The shadow map
+
+| What | Where |
+|---|---|
+| The render | `MapView.drawsmap` → `ShadowMap.update(out, slist)`: clears `lbuf` (a depth texture, 2048² at `GSettings.shadowres` 0), then `ShadowList.draw` — a `DrawList` of its own over the instancer's slots, those carrying `Light.lighting` and no `ShadowMap.maskshadow` |
+| Its placement | `MapView.updsmap` → `setpos`: the light camera (`lcam`, `Camera.dir`) 1000 units back along the light from the player, placed again once the player is 50 units from where it last was, or the light has turned (asked every 0.1 s); `lproj` is an ortho box of ±750, depth 1–5000 |
+| The sampling | `ShadowMap.Shader` mods Phong's per-light loop (`Phong.dolight`) for the one light `sl` names; `shcalc` is the lit fraction, `txf` takes the eye position into the map |
+| **Hardware PCF (fork)** | `lsamp` compares: `Texture.Sampler.compare`, set by `GLTexture.Tex2D.setsampler` as `GL_COMPARE_REF_TO_TEXTURE` + `GL_LEQUAL`, LINEAR both ways. Its uniform is `Type.SAMPLER2DSHADOW`, which upstream declares and `UniformApplier` never mapped. `shcalc` makes (res/2)² fetches a texel off each way (4 for the 4×4 footprint the 16-sample loop read), each the hardware's blend of four comparisons, against `z − thr`. The fetch is a float-typed `Function.Builtin` on `Function.Builtin.texture.name`: a second `Symbol.Fix("texture")` in the same program throws |
+| **Casters culled to the box (fork)** | `ShadowList` keeps every candidate (`slots`, `order`) and puts in `back` only those whose `FastMesh.bounds()` reach the box (`Shadowslot.drawn`). `ShadowList.cull(zone)`, from `update` with `zone = lproj × lcam`, re-asks a few candidates per drawn map, round-robin, and moves a bounded number in or out, since each move compiles or drops a draw slot; a caster enters within `ENTER` of the box and leaves past `LEAVE`. An `InstanceBatch`, a slot with no `Homo3D.loc` and a non-`FastMesh` object are always drawn |
+| **One frame in two (fork)** | `MapView.drawsmap` skips every other frame while `ShadowMap.samezone(smapdrawn)` holds — the same buffer seen from the same light camera — and draws at once when it does not. A skipped frame samples the map drawn a frame earlier from that same camera; only a moving caster's shadow lags |
+
+**Gotcha — the shadow map covers a box, and upstream shaded everything outside it.** The map is sampled with
+`Texture.Wrapping.CLAMP` and cleared to `1.0`, so a fragment outside the box read the clamped edge texels, and one
+past the light's far depth failed every comparison: distant ground came out in blocky black smears once anything
+drew that far. Fork: `shcalc` returns fully lit when the coordinates leave `[0,1]` in x or y or the depth passes
+`1` (`// addon:`).
+
+**Gotcha — the box is neither centred on the player nor square to the light.** `Camera.makedir` rotates about
+`defdir × dir` without normalising it, and `Transform.makerot` takes its axis as unit length, so with the light
+tilted the light camera is not a pure rotation: the player lands off the box's centre, and a point moved along
+`dir` moves in the map. Rendering and sampling share the matrix, so the shadows are right; a question of the form
+"does this reach the shadow map" is asked through `lproj × lcam`, as `ShadowList.cull` does, never by distance
+from the player.
+
+**Gotcha — `MapView.amblight()` builds a new `DirLight` every tick**, removing the old light's slot and adding
+the new one, and `updsmap` hands it to `ShadowMap.light`, which compares by identity. So the `ShadowMap` state
+is a new object every frame though nothing moved. Anything deciding whether the map changed compares what it
+holds (`samezone`), never the object.
 
 ## The 2D blit path (what `g.image` actually does)
 

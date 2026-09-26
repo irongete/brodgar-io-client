@@ -59,7 +59,10 @@ public class ShadowMap extends State {
 
     public ShadowMap(Coord res, float size, float depth, float dthr) {
 	lbuf = new Texture2D(res, DataBuffer.Usage.STATIC, Texture.DEPTH, new VectorFormat(1, NumberFormat.FLOAT32), null);
-	(lsamp = new Texture2D.Sampler2D(lbuf)).magfilter(Texture.Filter.LINEAR).wrapmode(Texture.Wrapping.CLAMP);
+	/* addon: sampled as a comparison, LINEAR both ways: every fetch is the hardware's blend of the four
+	 * comparisons round its point (bilinear PCF), magnified or minified. Shader.shcalc reads it so. */
+	(lsamp = new Texture2D.Sampler2D(lbuf)).magfilter(Texture.Filter.LINEAR).minfilter(Texture.Filter.LINEAR)
+	    .wrapmode(Texture.Wrapping.CLAMP).compare(true);
 	/* XXX: It would arguably be nice to intern the shader. */
 	shader = Shader.get(1.0 / res.x, 1.0 / res.y, 4, dthr / depth);
 	lproj = Projection.ortho(-size, size, -size, size, 1, depth);
@@ -90,6 +93,22 @@ public class ShadowMap extends State {
 	private final RenderList.Adapter master;
 	private final ProxyPipe basic = new ProxyPipe();
 	private final Map<Slot<? extends Rendered>, Shadowslot> slots = new HashMap<>();
+	/* addon: THE CASTERS THE MAP CAN HOLD. Upstream drew every lit slot of the scene into the shadow
+	 * map, and the map covers a box round the player: whatever stood past it was drawn and clipped, a draw
+	 * call and its vertices for nothing. `slots` still holds every candidate; `back` holds the ones whose
+	 * bounds reach the box (Shadowslot.drawn), and cull() re-asks a few of them each time the map is drawn,
+	 * round-robin over `order`, so a caster that walks in or out, or a box that moves with the player, is
+	 * followed within a sweep. The margins are the box's own units (its half-width is 1): a caster comes in
+	 * within ENTER of the box and goes out past LEAVE, so one on the edge does not flicker in and out,
+	 * and ENTER is wider than the 50 units the box jumps by when the player walks (MapView.updsmap). A
+	 * caster nothing locates -- an instanced batch, which stands all over the scene, or a slot with no
+	 * Location or no mesh bounds -- is always drawn: culling it would need an answer this does not have.
+	 * Every call here is under the tree's lock, as add() and remove() are. */
+	private static final double ENTER = 0.1, LEAVE = 0.2;
+	private static final int SWEEP = 64, CHANGES = 32;
+	private final List<Shadowslot> order = new ArrayList<>();
+	private int cursor = 0;
+	private Matrix4f zone = null;
 	private DrawList back = null;
 	private DefPipe curbasic = null;
 
@@ -100,6 +119,8 @@ public class ShadowMap extends State {
 	public class Shadowslot implements Slot<Rendered>, GroupPipe {
 	    static final int idx_bas = 0, idx_back = 1;
 	    public final Slot<? extends Rendered> bk;
+	    int oidx;          // addon: its place in `order`
+	    boolean drawn;     // addon: whether it stands in `back`
 
 	    public Shadowslot(Slot<? extends Rendered> bk) {
 		this.bk = bk;
@@ -140,25 +161,103 @@ public class ShadowMap extends State {
 	    if((slot.state().get(Light.lighting) == null) || (slot.state().get(maskshadow.slot) != null))
 		return;
 	    Shadowslot ns = new Shadowslot(slot);
-	    if(back != null)
+	    ns.drawn = inzone(ns, ENTER);   // addon:
+	    if(ns.drawn && (back != null))
 		back.add(ns);
 	    if((slots.put(slot, ns)) != null)
 		throw(new AssertionError());
+	    ns.oidx = order.size();         // addon:
+	    order.add(ns);
 	}
 
 	public void remove(Slot<? extends Rendered> slot) {
 	    Shadowslot cs = slots.remove(slot);
 	    if(cs != null) {
-		if(back != null)
+		if(cs.drawn && (back != null))   // addon: only what stands in it
 		    back.remove(cs);
+		/* addon: out of the sweep: the last one takes its place. */
+		Shadowslot last = order.remove(order.size() - 1);
+		if(last != cs) {
+		    order.set(cs.oidx, last);
+		    last.oidx = cs.oidx;
+		}
 	    }
 	}
 
 	public void update(Slot<? extends Rendered> slot) {
 	    if(back != null) {
 		Shadowslot cs = slots.get(slot);
-		if(cs != null) {
+		if((cs != null) && cs.drawn) {   // addon: one out of the zone has nothing in `back` to update
 		    back.update(cs);
+		}
+	    }
+	}
+
+	/* addon: does this caster's mesh reach the box, `margin` beyond its edge? `zone` takes the world to
+	 * the map's clip space (the light's projection times the light's camera), where the box is [-1, 1] in x
+	 * and y; the mesh's bounds are taken there corner by corner, so a rotated or scaled object is tested as
+	 * drawn. Anything it cannot answer is in. */
+	private boolean inzone(Shadowslot s, double margin) {
+	    Matrix4f zone = this.zone;
+	    if(zone == null)
+		return(true);
+	    try {
+		if(s.bk instanceof InstanceBatch)
+		    return(true);
+		GroupPipe st = s.bk.state();
+		if(st.get(Homo3D.loc) == null)
+		    return(true);
+		Rendered obj = s.bk.obj();
+		if(!(obj instanceof FastMesh))
+		    return(true);
+		Volume3f b = ((FastMesh)obj).bounds();
+		Matrix4f xf = zone.mul(Homo3D.locxf(st));
+		float nx = Float.POSITIVE_INFINITY, ny = Float.POSITIVE_INFINITY;
+		float px = Float.NEGATIVE_INFINITY, py = Float.NEGATIVE_INFINITY;
+		for(int i = 0; i < 8; i++) {
+		    Coord3f c = xf.mul4(new Coord3f(((i & 1) == 0) ? b.n.x : b.p.x,
+						    ((i & 2) == 0) ? b.n.y : b.p.y,
+						    ((i & 4) == 0) ? b.n.z : b.p.z));
+		    nx = Math.min(nx, c.x); px = Math.max(px, c.x);
+		    ny = Math.min(ny, c.y); py = Math.max(py, c.y);
+		}
+		float e = (float)(1.0 + margin);
+		return((px >= -e) && (nx <= e) && (py >= -e) && (ny <= e));
+	    } catch(RuntimeException exc) {
+		return(true);
+	    }
+	}
+
+	/* addon: the sweep, from ShadowMap.update each time the map is drawn: SWEEP candidates asked, at
+	 * most CHANGES of them moved in or out of `back`, since each move compiles or drops a draw slot. A
+	 * caster that cannot be compiled yet (a texture still loading) stays out and is asked again next
+	 * round, rather than throwing out of the frame. */
+	public void cull(Matrix4f zone) {
+	    try(Locked lk = lock()) {
+		this.zone = zone;
+		int n = Math.min(order.size(), SWEEP), changed = 0;
+		for(int i = 0; (i < n) && (changed < CHANGES); i++) {
+		    if(cursor >= order.size())
+			cursor = 0;
+		    Shadowslot s = order.get(cursor++);
+		    boolean want = inzone(s, s.drawn ? LEAVE : ENTER);
+		    if(want == s.drawn)
+			continue;
+		    changed++;
+		    if(want) {
+			if(back != null) {
+			    try {
+				back.add(s);
+			    } catch(RuntimeException exc) {
+				continue;
+			    }
+			}
+			s.drawn = true;
+		    } else {
+			if(back != null)
+			    back.remove(s);
+			s.drawn = false;
+		    }
 		}
 	    }
 	}
@@ -173,7 +272,13 @@ public class ShadowMap extends State {
 	}
 
 	public Iterable<? extends Slot<?>> slots() {
-	    return(slots.values());
+	    /* addon: what `back` is built from when it is made anew: the candidates in the zone. */
+	    List<Shadowslot> ret = new ArrayList<>(order.size());
+	    for(Shadowslot s : order) {
+		if(s.drawn)
+		    ret.add(s);
+	    }
+	    return(ret);
 	}
 
 	/* Shouldn't have to care. */
@@ -227,6 +332,13 @@ public class ShadowMap extends State {
 	return(lcam != null);
     }
 
+    /* addon: does `that` hold the depth this one would draw -- the same buffer, seen from the same light
+     * camera? Not identity: MapView.amblight() builds a new DirLight every tick, and light() a new ShadowMap
+     * for it, though neither moves the map. What the map holds depends on the camera alone. */
+    public boolean samezone(ShadowMap that) {
+	return((that != null) && (that.lbuf == this.lbuf) && Utils.eq(that.lcam, this.lcam));
+    }
+
     public ShadowMap setpos(Coord3f base, Coord3f dir) {
 	Camera lcam = Camera.dir(base, dir);
 	if(Utils.eq(this.lcam, lcam))
@@ -243,6 +355,8 @@ public class ShadowMap extends State {
 	Pipe.Op basic = Pipe.Op.compose(curbasic, new FrameInfo());
 	Pipe bstate = new BufPipe().prep(basic);
 	out.clear(bstate, 1.0);
+	if(lcam != null)   // addon: the casters in the box, before the list is drawn
+	    data.cull(lproj.fin(Matrix4f.id).mul(lcam.fin(Matrix4f.id)));
 	data.basic(basic);
 	data.draw(out);
 	if(false)
@@ -270,7 +384,11 @@ public class ShadowMap extends State {
 		    idx = lights.index(light);
 		return(idx);
 	    }, smap, Light.lights);
-	public static final Uniform map = new Uniform(SAMPLER2D, p -> p.get(smap).lsamp, smap);
+	public static final Uniform map = new Uniform(SAMPLER2DSHADOW, p -> p.get(smap).lsamp, smap);   // addon:
+	/* addon: GLSL's texture() on a sampler2DShadow, which answers a float. It names the SAME symbol as
+	 * Function.Builtin.texture: a Symbol.Fix is unique per program, and a program that samples the map samples
+	 * ordinary textures too. */
+	private static final Function.Builtin shtexture = new Function.Builtin(FLOAT, Function.Builtin.texture.name, 2);
 	public static final AutoVarying stc = new AutoVarying(VEC4) {
 		public Expression root(VertexContext vctx) {
 		    return(mul(txf.ref(), Homo3D.get(vctx.prog).eyev.depref()));
@@ -284,7 +402,6 @@ public class ShadowMap extends State {
 	    this.id = Arrays.asList(xd, yd, res, thr);
 	    this.shcalc = new Function.Def(FLOAT) {
 		    {
-			LValue sdw = code.local(FLOAT, l(0.0)).ref();
 			Expression mapc = code.local(VEC3, div(pick(stc.ref(), "xyz"), pick(stc.ref(), "w"))).ref();
 			/* addon: the map covers a box around the player and nothing past it. A fragment outside
 			 * that box read the CLAMPed edge texel, or lay past the light's far depth, and came out
@@ -293,24 +410,23 @@ public class ShadowMap extends State {
 					      gt(max(pick(mapc, "x"), pick(mapc, "y")), l(1.0))),
 					   gt(pick(mapc, "z"), l(1.0))),
 					new Return(l(1.0))));
-			double xr = xd * (res - 1), yr = yd * (res - 1);
-			boolean unroll = false;
-			if(!unroll) {
-			    LValue xo = code.local(FLOAT, null).ref();
-			    LValue yo = code.local(FLOAT, null).ref();
-			    code.add(new For(ass(yo, l(-yr / 2)), lt(yo, l((yr / 2) + (yd / 2))), aadd(yo, l(yd)),
-					     new For(ass(xo, l(-xr / 2)), lt(xo, l((xr / 2) + (xd / 2))), aadd(xo, l(xd)),
-						     new If(gt(add(pick(texture2D(map.ref(), add(pick(mapc, "xy"), vec2(xo, yo))), "r"), l(thr)), pick(mapc, "z")),
-							    stmt(aadd(sdw, l(1.0 / (res * res))))))));
-			} else {
-			    for(double yo = -yr / 2; yo < (yr / 2) + (yd / 2); yo += yd) {
-				for(double xo = -xr / 2; xo < (xr / 2) + (xd / 2); xo += xd) {
-				    code.add(new If(gt(add(pick(texture2D(map.ref(), add(pick(mapc, "xy"), vec2(l(xo), l(yo)))), "r"), l(thr)), pick(mapc, "z")),
-						    stmt(aadd(sdw, l(1.0 / (res * res))))));
-				}
+			/* addon: HARDWARE PCF. The map is sampled as a comparison (Texture.Sampler.compare, LINEAR),
+			 * so one fetch is the hardware's blend of the comparisons of the four texels round its point.
+			 * The loop this replaces compared res x res points a texel apart round the fragment; a fetch
+			 * at (+-1, +-1) texels blends the 2 x 2 texels round it, so (res/2)^2 fetches span the same
+			 * res x res texels -- four instead of sixteen -- and answer a continuous shade rather than
+			 * one of res^2 + 1 steps. The reference is the fragment's depth less the bias: lit where
+			 * ref <= stored, which is the loop's stored + thr > z. */
+			Expression ref = code.local(FLOAT, sub(pick(mapc, "z"), l(thr))).ref();
+			int n = Math.max(res / 2, 1);
+			Expression[] taps = new Expression[n * n];
+			for(int yi = 0, t = 0; yi < n; yi++) {
+			    for(int xi = 0; xi < n; xi++, t++) {
+				double xo = ((2 * xi) - (n - 1)) * xd, yo = ((2 * yi) - (n - 1)) * yd;
+				taps[t] = shtexture.call(map.ref(), vec3(add(pick(mapc, "xy"), vec2(l(xo), l(yo))), ref));
 			    }
 			}
-			code.add(new Return(sdw));
+			code.add(new Return(mul(add(taps), l(1.0 / (n * n)))));
 		    }
 		};
 	}

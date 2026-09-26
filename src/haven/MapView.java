@@ -2907,8 +2907,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		basic(ShadowMap.class, null);
 	    }
 	    smapcc = null;
+	    smapdrawn = null;   // addon:
 	}
     }
+
+    /* addon: THE SHADOW MAP IS DRAWN EVERY OTHER FRAME. Its texture keeps the last frame's depth, and the
+     * scene reads it through the ShadowMap state's own light camera, so a frame that skips the render reads a
+     * map drawn one frame earlier from the very same camera -- the only thing it misses is how far a moving or
+     * animated caster got in that one frame. A map whose camera has moved since (the player walked past the
+     * 50 units updsmap waits for, or the sun turned) is drawn in the same frame, never skipped: that is
+     * ShadowMap.samezone, which compares the camera rather than the object because amblight() makes a new
+     * ShadowMap every tick. Half the shadow pass's draw calls and GPU time, for one frame of lag. */
+    private ShadowMap smapdrawn = null;
+    private boolean smapskip = false;
 
     private void drawsmap(Render out) {
 	// addon: the "shadow" named pass (spec 019, task 019.6) -- smap.update is the ENTIRE shadow render in
@@ -2916,12 +2927,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	// there is no shadow map and the pass is never opened, so its row falls to zero along with the GPU
 	// frame time -- the headline check of this task.
 	if(smap != null) {
+	    if(smapskip && smap.samezone(smapdrawn)) {   // addon: every other frame
+		smapskip = false;
+		return;
+	    }
 	    io.brodgar.prof.Passes.begin(out, io.brodgar.prof.Passes.SHADOW);
 	    try {
 		smap.update(out, slist);
 	    } finally {
 		io.brodgar.prof.Passes.end(out, io.brodgar.prof.Passes.SHADOW);
 	    }
+	    smapdrawn = smap;   // addon: and the next frame may skip
+	    smapskip = true;
 	}
     }
 

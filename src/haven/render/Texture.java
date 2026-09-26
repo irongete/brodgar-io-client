@@ -125,6 +125,10 @@ public abstract class Texture implements Disposable {
 	public Wrapping swrap = Wrapping.REPEAT, twrap = Wrapping.REPEAT, rwrap = Wrapping.REPEAT;
 	public float anisotropy = 0.0f;
 	public FColor border = FColor.BLACK;
+	/* addon: a depth texture sampled as a comparison (LEQUAL against the coordinate's last
+	 * component), which is what a sampler2DShadow uniform reads: with LINEAR filtering the hardware
+	 * blends four comparisons per fetch. Honoured by 2D textures. */
+	public boolean compare = false;
 	public Disposable ro;
 
 	public Sampler(T tex) {
@@ -151,6 +155,7 @@ public abstract class Texture implements Disposable {
 	public Sampler<T> wrapmode(Wrapping v) {return(swrap(v).twrap(v).rwrap(v));}
 	public Sampler<T> anisotropy(float v) {anisotropy = v; return(this);}
 	public Sampler<T> border(FColor v) {border = v; return(this);}
+	public Sampler<T> compare(boolean v) {compare = v; return(this);}   // addon:
 
 	public Sampler<T> copy(Sampler<?> that) {
 	    this.magfilter = that.magfilter;
@@ -161,6 +166,7 @@ public abstract class Texture implements Disposable {
 	    this.rwrap = that.rwrap;
 	    this.anisotropy = that.anisotropy;
 	    this.border = that.border;
+	    this.compare = that.compare;   // addon:
 	    return(this);
 	}
 
@@ -169,6 +175,7 @@ public abstract class Texture implements Disposable {
 				   swrap, twrap, rwrap,
 				   border);
 	    ret = (ret * 31) + Float.floatToIntBits(anisotropy);
+	    ret = (ret * 31) + (compare ? 1 : 0);   // addon:
 	    return(ret);
 	}
 
@@ -179,7 +186,8 @@ public abstract class Texture implements Disposable {
 	public boolean parequals(Sampler<?> that) {
 	    return((this.magfilter == that.magfilter) && (this.minfilter == that.minfilter) && (this.mipfilter == that.mipfilter) &&
 		   (this.swrap == that.swrap) && (this.twrap == that.twrap) && (this.rwrap == that.rwrap) &&
-		   (this.anisotropy == that.anisotropy) && this.border.equals(that.border));
+		   (this.anisotropy == that.anisotropy) && this.border.equals(that.border) &&
+		   (this.compare == that.compare));   // addon:
 	}
 
 	private boolean equals(Sampler<?> that) {

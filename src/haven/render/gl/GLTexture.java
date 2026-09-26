@@ -368,6 +368,10 @@ public abstract class GLTexture extends GLObject implements BGL.ID {
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, wrapmode(data.swrap));
 		    gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, wrapmode(data.twrap));
 		    gl.glTexParameterfv(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_BORDER_COLOR, data.border.to4a());
+		    if(data.compare) {   // addon: hardware PCF: the texture answers the comparison, not the depth
+			gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_COMPARE_MODE, GL.GL_COMPARE_REF_TO_TEXTURE);
+			gl.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_COMPARE_FUNC, GL.GL_LEQUAL);
+		    }
 		    unbind(gl);
 		    gl.bglCheckErr();
 		});

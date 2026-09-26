@@ -121,6 +121,10 @@ public interface GL {
     public static final int GL_TEXTURE_2D_MULTISAMPLE_ARRAY = com.jogamp.opengl.GL3.GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
     public static final int GL_TEXTURE_3D = com.jogamp.opengl.GL3.GL_TEXTURE_3D;
     public static final int GL_TEXTURE_BORDER_COLOR = com.jogamp.opengl.GL3.GL_TEXTURE_BORDER_COLOR;
+    // addon: a depth texture answering a comparison -- the shadow map's hardware PCF
+    public static final int GL_TEXTURE_COMPARE_MODE = com.jogamp.opengl.GL3.GL_TEXTURE_COMPARE_MODE;
+    public static final int GL_TEXTURE_COMPARE_FUNC = com.jogamp.opengl.GL3.GL_TEXTURE_COMPARE_FUNC;
+    public static final int GL_COMPARE_REF_TO_TEXTURE = com.jogamp.opengl.GL3.GL_COMPARE_REF_TO_TEXTURE;
     public static final int GL_TEXTURE_CUBE_MAP = com.jogamp.opengl.GL3.GL_TEXTURE_CUBE_MAP;
     public static final int GL_TEXTURE_CUBE_MAP_ARRAY = com.jogamp.opengl.GL3.GL_TEXTURE_CUBE_MAP_ARRAY;
     public static final int GL_TEXTURE_MIN_FILTER = com.jogamp.opengl.GL3.GL_TEXTURE_MIN_FILTER;
