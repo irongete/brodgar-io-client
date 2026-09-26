@@ -87,8 +87,17 @@ public class ShadowMap extends State {
     }
 
     public static class ShadowList implements RenderList<Rendered>, RenderList.Adapter, Disposable {
+	/* addon: SLOPE-SCALED BIAS. Every caster is drawn into the map pushed away from the light by three
+	 * times its own depth slope per texel (glPolygonOffset). The hardware PCF compares the fragment against
+	 * the depth each texel holds at its centre, up to two texels away, and the ground's depth moves by
+	 * texel x cos(e)^2 / sin(e) per texel under a sun at elevation e (Camera.makedir's un-normalised axis
+	 * makes it cos^2, not cos): 0.5 units at 45 degrees, 3.4 at 12, against the receiver's bias of one unit
+	 * (thr). Past it the ground shadowed itself in stripes a texel apart. The push is the caster's own
+	 * slope, so the ground's grows with a low sun while a face turned to the light, whose shadow meets the
+	 * ground at its foot, is barely moved. Free: the rasterizer applies it. */
 	public static final Pipe.Op shadowbasic = Pipe.Op.compose(new States.Depthtest(States.Depthtest.Test.LE),
 								  new States.Facecull(),
+								  new States.DepthBias(3, 0),
 								  Homo3D.state);
 	private final RenderList.Adapter master;
 	private final ProxyPipe basic = new ProxyPipe();
@@ -142,6 +151,11 @@ public class ShadowMap extends State {
 	    }
 
 	    public int gstate(int id) {
+		/* addon: the pass's own depth bias, over any a caster carries: a bias set for the main view
+		 * (a ground decal pulled toward the camera, water pushed back) means nothing seen from the light,
+		 * and a decal pulled toward it shadowed the ground it lies on. */
+		if((id == States.depthbias.id) && (id < curbasic.mask.length) && curbasic.mask[id])
+		    return(idx_bas);
 		if(State.Slot.byid(id).type == State.Slot.Type.GEOM) {
 		    int ret = bk.state().gstate(id);
 		    if(ret >= 0)
