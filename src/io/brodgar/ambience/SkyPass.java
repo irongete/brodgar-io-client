@@ -52,6 +52,9 @@ public class SkyPass implements RenderTree.Node {
     static final double MOONR = 0.04;
     /* The edge noise's scale: the game's cloud texture, a texel to every four units or so. */
     static final double NOISE = 0.0035;
+    /* The finest mip level the edge noise is read at: a near cloud's edge as soft as a far one's, not
+     * pitted by the texture's own grain nor streaked down its sides, where the noise does not vary. */
+    static final double NOISELOD = 5.0;
 
     static {
 	/* An array of vec4 as one flat float[], uploaded in one call. The engine maps only mat4 arrays. */
@@ -248,7 +251,7 @@ public class SkyPass implements RenderTree.Node {
 	Expression n = pv.local(VEC3, mix(nb, vec3(l(0.0), l(0.0), l(-1.0)), below)).ref();
 	/* 0 at the rim, 1 straight through the middle: the half-chord against the radius, in the egg's space. */
 	Expression th = pv.local(FLOAT, div(s, mul(sqrt(qa), r))).ref();
-	Expression lod = pv.local(FLOAT, max(add(log2(max(mul(t0, lodk.ref()), l(0.0001))), log2(pick(ext, "w"))), l(0.0))).ref();
+	Expression lod = pv.local(FLOAT, max(add(log2(max(mul(t0, lodk.ref()), l(0.0001))), log2(pick(ext, "w"))), l(NOISELOD))).ref();
 	Expression nz = pv.local(FLOAT, pick(textureLod.call(sclouds.ref(), add(mul(pick(p0, "xy"), l(NOISE), pick(ext, "w")), vec2(pick(info, "w"), mul(pick(info, "w"), l(1.7)))), lod), "r")).ref();
 	/* Each cloud's own edge: how far in from the rim it turns solid, and how ragged the noise makes it. */
 	Expression soft = smoothstep(l(0.0), pick(ext, "x"), add(th, mul(sub(nz, l(0.5)), pick(ext, "y"))));
