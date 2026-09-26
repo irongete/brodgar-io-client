@@ -24,7 +24,12 @@ import haven.*;
  * The server's night stays the authority for WHEN it is dark: its night begins and ends as the sun passes
  * DUSK below the horizon here. Where in its day that happens is learnt from its night flag -- every edge
  * the flag is seen to cross is kept, for the next login too -- and the day and the night between are
- * spread over the sun's own arc above and below that height. */
+ * spread over the sun's own arc above and below that height.
+ *
+ * Whatever moves the sun other than time -- a night flag crossed earlier or later than the day was learnt
+ * to have it, a new reading of the server's clock off the one carried on -- never moves it at once: the
+ * sun is shown where it stood, and eased onto where it now belongs at CATCH, so the dusk and the dawn are
+ * never a step. */
 final class Daylight {
     /* The latitude the sky is seen from, and how far the seasons move the sun's path north and south (the
      * real tilt is 23.4 degrees: this is gentler). */
@@ -37,6 +42,12 @@ final class Daylight {
     /* How far the light turns before a new one is put in the scene: every new one is a new shadow map and a
      * new compile of the scene's light (MapView.amblight), and a quarter of a degree is no shadow's jump. */
     static final double STEP = Math.toRadians(0.25);
+    /* How fast the sun is eased onto where it belongs, in its hour angle per second of the game's clock:
+     * twice the sun's own pace, so a correction reads as a quicker dusk or dawn, never as a jump. */
+    static final double CATCH = Math.toRadians(30) / 3600;
+    /* Past this many seconds of the game's clock unseen -- indoors, the sky switched off, another session --
+     * the sun is shown where it belongs outright: there is no dusk on screen to keep. */
+    static final double GAP = 60;
 
     /* The night's light with no moon up: starlight, dark but playable. */
     static final float[] NIGHT = {0.085f, 0.095f, 0.175f};
@@ -101,8 +112,11 @@ final class Daylight {
      * begins, as fractions of a day from noon (rise before it, set after). Kept as prefs, since every login
      * learns them afresh otherwise. */
     static double noon = 0.5;
-    static double rise = span("ambience-nightend", -0.30, -0.45, -0.05);
-    static double set = span("ambience-nightstart", 0.30, 0.05, 0.45);
+    static double rise = span("ambience-dawn", -0.30, -0.45, -0.05);
+    static double set = span("ambience-dusk", 0.30, 0.05, 0.45);
+    /* How far the sun is shown from where the server's clock puts it, in radians of its hour angle, and the
+     * game time it was last shown at. */
+    private static double off = 0, lastcall = Double.NaN;
     private static Boolean lastnight = null;
     /* The server sends the time of day now and then: between, it is carried on at the rate it was seen to
      * run at, game seconds of the world's clock against fractions of a day. Nothing is carried on until two
@@ -136,9 +150,9 @@ final class Daylight {
 	prevgt = gt;
 	/* The game's calendar (Cal) draws the sun at its top at 0.5 and the moon at its top at 0 (Coord.sc
 	 * turns the angle's y upward): so noon is 0.5, unless the server's night is seen to stand round 0.5
-	 * instead. */
+	 * instead -- within four hours of it, which the edge of no winter's night reaches. */
 	if(ast.night)
-	    noon = (Math.abs(ast.dt - 0.5) < 0.25) ? 0.0 : 0.5;
+	    noon = (Math.abs(ast.dt - 0.5) < (4.0 / 24)) ? 0.0 : 0.5;
 	double y = wrap(ast.dt - noon);
 	boolean edge = (lastnight != null) && (lastnight != ast.night);
 	lastnight = ast.night;
@@ -157,9 +171,9 @@ final class Daylight {
 	}
 	if(edge) {
 	    if(ast.night)
-		Utils.setprefd("ambience-nightstart", set);
+		Utils.setprefd("ambience-dusk", set);
 	    else
-		Utils.setprefd("ambience-nightend", rise);
+		Utils.setprefd("ambience-dawn", rise);
 	}
     }
 
@@ -181,6 +195,15 @@ final class Daylight {
 	double yy = (y < rise) ? (y + 1) : y;
 	return(h0 + (((yy - set) / (1 - day)) * ((2 * Math.PI) - (2 * h0))));
     }
+
+    /* The sun's declination: north of the equator in summer, south in winter. */
+    static double decl(Astronomy ast) {return(TILT * Math.sin(2 * Math.PI * (season(ast) - 0.125)));}
+
+    /* The sun's hour angle where the server's clock puts it now, as far as this has learnt its day. */
+    static double target(Astronomy ast, double gt) {return(hour(wrap(dtnow(ast, gt) - noon), decl(ast)));}
+
+    /* An angle brought into -pi..pi. */
+    static double angle(double a) {return(2 * Math.PI * wrap(a / (2 * Math.PI)));}
 
     /* Toward a body at an hour angle and declination, as the world's axes have it: east is +x, and the sun
      * stands highest toward +y. */
@@ -232,6 +255,21 @@ final class Daylight {
      * year (:amb time, moon, year) stand in for the server's. ovc and gloom are the weather's: how overcast
      * the sky is, and how dark the rain or snow makes it. */
     static Sky at(Astronomy ast, double gt, float ovc, float gloom) {
+	double dgt = gt - lastcall;
+	boolean seen = Double.isFinite(dgt) && (dgt >= 0) && (dgt <= GAP);
+	lastcall = gt;
+	if(seen) {
+	    off = (off > 0) ? Math.max(0, off - (CATCH * dgt)) : Math.min(0, off + (CATCH * dgt));
+	    /* A new reading, and what it teaches of the server's day, moves the sun: it is shown where it
+	     * stood, and eased from there. */
+	    if((ast != null) && (lastast != null) && (ast != lastast)) {
+		double before = target(lastast, gt);
+		observe(ast, gt);
+		off += angle(before - target(ast, gt));
+	    }
+	} else {
+	    off = 0;
+	}
 	observe(ast, gt);
 	double y;
 	if(Ambience.ptime != null)
@@ -241,8 +279,8 @@ final class Daylight {
 	else
 	    return(null);
 	double mp = frac((Ambience.pmoon != null) ? Ambience.pmoon : ((ast != null) ? ast.mp : 0.5));
-	double decl = TILT * Math.sin(2 * Math.PI * (season(ast) - 0.125));
-	double hs = hour(y, decl);
+	double decl = decl(ast);
+	double hs = hour(y, decl) + ((Ambience.ptime != null) ? 0 : off);
 	float[] sdir = dir(hs, decl);
 	float[] mdir = dir(hs - (2 * Math.PI * mp), decl * Math.cos(2 * Math.PI * mp));
 	float sel = deg(sdir[2]), mel = deg(mdir[2]);
@@ -290,7 +328,7 @@ final class Daylight {
     static String describe(Sky d) {
 	if(d == null)
 	    return("no time of day yet");
-	return(String.format("sun %.1f deg, moon %.1f deg (%.0f%% lit), lit by the %s at %.0f%% of noon, night from %.3f to %.3f of the day (noon at %.1f)",
-			     d.sel, d.mel, d.illum * 100, d.bymoon ? "moon" : "sun", d.cel * 100, frac(noon + set), frac(noon + rise), noon));
+	return(String.format("sun %.1f deg, moon %.1f deg (%.0f%% lit), lit by the %s at %.0f%% of noon, night from %.3f to %.3f of the day (noon at %.1f), sun eased %.1f deg of its hour",
+			     d.sel, d.mel, d.illum * 100, d.bymoon ? "moon" : "sun", d.cel * 100, frac(noon + set), frac(noon + rise), noon, Math.toDegrees(off)));
     }
 }

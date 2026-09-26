@@ -146,9 +146,11 @@ public class SkyPass implements RenderTree.Node {
 	Expression cell = floor(mul(v, l(360.0)));
 	Expression hash = fract(mul(sin(dot(cell, vec3(12.9898, 78.233, 37.719))), l(43758.5453)));
 	code.add(aadd(c, vec3(mul(step(l(0.997), hash), stars.ref(), clamp(mul(pick(v, "z"), l(6.0)), l(0.0), l(1.0)), l(1.1)))));
-	/* The moon: a disc MOONR across, shaded as a ball lit from the side its phase puts the sun on -- the
-	 * right at first quarter, the front at full -- mottled by the cloud noise, with a little earthshine
-	 * on its dark part (which hides the stars behind it too) and a halo as bright as it is full. */
+	/* The moon: a disc MOONR across, shaded as a ball lit by the sun where this sky draws it -- the face
+	 * seen at (mx, my) has the normal mx rt + my upv - sqrt(1 - r2) m, lit as far as it turns to the sun,
+	 * so the lit limb faces the sun and leans as it does, in whichever way the sky runs -- mottled by the
+	 * cloud noise, with a little earthshine on its dark part (which hides the stars behind it too) and a
+	 * halo as bright as its phase is full. */
 	Expression m = mdir.ref();
 	Expression mu2 = code.local(FLOAT, dot(v, m)).ref();
 	Expression rt = code.local(VEC3, normalize(cross(m, mix(vec3(l(0.0), l(0.0), l(1.0)), vec3(l(0.0), l(1.0), l(0.0)), step(l(0.99), abs(pick(m, "z"))))))).ref();
@@ -158,7 +160,9 @@ public class SkyPass implements RenderTree.Node {
 	Expression r2 = code.local(FLOAT, add(mul(mx, mx), mul(my, my))).ref();
 	Expression inside = code.local(FLOAT, mul(sub(l(1.0), smoothstep(l(0.9), l(1.0), r2)), step(l(0.0), mu2), mvis.ref())).ref();
 	Expression ph = code.local(FLOAT, mul(mphase.ref(), l(Math.PI * 2))).ref();
-	Expression lit = code.local(FLOAT, smoothstep(l(-0.06), l(0.08), add(mul(mx, sin(ph)), mul(sqrt(max(sub(l(1.0), r2), l(0.0))), neg(Function.Builtin.cos.call(ph)))))).ref();
+	Expression s = sdir.ref();
+	Expression lit = code.local(FLOAT, smoothstep(l(-0.06), l(0.08), add(mul(mx, dot(rt, s)), mul(my, dot(upv, s)),
+									      mul(sqrt(max(sub(l(1.0), r2), l(0.0))), neg(dot(m, s)))))).ref();
 	/* Its level named, as the clouds' are: the open sky is drawn in a branch of its own (main). */
 	Expression mlod = max(log2(mul(lodk.ref(), l(0.18 / (MOONR * NOISE)))), l(0.0));
 	Expression spots = add(l(0.72), mul(pick(textureLod.call(sclouds.ref(), add(mul(vec2(mx, my), l(0.18)), vec2(l(0.3), l(0.6))), mlod), "r"), l(0.35)));
