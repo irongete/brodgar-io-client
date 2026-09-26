@@ -2946,14 +2946,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public DirLight amblight = null;
     private RenderTree.Slot s_amblight = null;
     /* addon: what the sun standing in the scene was built from. This is asked every tick, and the server's light
-     * holds still but for its two-second turns (Glob.ticklight), a previewed hour for as long as it is previewed;
+     * holds still but for its two-second turns (Glob.ticklight), the improved sky's turns only a quarter of a degree at a time;
      * building a new DirLight every tick anyway took the sun out of the scene and put it back each frame, and
      * handed updsmap a new ShadowMap state for it, which every shadowed program re-read its uniforms for. A sun
      * whose values are the ones already standing is left standing. */
     private Object[] sunkey = null;
     private void amblight() {
 	synchronized(glob) {
-	    io.brodgar.ambience.Ambience.Sun pv = io.brodgar.ambience.Ambience.sunpreview();   // addon: ambience -- a previewed hour
+	    io.brodgar.ambience.Ambience.Sun pv = io.brodgar.ambience.Ambience.sun(glob);   // addon: ambience -- the improved sky's day and night
 	    Object[] key = (pv != null) ? new Object[] {pv.amb, pv.dif, pv.spc, pv.elev, pv.ang} :
 		(glob.lightamb != null) ? new Object[] {glob.lightamb, glob.lightdif, glob.lightspc, glob.lightelev, glob.lightang} :
 		null;
@@ -3029,6 +3029,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private Object[][] lightparams = null;
     private Projection lightproj = null;
     private Pipe.Op lightstate = null;
+    private int lightgen = 0;
     protected void lights() {
 	GSettings gprefs = basic.state().get(GSettings.slot);
 	if((lighting == null) || !lighting.valid(gprefs)) {
@@ -3038,8 +3039,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	Projection proj = (camera == null) ? new Projection(Matrix4f.id) : camera.proj;
 	Object[][] params = lights.params();
-	if((lightstate != null) && (basic(Light.class) == lightstate) && Utils.eq(proj, lightproj) && Arrays.deepEquals(params, lightparams))
+	int gen = io.brodgar.ambience.Ambience.lightgen;   // addon: what the light's uniforms read moved (Ambience.celscale)
+	if((lightstate != null) && (basic(Light.class) == lightstate) && Utils.eq(proj, lightproj) && Arrays.deepEquals(params, lightparams) && (gen == lightgen))
 	    return;   // addon: nothing it was compiled from has moved
+	lightgen = gen;
 	lightparams = lightcopy(params);
 	lightproj = proj;
 	basic(Light.class, lightstate = Pipe.Op.compose(lights, lighting.compile(params, proj)));

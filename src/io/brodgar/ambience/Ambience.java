@@ -9,10 +9,12 @@ import io.brodgar.perf.Performance;
 /* The server's weather and light, drawn our way.
  *
  * The server stays the authority for WHAT the world is doing -- its "wth" set (clouds, rain, snow)
- * and its "light" -- and this decides HOW it looks: a sky with a sun, stars and a handful of separate
- * clouds drawn wherever nothing else was, distance fog of the sky's own colour, the clouds' shadows on
- * the ground, and the rain and the snow, drawn on the graphics card as the game's own look (AmbRain,
- * AmbSnow). Rain and snow also heap and darken the sky.
+ * and its time of day, moon and year -- and this decides HOW it looks: a sky with a sun, a moon, stars
+ * and a handful of separate clouds drawn wherever nothing else was, distance fog of the sky's own colour,
+ * the clouds' shadows on the ground, and the rain and the snow, drawn on the graphics card as the game's
+ * own look (AmbRain, AmbSnow). Rain and snow also heap and darken the sky. While the sky is ours, the
+ * scene is lit by its own day and night (Daylight) -- from where its sun or its moon stands, as bright as
+ * they are -- in place of the server's "light".
  *
  * The clouds are made up here, not read off the server: how many there are, how big and how dark
  * follows how much cloud and rain the server says there is -- a clear day has none or a stray few, a
@@ -22,7 +24,7 @@ import io.brodgar.perf.Performance;
  * clouds, the fog, the rain and snow -- each one off handing its part back to the game: no sky of ours is
  * the game's own background, no clouds of ours the game's own cloud shadows, no fog of ours none at all,
  * no rain and snow of ours the game's own. Off by default (:amb on switches all of it on). The previews
- * (:amb time, :amb weather, :amb clouds) stand in for what the server would say, so a sky it is not
+ * (:amb time, :amb moon, :amb year, :amb weather, :amb clouds) stand in for what the server would say, so a sky it is not
  * sending right now can be looked at, and :amb gamefx puts the game's own rain and snow in place of ours
  * to compare them. Every number the server's arguments are read against is a guess from the game's own
  * code (gfx/fx/clouds v11, gfx/fx/rain v2, gfx/fx/snow v2). */
@@ -54,6 +56,8 @@ public class Ambience {
     static volatile int pclouds = -1;
     /* A moon phase to show, 0 new to 0.5 full to 1 new again, or null for the server's (:amb moon). */
     static volatile Double pmoon = null;
+    /* A point of the year to show, 0 spring's start to 1 winter's end, or null for the server's (:amb year). */
+    static volatile Double pyear = null;
     /* The phases' names, by eighths of the server's number: it sends the number, not the name. */
     static final String[] PHASES = {"new moon", "waxing crescent", "first quarter", "waxing gibbous",
 				     "full moon", "waning gibbous", "last quarter", "waning crescent"};
@@ -77,6 +81,14 @@ public class Ambience {
     public static volatile float cloudamount = prefd("ambience-cloudamount", 1.2);
     /* Whether the night sky has its stars and its moon. The moon's light, and the shadows it casts, stay. */
     public static volatile boolean starsmoon = Utils.getprefb("ambience-stars", true);
+    /* Whether a night is as dark as its moon leaves it: off, no night is lit less than under a full moon. */
+    public static volatile boolean darknights = Utils.getprefb("ambience-darknights", true);
+    /* Whether the game's cel-shaded objects are dimmed with the scene's light (celscale): off, they keep the
+     * game's own brightness at every hour. */
+    public static volatile boolean celfollow = Utils.getprefb("ambience-celfollow", true);
+    /* Moved whenever what celscale answers moves without the light moving with it: MapView.lights compiles the
+     * scene's light again for it, which is what has celscale read again. */
+    public static volatile int lightgen = 0;
 
     static {
 	Console.setscmd("amb", Ambience::command);
@@ -146,6 +158,15 @@ public class Ambience {
 
     public static void starsmoon(boolean on) {
 	Utils.setprefb("ambience-stars", starsmoon = on);
+    }
+
+    public static void darknights(boolean on) {
+	Utils.setprefb("ambience-darknights", darknights = on);
+    }
+
+    public static void celfollow(boolean on) {
+	Utils.setprefb("ambience-celfollow", celfollow = on);
+	lightgen++;
     }
 
     /* Is this weather resource one this draws instead of the game? Asked by Performance.withheldWeather,
@@ -248,8 +269,8 @@ public class Ambience {
 	return(w);
     }
 
-    /* The hour of a previewed day, as the light a server might send for it: the colours and the angles
-     * Glob.blob's "light" branch carries. Only ever a preview; the real light is the server's. */
+    /* The light the improved sky lights the scene with, in the terms Glob.blob's "light" branch carries: the
+     * colours and the angles. */
     public static class Sun {
 	public final Color amb, dif, spc;
 	public final float elev, ang;
@@ -259,62 +280,38 @@ public class Ambience {
 	}
     }
 
-    private static final float[][] daykeys = {
-	/* hour,  ambient rgb,     diffuse rgb */
-	{ 0.0f,   22,  26,  48,     38,  48,  92},
-	{ 4.5f,   26,  28,  52,     48,  52,  96},
-	{ 5.5f,   60,  52,  70,    150, 100,  90},
-	{ 6.5f,   95,  80,  75,    255, 160, 100},
-	{ 8.0f,  112, 110, 112,    255, 228, 195},
-	{12.0f,  122, 122, 126,    255, 250, 238},
-	{16.5f,  118, 114, 110,    255, 236, 205},
-	{18.5f,  100,  80,  72,    255, 150,  85},
-	{19.5f,   60,  48,  64,    170,  90,  90},
-	{20.5f,   30,  30,  56,     60,  56, 100},
-	{24.0f,   22,  26,  48,     38,  48,  92},
-    };
+    /* The sky as the scene is lit now (Daylight), or null while the server's own light stands. */
+    static volatile Daylight.Sky sky = null;
 
-    public static Sun sunpreview() {
-	Double t = ptime;
-	if(!enabled() || (t == null))
-	    return(null);
-	float h = (float)(((t % 24) + 24) % 24);
-	int i = 0;
-	while((i < daykeys.length - 2) && (daykeys[i + 1][0] <= h))
-	    i++;
-	float[] a = daykeys[i], b = daykeys[i + 1];
-	float f = (h - a[0]) / (b[0] - a[0]);
-	int[] c = new int[6];
-	for(int o = 0; o < 6; o++)
-	    c[o] = Math.round(a[o + 1] + ((b[o + 1] - a[o + 1]) * f));
-	Color amb = new Color(c[0], c[1], c[2]), dif = new Color(c[3], c[4], c[5]);
-	float elev, ang;
-	if((h >= 6.0f) && (h <= 19.5f)) {
-	    float p = (h - 6.0f) / 13.5f;
-	    /* Never below 12 degrees: the shadow map is a 750-unit box, and a grazing sun stretches every
-	     * shadow out of it. The colour says sunset; the shadow stays one the map can hold. */
-	    elev = (float)Math.toRadians(Math.max(12.0, Math.sin(p * Math.PI) * 58.0));
-	    ang = (float)(Math.PI * 0.2 + p * Math.PI);
-	} else {
-	    /* The moon's light, from where the moon stands (moondir): so the night's shadows fall from it. */
-	    float[] m = moondir(((((h - 12) / 24.0) % 1) + 1) % 1);
-	    elev = (float)Math.max(Math.toRadians(12.0), Math.asin(Math.max(-1, Math.min(1, m[2]))));
-	    ang = (float)Math.atan2(m[1], m[0]);
+    /* How far the game's cel shading (Phong.CelShade) is dimmed: 1 but under the sky's own day and night,
+     * where it is the scene's light against a clear noon's. The cel ramp paints a face at full, half or no
+     * brightness by how much light it gets, whatever that is, so a moonlit face showed as bright as a sunlit
+     * one; under this the ramp picks its step as if it were noon and the step is dimmed by this, so the
+     * shaded objects darken with the ground. Only in a map view: a portrait's cel shading is its own. Read
+     * again whenever the scene's light is compiled again (Lighting.lights, a new state for every new light:
+     * MapView.lights) -- Light.lights is the one list the scene's lights stand in, the same object always,
+     * and a value read off it is never read again. */
+    public static final haven.render.sl.Uniform celscale = new haven.render.sl.Uniform(haven.render.sl.Type.FLOAT, p -> {
+	    Daylight.Sky d = sky;
+	    if((d == null) || !celfollow)
+		return(1f);
+	    RenderContext ctx = p.get(RenderContext.slot);
+	    if(!(ctx instanceof PView.WidgetContext) || !(((PView.WidgetContext)ctx).widget() instanceof MapView))
+		return(1f);
+	    return(d.cel);
+	}, RenderContext.slot, haven.render.Lighting.lights);
+
+    /* The light of the improved sky's day and night (Daylight), or null for the server's own: asked by
+     * MapView.amblight every tick. Only while the sky is ours (or an hour is previewed), and never indoors
+     * or underground: there, and with the sky switched off, the light is the game's, untouched. */
+    public static Sun sun(Glob glob) {
+	Daylight.Sky d = null;
+	if(enabled() && (skyon || (ptime != null)) && !indoors) {
+	    Frame f = frame;
+	    d = Daylight.at(glob.ast, glob.globtime(), f.ovc, f.gloom);
 	}
-	return(new Sun(amb, dif, dif, elev, ang));
-    }
-
-    /* How dark a previewed hour is: night from half past eight to half past four, a twilight hour at
-     * either end. */
-    static float previewdark(double t) {
-	float h = (float)(((t % 24) + 24) % 24);
-	if((h >= 20.5f) || (h <= 4.5f))
-	    return(1);
-	if(h > 19.5f)
-	    return(h - 19.5f);
-	if(h < 5.5f)
-	    return(5.5f - h);
-	return(0);
+	sky = d;
+	return((d == null) ? null : new Sun(d.amb, d.dif, d.dif, d.elev, d.ang));
     }
 
     /* One frame's worth of what the shaders read, replaced whole every tick. */
@@ -332,9 +329,13 @@ public class Ambience {
 	float[] ssh = new float[2];
 	/* The height of the ground under the player, which the shadows fall on. */
 	float ground = 0;
-	/* The moon: where it is, how lit (its phase), its colour, and how much of it shows. */
+	/* The moon: where it is, how lit (its phase), its colour, and how much of it shows; and how dark the
+	 * sky behind it is, which is how much its unlit part shows (none against a day's blue). */
 	float[] mdir = {0, 0, -1}, mcol = {0.9f, 0.9f, 0.85f};
-	float mphase = 0.5f, mvis = 0;
+	float mphase = 0.5f, mvis = 0, mdark = 1;
+	/* How overcast the sky is, and how dark the rain or the snow makes it: the next tick's light
+	 * (Daylight) is dimmed by them. */
+	float ovc = 0, gloom = 0;
 
 	Frame(float[] zen, float[] hor, float[] sun, float[] sdir, float[] ccol,
 	      float night, float disc, float fogmax, float fogdens, Coord3f focus) {
@@ -461,23 +462,23 @@ public class Ambience {
     static float[] mul(float[] a, float f) {return(new float[] {a[0] * f, a[1] * f, a[2] * f});}
     static float[] rgb(float[] c) {return(new float[] {c[0], c[1], c[2]});}
 
-    static Frame compute(DirLight l, Coord3f focus, Weather w, View v, Astronomy ast) {
-	float[] amb = rgb(l.amb), dif = rgb(l.dif);
-	float ld = lum(dif), la = lum(amb);
-	float day = smooth(0.08f, 0.45f, ld);
-	float mx = Math.max(0.001f, Math.max(dif[0], Math.max(dif[1], dif[2])));
-	float warm = clamp((((dif[0] - dif[2]) / mx) * 1.4f) - 0.2f, 0, 1);
-	float bright = Math.min(1.15f, 0.35f + (ld * 0.8f));
-
+    /* A day's blue at a brightness, warmed toward a sun's colour low in the sky: its zenith and horizon. */
+    static float[][] daysky(float[] tint, float bright, float warm) {
+	float mx = Math.max(0.001f, Math.max(tint[0], Math.max(tint[1], tint[2])));
 	float[] dayzen = {0.22f * bright, 0.42f * bright, 0.80f * bright};
 	float[] dayhor = {0.64f * bright, 0.75f * bright, 0.90f * bright};
-	float[] warmhor = {(dif[0] / mx) * 0.95f * bright, (((dif[1] / mx) * 0.75f) + 0.05f) * bright, (((dif[2] / mx) * 0.6f) + 0.08f) * bright};
+	float[] warmhor = {(tint[0] / mx) * 0.95f * bright, (((tint[1] / mx) * 0.75f) + 0.05f) * bright, (((tint[2] / mx) * 0.6f) + 0.08f) * bright};
 	dayhor = mix(dayhor, warmhor, warm * 0.85f);
 	dayzen = mix(dayzen, new float[] {0.30f * bright, 0.30f * bright, 0.55f * bright}, warm * 0.5f);
-	float[] nightzen = {0.012f + (amb[0] * 0.12f), 0.018f + (amb[1] * 0.12f), 0.045f + (amb[2] * 0.18f)};
-	float[] nighthor = {0.035f + (amb[0] * 0.30f), 0.050f + (amb[1] * 0.30f), 0.090f + (amb[2] * 0.35f)};
-	float[] zen = mix(nightzen, dayzen, day), hor = mix(nighthor, dayhor, day);
+	return(new float[][] {dayzen, dayhor});
+    }
 
+    /* The frame's sky. With the sky's own day and night (d, Daylight) it follows the sun's height: the day's
+     * blue, the horizon warming as the sun nears it and a glow on the side it rises or sets on, the twilight
+     * deepening into a night that is lighter under a moon, and the stars coming out as the sun sinks.
+     * Without (the sky part off: the scene is lit by the server), it is read off the server's light. */
+    static Frame compute(DirLight l, Coord3f focus, Weather w, View v, Astronomy ast, Daylight.Sky d) {
+	float[] amb = rgb(l.amb), dif = rgb(l.dif);
 	/* A grey sky only under a heavy cover or rain: a few clouds on a fine day leave it blue. */
 	float cover = v.cover(), wet = v.wet(w), flake = v.flake(w);
 	float ovc = smooth(0.45f, 0.9f, cover) * (0.55f + (0.45f * (1 - v.rmin)));
@@ -485,27 +486,55 @@ public class Ambience {
 	    ovc = Math.max(ovc, 0.45f + (0.4f * Math.max(wet, flake)));
 	/* Rain darkens the whole sky; snow only greys it. */
 	float gloom = Math.max(wet, flake * 0.4f);
+
+	float[] zen, hor, sun, sdir;
+	float dark, disc, day, moonsky = 0;
+	if(d != null) {
+	    float e = d.sel;
+	    day = smooth(-4, 12, e);
+	    float tw = smooth(-18, -4, e);
+	    float bright = Math.min(1.15f, 0.35f + (lum(mul(d.hue, d.sp)) * 0.8f));
+	    float warm = clamp(((d.hue[0] - d.hue[2]) * 1.4f) - 0.2f, 0, 1) * (1 - smooth(10, 25, e));
+	    float[][] ds = daysky(d.hue, bright, warm);
+	    moonsky = d.moonlight;
+	    float[] nightzen = {0.010f + (0.030f * moonsky), 0.015f + (0.045f * moonsky), 0.035f + (0.090f * moonsky)};
+	    float[] nighthor = {0.030f + (0.050f * moonsky), 0.042f + (0.070f * moonsky), 0.080f + (0.120f * moonsky)};
+	    float[] twzen = {0.05f, 0.07f, 0.17f};
+	    float[] twhor = mix(new float[] {0.20f, 0.15f, 0.22f}, mul(d.hue, 0.35f), 0.4f);
+	    zen = mix(mix(nightzen, twzen, tw), ds[0], day);
+	    hor = mix(mix(nighthor, twhor, tw), ds[1], day);
+	    /* The sun's glow: its light while it is up, and in the twilight a glow of its own on the horizon
+	     * it is under. Its disc only while it is up. */
+	    float glow = smooth(-12, -1, e) * (1 - smooth(3, 14, e));
+	    sun = mul(d.hue, ((1.1f * d.sp) + (0.9f * glow * (1 - d.sp))) * (1 - (ovc * 0.9f)));
+	    disc = 2.5f * (1 - ovc) * (1 - ovc) * smooth(-1.5f, 0.5f, e);
+	    dark = 1 - smooth(-14, -3, e);
+	    sdir = rgb(d.sdir);
+	} else {
+	    float ld = lum(dif), la = lum(amb);
+	    day = smooth(0.08f, 0.45f, ld);
+	    float mx = Math.max(0.001f, Math.max(dif[0], Math.max(dif[1], dif[2])));
+	    float warm = clamp((((dif[0] - dif[2]) / mx) * 1.4f) - 0.2f, 0, 1);
+	    float bright = Math.min(1.15f, 0.35f + (ld * 0.8f));
+	    float[][] ds = daysky(dif, bright, warm);
+	    float[] nightzen = {0.012f + (amb[0] * 0.12f), 0.018f + (amb[1] * 0.12f), 0.045f + (amb[2] * 0.18f)};
+	    float[] nighthor = {0.035f + (amb[0] * 0.30f), 0.050f + (amb[1] * 0.30f), 0.090f + (amb[2] * 0.35f)};
+	    zen = mix(nightzen, ds[0], day);
+	    hor = mix(nighthor, ds[1], day);
+	    dark = 1 - smooth(0.05f, 0.30f, ld + (la * 0.5f));
+	    if((ast != null) && ast.night)
+		dark = Math.max(dark, 0.7f);
+	    sun = mul(dif, 1.1f * (1 - (ovc * 0.9f)) * (1 - (0.85f * smooth(0.3f, 0.7f, dark))));
+	    disc = 2.5f * (1 - ovc) * (1 - ovc) * (1 - smooth(0.3f, 0.6f, dark));
+	    sdir = new float[] {l.dir[0], l.dir[1], l.dir[2]};
+	}
+
 	float g = lum(hor) * 0.9f;
 	float[] grey = {g, g, g * 1.04f};
 	hor = mul(mix(hor, grey, ovc * 0.85f), 1 - (0.30f * gloom));
 	zen = mul(mix(zen, mul(grey, 0.85f), ovc * 0.85f), 1 - (0.35f * gloom));
-	float dark = 1 - smooth(0.05f, 0.30f, ld + (la * 0.5f));
-	if(ptime != null)
-	    dark = Math.max(dark, previewdark(ptime));
-	else if((ast != null) && ast.night)
-	    dark = Math.max(dark, 0.7f);
-	float night = dark * (1 - ovc);
-	/* At night the light's own direction is the moon's light, not a sun: no disc and little glow there,
-	 * the moon is drawn where it stands. */
-	float[] sun = mul(dif, 1.1f * (1 - (ovc * 0.9f)) * (1 - (0.85f * smooth(0.3f, 0.7f, dark))));
-	float disc = 2.5f * (1 - ovc) * (1 - ovc) * (1 - smooth(0.3f, 0.6f, dark)) * (1 - v.nightfade);
-	/* A previewed hour outside the day's arc is lit by the moon (sunpreview): that light has no disc. */
-	if(ptime != null) {
-	    double ph = ((ptime % 24) + 24) % 24;
-	    if((ph < 6.0) || (ph > 19.5))
-		disc = 0;
-	}
-	float[] sdir = {l.dir[0], l.dir[1], l.dir[2]};
+	/* The stars: as dark as the night is, and fewer under a bright moon. */
+	float night = dark * (1 - ovc) * (1 - (0.5f * moonsky));
 
 	/* The clouds' own colour: the sky's light on them, greyed by the weather. */
 	float[] ccol = {Math.min(1, (amb[0] * 0.9f) + (dif[0] * 0.75f)), Math.min(1, (amb[1] * 0.9f) + (dif[1] * 0.75f)), Math.min(1, (amb[2] * 0.9f) + (dif[2] * 0.75f))};
@@ -516,42 +545,29 @@ public class Ambience {
 
 	Frame ret = new Frame(zen, hor, sun, sdir, ccol,
 			      night, disc, fogmax, fogdens, focus);
+	ret.ovc = ovc;
+	ret.gloom = gloom;
+	ret.mdark = dark;
 	v.write(ret);
-	float dz = Math.max(sdir[2], 0.05f);
-	ret.ssh = new float[] {sdir[0] / dz, sdir[1] / dz};
-	moon(ret, ast, ovc, v);
+	/* The clouds' shadows fall from the scene's light, the sun's or the moon's. */
+	float dz = Math.max(l.dir[2], 0.05f);
+	ret.ssh = new float[] {l.dir[0] / dz, l.dir[1] / dz};
+	moon(ret, ast, ovc, d, day);
 	return(ret);
     }
 
-    /* The moon as the game's own calendar has it (Cal): always across the sky from the sun, round the day
-     * with it -- highest at midnight -- lit by its phase and tinted by the colour the server gives it. Its
-     * path is a fixed arc, rising in the east and 55 degrees up at its highest; the server says nothing
-     * of where it stands, only when it is night, and where midnight falls in its day is learnt from that
-     * (View.astro). It shows at night alone, and the sun's disc by day alone: never the two at once. A
-     * previewed hour moves it too. */
-    /* Where the moon stands at a fraction of the day: across from the sun, highest (55 degrees) at 0.5. */
-    static float[] moondir(double dt) {
-	double h = (Math.PI * 2 * dt) + Math.PI, top = Math.toRadians(55);
-	float c = (float)Math.cos(h), sn = (float)Math.sin(h);
-	return(new float[] {-sn, (float)Math.cos(top) * c, (float)Math.sin(top) * c});
-    }
-
-    static void moon(Frame f, Astronomy ast, float ovc, View v) {
-	double dt;
-	if(ptime != null)
-	    dt = ((((ptime - 12) / 24) % 1) + 1) % 1;
-	else if(ast != null)
-	    dt = ast.dt + (0.5 - v.midnight);
-	else
+    /* The moon where the sky's day and night has it (Daylight): up by its phase's hours, lit by its phase and
+     * tinted by the colour the server gives it. By night it shows whole, its unlit part faintly; by day it
+     * is a pale shape of its lit part. A heavy cover hides it, as the clouds do. */
+    static void moon(Frame f, Astronomy ast, float ovc, Daylight.Sky d, float day) {
+	if(d == null)
 	    return;
-	double mp = (pmoon != null) ? pmoon : ((ast != null) ? ast.mp : 0.5);
-	f.mdir = moondir(dt);
-	f.mphase = (float)(((mp % 1) + 1) % 1);
+	f.mdir = rgb(d.mdir);
+	f.mphase = d.mphase;
 	Color mc = (ast != null) ? ast.mc : null;
 	if(mc != null)
 	    f.mcol = new float[] {mc.getRed() / 255f, mc.getGreen() / 255f, mc.getBlue() / 255f};
-	/* Only at night, as the server has it, and only up; a heavy cover hides it, as the clouds do. */
-	f.mvis = starsmoon ? (smooth(-0.02f, 0.06f, f.mdir[2]) * v.nightfade * (1 - (0.7f * ovc))) : 0;
+	f.mvis = starsmoon ? (smooth(-0.02f, 0.06f, f.mdir[2]) * (1 - (0.7f * ovc)) * (1 - (0.65f * day))) : 0;
     }
 
     /* The camera, out of the matrices the shaders are given. */
@@ -844,28 +860,6 @@ public class Ambience {
 	boolean seeded = false;
 	double lastgt = -1, spawncool = 0;
 	float gz = Float.NaN;
-	/* 0 by day, 1 by night, eased over a quarter of a minute either way; and the server's day fraction
-	 * at midnight, as its own night flag shows it: 0.5 until a night says otherwise. */
-	float nightfade = 0;
-	double midnight = 0.5;
-	boolean fadeset = false;
-
-	void astro(Astronomy ast, double dt) {
-	    boolean n;
-	    if(ptime != null)
-		n = previewdark(ptime) > 0.5f;
-	    else
-		n = (ast != null) && ast.night;
-	    if((ptime == null) && (ast != null) && ast.night)
-		midnight = (Math.abs(ast.dt - 0.5) < 0.25) ? 0.5 : 0.0;
-	    float t = n ? 1 : 0;
-	    /* Switched on at night, it is night already: no fade in from nothing. */
-	    if(!fadeset) {
-		nightfade = t;
-		fadeset = true;
-	    }
-	    nightfade += (t - nightfade) * (float)Math.min(1, dt / 15);
-	}
 
 	private static float approach(float x, float t, float a) {
 	    float n = x + ((t - x) * a);
@@ -1540,12 +1534,11 @@ public class Ambience {
 	Coord3f focus = cc.invy();
 	Weather w = (pweather != null) ? pweather : fromserver(glob);
 	v.ease(w, dt);
-	v.astro(glob.ast, dt);
 	if(cloudson)
 	    v.populate(w, focus, dt, glob.globtime());
 	else
 	    v.noclouds(w);
-	frame = compute(l, focus, w, v, glob.ast);
+	frame = compute(l, focus, w, v, glob.ast, sky);
 	try {
 	    v.sync(mv, w);
 	    v.precip(mv, glob, w, cc, dt);
@@ -1612,7 +1605,7 @@ public class Ambience {
 	case "time":
 	    if((args.length < 3) || args[2].equals("server")) {
 		ptime = null;
-		say(cons, "ambience: the light is the server's");
+		say(cons, "ambience: the time of day is the server's");
 	    } else {
 		ptime = arg(args);
 		say(cons, "ambience: previewing the light of " + args[2] + "h");
@@ -1652,6 +1645,15 @@ public class Ambience {
 		say(cons, "ambience: previewing the " + phase(pmoon) + " (" + args[2] + ")");
 	    }
 	    return;
+	case "year":
+	    if((args.length < 3) || args[2].equals("server")) {
+		pyear = null;
+		say(cons, "ambience: the year is the server's");
+	    } else {
+		pyear = arg(args);
+		say(cons, "ambience: previewing the sun of " + args[2] + " through the year");
+	    }
+	    return;
 	case "fog":
 	    fog((float)arg(args));
 	    say(cons, "ambience: fog x" + fogmul);
@@ -1659,10 +1661,11 @@ public class Ambience {
 	case "":
 	    say(cons, "ambience " + (on ? "on" : "off") + ": sky " + (skyon ? "on" : "off") + ", clouds " + (cloudson ? "on" : "off") +
 		", fog " + (fogon ? "on" : "off") + ", rain and snow " + (precipon ? (gamefx ? "the game's (gamefx)" : "on") : "off") +
-		(failed ? " (switched off after an error)" : "") + (indoors ? " (indoors: nothing drawn)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
+		(failed ? " (switched off after an error)" : "") + (indoors ? " (indoors: nothing drawn)" : "") + ", light: " + ((sky == null) ? "the server's" : ((ptime == null) ? "the sky's day and night" : ("preview " + ptime + "h"))) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
-		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s", cloudamount, cloudbase, fogmul, starsmoon ? "on" : "off"));
+		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s, dark nights %s, objects follow the light %s", cloudamount, cloudbase, fogmul,
+			      starsmoon ? "on" : "off", darknights ? "on" : "off", celfollow ? "on" : "off"));
 	    List<Map.Entry<MapView, View>> es;
 	    synchronized(views) {es = new ArrayList<>(views.entrySet());}
 	    for(Map.Entry<MapView, View> e : es)
@@ -1670,7 +1673,7 @@ public class Ambience {
 		    String.format("; sky closed %.2f", e.getValue().close) + "; " + e.getValue().precipcensus());
 	    return;
 	default:
-	    throw(new RuntimeException("usage: amb [on|off|precip on|off|gamefx on|off|clouds auto|clouds <n>|moon <0-1>|moon server|cloudalt <units>|time <hour>|time server|weather <" +
+	    throw(new RuntimeException("usage: amb [on|off|precip on|off|gamefx on|off|clouds auto|clouds <n>|moon <0-1>|moon server|year <0-1>|year server|cloudalt <units>|time <hour>|time server|weather <" +
 				       String.join("|", presets.keySet()) + "|server>|fog <x>]"));
 	}
     }
@@ -1691,7 +1694,7 @@ public class Ambience {
 	    View v;
 	    synchronized(views) {v = views.get(mv);}
 	    if(v != null)
-		buf.append(String.format("; midnight at %.1f of the day, night %.2f", v.midnight, v.nightfade));
+		buf.append("; " + Daylight.describe(sky));
 	    /* The server's "sky", which nothing draws: is it sent outdoors only? Look here in a cave. */
 	    buf.append("; sky " + resname(glob.sky1) + " / " + resname(glob.sky2) + String.format(" blend %.2f", glob.skyblend));
 	}

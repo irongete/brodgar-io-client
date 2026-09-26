@@ -96,12 +96,23 @@ public class SkyPanel extends OptWnd.Panel {
         Widget body = new Widget(Coord.z);
         Widget prev = body.add(new Label("Sky"), Coord.z);
         prev = toggle(body, prev.pos("bl").adds(0, 10), "Sky", () -> Ambience.skyon, Ambience::skyon,
-                      "Draws a sky of the client's own over the open horizon: a gradient off the server's light,"
-                      + " the sun's disc and glow, and at night the stars and the moon. Off, the game's own"
-                      + " background shows. Applies at once.");
+                      "Draws a sky of the client's own over the open horizon, with a day and a night of its own"
+                      + " on the game's clock: the sun climbs and sets, higher in summer than in winter, and the"
+                      + " sky warms at dawn and dusk; at night the stars come out, and the moon rises and sets by"
+                      + " its phase. The world is lit from where the sun or the moon stands, and a night with no"
+                      + " moon up is the darkest. Off, the game's own background and light come back. Applies at"
+                      + " once.");
         prev = toggle(body, prev.pos("bl").adds(5, 5), "Stars and moon", () -> Ambience.starsmoon, Ambience::starsmoon,
                       "Whether the night sky has its stars and its moon. Off, the moon's light and the shadows"
                       + " it casts stay. Applies at once.");
+        prev = toggle(body, prev.pos("bl").adds(0, 5), "Dark nights", () -> Ambience.darknights, Ambience::darknights,
+                      "Whether a night is as dark as its moon leaves it: under a new moon, or before the moon"
+                      + " rises, the world is very dark. Off, no night is darker than one under a full moon,"
+                      + " though the sky, the stars and the moon stay as they are. Applies at once.");
+        prev = toggle(body, prev.pos("bl").adds(0, 5), "Objects follow the light", () -> Ambience.celfollow, Ambience::celfollow,
+                      "Whether the game's objects, animals and characters darken with the world at night and"
+                      + " under a heavy sky. Off, they keep the brightness the game gives them at every hour:"
+                      + " easy to see in the dark, but lit as by day on dark ground. Applies at once.");
 
         prev = body.add(new Label("Clouds"), prev.pos("bl").adds(-5, 15));
         prev = toggle(body, prev.pos("bl").adds(0, 10), "Clouds", () -> Ambience.cloudson, Ambience::cloudson,

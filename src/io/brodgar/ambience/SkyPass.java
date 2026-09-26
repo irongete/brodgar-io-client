@@ -94,6 +94,7 @@ public class SkyPass implements RenderTree.Node {
     static final Uniform mcol = new Uniform(VEC3, p -> Ambience.frame().mcol, FrameInfo.slot);
     static final Uniform mphase = new Uniform(FLOAT, p -> Ambience.frame().mphase, FrameInfo.slot);
     static final Uniform mvis = new Uniform(FLOAT, p -> Ambience.frame().mvis, FrameInfo.slot);
+    static final Uniform mdark = new Uniform(FLOAT, p -> Ambience.frame().mdark, FrameInfo.slot);
     /* Whether the open sky is ours to paint: 0 leaves it to the game's own background, clouds over it. */
     static final Uniform skyon = new Uniform(FLOAT, p -> Ambience.skyon ? 1f : 0f, FrameInfo.slot);
     /* Where the player is: seen from above, the clouds clear a circle round it. */
@@ -154,12 +155,13 @@ public class SkyPass implements RenderTree.Node {
 	Expression r2 = code.local(FLOAT, add(mul(mx, mx), mul(my, my))).ref();
 	Expression inside = code.local(FLOAT, mul(sub(l(1.0), smoothstep(l(0.9), l(1.0), r2)), step(l(0.0), mu2), mvis.ref())).ref();
 	Expression ph = code.local(FLOAT, mul(mphase.ref(), l(Math.PI * 2))).ref();
-	Expression lit = smoothstep(l(-0.06), l(0.08), add(mul(mx, sin(ph)), mul(sqrt(max(sub(l(1.0), r2), l(0.0))), neg(Function.Builtin.cos.call(ph)))));
+	Expression lit = code.local(FLOAT, smoothstep(l(-0.06), l(0.08), add(mul(mx, sin(ph)), mul(sqrt(max(sub(l(1.0), r2), l(0.0))), neg(Function.Builtin.cos.call(ph)))))).ref();
 	/* Its level named, as the clouds' are: the open sky is drawn in a branch of its own (main). */
 	Expression mlod = max(log2(mul(lodk.ref(), l(0.18 / (MOONR * NOISE)))), l(0.0));
 	Expression spots = add(l(0.72), mul(pick(textureLod.call(sclouds.ref(), add(mul(vec2(mx, my), l(0.18)), vec2(l(0.3), l(0.6))), mlod), "r"), l(0.35)));
 	Expression disc = mul(mcol.ref(), add(mul(lit, spots, l(1.5)), l(0.04)));
-	code.add(ass(c, mix(c, disc, inside)));
+	/* Its unlit part shows only against a dark sky: by day the blue stands there. */
+	code.add(ass(c, mix(c, disc, mul(inside, mix(lit, l(1.0), mdark.ref())))));
 	Expression full = mul(sub(l(1.0), Function.Builtin.cos.call(ph)), l(0.5));
 	code.add(aadd(c, mul(mcol.ref(), mul(pow(max(mu2, l(0.0)), l(900.0)), l(0.18), full, mvis.ref()))));
 	code.add(new Return(c));

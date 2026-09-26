@@ -54,7 +54,8 @@ public class Phong extends ValBlock.Group implements Lighting{
 
 	public static final Function celramp = new Function.Def(VEC3) {{
 	    Expression c = param(IN, VEC3).ref();
-	    Block.Local m = code.local(FLOAT, max(pick(c, "r"), pick(c, "g"), pick(c, "b")));
+	    // addon: the step is picked as if the light were a clear noon's, and dimmed with it (Ambience.celscale)
+	    Block.Local m = code.local(FLOAT, div(max(pick(c, "r"), pick(c, "g"), pick(c, "b")), io.brodgar.ambience.Ambience.celscale.ref()));
 	    code.add(new If(lt(m.ref(), l(0.01)),
 			    new Return(Vec3Cons.z)));
 	    Block.Local v = code.local(FLOAT, null);
