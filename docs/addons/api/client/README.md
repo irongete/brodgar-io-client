@@ -42,6 +42,26 @@ options:interface():angGran(15)                       -- write: needs client.set
 | Inside a tree | Answering a [`Draw`](../ui/custom.md), a control's press, a drop or a console line, you are inside the tree that dispatched it. Writing a different character's tree from there is refused naming both. |
 | Neither | An inbound [message](../event/streams.md) handler holds no tree and reaches any. `stepping()` is `false` in it. The whole of it is [threading](../threading.md). |
 
+## The frame rate and the heap
+
+```lua
+local heap = hafen.client():memory()
+local megabytes = math.floor(heap.heapUsed / 1048576)
+hafen.log():write(hafen.client():fps() .. " fps, " .. megabytes .. " MB used")
+```
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `hafen.client():fps()` | `number` | Unprotected | Frames per second over the last second, the figure the client's stats HUD shows. A whole number. Takes no argument. |
+| `hafen.client():memory()` | `table` | Unprotected | The JVM heap and its collections: the table [`profiling:memory()`](profiling/counters.md#memory) answers, key for key. Takes no argument. |
+
+| Rule | Detail |
+|---|---|
+| Always answers | Neither needs [profiling](profiling/README.md) armed. The client keeps both numbers whether anything reads them or not, so a HUD polling them from a draw callback adds no measuring of its own. Both answer at the login screen too. |
+| What `fps()` follows | The frames the client actually drew: capped by [`fpsLimit`](#video), and by `bgFpsLimit` while the window is unfocused. |
+| A fresh table each read | `memory()` is a snapshot of the moment. Its sizes are bytes, and `gcCount`/`gcMs` are cumulative, meaningful as a delta between two reads. |
+| Read-only | An argument raises. The framerate cap is `options:video():fpsLimit(value)`. |
+
 ## Reading and writing
 
 The arity is the verb: no argument reads, one argument writes and returns the handle, so writes chain. There is no `get`/`set` pair.

@@ -50,7 +50,7 @@ hafen.log():write(string.format("%d fps, %s ms (ui %s, addons %s)",
 |---|---|---|
 | `frameno` | `number` | The client's frame counter. |
 | `t` | `number` | Frame timestamp, seconds since client start. |
-| `fps` | `number` | Frames per second, as the client's stats HUD computes it. |
+| `fps` | `number` | Frames per second, as the client's stats HUD computes it. [`hafen.client():fps()`](../README.md#the-frame-rate-and-the-heap) reads it armed or not. |
 | `ms` | `number` | This frame's total UI-thread time. |
 | `msAvg` / `msMin` / `msMax` / `msP95` | `number` | Frame time over the whole history ring. |
 | `idle` | `number` | Share of the last second spent waiting, `0.0`..`1.0`. |

@@ -68,6 +68,28 @@ public final class OptionsHandle {
                 return owner.clientProfiling;
             }
         });
+        // hafen.client():fps() and hafen.client():memory() -- the two numbers of the stats HUD an addon most
+        // often shows, off the section so a HUD reads them with the profiler off (171). Both are counters the
+        // client keeps anyway: fps() is UILoop's own figure, memory() the very table profiling():memory()
+        // answers. Reads, so unprotected; an argument is refused, since neither is a setting.
+        client.set("fps", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "fps");
+                if(a.narg() > 1)
+                    throw new LuaError("hafen.client():fps() is read-only — it answers the frames drawn over the last"
+                        + " second; the framerate cap is hafen.client():options():video():fpsLimit(value)");
+                return LuaValue.valueOf(haven.UILoop.fps());
+            }
+        });
+        client.set("memory", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "memory");
+                if(a.narg() > 1)
+                    throw new LuaError("hafen.client():memory() is read-only — it counts what the JVM heap did and"
+                        + " takes no argument; call it with none to read");
+                return ProfHandle.memory();
+            }
+        });
         // hafen.client():stepping() — WHERE THE CODE YOU ARE IN IS RUNNING (112.3). True on the client's own
         // step, which is the pump that fires Update, runs the timers and delivers the seams that queue: the one
         // place in a frame that holds no widget-tree monitor, and therefore the only one from which a handler

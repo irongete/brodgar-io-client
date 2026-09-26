@@ -142,7 +142,7 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 
 | Page | Holds |
 |---|---|
-| [`hafen.client`](client/README.md) | The settings the Options window edits: performance, interface, video, audio, camera, client. |
+| [`hafen.client`](client/README.md) | The settings the Options window edits: performance, interface, video, audio, camera, client. The frame rate and the heap. |
 | [Addons and libraries](client/addons.md) | Every addon the client discovered; export a table, read another addon's. |
 | [Keybindings](client/keybindings.md) | The hotkey registry: declare your own, read or remap any. |
 | [Your addon's options](client/addon.md) | The options your addon declares, and the page it fills. |

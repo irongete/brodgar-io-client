@@ -621,7 +621,11 @@ public abstract class UILoop implements Console.Directory {
     }
 
     private final double[] frames = new double[128], waited = new double[frames.length];
-    private int fps;
+    /* addon: (171) static, and readable, so hafen.client():fps() answers the figure the stats HUD shows with
+     * the profiler off. updstats() computes it every frame whatever anyone reads, so the one cost added is
+     * the volatile write. One UI loop per process, as framealloc above. */
+    private static volatile int fps;
+    public static int fps() {return(fps);}
     private double framelag, uidle;
     protected void updstats(Frame f) {
 	int fi = (int)(f.frameno % frames.length);
@@ -648,7 +652,7 @@ public abstract class UILoop implements Console.Directory {
 	// has ALREADY built -- uprof (this frame, finished by Frame.fin above), rprof (the last completed
 	// render-thread frame; it closes a frame late by design) and this frame's gprof frame, whose GL
 	// timestamps come back through fences several frames later and are folded in by frame number.
-	// fps/uidle/framelag are passed as arguments rather than made visible: nothing else may write them.
+	// fps/uidle/framelag are passed as arguments, and nothing else may write them: fps() only reads.
 	// 019.7: the guard is the MASTER switch, not the per-frame one -- a control frame runs with the probes
 	// disarmed but must still hand its work time over, since that comparison is the measured overhead.
 	if(io.brodgar.prof.Prof.sampling && (f.prof != null))

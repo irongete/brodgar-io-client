@@ -412,7 +412,7 @@ public final class ProfHandle {
      * start — a profiler wants the delta between two reads, not the absolute. Both are absent if the
      * management beans are unavailable (a stripped runtime image).
      */
-    private static LuaTable memory() {
+    static LuaTable memory() {   // also hafen.client():memory() (171)
         LuaTable t = new LuaTable();
         Runtime rt = Runtime.getRuntime();
         long free = rt.freeMemory(), total = rt.totalMemory();

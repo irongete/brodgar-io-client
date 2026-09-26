@@ -20,7 +20,7 @@ end
 
 ## `memory()`
 
-Sizes are in bytes, the one place the surface is not in milliseconds.
+Sizes are in bytes, the one place the surface is not in milliseconds. [`hafen.client():memory()`](../README.md#the-frame-rate-and-the-heap) answers this same table.
 
 | Key | Description |
 |---|---|
