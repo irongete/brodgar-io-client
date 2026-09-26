@@ -75,9 +75,14 @@ public class FrustumList implements RenderList<Rendered> {
 
     public void add(Slot<? extends Rendered> slot) {
 	Entry e = new Entry(slot);
+	/* Put in `back` whether or not it is in view, and taken out again at once if it is not: the add is
+	 * what prepares the slot's textures, and throws Loading until they are ready, before anything here is
+	 * recorded. Whoever adds a slot counts on that -- RUtils.readd puts a sprite's old parts back when the
+	 * new ones throw, and a part never prepared because it was out of view threw again there. */
+	back.add(slot);
 	boolean want = !enabled || (visible(e, ENTER) != Boolean.FALSE);
-	if(want)
-	    back.add(slot);   // may throw Loading, before anything here is recorded
+	if(!want)
+	    back.remove(slot);
 	e.drawn = want;
 	if(slots.put(slot, e) != null)
 	    throw(new AssertionError());
