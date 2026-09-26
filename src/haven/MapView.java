@@ -67,7 +67,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static int dcamzsmooth = Utils.getprefi("dcamzsmooth", 15);   // zoom ease, hundredths of a second
     public static int dcamfov = Utils.getprefi("dcamfov", 31);           // vertical field of view, degrees
     public static boolean dcamgnd = Utils.getprefb("dcamgnd", true);     // collide with the ground
-    public static boolean dcamobj = Utils.getprefb("dcamobj", true);     // collide with objects
+    public static boolean dcamobj = Utils.getprefb("dcamobj", false);     // collide with objects
     public static boolean dcamfp = Utils.getprefb("dcamfp", true);       // first person past the closest zoom
     public static boolean dcamup = Utils.getprefb("dcamup", true);       // tilt below the horizon
     /* addon: (120.1) the view distance's two settings -- the remembered ground, drawn past the streamed
