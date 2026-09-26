@@ -255,7 +255,7 @@ final class Args {
      *
      * <p><b>Why a coercion is not a check.</b> LuaJ's {@code toboolean()} is Lua truth, and in Lua every
      * value but {@code false} and {@code nil} is true: {@code 0} is true, {@code ""} is true, and
-     * {@code "no"} is true. So {@code video:shadows("no")} turned shadows ON, {@code client:recall(0)}
+     * {@code "no"} is true. So {@code video:shadows("no")} turned shadows ON, {@code client:exploredGround(0)}
      * turned the remembered ground ON, and {@code h:bold("no")} made the face bold — three writes that did
      * the opposite of what they said and reported nothing. Every one of them sat beside a door that already
      * demanded a real boolean for the same property (the {@code {aa=…, bold=…, italic=…}} face table), so

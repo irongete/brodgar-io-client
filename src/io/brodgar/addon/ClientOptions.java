@@ -46,30 +46,30 @@ public final class ClientOptions {
             }
         });
 
-        // recall() — whether the view distance's explored ground is drawn at all. The live field and its pref go in one
-        // statement, exactly as the panel's checkbox writes them, so a Lua write and a click are the same act.
-        m.set("recall", new OptionsMethod(owner, handle, "client:recall") {
+        // exploredGround() — whether the view distance's explored ground is drawn at all. The live field and its pref
+        // go in one statement, exactly as the panel's checkbox writes them, so a Lua write and a click are the same act.
+        m.set("exploredGround", new OptionsMethod(owner, handle, "client:exploredGround") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.recallon);
             }
             protected void onWrite(LuaValue value) {
                 Utils.setprefb("recallon", MapView.recallon = bool(value, "on",
-                                                                  "whether remembered ground is drawn"));
+                                                                  "whether explored ground is drawn"));
             }
         });
 
-        // recallRange() — the drawn reach in grids. The bounds are MapView's own, stated once there and read
+        // viewDistance() — the drawn reach in grids. The bounds are MapView's own, stated once there and read
         // here, so the slider, the field's clamp and this refusal cannot drift apart. A range is a whole
         // number of grids: the refusal names the bounds AND says the value must be one of them, because a
         // fractional range written and read back as something else is a write that quietly did not happen.
-        m.set("recallRange", new OptionsMethod(owner, handle, "client:recallRange") {
+        m.set("viewDistance", new OptionsMethod(owner, handle, "client:viewDistance") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.recallrange);
             }
             protected void onWrite(LuaValue value) {
                 double v = num(value, "grids", "how far around the camera, in grids").todouble();
                 if((v != Math.floor(v)) || (v < MapView.recallrangemin) || (v > MapView.recallrangemax))
-                    throw new LuaError("client:recallRange(grids) — a whole number of grids from "
+                    throw new LuaError("client:viewDistance(grids) — a whole number of grids from "
                                        + MapView.recallrangemin + " to " + MapView.recallrangemax
                                        + " (got " + v + ")");
                 Utils.setprefi("recallrange", MapView.recallrange = (int)v);
