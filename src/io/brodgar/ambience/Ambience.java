@@ -617,6 +617,15 @@ public class Ambience {
 		z0 = Math.min(z0, z);
 		z1 = Math.max(z1, z);
 	    }
+	    /* No ball grows past BIGGEST times the cloud's middling one: a head may stand out, never swallow
+	     * its own cloud (a heap's centre ball, already its largest, dealt a big size did). */
+	    float[] rs = new float[SkyPass.PUFFS];
+	    for(int j = 0; j < SkyPass.PUFFS; j++)
+		rs[j] = puffs[(j * 4) + 3];
+	    Arrays.sort(rs);
+	    float cap = BIGGEST * rs[SkyPass.PUFFS / 2];
+	    for(int j = 0; j < SkyPass.PUFFS; j++)
+		puffs[(j * 4) + 3] = Math.min(puffs[(j * 4) + 3], cap);
 	    /* The lowest balls the flattest, the top ones round. */
 	    int lo = 0;
 	    float bot = Float.MAX_VALUE;
@@ -634,19 +643,22 @@ public class Ambience {
 	    bounds();
 	}
 
+	/* The largest a cloud's ball may be, against the middling one of the same cloud. */
+	static final float BIGGEST = 1.3f;
+
 	/* The sizes of a cloud's balls against its kind's usual, dealt out in a shuffled order: one to three
 	 * large, three to five small, the rest middling -- so that every cloud has big heads and small ones,
-	 * and no two neighbours need match. */
+	 * and no two neighbours need match. The spread is modest: the kinds' own radii differ already. */
 	private static float[] ballsizes(Random rnd) {
 	    float[] ret = new float[SkyPass.PUFFS];
 	    int big = 1 + rnd.nextInt(3), small = 3 + rnd.nextInt(3);
 	    for(int i = 0; i < ret.length; i++) {
 		if(i < big)
-		    ret[i] = 1.5f + (0.7f * rnd.nextFloat());
+		    ret[i] = 1.15f + (0.2f * rnd.nextFloat());
 		else if(i < (big + small))
-		    ret[i] = 0.3f + (0.25f * rnd.nextFloat());
+		    ret[i] = 0.55f + (0.2f * rnd.nextFloat());
 		else
-		    ret[i] = 0.75f + (0.4f * rnd.nextFloat());
+		    ret[i] = 0.85f + (0.2f * rnd.nextFloat());
 	    }
 	    for(int i = ret.length - 1; i > 0; i--) {
 		int o = rnd.nextInt(i + 1);
