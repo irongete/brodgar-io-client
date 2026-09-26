@@ -9,8 +9,8 @@ import haven.render.*;
  *
  * The server stays the authority for WHAT the world is doing -- its "wth" set (clouds, rain, snow)
  * and its "light" -- and this decides HOW it looks: a sky with a sun, stars and a handful of separate
- * clouds drawn wherever nothing else was, distance fog of the sky's own colour, the clouds' shadows on
- * the ground, and rain and snow of our own.
+ * clouds drawn wherever nothing else was, distance fog of the sky's own colour, and the clouds' shadows
+ * on the ground. Rain and snow stay the game's own: they only heap and darken the sky here.
  *
  * The clouds are made up here, not read off the server: how many there are, how big and how dark
  * follows how much cloud and rain the server says there is -- a clear day has none or a stray few, a
@@ -33,7 +33,6 @@ public class Ambience {
 				     "full moon", "waning gibbous", "last quarter", "waning crescent"};
     static String phase(double mp) {return(PHASES[(int)Math.round(mp * 8) % 8]);}
     static volatile float fogmul = (float)Utils.getprefd("ambience-fog", 1.0);
-    static volatile float densmul = (float)Utils.getprefd("ambience-density", 1.0);
 
     static final String CLOUDS = "gfx/fx/clouds", RAIN = "gfx/fx/rain", SNOW = "gfx/fx/snow";
     /* How high the clouds' bases stand above the player's ground, in world units (a tile is 11). */
@@ -50,9 +49,10 @@ public class Ambience {
     }
 
     /* Is this weather resource one this draws instead of the game? Asked by Performance.withheldWeather,
-     * so the game's own renderer of it is held out of the scene while this is on. */
+     * so the game's own renderer of it is held out of the scene while this is on. The clouds alone: the
+     * game's rain and snow fall under this sky as they are. */
     public static boolean replaces(String name) {
-	return(enabled && (CLOUDS.equals(name) || RAIN.equals(name) || SNOW.equals(name)));
+	return(enabled && CLOUDS.equals(name));
     }
 
     /* What a weather is, in the server's own terms: Clouds' and Rain's and Snow's arguments. */
@@ -208,7 +208,7 @@ public class Ambience {
 
     /* One frame's worth of what the shaders read, replaced whole every tick. */
     static final class Frame {
-	final float[] zen, hor, sun, sdir, ccol, rcol, scol, wind;
+	final float[] zen, hor, sun, sdir, ccol;
 	final float night, disc, fogmax, fogdens;
 	final Coord3f focus;
 	/* The clouds, as SkyPass and AmbShadow read them (see SkyPass.cl, .ci, .pf), and the ground
@@ -223,16 +223,16 @@ public class Ambience {
 	float[] mdir = {0, 0, -1}, mcol = {0.9f, 0.9f, 0.85f};
 	float mphase = 0.5f, mvis = 0;
 
-	Frame(float[] zen, float[] hor, float[] sun, float[] sdir, float[] ccol, float[] rcol, float[] scol, float[] wind,
+	Frame(float[] zen, float[] hor, float[] sun, float[] sdir, float[] ccol,
 	      float night, float disc, float fogmax, float fogdens, Coord3f focus) {
 	    this.zen = zen; this.hor = hor; this.sun = sun; this.sdir = sdir; this.ccol = ccol;
-	    this.rcol = rcol; this.scol = scol; this.wind = wind; this.night = night; this.disc = disc;
+	    this.night = night; this.disc = disc;
 	    this.fogmax = fogmax; this.fogdens = fogdens; this.focus = focus;
 	}
     }
 
     static volatile Frame frame = new Frame(new float[] {0.2f, 0.4f, 0.8f}, new float[] {0.6f, 0.7f, 0.9f}, new float[3],
-					    new float[] {0, 0, 1}, new float[3], new float[4], new float[4], new float[] {50, 20, -300},
+					    new float[] {0, 0, 1}, new float[3],
 					    0, 0, 0, 0, Coord3f.o);
 
     static Frame frame() {return(frame);}
@@ -400,10 +400,7 @@ public class Ambience {
 	float fogdens = (0.00008f + (wet * 0.0005f) + (flake * 0.0008f)) * fogmul;
 	float fogmax = Math.min(1, fogmul);
 
-	float lit = clamp(la + (ld * 0.6f), 0.15f, 1.1f);
-	float[] rcol = {0.75f * lit, 0.80f * lit, 0.90f * lit, 0.50f};
-	float[] scol = {0.95f * lit, 0.96f * lit, 1.00f * lit, 0.90f};
-	Frame ret = new Frame(zen, hor, sun, sdir, ccol, rcol, scol, new float[] {w.wind.x, w.wind.y, w.wind.z},
+	Frame ret = new Frame(zen, hor, sun, sdir, ccol,
 			      night, disc, fogmax, fogdens, focus);
 	v.write(ret);
 	float dz = Math.max(sdir[2], 0.05f);
@@ -535,6 +532,8 @@ public class Ambience {
 	 * noise's scale: a thin high cloud is soft and torn, a tower's edge crisp. */
 	float soft, rag, nscale;
 	final float[] puffs = new float[SkyPass.PUFFS * 4];
+	/* Each ball's height over its width: under 1 an egg lying down, 1 a ball. */
+	final float[] squash = new float[SkyPass.PUFFS];
 	/* Its bounding sphere's centre, as an offset from its foot, and radius; and its footprint's radius. */
 	float bx, by, bz, brad, foot;
 	double age, life;
@@ -573,19 +572,64 @@ public class Ambience {
 		break;
 	    }
 	    float rot = rnd.nextFloat() * (float)(Math.PI * 2), cr = (float)Math.cos(rot), sr = (float)Math.sin(rot);
+	    /* Its own character, over its kind's: how squat or tall, how far it leans, how flat its lower balls
+	     * lie; and its balls' sizes, which differ in every cloud (ballsizes). */
+	    float tallk = 0.75f + (0.6f * rnd.nextFloat());
+	    float lean = rnd.nextFloat() * 0.3f, la = rnd.nextFloat() * (float)(Math.PI * 2);
+	    float lx = (float)Math.cos(la) * lean, ly = (float)Math.sin(la) * lean;
+	    float flat = 0.55f + (0.4f * rnd.nextFloat());
+	    float[] sizes = ballsizes(rnd);
+	    float z0 = Float.MAX_VALUE, z1 = -Float.MAX_VALUE;
 	    for(int j = 0; j < SkyPass.PUFFS; j++) {
 		float[] q = puff(rnd, kind, j, size, stretch);
-		puffs[(j * 4) + 0] = (q[0] * cr) - (q[1] * sr);
-		puffs[(j * 4) + 1] = (q[0] * sr) + (q[1] * cr);
-		puffs[(j * 4) + 2] = q[2];
-		puffs[(j * 4) + 3] = q[3];
+		float z = q[2] * tallk;
+		puffs[(j * 4) + 0] = (q[0] * cr) - (q[1] * sr) + (lx * z);
+		puffs[(j * 4) + 1] = (q[0] * sr) + (q[1] * cr) + (ly * z);
+		puffs[(j * 4) + 2] = z;
+		puffs[(j * 4) + 3] = q[3] * sizes[j];
+		z0 = Math.min(z0, z);
+		z1 = Math.max(z1, z);
 	    }
+	    /* The lowest balls the flattest, the top ones round. */
+	    int lo = 0;
+	    float bot = Float.MAX_VALUE;
+	    for(int j = 0; j < SkyPass.PUFFS; j++) {
+		float h = (z1 > z0) ? ((puffs[(j * 4) + 2] - z0) / (z1 - z0)) : 1;
+		squash[j] = flat + ((1 - flat) * smooth(0, 0.6f, h));
+		float b = puffs[(j * 4) + 2] - (puffs[(j * 4) + 3] * squash[j]);
+		if(b < bot) {bot = b; lo = j;}
+	    }
+	    /* And the whole set down through its base, the lowest egg's bottom four tenths of it under the
+	     * base: the cut there (SkyPass.clouds) flattens the belly. */
+	    float sink = bot + (0.4f * puffs[(lo * 4) + 3] * squash[lo]);
+	    for(int j = 0; j < SkyPass.PUFFS; j++)
+		puffs[(j * 4) + 2] -= sink;
 	    bounds();
 	}
 
+	/* The sizes of a cloud's balls against its kind's usual, dealt out in a shuffled order: one to three
+	 * large, three to five small, the rest middling -- so that every cloud has big heads and small ones,
+	 * and no two neighbours need match. */
+	private static float[] ballsizes(Random rnd) {
+	    float[] ret = new float[SkyPass.PUFFS];
+	    int big = 1 + rnd.nextInt(3), small = 3 + rnd.nextInt(3);
+	    for(int i = 0; i < ret.length; i++) {
+		if(i < big)
+		    ret[i] = 1.5f + (0.7f * rnd.nextFloat());
+		else if(i < (big + small))
+		    ret[i] = 0.3f + (0.25f * rnd.nextFloat());
+		else
+		    ret[i] = 0.75f + (0.4f * rnd.nextFloat());
+	    }
+	    for(int i = ret.length - 1; i > 0; i--) {
+		int o = rnd.nextInt(i + 1);
+		float t = ret[i]; ret[i] = ret[o]; ret[o] = t;
+	    }
+	    return(ret);
+	}
+
 	/* Ball j of a cloud of this kind, before its turn: x (the stretched axis), y, height of its centre
-	 * over the base, radius. A ball at the foot sits about half its radius up, so the cut at the base
-	 * leaves a flat belly. */
+	 * over the base, radius. The constructor sets the whole down through the base afterwards. */
 	private static float[] puff(Random rnd, int kind, int j, float s, float e) {
 	    float a = rnd.nextFloat() * (float)(Math.PI * 2);
 	    switch(kind) {
@@ -646,7 +690,7 @@ public class Ambience {
 		float px = puffs[(j * 4) + 0], py = puffs[(j * 4) + 1], pz = puffs[(j * 4) + 2], r = puffs[(j * 4) + 3];
 		x0 = Math.min(x0, px - r); x1 = Math.max(x1, px + r);
 		y0 = Math.min(y0, py - r); y1 = Math.max(y1, py + r);
-		top = Math.max(top, pz + r);
+		top = Math.max(top, pz + (r * squash[j]));
 	    }
 	    bx = (x0 + x1) / 2; by = (y0 + y1) / 2; bz = top / 2;
 	    brad = 0; foot = 0;
@@ -661,8 +705,7 @@ public class Ambience {
     /* What one map view holds while this is on. */
     static class View {
 	private static final Object cskey = new Object();
-	RenderTree.Slot sky, rain, snow;
-	int rainn = 0, snown = 0;
+	RenderTree.Slot sky;
 	/* The server's cloud numbers, eased as the game's Clouds eases them. */
 	float cmin = -0.1f, cmax = 0f, rmin = 1f, rmax = 1f, scale = 1f / 1500, cvx = 0.001f, cvy = 0.002f;
 	final List<Cloud> clouds = new ArrayList<>();
@@ -825,7 +868,7 @@ public class Ambience {
 	    }
 	    clouds.removeIf(c -> c.dying && (c.op <= 0));
 	    /* The far ring grows less: its clouds are already big, and would otherwise tower over everything. */
-	    populatefar(w, focus, dt, wx, wy, dgt, basesize * (1 + (0.6f * close)), clamp((cover * 0.4f) + (wet * 0.6f) + (flake * 0.15f), 0, 0.9f), cover, wet, flake);
+	    populatefar(w, focus, dt, wx, wy, dgt, basesize * (1 + (1.0f * close)), clamp((cover * 0.4f) + (wet * 0.6f) + (flake * 0.15f), 0, 0.9f), cover, wet, flake);
 
 	    int alive = 0;
 	    for(Cloud c : clouds)
@@ -1023,7 +1066,7 @@ public class Ambience {
 		    f.pf[o + 0] = (float)c.x + c.puffs[(j * 4) + 0];
 		    f.pf[o + 1] = (float)c.y + c.puffs[(j * 4) + 1];
 		    f.pf[o + 2] = base + c.puffs[(j * 4) + 2];
-		    f.pf[o + 3] = c.puffs[(j * 4) + 3];
+		    f.pf[o + 3] = (float)Math.floor(Math.max(c.puffs[(j * 4) + 3], 1)) + Math.min(c.squash[j], 0.999f);
 		}
 	    }
 	    f.ncl = n;
@@ -1054,26 +1097,6 @@ public class Ambience {
 		    mv.basic(cskey, null);
 	    } catch(Loading e) {
 	    }
-	    int nr = io.brodgar.perf.Performance.rain ? bucket(w.rain * 3 * densmul, Precip.MAXRAIN) : 0;
-	    if(nr != rainn) {
-		if(rain != null) {rain.remove(); rain = null;}
-		try {
-		    if(nr > 0)
-			rain = mv.drawadd(new Precip(false, nr));
-		    rainn = nr;
-		} catch(Loading e) {
-		}
-	    }
-	    int ns = io.brodgar.perf.Performance.snow ? bucket(w.snow * 5 * densmul, Precip.MAXSNOW) : 0;
-	    if(ns != snown) {
-		if(snow != null) {snow.remove(); snow = null;}
-		try {
-		    if(ns > 0)
-			snow = mv.drawadd(new Precip(true, ns));
-		    snown = ns;
-		} catch(Loading e) {
-		}
-	    }
 	}
 
 	String census() {
@@ -1090,17 +1113,8 @@ public class Ambience {
 	    return((buf.length() > 0) ? buf.toString() : "none");
 	}
 
-	private static int bucket(float n, int max) {
-	    if(n <= 0)
-		return(0);
-	    return(Math.min(max, Math.max(1, Math.round(n / 500)) * 500));
-	}
-
 	void off(MapView mv) {
 	    if(sky != null) {sky.remove(); sky = null;}
-	    if(rain != null) {rain.remove(); rain = null;}
-	    if(snow != null) {snow.remove(); snow = null;}
-	    rainn = snown = 0;
 	    mv.basic(cskey, null);
 	}
     }
@@ -1218,23 +1232,18 @@ public class Ambience {
 	    Utils.setprefd("ambience-fog", fogmul);
 	    say(cons, "ambience: fog x" + fogmul);
 	    return;
-	case "density":
-	    densmul = Float.parseFloat(args[2]);
-	    Utils.setprefd("ambience-density", densmul);
-	    say(cons, "ambience: rain and snow density x" + densmul);
-	    return;
 	case "":
 	    say(cons, "ambience " + (enabled ? "on" : "off") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
-		String.format(" at %.0f, fog x%.2f, density x%.2f", cloudbase, fogmul, densmul));
+		String.format(" at %.0f, fog x%.2f", cloudbase, fogmul));
 	    for(Map.Entry<MapView, View> e : new ArrayList<>(views.entrySet()))
 		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census() +
 		    String.format("; sky closed %.2f", e.getValue().close));
 	    return;
 	default:
 	    throw(new RuntimeException("usage: amb [on|off|clouds auto|clouds <n>|moon <0-1>|moon server|cloudalt <units>|time <hour>|time server|weather <" +
-				       String.join("|", presets.keySet()) + "|server>|fog <x>|density <x>]"));
+				       String.join("|", presets.keySet()) + "|server>|fog <x>]"));
 	}
     }
 

@@ -23,7 +23,7 @@ import static haven.render.sl.Type.*;
 public class SkyPass implements RenderTree.Node {
     static final Rendered.Order order = new Rendered.Order.Default(6500);
     /* NEAR clouds form round the player, FAR ones out on the horizon; the arrays hold the near first. */
-    public static final int NEAR = 29, FAR = 15, MAXCL = NEAR + FAR, PUFFS = 12;
+    public static final int NEAR = 29, FAR = 20, MAXCL = NEAR + FAR, PUFFS = 12;
     /* The moon's angular radius: some three times the real one's, or it is a speck on a game screen. */
     static final double MOONR = 0.04;
     /* The edge noise's scale: the game's cloud texture, a texel to every four units or so. */
@@ -137,11 +137,12 @@ public class SkyPass implements RenderTree.Node {
     /* THE CLOUDS along one ray, up to tmax (where the scene is). Answers their light, premultiplied, and
      * how much of what is behind them they cover.
      *
-     * Each ball the ray meets gives an entry point, cut at the cloud's base: a ray from below that enters
-     * a ball under the base enters instead where it crosses the base, facing down -- which is what makes
-     * the flat grey bellies. Its cover is softest at the rim, ragged by the game's cloud noise, and thins
-     * with distance; its light is the cloud colour, brighter up the cloud, plus the sun on the side that
-     * faces it and through the thin edges toward it. The balls of all clouds are summed without sorting --
+     * Each ball is an egg, as wide as its radius and as high as its squash makes it (the fraction of the
+     * radius it is handed in: the cloud's lowest balls lie flattest). The ray's entry into it is cut at
+     * the cloud's base: a ray from below that enters an egg under the base enters instead where it
+     * crosses the base, facing down -- which is what makes the flat grey bellies. Its cover is softest at
+     * the rim, ragged by the game's cloud noise, and thins with distance; its light is the cloud colour,
+     * brighter up the cloud, plus the sun on the side that faces it and through the thin edges toward it. The balls of all clouds are summed without sorting --
      * a weighted blend, which soft white shapes do not give away. */
     static final Function clouds = new Function.Def(VEC4) {{
 	Expression e = param(PDir.IN, VEC3).ref();
@@ -183,18 +184,23 @@ public class SkyPass implements RenderTree.Node {
 	hit.add(new For(ass(j, l(0)), and(lt(j, l(PUFFS)), gt(tr, l(0.02))), linc(j), pb));
 
 	Expression pp = pb.local(VEC4, idx(pf.ref(), add(mul(k, l(PUFFS)), j))).ref();
-	Expression r = pb.local(FLOAT, pick(pp, "w")).ref();
-	Expression o2 = pb.local(VEC3, sub(e, pick(pp, "xyz"))).ref();
-	Expression b2 = pb.local(FLOAT, dot(o2, v)).ref();
-	Expression d2 = pb.local(FLOAT, sub(mul(b2, b2), sub(dot(o2, o2), mul(r, r)))).ref();
+	Expression r = pb.local(FLOAT, floor(pick(pp, "w"))).ref();
+	/* The egg is a ball in a space stretched upward by its squash: the ray is met there, and t stays
+	 * the distance along the ray in the world. */
+	Expression sc = pb.local(VEC3, vec3(l(1.0), l(1.0), div(l(1.0), sub(pick(pp, "w"), r)))).ref();
+	Expression o2 = pb.local(VEC3, mul(sub(e, pick(pp, "xyz")), sc)).ref();
+	Expression v2 = pb.local(VEC3, mul(v, sc)).ref();
+	Expression qa = pb.local(FLOAT, dot(v2, v2)).ref();
+	Expression b2 = pb.local(FLOAT, dot(o2, v2)).ref();
+	Expression d2 = pb.local(FLOAT, sub(mul(b2, b2), mul(qa, sub(dot(o2, o2), mul(r, r))))).ref();
 	Block ph = new Block();
 	pb.add(new If(gt(d2, l(0.0)), ph));
 
 	Expression s = ph.local(FLOAT, sqrt(d2)).ref();
-	Expression t1 = ph.local(FLOAT, add(neg(b2), s)).ref();
-	Expression te = ph.local(FLOAT, max(sub(neg(b2), s), l(0.0))).ref();
+	Expression t1 = ph.local(FLOAT, div(add(neg(b2), s), qa)).ref();
+	Expression te = ph.local(FLOAT, max(div(sub(neg(b2), s), qa), l(0.0))).ref();
 	/* Cut at the base: an entry below it moves up to where the ray crosses it, if the ray rises and
-	 * crosses it inside the ball; otherwise the ball is not seen at all. */
+	 * crosses it inside the egg; otherwise the egg is not seen at all. */
 	Expression below = ph.local(FLOAT, sub(l(1.0), step(base, pick(add(e, mul(v, te)), "z")))).ref();
 	Expression tp = ph.local(FLOAT, div(sub(base, pick(e, "z")), max(vz, l(0.0001)))).ref();
 	Expression ok = ph.local(FLOAT, add(sub(l(1.0), below), mul(below, step(l(0.0001), vz), step(tp, t1), step(te, tp)))).ref();
@@ -203,12 +209,12 @@ public class SkyPass implements RenderTree.Node {
 	ph.add(new If(and(gt(ok, l(0.5)), and(lt(t0, tmax), gt(t1, l(0.0)))), pv));
 
 	Expression p0 = pv.local(VEC3, add(e, mul(v, t0))).ref();
-	/* The ball's own normal, bent halfway toward the whole cloud's, so the light rounds the cloud and
-	 * does not pick out every ball as a sphere of its own. */
-	Expression nb = normalize(add(normalize(sub(p0, pick(pp, "xyz"))), normalize(sub(p0, pick(b, "xyz")))));
+	/* The egg's own normal, bent halfway toward the whole cloud's, so the light rounds the cloud and
+	 * does not pick out every ball as a shape of its own; on the cut, straight down. */
+	Expression nb = normalize(add(normalize(mul(sub(p0, pick(pp, "xyz")), mul(sc, sc))), normalize(sub(p0, pick(b, "xyz")))));
 	Expression n = pv.local(VEC3, mix(nb, vec3(l(0.0), l(0.0), l(-1.0)), below)).ref();
-	/* 0 at the rim, 1 straight through the middle. */
-	Expression th = pv.local(FLOAT, div(s, r)).ref();
+	/* 0 at the rim, 1 straight through the middle: the half-chord against the radius, in the egg's space. */
+	Expression th = pv.local(FLOAT, div(s, mul(sqrt(qa), r))).ref();
 	Expression lod = pv.local(FLOAT, max(add(log2(max(mul(t0, lodk.ref()), l(0.0001))), log2(pick(ext, "w"))), l(0.0))).ref();
 	Expression nz = pv.local(FLOAT, pick(textureLod.call(sclouds.ref(), add(mul(pick(p0, "xy"), l(NOISE), pick(ext, "w")), vec2(pick(info, "w"), mul(pick(info, "w"), l(1.7)))), lod), "r")).ref();
 	/* Each cloud's own edge: how far in from the rim it turns solid, and how ragged the noise makes it. */
