@@ -5,7 +5,7 @@ import java.util.*;
 import haven.*;
 import haven.render.*;
 
-/* SPIKE (branch spike-ambience): the server's weather and light, drawn our way.
+/* The server's weather and light, drawn our way.
  *
  * The server stays the authority for WHAT the world is doing -- its "wth" set (clouds, rain, snow)
  * and its "light" -- and this decides HOW it looks: a sky with a sun, stars and a handful of separate
@@ -155,7 +155,7 @@ public class Ambience {
 		    w.snow(num(a[0]));
 		}
 	    } catch(RuntimeException exc) {
-		/* A shape this spike does not know: that part of the weather is not drawn. */
+		/* A shape this does not know: that part of the weather is not drawn. */
 	    }
 	}
 	return(w);
@@ -1196,7 +1196,7 @@ public class Ambience {
 	} catch(Loading e) {
 	    throw(e);
 	} catch(RuntimeException e) {
-	    /* A spike must never take the client down: what it cannot draw, it stops drawing, for this
+	    /* The ambience must never take the client down: what it cannot draw, it stops drawing, for this
 	     * session, and says why on the console. The pref is left as it was. */
 	    new Exception("ambience: switched off after an error", e).printStackTrace();
 	    enabled = false;

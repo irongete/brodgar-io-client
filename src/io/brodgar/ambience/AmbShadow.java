@@ -6,7 +6,7 @@ import haven.render.sl.*;
 import static haven.render.sl.Cons.*;
 import static haven.render.sl.Type.*;
 
-/* SPIKE: the clouds' shadows on the ground.
+/* The clouds' shadows on the ground.
  *
  * The game's own CloudShadow in shape -- it dims the sun's light alone (MapView.amblight_idx), in every
  * per-fragment Phong program -- but cast by the ambience's own clouds: for each cloud whose shadow falls

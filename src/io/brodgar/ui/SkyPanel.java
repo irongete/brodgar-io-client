@@ -15,7 +15,7 @@ import haven.Widget;
 import io.brodgar.ambience.Ambience;
 
 /**
- * The in-game <b>Sky &amp; weather</b> options panel (spike-ambience) -- {@link PerformancePanel}'s
+ * The in-game <b>Sky &amp; weather</b> options panel -- {@link PerformancePanel}'s
  * pattern over {@link Ambience}: every control re-reads its static every frame in {@code tick} and
  * writes through the matching setter, so the console's {@code :amb} moves an open panel.
  */

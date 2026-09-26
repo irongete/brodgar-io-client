@@ -35,11 +35,15 @@ at the maximum the field is used untouched, so the draw sequence is upstream's b
 | Emitting the ground | `TerrainTile.faces(MapMesh, MPart)`: for every enabled layer of the tile, one `SModel` keyed on the layer's material and the tile's `draw` (`MapMesh.MLOrder(0, z)` for `var`, `VertexColor`), so a tile with `n` layers enabled is `n` models and `n` slots |
 | Emitting a transition | `TerrainTile._faces(MapMesh, int, Tile, MPart)`: the same loop over enabled layers, each under the transition texture's `AlphaTex` and `MLOrder(z, layer)`, through `MapMesh.Model.get` — one model per (material, order, alpha) key per cut. Reached from `tcons`, which `trans` hands to `Tiler.MCons` |
 
-**Fork.** The three steps that compute the weights — the noise table, `setbase` and the blur — run
-only while ground blending is on. Off, `buf1[0]` is filled with `1` and the variants stay at `0`; the
-post-processing and the `en` loop are untouched and then enable the base alone, opaque, on every
-tile, so `faces` and `_faces` emit one model where they emitted up to `var.length + 1`. The blur would
-leave 1/0 arrays as they are; skipping it and the noise is the build-time half of the saving.
+**Fork.** `sr`, upstream's constant `12`, is the ground-blend setting, read once per `Blend`: `0`..`12`
+blur passes, and the margin they read beyond the cut. A pass spreads a weight one vertex, so a margin of
+`sr` keeps neighbouring cuts seamless at any count. Fewer passes build faster and leave harder edges,
+where more tiles reach one opaque layer and the `en` loop enables fewer. At `0` the three steps that
+compute the weights — the noise table, `setbase` and the blur — are skipped: `buf1[0]` is filled with
+`1` and the variants stay at `0`; the post-processing and the `en` loop are untouched and then enable
+the base alone, opaque, on every tile, so `faces` and `_faces` emit one model where they emitted up to
+`var.length + 1`. The blur would leave 1/0 arrays as they are; skipping it and the noise is the
+build-time half of the saving.
 
 ## The transition pass: where it lives
 

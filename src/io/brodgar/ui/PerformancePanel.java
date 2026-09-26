@@ -27,7 +27,7 @@ public class PerformancePanel extends OptWnd.Panel {
     public PerformancePanel(OptWnd opt) {
         opt.super();
 
-        /* spike-ambience: the page is built in a body of its own, and stands in a scrolled port the size of
+        /* The page is built in a body of its own, and stands in a scrolled port the size of
          * the settings view's whole page box when it is taller than that box. */
         Widget body = new Widget(Coord.z);
 

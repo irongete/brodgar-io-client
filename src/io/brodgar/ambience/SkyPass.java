@@ -7,7 +7,7 @@ import haven.render.sl.*;
 import static haven.render.sl.Cons.*;
 import static haven.render.sl.Type.*;
 
-/* SPIKE: the sky, its clouds and the fog, in one pass over the whole screen.
+/* The sky, its clouds and the fog, in one pass over the whole screen.
  *
  * It runs after the solid scene and the water (order 6500) and reads the depth the scene wrote, the
  * way Outlines does: where nothing was drawn (depth 1) it paints the sky -- a gradient off the

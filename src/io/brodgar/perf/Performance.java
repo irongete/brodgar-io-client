@@ -166,7 +166,7 @@ public final class Performance {
      * withheld. */
     public static boolean withheldWeather(Resource res) {
         String name = res.name;
-        if(io.brodgar.ambience.Ambience.replaces(name))   // spike-ambience: drawn by the ambience instead
+        if(io.brodgar.ambience.Ambience.replaces(name))   // drawn by the ambience instead
             return(true);
         if("gfx/fx/clouds".equals(name))
             return(!clouds);

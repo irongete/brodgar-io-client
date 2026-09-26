@@ -1101,7 +1101,7 @@ public class OptWnd extends Window {
 	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
 	    // addon: 160.1 -- first, so the settings view opens on entries.get(0) and so on this panel.
 	    ret.add(new PanelEntry("Performance", () -> new io.brodgar.ui.PerformancePanel(OptWnd.this)));
-	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience (spike)
+	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience
 	    ret.add(new PanelEntry("Camera", () -> new CameraPanel()));
 	    // addon: `true` -- CPanel holds a copy of the settings it writes through, and two of them are set from
 	    //        the Performance page: rebuilt on every visit, it never writes a stale copy back over them.

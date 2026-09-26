@@ -75,7 +75,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | `flatTerrain()` / `flatTerrain(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the terrain flat: every tile corner at one height, objects standing on that plane, cliffs standing on that plane at their real height, water keeping its depth. Default `false`. |
 | `treeEffects()` / `treeEffects(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether trees and bushes sway in the wind. Default `true`. |
 | `smoke()` / `smoke(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether smoke plumes are drawn: kilns, furnaces, ovens, chimneys, fires. Default `true`. |
-| `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | Cloud shadows moving over the ground. Default `true`. |
+| `clouds()` / `clouds(flag)` | `boolean` | read Unprotected / write `client.settings` | Cloud shadows moving over the ground: the game's clouds', or, with Options ▸ Game ▸ Sky & weather drawing the sky, its own clouds'. Default `true`. |
 | `rain()` / `rain(flag)` | `boolean` | read Unprotected / write `client.settings` | Rain particles and their splashes. Default `true`. |
 | `snow()` / `snow(flag)` | `boolean` | read Unprotected / write `client.settings` | Snow particles. Default `true`. |
 | `wetGround()` / `wetGround(flag)` | `boolean` | read Unprotected / write `client.settings` | The sheen the ground takes on after rain. Default `true`. |
@@ -114,7 +114,7 @@ hafen.log():write("crop density: " .. performance:crops() .. " %")
 
 | Method | Type | Permission | Description |
 |---|---|---|---|
-| `shadows()` / `shadows(flag)` | `boolean` | read Unprotected / write `client.settings` | Shadow rendering. |
+| `shadows()` / `shadows(flag)` | `boolean` | read Unprotected / write `client.settings` | Shadow rendering: the *Render shadows* box, which stands on the Options ▸ Game ▸ Performance page. |
 | `renderScale()` / `renderScale(value)` | `number` | read Unprotected / write `client.settings` | Render resolution multiplier. |
 | `vsync()` / `vsync(flag)` | `boolean` | read Unprotected / write `client.settings` | Vertical sync. |
 | `fpsLimit()` / `fpsLimit(value)` | `number` | read Unprotected / write `client.settings` | Foreground framerate cap. `math.huge` is no limit. |

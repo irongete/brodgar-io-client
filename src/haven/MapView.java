@@ -485,7 +485,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    float aspect = ((float)sz.y) / ((float)sz.x);
 	    float fov = Math.max(MINFOV, Math.min(dcamfov, MAXFOV));
 	    float fy = (float)Math.tan(Math.toRadians(fov / 2));
-	    /* cam: (spike-ambience) the far plane follows the distance, as FreeCam's does: fixed at 2000, a
+	    /* cam: the far plane follows the distance, as FreeCam's does: fixed at 2000, a
 	     * camera zoomed back past it clipped the ground and everything went black. Unchanged up close --
 	     * 2000 until the eye is 200 out -- and the near plane rises with it only past that, so first
 	     * person keeps its one unit. The frustum is given at the near plane, so fy scales with it. */
@@ -2728,7 +2728,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private RenderTree.Slot s_amblight = null;
     private void amblight() {
 	synchronized(glob) {
-	    io.brodgar.ambience.Ambience.Sun pv = io.brodgar.ambience.Ambience.sunpreview();   // addon: ambience (spike) -- a previewed hour
+	    io.brodgar.ambience.Ambience.Sun pv = io.brodgar.ambience.Ambience.sunpreview();   // addon: ambience -- a previewed hour
 	    if(pv != null) {
 		amblight = new DirLight(pv.amb, pv.dif, pv.spc, Coord3f.o.sadd(pv.elev, pv.ang, 1f));
 		amblight.prio(100);
@@ -3515,7 +3515,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	amblight();
 	updsmap(amblight);
 	updweather();
-	io.brodgar.ambience.Ambience.tick(this, glob, dt);   // addon: ambience (spike) -- the weather drawn our way
+	io.brodgar.ambience.Ambience.tick(this, glob, dt);   // addon: ambience -- the weather drawn our way
 	synchronized(glob.map) {
 	    terrain.tick();
 	    // addon: (117.2) the scene against the OCache, both ways. The drawn path only: a dormant view
