@@ -153,35 +153,8 @@ public class OptWnd extends Window {
 		this.prefs = gprefs;
 		Widget prev;
 		int marg = UI.scale(5);
-		prev = add(new CheckBox("Render shadows") {
-			{a = prefs.lshadow.val;}
-
-			public void set(boolean val) {
-			    try {
-				GSettings np = prefs.update(null, prefs.lshadow, val);
-				ui.setgprefs(prefs = np);
-			    } catch(GSettings.SettingException e) {
-				error(e.getMessage());
-				return;
-			    }
-			    a = val;
-			}
-		    }, Coord.z);
-		prev = add(new CheckBox("Cull off-screen terrain") {   // rts:
-			{a = prefs.cullterrain.val;}
-
-			public void set(boolean val) {
-			    try {
-				GSettings np = prefs.update(null, prefs.cullterrain, val);
-				ui.setgprefs(prefs = np);
-			    } catch(GSettings.SettingException e) {
-				error(e.getMessage());
-				return;
-			    }
-			    a = val;
-			}
-		    }, prev.pos("bl").adds(0, 5));
-		prev = add(new Label("Render scale"), prev.pos("bl").adds(0, 5));
+		/* addon: "Render shadows" and "Cull off-screen terrain" stand on the Performance page (PerformancePanel). */
+		prev = add(new Label("Render scale"), 0, 0);
 		{
 		    Label dpy = new Label("");
 		    final int steps = 4;
@@ -1129,7 +1102,9 @@ public class OptWnd extends Window {
 	    // addon: 160.1 -- first, so the settings view opens on entries.get(0) and so on this panel.
 	    ret.add(new PanelEntry("Performance", () -> new io.brodgar.ui.PerformancePanel(OptWnd.this)));
 	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
-	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui)));
+	    // addon: `true` -- CPanel holds a copy of the settings it writes through, and two of them are set from
+	    //        the Performance page: rebuilt on every visit, it never writes a stale copy back over them.
+	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui), true));
 	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience (spike)
 	    ret.add(new PanelEntry("Audio settings", () -> new AudioPanel(ui)));
 	    // addon: `true` — rebuilt on every visit, so a hotkey an addon declared since the last one is listed.
