@@ -1101,15 +1101,15 @@ public class OptWnd extends Window {
 	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
 	    // addon: 160.1 -- first, so the settings view opens on entries.get(0) and so on this panel.
 	    ret.add(new PanelEntry("Performance", () -> new io.brodgar.ui.PerformancePanel(OptWnd.this)));
-	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
+	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience (spike)
+	    ret.add(new PanelEntry("Camera", () -> new CameraPanel()));
 	    // addon: `true` -- CPanel holds a copy of the settings it writes through, and two of them are set from
 	    //        the Performance page: rebuilt on every visit, it never writes a stale copy back over them.
 	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui), true));
-	    ret.add(new PanelEntry("Sky & weather", () -> new io.brodgar.ui.SkyPanel(OptWnd.this)));   // addon: ambience (spike)
+	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
 	    ret.add(new PanelEntry("Audio settings", () -> new AudioPanel(ui)));
 	    // addon: `true` — rebuilt on every visit, so a hotkey an addon declared since the last one is listed.
 	    ret.add(new PanelEntry("Keybindings", () -> new BindingPanel(), true));
-	    ret.add(new PanelEntry("Camera", () -> new CameraPanel()));
 	    // addon: client-wide toggles (spec 019, task 019.1) — today just the profiling master switch.
 	    ret.add(new PanelEntry("Client", () -> new io.brodgar.ui.ClientPanel(OptWnd.this)));
 	    return(ret);
