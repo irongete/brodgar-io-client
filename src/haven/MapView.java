@@ -2483,6 +2483,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(s_recall != null) {
 	    s_recall.remove();
 	    s_recall = null;
+	    io.brodgar.addon.AddonManager.groundChanged();   // addon: the remembered ground left the scene
 	}
 	if(s_lod != null) {
 	    s_lod.remove();
@@ -2612,6 +2613,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
 	     * and adding the node is what uses it. */
 	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
+	    io.brodgar.addon.AddonManager.groundChanged();   // addon: ...and entered it, holding what it held
 	}
 	if(recalllod == null)
 	    recalllod = new io.brodgar.session.RecallLod();
@@ -4134,6 +4136,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if((t == null) || (rc == null))
 	    return(true);			/* no terrain to contradict it */
 	return(t.main.cuts.containsKey(rc.floor(tilesz).div(MCache.cutsz)));
+    }
+
+    // addon: the remembered ground under this world point -- the view distance's own cache, when it is in
+    //        the scene and has read that grid -- or null. Past the live ground a free hafen.virtual() entity
+    //        stands on this: VirtualApi asks it after grounddrawn(), and GhostGob takes its heights from it.
+    //        Any thread: loadedGrid takes the cache's own monitor.
+    public MCache recallground(Coord2d rc) {
+	io.brodgar.session.Recall r = this.recall;
+	if((r == null) || (s_recall == null) || (rc == null))
+	    return(null);
+	return((AddonWidgets.loadedGrid(r.map, rc.floor(tilesz).div(MCache.cmaps)) != null) ? r.map : null);
     }
 
     // addon: (120.1) the remembered ground's four numbers, so that what it holds and what it draws are

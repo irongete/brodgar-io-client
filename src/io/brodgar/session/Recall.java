@@ -443,6 +443,8 @@ public class Recall {
 	    /* The second door, and the removal above is its record: what leaves the cache leaves the order in
 	     * the same breath, under the one monitor, so neither can be true without the other. */
 	    map.drop(drop);
+	    if(!drop.isEmpty())
+		io.brodgar.addon.AddonManager.groundChanged();   // what stood on a dropped grid goes with it
 	}
     }
 
@@ -711,6 +713,7 @@ public class Recall {
 	    lru.clear();
 	}
 	map.trimall();
+	io.brodgar.addon.AddonManager.groundChanged();
     }
 
     /**
@@ -736,6 +739,9 @@ public class Recall {
 	synchronized(lru) {
 	    lru.put(gc, Boolean.TRUE);
 	}
+	/* A free hafen.virtual() entity may stand on this grid now (MapView.recallground). A flag, drained on
+	 * the addon tick, so raising it from this Defer thread is sound. */
+	io.brodgar.addon.AddonManager.groundChanged();
     }
 
     /**

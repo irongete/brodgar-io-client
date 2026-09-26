@@ -2,15 +2,19 @@ package io.brodgar.addon;
 
 import java.awt.Color;
 
+import haven.AddonWidgets;
 import haven.Coord2d;
+import haven.Coord3f;
 import haven.Glob;
 import haven.Gob;
+import haven.MCache;
 import haven.render.BaseColor;
 import haven.render.BlendMode;
 import haven.render.FragColor;
 import haven.render.Location;
 import haven.render.MixColor;
 import haven.render.Pipe;
+import haven.render.Rendered;
 import haven.render.States;
 
 /**
@@ -81,6 +85,32 @@ public final class GhostGob extends Gob {
         super(glob, c);   // id -1 ⇒ virtual (Gob.virtual): no server id, not in OCache, invisible to reads/server
     }
 
+    /** Whether the live map holds the grid under this gob: the ground the server streams and every placer reads. */
+    private boolean onLiveGround() {
+        return AddonWidgets.loadedGrid(glob.map, rc.floor(MCache.tilesz).div(MCache.cmaps)) != null;
+    }
+
+    /**
+     * Past the live ground, stand on the remembered ground's heights ({@link VirtualApi#recallGround}). Asking
+     * the live map there would ask the server for a grid the character is nowhere near, and never draw.
+     * A resource's own placer yields too: it reads the live map, and that ground is not in it.
+     */
+    public Placer placer() {
+        if(!onLiveGround()) {
+            MCache recalled = VirtualApi.recallGround(rc);
+            if(recalled != null)
+                return recalled.mapplace;
+        }
+        return super.placer();
+    }
+
+    /** The live tile's draw state (water and the like); over remembered ground, none. */
+    protected Pipe.Op getmapstate(Coord3f pc) {
+        if(!onLiveGround() && (VirtualApi.recallGround(rc) != null))
+            return null;
+        return super.getmapstate(pc);
+    }
+
     /**
      * Extension hook called from {@code Gob.GobState.apply} for every gob (the one path {@code virtual} does not
      * gate). Preps (a) a {@link Gob.GobClick} when {@link #clickable} — the exact state a real gob gets, so the mesh
@@ -101,6 +131,8 @@ public final class GhostGob extends Gob {
             buf.prep(new BaseColor(1f, 1f, 1f, al)); // multiply the fragment alpha
             buf.prep(FragColor.blend(new BlendMode())); // standard SRC_ALPHA / INV_SRC_ALPHA blending
             buf.prep(States.maskdepth);             // don't write depth — the engine's translucent-overlay recipe
+            buf.prep(Rendered.eyesort);             // after everything opaque: writing no depth, it is otherwise
+                                                    // painted over by whatever shares its order and draws later (the ground)
         }
         float sc = this.scale;                      // V6: snapshot the volatile once
         if(sc != 1f)

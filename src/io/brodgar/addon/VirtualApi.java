@@ -771,7 +771,7 @@ final class VirtualApi {
             e.anchorGrid = place.id;
             e.agx = place.x;
             e.agy = place.y;
-            e.grounded = groundDrawn(e.rc);
+            e.grounded = groundUnder(e);
         }
         synchronized(free) { free.add(e); }
     }
@@ -1443,7 +1443,7 @@ final class VirtualApi {
             // the scene by the time it returns. Keyed on `place`, so a move to a place with no coordinate
             // this session takes it OUT by the same line that would have put it in (045.2).
             if((place != null) && (e.followTgt == 0)) {
-                boolean g = groundDrawn(e.rc);
+                boolean g = groundUnder(e);
                 if(g != e.grounded) {
                     e.grounded = g;
                     if(shows(e))
@@ -2883,6 +2883,34 @@ final class VirtualApi {
         }
     }
 
+    /**
+     * <b>Is there ground under this free entity to stand it on?</b> The live ground ({@link #groundDrawn}), or
+     * past it the remembered ground the view distance draws ({@link #recallGround}), whose heights
+     * {@link GhostGob} stands the visual on. A patch is the exception: it is carved out of the live ground's
+     * own tiles ({@code LuaPatch}), so over remembered ground it has nothing to be carved out of and waits.
+     * Asked under the entity's monitor.
+     */
+    private static boolean groundUnder(LuaWorldEntity e) {
+        if(groundDrawn(e.rc))
+            return true;
+        return !(e instanceof LuaPatch) && (recallGround(e.rc) != null);
+    }
+
+    /**
+     * The remembered ground's cache when it holds the grid under {@code rc} and the drawn view has it in the
+     * scene, else {@code null} ({@code MapView.recallground}). {@link GhostGob}'s placer reads its heights.
+     */
+    static MCache recallGround(Coord2d rc) {
+        MapView mv = screenView();
+        if((mv == null) || (rc == null))
+            return null;
+        try {
+            return mv.recallground(rc);
+        } catch(RuntimeException ex) {
+            return null;                               // scene mid-teardown: no remembered ground to stand on
+        }
+    }
+
     /** Raised by the terrain's cut map changing, or by the session coordinate space moving; drained on the addon tick. */
     private static volatile boolean groundDirty;
 
@@ -3194,7 +3222,7 @@ final class VirtualApi {
             } else if(rc == null) {
                 e.rc = null;
             }
-            setGrounded(e, groundDrawn(e.rc));
+            setGrounded(e, groundUnder(e));
         }
     }
 
