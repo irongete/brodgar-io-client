@@ -53,8 +53,10 @@ import haven.Session;
  */
 public class Recall {
     /**
-     * How far a read may reach around what the raster asked for, in grids: the user's own drawn range
-     * ({@link MapView#recallrange}) and one grid more.
+     * How far a read may reach around what the raster asked for, in grids: the full-detail reach
+     * ({@link MapView#recalldetail}, or the view distance where that is shorter), one grid for the rings'
+     * alignment (the full-detail square is whole level-one zoom cells, see {@code RecallLod}), and one grid
+     * more.
      *
      * <p>That extra ring is the fill margin the drawn raster needs rather than reach of its own.
      * {@code MapMesh.dotrans} reads a tile across the cut edge and the corner heights need the same
@@ -67,7 +69,7 @@ public class Recall {
      * trimmed against, with nothing to rebuild and nothing to tell.
      */
     public static int radius() {
-	return(MapView.recallrange + 1);
+	return(Math.min(MapView.recallrange, MapView.recalldetail) + 2);
     }
 
     /**
@@ -158,12 +160,12 @@ public class Recall {
      * reads it from a {@link Defer} thread while the tick writes it: a half-updated base would place
      * ground in the wrong world.
      */
-    private static final class Base {
+    public static final class Base {
 	final MapFile file;
-	final MapFile.Segment seg;
+	public final MapFile.Segment seg;
 	final long segid;
 	final Coord tc;
-	final Coord off;    // segment grid coord = session grid coord + off
+	public final Coord off;    // segment grid coord = session grid coord + off
 
 	Base(MapFile file, MiniMap.Location loc) {
 	    this.file = file;
@@ -682,6 +684,15 @@ public class Recall {
      */
     public boolean ready() {
 	return((base != null) && proven && !mustrelease);
+    }
+
+    /**
+     * The proved base, or {@code null} while there is none: the segment the far rings read their zoom
+     * grids out of, and the offset that places them. One object, so the two are always the same base's.
+     */
+    public Base base() {
+	Base b = this.base;
+	return(((b != null) && proven && !mustrelease) ? b : null);
     }
 
     /**

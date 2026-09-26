@@ -172,13 +172,13 @@ Client-wide toggles: the Options ▸ Game ▸ Client panel, and the **View dista
 |---|---|---|---|
 | `profiling()` / `profiling(flag)` | `boolean` | read Unprotected / write `client.settings` | Arm the client's profiler. |
 | `recall()` / `recall(flag)` | `boolean` | read Unprotected / write `client.settings` | The view distance: draw the ground the character has already explored past what the server streams, from the client's own record. Default `true`. |
-| `recallRange()` / `recallRange(grids)` | `number` | read Unprotected / write `client.settings` | How far around the camera that ground reaches, in grids, `1`..`16`. Default `2`. |
+| `recallRange()` / `recallRange(grids)` | `number` | read Unprotected / write `client.settings` | How far around the camera that ground reaches, in grids, `1`..`64`. Default `2`. |
 
 | Rule | Detail |
 |---|---|
 | Profiling is the client's own profiler | Arming it is what `:profile on` does: the client builds its per-frame CPU and GPU trees, which every [profiling read](profiling/README.md) is built on. The checkbox, `:profile` and this option agree. The state persists. Default off. Off it costs nothing, on it is live instrumentation of every frame. A write moves an open panel's checkbox at once. Arming takes effect on the next frame. |
 | View distance | Every tile the character has walked, drawn back into the world in the colours it was recorded in, under every [camera](#camera): around where the `"rts"` camera looks, around the character under the others. Nothing is asked of the server for it and nothing alive stands on it. The default camera's view reaches as far as the range while it is on. The Performance panel's **View distance** section is these two settings. |
-| `recallRange` is a maximum | In grids of 100 tiles. What is drawn is bounded by the view and the client's mesh budget. Outside `1`..`16`, or not a whole number, is refused naming the bounds and leaves the range as it was. The panel's slider runs `2`..`16`; a `1` you write stands, and the slider shows it at its lowest end. |
+| `recallRange` is a maximum | In grids of 100 tiles. The nearest two grids are drawn in full detail; past them the client draws the map's zoomed-out record, coarser with distance, with no objects on it. What is drawn is bounded by the view. Outside `1`..`64`, or not a whole number, is refused naming the bounds and leaves the range as it was. The panel's slider runs `2`..`64`; a `1` you write stands, and the slider shows it at its lowest end. |
 | `recallGrey` is gone | There is no grey wash. `recallGrey()` and `recallGrey(flag)` raise saying so. |
 | The client's, not a character's | Each applies live, moves an open panel, persists, and moves every session up. The cost is the `recall` keys on [`render()`](profiling/counters.md#render). |
 

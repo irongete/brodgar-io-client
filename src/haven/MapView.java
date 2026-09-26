@@ -79,8 +79,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * recallrange is the drawn reach in grids around where the camera looks; Recall reads one grid further
      * for the fill margin. The bounds are stated here, once, because the panel's slider, the Lua option's
      * refusal and this field's own clamp are three readers of one fact. The Performance page's slider
-     * starts at recallrangepanel, the default; a 1 written from Lua stands and shows at its lowest end. */
-    public static final int recallrangemin = 1, recallrangemax = 16, recallrangepanel = 2;
+     * starts at recallrangepanel, the default; a 1 written from Lua stands and shows at its lowest end.
+     *
+     * recalldetail is how far of that is drawn at full detail, as real cut meshes; past it the far rings
+     * (io.brodgar.session.RecallLod) draw the map database's zoom grids at a detail that falls with
+     * distance. */
+    public static final int recallrangemin = 1, recallrangemax = 64, recallrangepanel = 2;
+    public static final int recalldetail = 2;
     public static boolean recallon = Utils.getprefb("recallon", true);
     public static int recallrange = Utils.clip(Utils.getprefi("recallrange", 2), recallrangemin, recallrangemax);
     /* How far from its centre the recalled ground can stand, in world units: the range and the grid the
@@ -980,6 +985,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * constant 0.5f only because their near plane never moves off 1. */
 	    float field = 0.5f * near;
 	    float far = (dist * 4f) + 5000f;
+	    /* addon: and past the view distance while it is on, as the default camera's is. */
+	    if(recallon)
+		far = Math.max(far, dist + recallreach());
 	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, near, far);
 	}
 
@@ -1149,6 +1157,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	clmaplist.dispose();
 	clobjlist.dispose();
+	droprecall();
+	if(recalllod != null)   // addon: the far rings' meshes and textures are this view's own
+	    recalllod.dispose();
 	super.dispose();
     }
 
@@ -1812,6 +1823,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    zhi = cc.z + 100;
 	} catch(Loading e) {
 	}
+	return(boxvisible(ul, br, zlo, zhi));
+    }
+
+    /* addon: the same test over a height range of the caller's -- a far cell knows its own. */
+    private boolean boxvisible(Coord2d ul, Coord2d br, float zlo, float zhi) {
 	boolean left = true, right = true, down = true, up = true, behind = true;
 	for(int i = 0; i < 8; i++) {
 	    double x = ((i & 1) == 0) ? ul.x : br.x;
@@ -1967,6 +1983,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
+    /* addon: the view distance's far rings, past the full-detail square: zoom grids at a detail that
+     * falls with distance. It decides which grids the full-detail raster draws, too. */
+    private io.brodgar.session.RecallLod recalllod = null;
+    private RenderTree.Slot s_lod = null;
 
     /* 068.2: the remembered ground, in the scene.
      *
@@ -1996,24 +2016,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * themselves; this ground is masked out of the shadow pass at its slot regardless (the shadow box is
      * 750 units around the character and this is by definition somewhere else), so the one reason to keep
      * an invisible cut cannot apply to it. */
-    /* 068.4: the cut cap, and it is a stated number rather than one derived from the frustum.
-     *
-     * The camera can frame more ground than this client was ever built to draw: the read square is 5x5
-     * grids and a grid is 4x4 cuts, so a wide view can want 400 cuts where the live raster around the
-     * player keeps 25. A cut is not a cheap thing to want -- two passes over 625 tiles plus dotrans's
-     * eight neighbour reads each, then a slot compile and a VBO upload -- so the cuts beyond the cap are
-     * simply not drawn, and because the set is filled nearest to where the camera is looking first, what
-     * is dropped is always the farthest ground on screen.
-     *
-     * 120.4: and it is stated as a SHARE of the drawn square rather than as one number for every range.
-     * A flat cap makes the range mean less the further it is turned up -- at the widest setting it would
-     * draw the same ground as the narrowest and simply read more of it off the disk -- and the range is
-     * the user's own reach. Two fifths of the square is the 160 that 068.4 shipped at the default range,
-     * restated so that it means the same fraction of what was asked for at every other one. */
-    private static int recallcutcap() {
-	int r = recallrange;
-	int square = ((r * 2) + 1) * ((r * 2) + 1) * MCache.cutn.x * MCache.cutn.y;
-	return((square * 2) / 5);
+    /* 068.4: the cut cap. The full-detail square is whole level-one zoom cells around the centre --
+     * at most six grids a side, and the cells over live ground -- so what is wanted is bounded by
+     * construction, and past it the far rings (RecallLod) draw the ground at a detail that falls with
+     * distance. A cut left out of that square is a hole the rings do not fill, so the cap is all of it:
+     * what bounds the cost is the square's size, and the build budget below bounds how fast it fills. */
+    private static int recallcutcap(int ngrids) {
+	return(ngrids * MCache.cutn.x * MCache.cutn.y);
     }
 
     /* 120.3: and how many cut meshes this may have IN FLIGHT, which is a concurrency target and not a
@@ -2040,6 +2049,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * than mutated, because Recall's sweep reads it from a Defer thread while this is written from
 	 * the UI thread -- the same rule Recall.Base already obeys. */
 	Set<Coord> wantgrids = Collections.emptySet();
+	/* Which grids to draw at full detail, in session grid coords: the far rings' answer, handed over
+	 * every tick (RecallLod.detail). */
+	Set<Coord> grids = Collections.emptySet();
 	Coord2d center = null;
 	int nwanted = 0;
 
@@ -2056,7 +2068,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	void tick() {
 	    Coord2d c = this.center;
-	    if(c == null) {
+	    Set<Coord> grids = this.grids;
+	    if((c == null) || grids.isEmpty()) {
 		area = null;
 		draw.clear();
 		nwanted = 0;
@@ -2065,12 +2078,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
 	     * a grid wide. cutn is cmaps/cutsz, so a grid coord scales to the cut coord of its corner. */
-	    Coord gc = c.floor(tilesz).div(MCache.cmaps);
-	    /* 120.1: the drawn reach is the user's setting, and the source reads one grid further for the
-	     * fill margin -- so this is the range itself and Recall.radius() is the range plus one. */
-	    int r = recallrange;
-	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
-	    /* 120.2: and what the SOURCE is to read, decided here and nowhere else. It is the same square
+	    Coord glo = null, ghi = null;
+	    for(Coord g : grids) {
+		glo = (glo == null) ? g : Coord.of(Math.min(glo.x, g.x), Math.min(glo.y, g.y));
+		ghi = (ghi == null) ? g : Coord.of(Math.max(ghi.x, g.x), Math.max(ghi.y, g.y));
+	    }
+	    area = new Area(glo.mul(MCache.cutn), ghi.add(1, 1).mul(MCache.cutn));
+	    /* 120.2: and what the SOURCE is to read, decided here and nowhere else. It is the same set
 	     * the area above covers, per grid rather than per cut and with nothing else asked of it: a
 	     * grid off screen is neither drawn nor worth taking off the disk, and whether the record has
 	     * anything there is the source's own question and not this raster's. Recall adds the fill
@@ -2086,21 +2100,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * cutvisible would have kept, and the two sides cannot disagree about the edge. */
 	    Set<Coord> want = new HashSet<>();
 	    List<Coord> held = new ArrayList<>();
-	    for(int y = -r; y <= r; y++) {
-		for(int x = -r; x <= r; x++) {
-		    Coord g = gc.add(x, y);
-		    if(!gridvisible(g))
-			continue;
-		    want.add(g);
-		    /* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
-		     * getgrid, which on a miss queues a request -- harmless on a source nothing sends for,
-		     * but it fills that queue with every unrecorded grid in the area and buries the one
-		     * number :recall exists to report. Ground the character has never walked is simply not
-		     * drawn -- and it is wanted all the same, because what is read is what the camera frames
-		     * and whether the record has anything there is the source's own question. */
-		    if(AddonWidgets.loadedGrid(map, g) != null)
-			held.add(g);
-		}
+	    for(Coord g : grids) {
+		if(!gridvisible(g))
+		    continue;
+		want.add(g);
+		/* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
+		 * getgrid, which on a miss queues a request -- harmless on a source nothing sends for,
+		 * but it fills that queue with every unrecorded grid in the area and buries the one
+		 * number :recall exists to report. Ground the character has never walked is simply not
+		 * drawn -- and it is wanted all the same, because what is read is what the camera frames
+		 * and whether the record has anything there is the source's own question. */
+		if(AddonWidgets.loadedGrid(map, g) != null)
+		    held.add(g);
 	    }
 	    wantgrids = want;
 	    List<Coord> cand = new ArrayList<>();
@@ -2131,7 +2142,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    draw.clear();
 	    int building = 0;
 	    for(Coord cc : cand) {
-		if(draw.size() >= recallcutcap())
+		if(draw.size() >= recallcutcap(grids.size()))
 		    break;
 		if(!main.cuts.containsKey(cc) && !map.cutbuilt(cc)) {
 		    /* Not `break`: a cut already built and still in view is kept whatever the budget
@@ -2197,6 +2208,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    s_recall.remove();
 	    s_recall = null;
 	}
+	if(s_lod != null) {
+	    s_lod.remove();
+	    s_lod = null;
+	}
 	/* 120.6: and what it says it wants goes out with it, because a raster out of the scene is not
 	 * ticked -- there is no centre to tick it on and nothing drawn to tick it for -- so every number
 	 * its last tick left behind would stand for as long as it stays out. Cuts drawn falls to zero of
@@ -2212,6 +2227,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    recallterrain.center = null;
 	    recallterrain.tick();
 	}
+    }
+
+    /* addon: the grids the live terrain is drawing, in session grid coords: the far rings leave them to
+     * the full-detail raster, which yields every live cut. */
+    private Set<Coord> livegrids() {
+	Area a = terrain.area;
+	if(a == null)
+	    return(Collections.emptySet());
+	Set<Coord> ret = new HashSet<>();
+	Coord lo = a.ul.div(MCache.cutn), hi = a.br.sub(1, 1).div(MCache.cutn);
+	for(int y = lo.y; y <= hi.y; y++) {
+	    for(int x = lo.x; x <= hi.x; x++)
+		ret.add(Coord.of(x, y));
+	}
+	return(ret);
     }
 
     private void recalltick() {
@@ -2258,8 +2288,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * The live Terrain's cuts are yielded either way (RecallTerrain.tick), so around the character it
 	 * adds nothing but the ground beyond them.
 	 *
-	 * It comes out with the switch, and whenever the source cannot vouch for where its ground goes. Walking into a
-	 * house or a cave re-bases the session coordinate space while sessloc still names the segment just
+	 * It comes out with the switch, and whenever the source cannot vouch for where its ground goes.
+	 * Walking into a house or a cave re-bases the session coordinate space while sessloc still names the segment just
 	 * left, and everything read through that offset is now ground drawn somewhere it never was --
 	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
 	 * new base, and in the right place. */
@@ -2295,6 +2325,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * and adding the node is what uses it. */
 	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
 	}
+	if(recalllod == null)
+	    recalllod = new io.brodgar.session.RecallLod();
+	if(s_lod == null)
+	    s_lod = basic.add(recalllod, ShadowMap.maskshadow);
+	/* addon: the far rings first, because they decide which grids are full detail: whole level-one
+	 * zoom cells near the centre and over the live ground, so the two never draw the same ground. */
+	recalllod.tick(recall.base(), c, recallrange, Math.min(recallrange, recalldetail), livegrids(),
+		       (ul, br, zlo, zhi) -> boxvisible(ul, br, zlo, zhi));
+	recallterrain.grids = recalllod.detail;
 	/* 120.3: every ctick, and no clock of its own. What the raster decides is what it is holding in
 	 * flight, so the rate it is asked at IS the rate a finished build is replaced at: at a fifth of a
 	 * second a mesh that took five milliseconds leaves its slot in the budget idle for the other
@@ -4441,7 +4480,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    /* The other two of the four are the source's own, on the line report() prints above:
 		     * each number is stated once, in the one place that owns it. */
 		    cons.out.println(String.format("recall: cuts drawn %d of %d, cuts wanted %d",
-						   recallcutsdrawn(), recallcutcap(), recallcutswanted()));
+						   recallcutsdrawn(), recallcutcap((recallterrain == null) ? 0 : recallterrain.grids.size()),
+						   recallcutswanted()));
+		    io.brodgar.session.RecallLod lod = recalllod;
+		    if(lod != null)
+			cons.out.println(String.format("recall: far cells drawn %d, wanted %d",
+						       lod.ndrawn, lod.nwanted));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {

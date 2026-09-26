@@ -118,8 +118,9 @@ public class PerformancePanel extends OptWnd.Panel {
                 };
             rangeEnd = body.addhlp(Coord.of(rangeLbl.pos("ur").x + UI.scale(5), rangeLbl.c.y), UI.scale(5), sl, dpy);
             sl.settip("How far around the camera explored ground is drawn, in grids. A grid is 100 tiles across."
-                      + " A larger range reaches further and costs more memory and more meshes to build; what is"
-                      + " drawn is bounded by the view and by the client's own mesh budget either way.", true);
+                      + " The nearest two grids are drawn in full detail; past them the ground is drawn from the"
+                      + " map's own zoomed-out record, coarser the further it is, so a long range costs little"
+                      + " more than a short one.", true);
         }
 
         prev = body.add(new Label("Ground"),

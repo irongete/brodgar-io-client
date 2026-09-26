@@ -80,7 +80,21 @@
   tileset *names* and versions, picks the majority tile of each 2×2 and the min z, then `zoomols`
   downsamples the overlay masks. `Segment.grid(lvl, gc)` **requires `gc` aligned to `1<<lvl`**
   and throws `IllegalArgumentException` otherwise; its `ByZCoord` answers `null` (not `Loading`)
-  once it has run and found nothing there.
+  once it has run and found nothing there. Level `0` goes through `grid(gc)`, which `checklock()`s —
+  the caller must hold the file's lock — while a level ≥ 1 loads on a `Defer` thread under the lock
+  of its own and may be asked from anywhere.
+- **A zoom grid is a level of detail.** Every level is one `cmaps` array, so a cell costs the same to
+  read and to mesh at any level while covering four times the ground of the one below. Fork:
+  `MapView`'s view distance draws past its full-detail square from them — a quadtree over segment grid
+  coords, a cell splitting while it is closer than two of its widths, each leaf one height-map mesh
+  over `zmap` with the tilesets' `Resource.imgc` colours as its texture and a skirt hung from every
+  edge, since neighbouring levels sample different heights along a shared edge. `zmap` is the
+  **minimum** of each 2×2, so a coarse cell sits at or under the ground it stands for.
+  ⚠️ Ground never recorded is not absent from a zoom grid: `from` fills a missing quarter with
+  `DataGrid.nogrid`, tileset `gfx/tiles/notile` at height `0`, and it wins the majority vote like any
+  tile — so a coarse cell carries unexplored samples, and their zero enters the min of a mixed block.
+  And `TexI(img)` rounds to a power of two: a 100-sample texture is padded to 128, so `TexI(img, false)`
+  for texcoords that span `0..1`.
 
 ## Reading a recorded grid back as a live one
 
