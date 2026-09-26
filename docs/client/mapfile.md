@@ -172,6 +172,13 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   cell — the freshness rule is unchanged, only the lifetime — and the set is cleared whole past 65,536
   cells, which is upstream's behaviour again. While a relaunched load runs, `get()` answers the previous
   value without `Loading` (`got`), for a `null` as for a grid: the caller re-asks, as the minimap does each frame.
+- **A zoom grid whose build failed answers every later `get()` with the failure.** `ZoomGrid.from` `save`s
+  what it builds, and a store that will not take it (a full disk, a locked file, a SQLite error) throws
+  `StreamMessage.IOError` inside the `Defer` task; `ByZCoord.get()` then rethrows it as
+  `Defer.DeferredException` — a `RuntimeException`, not `Loading` — on every ask until a grid is recorded
+  under the cell. Reads cannot do this (`load` turns `BinError` and `IOException` into `null`). Upstream's
+  zoomed-out `MiniMap` catches `Loading` alone on that `get()`, so a caller that must survive it catches
+  `RuntimeException` and reads the cell as empty.
 - **An `SMarker` whose icon no resource source has kills the UI thread at draw, and only an import can
   record one.** `MiniMap.MarkerIcon.ckload` reads its `Loader` future with `Future.get`, which rethrows a
   failed load as a plain `RuntimeException` (`NoSuchResourceException`), and every caller of `icon()`

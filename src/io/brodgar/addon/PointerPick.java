@@ -112,8 +112,11 @@ final class PointerPick {
                     done(mv, (g == null) ? -1 : g.id, (mc == null) ? null : new Coord2d(mc.x, mc.y));
                 }
 
-                protected void nohit(Coord pc) {
-                    done(mv, -1, null);    // the pass reached no object AND no ground: off the map entirely
+                protected void nohit(Coord pc, ClickData inf) {
+                    // No ground under the pointer -- the sky, ground not drawn. An object in front of it is
+                    // still what a click reaches (MapView.Click.nohit), so it is still the answer.
+                    Gob g = MapView.clickedgob(inf);
+                    done(mv, (g == null) ? -1 : g.id, null);
                 }
             }.run();
         } catch(RuntimeException e) {

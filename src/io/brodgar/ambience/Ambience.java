@@ -40,19 +40,24 @@ public class Ambience {
     /* The phases' names, by eighths of the server's number: it sends the number, not the name. */
     static final String[] PHASES = {"new moon", "waxing crescent", "first quarter", "waxing gibbous",
 				     "full moon", "waning gibbous", "last quarter", "waning crescent"};
-    static String phase(double mp) {return(PHASES[(int)Math.round(mp * 8) % 8]);}
-    public static volatile float fogmul = (float)Utils.getprefd("ambience-fog", 1.0);
+    static String phase(double mp) {return(PHASES[Math.floorMod((int)Math.round(mp * 8), 8)]);}
+    /* A number kept as a pref, or its default where the pref is not a finite number. */
+    private static float prefd(String name, double def) {
+	double v = Utils.getprefd(name, def);
+	return((float)(Double.isFinite(v) ? v : def));
+    }
+    public static volatile float fogmul = prefd("ambience-fog", 1.0);
 
     static final String CLOUDS = "gfx/fx/clouds", RAIN = "gfx/fx/rain", SNOW = "gfx/fx/snow";
     /* How high the clouds' bases stand above the player's ground, in world units (a tile is 11). */
-    public static volatile float cloudbase = (float)Utils.getprefd("ambience-cloudalt", 600);
+    public static volatile float cloudbase = prefd("ambience-cloudalt", 600);
     /* Near clouds form within SPAWN of the player and break up past DESPAWN. Far ones stand on the
      * horizon, between FARIN and FAROUT, and break up past FARGONE. */
     static final float SPAWN = 3500, DESPAWN = 5000;
     static final float FARIN = 7000, FAROUT = 22000, FARGONE = 30000;
     /* How much cloud every sky has against what the weather alone would give it, near and far alike: by
      * default a fifth more. 0 is a sky with none. */
-    public static volatile float cloudamount = (float)Utils.getprefd("ambience-cloudamount", 1.2);
+    public static volatile float cloudamount = prefd("ambience-cloudamount", 1.2);
     /* Whether the night sky has its stars and its moon. The moon's light, and the shadows it casts, stay. */
     public static volatile boolean starsmoon = Utils.getprefb("ambience-stars", true);
 
@@ -61,33 +66,46 @@ public class Ambience {
     }
 
     /* The settings, as the Sky & weather page and the console write them: each one kept as a pref. */
+    /* A part switched by hand, on the page or with :amb on|off, is also a retry after an error. */
     public static void skyon(boolean on) {
 	Utils.setprefb("ambience-sky", skyon = on);
+	failed = false;
     }
 
     public static void cloudson(boolean on) {
 	Utils.setprefb("ambience-clouds", cloudson = on);
+	failed = false;
     }
 
     public static void fogon(boolean on) {
 	Utils.setprefb("ambience-fogon", fogon = on);
+	failed = false;
     }
+
+    /* Whether drawing failed and every part went back to the game (the Sky & weather page says so). */
+    public static boolean failed() {return(failed);}
 
     /* Whether any part is drawn: the one question the tick, the pass and the light preview ask. */
     public static boolean enabled() {
 	return(!failed && (skyon || cloudson || fogon));
     }
 
+    private static float finite(String what, float v) {
+	if(!Float.isFinite(v))
+	    throw(new IllegalArgumentException(what + ": not a finite number: " + v));
+	return(v);
+    }
+
     public static void fog(float mul) {
-	Utils.setprefd("ambience-fog", fogmul = Math.max(0, mul));
+	Utils.setprefd("ambience-fog", fogmul = Math.max(0, finite("fog", mul)));
     }
 
     public static void cloudalt(float units) {
-	Utils.setprefd("ambience-cloudalt", cloudbase = units);
+	Utils.setprefd("ambience-cloudalt", cloudbase = finite("cloudalt", units));
     }
 
     public static void cloudamount(float mul) {
-	Utils.setprefd("ambience-cloudamount", cloudamount = Math.max(0, mul));
+	Utils.setprefd("ambience-cloudamount", cloudamount = Math.max(0, finite("cloudamount", mul)));
     }
 
     public static void starsmoon(boolean on) {
@@ -98,7 +116,7 @@ public class Ambience {
      * so the game's own renderer of it is held out of the scene while this is on. The clouds alone: the
      * game's rain and snow fall under this sky as they are. */
     public static boolean replaces(String name) {
-	return(enabled() && cloudson && CLOUDS.equals(name));
+	return(enabled() && cloudson && !indoors && CLOUDS.equals(name));
     }
 
     /* What a weather is, in the server's own terms: Clouds' and Rain's and Snow's arguments. */
@@ -1021,6 +1039,58 @@ public class Ambience {
 	}
 	boolean farseeded = false;
 
+	/* Indoors or underground (Ambience.VOID), the grid it was last worked out under, and when again. */
+	boolean inside = false;
+	long igrid = 0;
+	double icool = 0;
+
+	/* Whether the ground round the player is mostly void: the 3x3 grids round it, averaged, at least half
+	 * of it. Worked out again when the player's grid changes (a door or a ladder re-bases the map) and
+	 * once a second, as the grids round it arrive. A grid or a tileset not loaded yet leaves it as it was. */
+	boolean inside(MCache map, Coord3f cc, double dt) {
+	    Coord gc = new Coord2d(cc).floor(MCache.tilesz).div(MCache.cmaps);
+	    /* Only grids the cache already holds: getgrid() on an absent one puts a map request on the wire. */
+	    if(!map.tileheld(gc.mul(MCache.cmaps)))
+		return(inside);
+	    try {
+		MCache.Grid mid = map.getgrid(gc);
+		if((mid.id == igrid) && ((icool -= dt) > 0))
+		    return(inside);
+		float sum = 0;
+		int n = 0;
+		for(int y = -1; y <= 1; y++) {
+		    for(int x = -1; x <= 1; x++) {
+			Coord ngc = gc.add(x, y);
+			if(!map.tileheld(ngc.mul(MCache.cmaps)))
+			    continue;
+			MCache.Grid g;
+			try {
+			    g = map.getgrid(ngc);
+			} catch(Loading l) {
+			    continue;
+			}
+			sum += voidshare(map, g);
+			n++;
+		    }
+		}
+		igrid = mid.id;
+		icool = 1;
+		return(inside = (sum / n) >= 0.5f);
+	    } catch(Loading l) {
+		return(inside);
+	    }
+	}
+
+	/* The sky seeded afresh the next time it is drawn, as when switched on. */
+	void reset() {
+	    clouds.clear();
+	    far.clear();
+	    seeded = farseeded = false;
+	    spawncool = farcool = 0;
+	    lastgt = -1;
+	    gz = Float.NaN;
+	}
+
 	Cloud spawnfar(Coord3f focus, float size, float dark, float cover, float wet, float flake, boolean upwind) {
 	    int kind = kind(rnd, cover, wet, flake);
 	    /* A small one would be a speck out there: the far ring heaps them. */
@@ -1154,6 +1224,14 @@ public class Ambience {
 	    if(ct == null)
 		return;
 	    if(sky == null) {
+		/* Not before the driver has said it takes the passes' programs (SkyPass.probe): a refusal is the
+		 * error path in tick, which switches the ambience off for the session; no answer yet is a frame
+		 * or two more of the game's own sky. */
+		SkyPass.Probe pr = SkyPass.probe(mv.ui.getenv());
+		if(pr.state == 2)
+		    throw(new RuntimeException("the graphics driver will not take the sky's shaders -- " + pr.why));
+		if(pr.state != 1)
+		    return;
 		try {
 		    sky = mv.drawadd(new SkyPass());
 		} catch(Loading e) {
@@ -1190,9 +1268,45 @@ public class Ambience {
 	}
     }
 
-    // retained: weak on its key -- a View holds no MapView, so an entry goes with its map view; tick drops it
-    //   when the ambience is switched off, and the error path when it switches itself off.
+    /* Indoors and underground, the ground round the player is VOID: a house, a dungeon or any other instance
+     * stands in the black gfx/tiles/nil ground, and a mine level is solid rock (a CaveTile, whose own ground
+     * is that nil) round its tunnels. Measured over the maintainer's map database (2026-09-26, 203k grids):
+     * the 3x3 grids round a house's or an instance's grid average at least half void in every case, round a
+     * mine's in 99.8%, round an overworld one in 0.13%. */
+    static final String VOID = "gfx/tiles/nil";
+    /* Whether the drawn map view is indoors: the clouds go back to the game there (replaces). */
+    static volatile boolean indoors = false;
+
+    /* The share of one grid's tiles that are void. Throws Loading while a tileset has not arrived. */
+    static float voidshare(MCache map, MCache.Grid g) {
+	byte[] memo = new byte[64];
+	int n = 0;
+	for(int t : g.tiles) {
+	    if(t >= memo.length)
+		memo = Arrays.copyOf(memo, Math.max(t + 1, memo.length * 2));
+	    if(memo[t] == 0) {
+		Tileset set = map.tileset(t);
+		boolean v = (set != null) && (VOID.equals(set.getres().name) || (map.tiler(t) instanceof haven.resutil.CaveTile));
+		memo[t] = (byte)(v ? 1 : 2);
+	    }
+	    if(memo[t] == 1)
+		n++;
+	}
+	return((float)n / g.tiles.length);
+    }
+
+    // retained: until the map view is disposed (disposed(), from MapView.dispose); tick drops it earlier when
+    //   the ambience is switched off, and the error path when it switches itself off. The weak key frees
+    //   nothing once View.sky is set: a render slot keeps its parent, basic, whose parent conf holds the
+    //   view's own WidgetContext in its state -- the value reaches its key.
     private static final Map<MapView, View> views = new WeakHashMap<>();
+
+    /* The map view is going away (MapView.dispose, on the thread tearing its UI down, never during its own
+     * tick). Only the entry goes: the sky's slot is the view's tree's, and PView.dispose removes it, which
+     * frees the clouds' target (SkyPass.removed). */
+    public static void disposed(MapView mv) {
+	synchronized(views) {views.remove(mv);}
+    }
 
     /* Every tick of the drawn map view, after the game has composed its own weather (MapView.tick). */
     public static void tick(MapView mv, Glob glob, double dt) {
@@ -1214,12 +1328,22 @@ public class Ambience {
 	DirLight l = mv.amblight;
 	if(l == null)
 	    return;
-	Coord3f focus;
+	Coord3f cc;
 	try {
-	    focus = mv.getcc().invy();
+	    cc = mv.getcc();
 	} catch(Loading e) {
 	    return;
 	}
+	if(v.inside(glob.map, cc, dt)) {
+	    /* Indoors or underground: nothing of ours -- round a house and a mine level the game draws black --
+	     * and the sky seeded afresh on the way out: the map was re-based, the clouds up stand elsewhere. */
+	    v.off(mv);
+	    v.reset();
+	    indoors = true;
+	    return;
+	}
+	indoors = false;
+	Coord3f focus = cc.invy();
 	Weather w = (pweather != null) ? pweather : fromserver(glob);
 	v.ease(w, dt);
 	v.astro(glob.ast, dt);
@@ -1251,6 +1375,16 @@ public class Ambience {
 	    cons.out.println(msg);
     }
 
+    /* A number off the console, finite, or the command is refused before anything is set. */
+    private static double arg(String[] args) {
+	if(args.length < 3)
+	    throw(new RuntimeException("usage: amb " + args[1] + " <number>"));
+	double v = Double.parseDouble(args[2]);
+	if(!Double.isFinite(v))
+	    throw(new RuntimeException("amb " + args[1] + ": not a finite number: " + args[2]));
+	return(v);
+    }
+
     private static void command(Console cons, String[] args) {
 	String sub = (args.length > 1) ? args[1] : "";
 	switch(sub) {
@@ -1267,7 +1401,7 @@ public class Ambience {
 		ptime = null;
 		say(cons, "ambience: the light is the server's");
 	    } else {
-		ptime = Double.parseDouble(args[2]);
+		ptime = arg(args);
 		say(cons, "ambience: previewing the light of " + args[2] + "h");
 	    }
 	    return;
@@ -1293,7 +1427,7 @@ public class Ambience {
 	    }
 	    return;
 	case "cloudalt":
-	    cloudalt(Float.parseFloat(args[2]));
+	    cloudalt((float)arg(args));
 	    say(cons, String.format("ambience: cloud bases %.0f above the ground", cloudbase));
 	    return;
 	case "moon":
@@ -1301,21 +1435,23 @@ public class Ambience {
 		pmoon = null;
 		say(cons, "ambience: the moon is the server's");
 	    } else {
-		pmoon = Double.parseDouble(args[2]);
+		pmoon = arg(args);
 		say(cons, "ambience: previewing the " + phase(pmoon) + " (" + args[2] + ")");
 	    }
 	    return;
 	case "fog":
-	    fog(Float.parseFloat(args[2]));
+	    fog((float)arg(args));
 	    say(cons, "ambience: fog x" + fogmul);
 	    return;
 	case "":
 	    say(cons, "ambience: sky " + (skyon ? "on" : "off") + ", clouds " + (cloudson ? "on" : "off") +
-		", fog " + (fogon ? "on" : "off") + (failed ? " (switched off after an error)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
+		", fog " + (fogon ? "on" : "off") + (failed ? " (switched off after an error)" : "") + (indoors ? " (indoors: nothing drawn)" : "") + ", light: " + ((ptime == null) ? "server" : ("preview " + ptime + "h")) +
 		", weather: " + ((pweather == null) ? "server" : ("preview " + pweather.name)) +
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
 		String.format(" x%.2f at %.0f, fog x%.2f, stars and moon %s", cloudamount, cloudbase, fogmul, starsmoon ? "on" : "off"));
-	    for(Map.Entry<MapView, View> e : new ArrayList<>(views.entrySet()))
+	    List<Map.Entry<MapView, View>> es;
+	    synchronized(views) {es = new ArrayList<>(views.entrySet());}
+	    for(Map.Entry<MapView, View> e : es)
 		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census() +
 		    String.format("; sky closed %.2f", e.getValue().close));
 	    return;

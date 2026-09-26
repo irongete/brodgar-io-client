@@ -88,6 +88,17 @@ not an instance of the local class and is left alone, which is right: the settin
   the resource resolves; the withheld check swallows it and treats the entry as not-withheld for that
   frame — the very same `Loading` the factory branch of `Glob.weather()` would throw a line later, so
   nothing is skipped that would not already have been deferred.
+- **The client has no "indoors", and the black round a house is ground.** Houses, dungeons and other
+  instances stand in `gfx/tiles/nil`, a `GroundTile` (its `tileset2` layer is empty, so `Tileset`'s default
+  tiler) whose texture is solid black; a mine level's rock is `gfx/tiles/cave` and the `rocks/*` tilesets, all
+  `CaveTile` walls standing on that same nil. Past the drawn ground the view clears to black
+  (`PView.clearcolor`). Nothing else tells indoors apart: the weather is whatever the last `"wth"` held, the
+  light is one session-wide value indistinguishable from night, a map re-base says the map changed but not to
+  what, and the server's `"sky"` message (`Glob.sky1`/`sky2`/`skyblend`) is read by nothing upstream. What
+  does tell it is the tiles: over 203k recorded grids (2026-09-26), the 3×3 grids round a house's or an
+  instance's grid average at least half nil or `CaveTile` in every case and round a mine's in 99.8%, against
+  0.13% round an overworld grid. Read them with `MCache.tileheld` first — `getgrid` on an absent grid puts a
+  map request on the wire.
 - **`GobSvaj`'s fix is entirely in `st()`.** The tree-effects fork touches only `placestate()`'s return;
   changing anything inside `st()` risks the multi-session origin fix documented there (069).
 - **A plant's sprout count is fixed when its sprite is created.** `create` reads the count and places

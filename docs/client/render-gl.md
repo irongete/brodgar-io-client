@@ -59,6 +59,21 @@ tie-break is now the attribute's generated name (`ctx.symtab`), which the source
 keys on a program's *input* across runs needs the same care: the sources are stable, the identity of the
 objects behind them is not.
 
+**Gotcha — a program the driver refuses freezes the client, with no error on screen.** A compile or link
+failure throws `ShaderException`/`LinkException` from `ShaderOb.create`/`ProgOb.create` inside
+`GLEnvironment.process`, wrapped by `BufferBGL.run` as `BGLException`. The frame's renders are already off the
+queue and are neither run nor aborted, so their fences never fire; `JOGLPanel.redraw` (and `LWJGLPanel`'s) has
+no `try`, so the busy bit in `pstate` is never cleared and no display is scheduled again; and the UI thread's
+next `Frame.syncwait` waits on the lost fence with no timeout. The window shows its last frame and takes no
+input; the stack trace goes to stderr only. Nothing on the UI thread sees it either — `GLProgram.glid()` only
+queues the objects. The only protection is to ask the driver first: a `BGL.Request` submitted through
+`GLEnvironment.render()` that compiles and links the two sources itself and reads `GL_COMPILE_STATUS` /
+`GL_LINK_STATUS` instead of throwing. The budget that binds is the fragment stage's uniform **registers**, not
+the component count `GL_MAX_FRAGMENT_UNIFORM_COMPONENTS` reports: measured on a GTX 1660 SUPER (NVIDIA
+591.86), a program with 2,977 uniform components took about 750 of its 1,024 vec4 registers, and one more
+past 1,018 was refused at link (`C6020: Constant register limit exceeded`). GL 3.x only guarantees 1,024
+components (256 vec4).
+
 **Gotcha — the shadow map covers a box, and upstream shaded everything outside it.** `ShadowMap` renders a
 depth map over `MapView`'s 750-unit box around the player, sampled with `Texture.Wrapping.CLAMP` and cleared to
 `1.0`. `ShadowMap.Shader.shcalc` counts the lit samples of a 4×4 PCF around the fragment's map coordinates, so

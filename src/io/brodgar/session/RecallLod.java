@@ -30,6 +30,7 @@ import haven.TexI;
 import haven.TexRender;
 import haven.GOut;
 import haven.Utils;
+import haven.Warning;
 import haven.render.DataBuffer;
 import haven.render.Homo3D;
 import haven.render.Location;
@@ -178,8 +179,8 @@ public class RecallLod implements RenderTree.Node {
 
     /** The grids to draw at full detail, in SESSION grid coords: this tick's answer, replaced whole. */
     public Set<Coord> detail = Collections.emptySet();
-    /** Cells this tick wanted and cells it had in the scene, for {@code :recall}. */
-    public int nwanted = 0, ndrawn = 0;
+    /** Cells this tick wanted, cells it had in the scene, and cells loading or building, for {@code :recall}. */
+    public int nwanted = 0, ndrawn = 0, nbusy = 0;
 
     public void added(RenderTree.Slot slot) {
 	this.slot = slot;
@@ -236,9 +237,14 @@ public class RecallLod implements RenderTree.Node {
 	nwanted = leaves.size();
 
 	Set<Key> want = new HashSet<Key>();
+	/* Every cell in flight moves on every tick, wanted or not. Only a cell's own progress gives back its
+	 * share of MAXBUSY, so a cell moved on only while it is a leaf holds that share for as long as the
+	 * view looks elsewhere -- a camera turn, a walk, a flat-terrain switch or a re-base mid-load -- and
+	 * MAXBUSY of them start nothing ever again. One left behind is finished like any other, and cached
+	 * for when the view comes back to it. */
 	int busy = 0;
-	for(Cell c : cells.values()) {
-	    if((c.building != null) || ((c.built == null) && !c.empty && (c.src != null)))
+	for(Map.Entry<Key, Cell> e : cells.entrySet()) {   // no get(): access order moves on a get
+	    if(advance(e.getKey(), e.getValue()))
 		busy++;
 	}
 	for(Leaf l : leaves) {
@@ -246,42 +252,11 @@ public class RecallLod implements RenderTree.Node {
 	    if(c == null) {
 		if(busy >= MAXBUSY)
 		    continue;
-		cells.put(l.key, c = new Cell());
-	    }
-	    if((c.built == null) && !c.empty) {
-		if(c.building != null) {
-		    if(c.building.done()) {
-			try {
-			    c.built = c.building.get();
-			} catch(Exception e) {
-			    c.empty = true;
-			}
-			c.building = null;
-			busy--;
-		    }
-		} else {
-		    if(c.src == null) {
-			if(busy >= MAXBUSY)
-			    continue;
-			c.src = base.seg.grid(l.key.lvl, l.key.sc);
-			busy++;
-		    }
-		    MapFile.DataGrid g;
-		    try {
-			g = c.src.get();
-		    } catch(Loading e) {
-			continue;
-		    }
-		    if(g == null) {
-			c.empty = true;
-			busy--;
-		    } else {
-			final MapFile.DataGrid fg = g;
-			final int lvl = l.key.lvl;
-			final boolean fflat = l.key.flat;
-			c.building = Defer.later(() -> build(fg, lvl, fflat));
-		    }
-		}
+		c = new Cell();
+		c.src = base.seg.grid(l.key.lvl, l.key.sc);
+		cells.put(l.key, c);
+		if(advance(l.key, c))
+		    busy++;
 	    }
 	    if(c.built != null)
 		want.add(l.key);
@@ -314,7 +289,47 @@ public class RecallLod implements RenderTree.Node {
 		inclick.put(k, cslot.add(MapView.farclick(tc, MCache.cmaps.mul(1 << k.lvl), b.click), Location.xlate(at)));
 	}
 	ndrawn = inscene.size();
+	nbusy = busy;
 	trim();
+    }
+
+    /** One step of a cell in flight: collect its zoom grid and start its mesh, or collect its mesh. Whether it
+     * is still in flight after it. */
+    private static boolean advance(Key key, Cell c) {
+	if((c.built != null) || c.empty)
+	    return(false);
+	if(c.building != null) {
+	    if(!c.building.done())
+		return(true);
+	    try {
+		c.built = c.building.get();
+	    } catch(Exception e) {
+		c.empty = true;
+	    }
+	    c.building = null;
+	    return(false);
+	}
+	MapFile.DataGrid g;
+	try {
+	    g = c.src.get();
+	} catch(Loading e) {
+	    return(true);
+	} catch(RuntimeException e) {
+	    /* The zoom grid's fetch failed -- ZoomGrid.from saving what it built into a store that would not
+	     * take it -- and its future answers every later ask with the same failure. The cell is empty, as
+	     * unrecorded ground is: out of MapView.tick, this ends the UI thread. */
+	    new Warning(e, String.format("far cell %s at level %d: its zoom grid failed: %s", key.sc, key.lvl, e)).issue();
+	    g = null;
+	}
+	if(g == null) {
+	    c.empty = true;
+	    return(false);
+	}
+	final MapFile.DataGrid fg = g;
+	final int lvl = key.lvl;
+	final boolean fflat = key.flat;
+	c.building = Defer.later(() -> build(fg, lvl, fflat));
+	return(true);
     }
 
     private void visit(int lvl, Coord sc, Recall.Base base, Coord cg, int range, int dreach, Set<Coord> live,

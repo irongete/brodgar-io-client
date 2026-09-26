@@ -55,11 +55,20 @@ public class SkyPanel extends OptWnd.Panel {
         prev = toggle(prev.pos("bl").adds(0, 10), "Fog", () -> Ambience.fogon, Ambience::fogon,
                       "Distance fog the colour of the sky, so the far ground dissolves into the horizon"
                       + " instead of ending at it. Rain and snow thicken it. Applies at once.");
-        slider(prev.pos("bl").y + UI.scale(8), "Density", 0, 200,
+        y = slider(prev.pos("bl").y + UI.scale(8), "Density", 0, 200,
                () -> Math.round(Ambience.fogmul * 100), v -> Ambience.fog(v / 100f),
                v -> (v == 0) ? "None" : (v + " %"),
                "How thick the distance fog is against the weather's own: 100 % is as the weather has it.");
 
+        /* Empty unless drawing failed: then every part is the game's until a switch above is thrown again. */
+        add(new Label("") {
+                public void tick(double dt) {
+                    super.tick(dt);
+                    String t = Ambience.failed() ? "Stopped after an error: switch a part to try again." : "";
+                    if(!t.equals(texts))
+                        settext(t);
+                }
+            }, 0, y + UI.scale(10));
         pack();
     }
 

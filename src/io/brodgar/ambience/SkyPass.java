@@ -1,7 +1,14 @@
 package io.brodgar.ambience;
 
+import java.io.StringWriter;
+import java.util.Map;
+import java.util.WeakHashMap;
 import haven.*;
 import haven.render.*;
+import haven.render.gl.BGL;
+import haven.render.gl.GL;
+import haven.render.gl.GLEnvironment;
+import haven.render.gl.GLRender;
 import haven.render.gl.UniformApplier;
 import haven.render.sl.*;
 import static haven.render.sl.Cons.*;
@@ -35,7 +42,11 @@ public class SkyPass implements RenderTree.Node {
     static final Rendered.Order order = new Rendered.Order.Default(6501);
     /* How many screen pixels each way a cloud texel covers. */
     static final int CLOUDRES = 2;
-    /* NEAR clouds form round the player, FAR ones out on the horizon; the arrays hold the near first. */
+    /* NEAR clouds form round the player, FAR ones out on the horizon; the arrays hold the near first.
+     * These three size the clouds' program: MAXCL * (PUFFS + 3) vec4 uniforms, 735 of them, and with the
+     * rest about 750 of the 1024 vec4 registers a GTX 1660 gives a fragment shader. It refuses the link
+     * past 1018 (C6020): PUFFS 18 at 49 clouds, or 68 clouds at 12, is refused there -- and GL's own
+     * minimum is 256. Probe says so at run time; this says so before a number is raised. */
     public static final int NEAR = 29, FAR = 20, MAXCL = NEAR + FAR, PUFFS = 12;
     /* The moon's angular radius: some three times the real one's, or it is a speck on a game screen. */
     static final double MOONR = 0.04;
@@ -308,6 +319,103 @@ public class SkyPass implements RenderTree.Node {
     static final ShaderMacro cshader = prog -> {
 	FragColor.fragcol(prog.fctx).mod(in -> cmain.call(), 0);
     };
+
+    /* THE DRIVER'S WORD FIRST. A program the driver will not compile or link throws on the GL thread, inside
+     * GLEnvironment.process, where nothing catches it: the frame's fences are dropped with it and the frame
+     * loop waits on them for ever (docs/client/render-gl.md). The clouds' program is the one at risk -- its
+     * arrays are some 750 of the 1024 vec4 registers a common driver gives a fragment shader, three times
+     * GL's own minimum -- so both passes' programs are compiled and linked here first, in a request of its
+     * own that reads the status instead of throwing, and the pass goes into the scene only on a yes. Once
+     * per environment: one link each, on the GL thread. */
+    static final class Probe implements BGL.Request {
+	final String[][] srcs;
+	volatile int state = 0;   // 0 asked, 1 linked, 2 refused, 3 lost with its environment
+	volatile String why = null;
+
+	Probe(String[][] srcs) {this.srcs = srcs;}
+
+	public void run(GL gl) {
+	    for(String[] s : srcs) {
+		String err = link(gl, s[0], s[1]);
+		if(err != null) {why = err; state = 2; return;}
+	    }
+	    state = 1;
+	}
+
+	public void abort() {state = 3;}
+    }
+
+    private static final Map<Environment, Probe> probes = new WeakHashMap<>();
+
+    static Probe probe(Environment env) {
+	synchronized(probes) {
+	    Probe p = probes.get(env);
+	    if((p == null) || (p.state == 3)) {
+		p = new Probe(new String[][] {sources(cshader), sources(shader)});
+		Environment b = env;
+		while(b instanceof Environment.Proxy)
+		    b = ((Environment.Proxy)b).back();
+		if(b instanceof GLEnvironment) {
+		    GLRender r = ((GLEnvironment)b).render();
+		    r.submit(p);
+		    b.submit(r);
+		} else {
+		    p.state = 1;   // no GL underneath: nothing that could refuse it
+		}
+		probes.put(env, p);
+	    }
+	    return(p);
+	}
+    }
+
+    /* A pass's two sources as the engine writes them for the quads in added(): ScreenQuad(false)'s
+     * transform, one colour output, and the pass. The fragment is written first -- it is what asks the
+     * vertex stage for its varyings (GLProgram's order). */
+    private static String[] sources(ShaderMacro pass) {
+	ProgramContext prog = new ProgramContext();
+	new Ortho2D(-1, 1, 1, -1).shader().modify(prog);
+	new FragColor<>(FragColor.defcolor).shader().modify(prog);
+	pass.modify(prog);
+	StringWriter v = new StringWriter(), f = new StringWriter();
+	prog.fctx.construct(f);
+	prog.vctx.construct(v);
+	return(new String[] {v.toString(), f.toString()});
+    }
+
+    /* Null when the driver compiles and links the pair, else what it said. Leaves no GL error behind. */
+    private static String link(GL gl, String vsrc, String fsrc) {
+	int[] st = {0};
+	int prog = gl.glCreateProgram();
+	int[] sh = {gl.glCreateShader(GL.GL_VERTEX_SHADER), gl.glCreateShader(GL.GL_FRAGMENT_SHADER)};
+	String[] src = {vsrc, fsrc};
+	try {
+	    for(int i = 0; i < 2; i++) {
+		gl.glShaderSource(sh[i], 1, new String[] {src[i]}, new int[] {src[i].length()});
+		gl.glCompileShader(sh[i]);
+		gl.glGetShaderiv(sh[i], GL.GL_COMPILE_STATUS, st);
+		if(st[0] != 1)
+		    return("compile: " + infolog(gl, sh[i], false));
+		gl.glAttachShader(prog, sh[i]);
+	    }
+	    gl.glLinkProgram(prog);
+	    gl.glGetProgramiv(prog, GL.GL_LINK_STATUS, st);
+	    return((st[0] == 1) ? null : ("link: " + infolog(gl, prog, true)));
+	} finally {
+	    gl.glDeleteShader(sh[0]);
+	    gl.glDeleteShader(sh[1]);
+	    gl.glDeleteProgram(prog);
+	}
+    }
+
+    private static String infolog(GL gl, int id, boolean prog) {
+	int[] n = {0};
+	if(prog) gl.glGetProgramiv(id, GL.GL_INFO_LOG_LENGTH, n); else gl.glGetShaderiv(id, GL.GL_INFO_LOG_LENGTH, n);
+	if(n[0] <= 0)
+	    return("(no log)");
+	byte[] buf = new byte[n[0]];
+	if(prog) gl.glGetProgramInfoLog(id, buf.length, n, buf); else gl.glGetShaderInfoLog(id, buf.length, n, buf);
+	return(new String(buf, 0, n[0]).trim());
+    }
 
     /* The clouds' texture, at the screen's size over CLOUDRES, made again when the screen's size moves.
      * One sampler over it, linear: the sky's pass reads it between texels. */

@@ -423,6 +423,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* The closest a third-person eye comes. Past FPIN, with first person on, it goes to distance 0; one
 	 * notch out of first person brings it back at FPOUT. */
 	private static final float MINDIST = 5f, FPIN = 6f, FPOUT = 8f;
+	/* Where the eye stands when no distance is stored, or the stored one cannot be used. */
+	private static final float DEFDIST = 50f;
+	/* The farthest the camera's arithmetic can carry -- a limit of float, not of the game. The projection
+	 * multiplies the distance by itself (Projection.makefrustum's 2*far*near is d*d/40), and so do the
+	 * inverses the sky and the ground-less click take of the view: past sqrt(Float.MAX_VALUE) that
+	 * overflows, the view goes non-finite, and an eased NaN never eases back. A zoom that would carry the
+	 * target past it is refused; a stored one past it, or no number at all, is a mistake and heals to
+	 * DEFDIST. The literal is sqrt(Float.MAX_VALUE) rounded down to a float: a static in this inner class
+	 * must be a constant. */
+	private static final float FINITE = 1.8446743E19f;
 	/* The model is withheld below this distance -- the distance actually used, so it vanishes as the eye
 	 * reaches the head, and also when a wall or the ground has pushed the eye up against it. */
 	private static final float FPHIDE = 3f;
@@ -461,9 +471,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public DefaultCam() {
-	    dist = tdist = (float)Utils.getprefd("dcamdist", 50);
+	    dist = tdist = (float)Utils.getprefd("dcamdist", DEFDIST);
 	    elev = telev = (float)Utils.getprefd("dcamelev", Math.PI / 4);
 	    angl = tangl = (float)Utils.getprefd("dcamangl", 0);
+	    /* A stored angle that is no number would hang tick()'s wrap loop, and a stored tilt would carry
+	     * its NaN into the view. */
+	    tangl = Float.isFinite(tangl) ? (tangl % pi2) : 0f;
+	    if(!Float.isFinite(telev))
+		telev = (float)Math.PI / 4;
+	    angl = tangl;
 	    bound();
 	    dist = tdist;
 	    elev = telev;
@@ -472,6 +488,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	/* What the options allow of the targets: a stored place, or one the panel has just ruled out. */
 	private void bound() {
+	    if(!((tdist >= 0) && (tdist <= FINITE)))   // NaN, +-Infinity, negative, unprojectable
+		tdist = DEFDIST;
 	    if(!dcamfp && (tdist < MINDIST))
 		tdist = MINDIST;
 	    if(dcamfp && (tdist > 0) && (tdist < MINDIST))
@@ -609,10 +627,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	private boolean blocked(Coord3f pivot, Coord3f dir, float t) {
 	    Coord3f p = pivot.add(dir.mul(t));
+	    /* Ground the cache does not hold is not in the way -- and must not be ASKED for: getcz() on an
+	     * absent grid puts a map request on the wire and throws, and past the streamed area that was up
+	     * to 64 of each a frame. groundheld() is the same four corners getcz() reads, looked up quietly. */
+	    if(!glob.map.groundheld(Coord2d.of(p.x, -p.y)))
+		return(false);
 	    try {
 		return(p.z < glob.map.getcz(p.x, -p.y) + CLEAR);
 	    } catch(Loading e) {
-		return(false);
+		return(false);   // the grid was trimmed between the two reads
 	    }
 	}
 
@@ -643,6 +666,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		d = (ev.s > 0) ? FPOUT : 0;
 	    } else {
 		d = dcamzoom ? (d * (float)Math.pow(1.15, ev.s)) : (d + (float)(ev.s * 25));
+		if(!(d <= FINITE))   // also NaN: the step is refused, the notch does nothing
+		    return(true);
 		/* Only a zoom IN goes to first person: out of MINDIST the first notch can land short of FPIN. */
 		if(dcamfp && (ev.s < 0) && (d < FPIN))
 		    d = 0;
@@ -1160,6 +1185,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	droprecall();
 	if(recalllod != null)   // addon: the far rings' meshes and textures are this view's own
 	    recalllod.dispose();
+	io.brodgar.ambience.Ambience.disposed(this);   // addon: ambience -- the view's entry goes with the view
 	super.dispose();
     }
 
@@ -2421,7 +2447,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * left, and everything read through that offset is now ground drawn somewhere it never was --
 	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
 	 * new base, and in the right place. */
-	if(!recallon || (c == null) || !recall.ready()) {
+	/* addon: ONE read of the proof, and everything below is decided on it. A sweep can fail the proof
+	 * from its own thread at any moment (Recall.sweep), so asking once here and again at the far rings
+	 * is two answers -- and a proof that fails between them handed the rings a null base. */
+	io.brodgar.session.Recall.Base proved = recall.base();
+	if(!recallon || (c == null) || (proved == null)) {
 	    /* Out of the scene FIRST, and everything that can dispose a mesh after it: Grid.removed clears
 	     * the cut map, so from here this raster is holding nothing, which is what lets both of the calls
 	     * below dispose freely. A raster still in the tree holding a cut goes on drawing it. */
@@ -2459,7 +2489,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    s_lod = basic.add(recalllod, ShadowMap.maskshadow);
 	/* addon: the far rings first, because they decide which grids are full detail: whole level-one
 	 * zoom cells near the centre and over the live ground, so the two never draw the same ground. */
-	recalllod.tick(recall.base(), c, recallrange, Math.min(recallrange, recalldetail), livegrids(),
+	recalllod.tick(proved, c, recallrange, Math.min(recallrange, recalldetail), livegrids(),
 		       (ul, br, zlo, zhi) -> boxvisible(ul, br, zlo, zhi));
 	recallterrain.grids = recalllod.detail;
 	/* 120.3: every ctick, and no clock of its own. What the raster decides is what it is holding in
@@ -4080,7 +4110,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			else
 			    hit(pc, mapcl, objcl);
 		    } else {
-			nohit(pc);
+			nohit(pc, objcl);   // addon: with what the object pick found there, which upstream drops
 		    }
 		}
 	    }
@@ -4088,27 +4118,41 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	
 	protected abstract void hit(Coord pc, Coord2d mc, ClickData inf);
 	protected void nohit(Coord pc) {}
+	/* addon: the pick found no ground under `pc`; `inf` is the object it found there anyway, or null.
+	 * Upstream hears nohit(pc) alone, and so does every subclass that does not override this one. */
+	protected void nohit(Coord pc, ClickData inf) {nohit(pc);}
     }
 
     private class Click extends Hittest {
 	int clickb;
+	/* addon: where the pointer's ray meets the character's level, taken at the press on the UI thread --
+	 * the camera the pick is drawn with -- because the pick answers frames later on the callback thread. */
+	private final Coord2d gl;
 
 	private Click(Coord c, int b) {
 	    super(c);
 	    clickb = b;
+	    gl = groundless(c);
 	}
 
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
 	    clickhit(pc, mc, inf, clickb);
 	}
 
-	/* addon: a click where no ground is drawn -- ground never explored, past what the record holds --
-	 * still goes to the server as a click on the ground: where the pointer's ray meets the level of the
-	 * character's own ground. The server walks the character there as it would to any ground click. */
-	protected void nohit(Coord pc) {
-	    Coord2d mc = groundless(pc);
-	    if(mc != null)
-		clickhit(pc, mc, null, clickb);
+	/* addon: no ground under the pointer. An object the pick found there anyway is what was clicked, at
+	 * its own place, as the minimap clicks one (MiniMap.mvclick). With nothing at all -- ground never
+	 * explored, past what the record holds -- the click goes to the ground where the pointer's ray meets
+	 * the level of the character's own ground, and the server walks the character there. */
+	protected void nohit(Coord pc, ClickData inf) {
+	    if(inf != null) {
+		Gob g = clickedgob(inf);
+		Coord2d at = (g == null) ? null : g.rc;
+		if(at != null)
+		    clickhit(pc, at, inf, clickb);
+		return;
+	    }
+	    if(gl != null)
+		clickhit(pc, gl, null, clickb);
 	}
     }
 
@@ -4134,10 +4178,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(Math.abs(dz) < 1e-6f)
 	    return(null);
 	float t = (pz - a.z) / dz;
-	if((t < 0) || (t > 1))
+	if(!((t >= 0) && (t <= 1)))   // also a non-finite view's NaN
+	    return(null);
+	float x = a.x + ((b.x - a.x) * t), y = a.y + ((b.y - a.y) * t);
+	/* A view that is no number would otherwise be sent as a click on (0, 0). */
+	if(!(Float.isFinite(x) && Float.isFinite(y)))
 	    return(null);
 	/* The scene's y runs the other way from the map's (clipxf). */
-	return(new Coord2d(a.x + ((b.x - a.x) * t), -(a.y + ((b.y - a.y) * t))));
+	return(new Coord2d(x, -y));
     }
 
     /* rts: what an ordinary left click does, said apart from the pick pass that resolved it, because
@@ -4677,8 +4725,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 						   recallcutswanted()));
 		    io.brodgar.session.RecallLod lod = recalllod;
 		    if(lod != null)
-			cons.out.println(String.format("recall: far cells drawn %d, wanted %d",
-						       lod.ndrawn, lod.nwanted));
+			cons.out.println(String.format("recall: far cells drawn %d, wanted %d, in flight %d",
+						       lod.ndrawn, lod.nwanted, lod.nbusy));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {

@@ -121,10 +121,12 @@ public final class Obstruction {
         List<Gob> near = new ArrayList<Gob>();
         synchronized(oc) {
             for(Gob g : oc) {
-                if((g == skip) || (g.rc == null))
+                Coord2d rc = g.rc;
+                if((g == skip) || (rc == null))
                     continue;
-                /* A generous first cut on the raw position: nothing is reached further out than this. */
-                if(segdist(g.rc.x, g.rc.y, from.x, from.y, ex, ey) < 200)
+                /* A generous first cut on the raw position: nothing is reached further out than this.
+                 * Squared: this runs over every object in the cache every frame, and hypot was most of it. */
+                if(segdist2(rc.x, rc.y, from.x, from.y, ex, ey) < (200.0 * 200.0))
                     near.add(g);
             }
         }
@@ -138,7 +140,7 @@ public final class Obstruction {
                 if(res == null)
                     continue;
                 Shape s = shape(res);
-                if((s == NONE) || (segdist(g.rc.x, g.rc.y, from.x, from.y, ex, ey) > s.reach))
+                if((s == NONE) || (segdist2(g.rc.x, g.rc.y, from.x, from.y, ex, ey) > ((double)s.reach * s.reach)))
                     continue;
                 Coord3f c = g.getc();
                 float hit = enter(s, c, g.a, from, dir, best);
@@ -218,10 +220,12 @@ public final class Obstruction {
         return(in);
     }
 
-    private static double segdist(double px, double py, double ax, double ay, double bx, double by) {
+    /** The squared distance from a point to a segment. */
+    private static double segdist2(double px, double py, double ax, double ay, double bx, double by) {
         double vx = bx - ax, vy = by - ay;
         double l2 = (vx * vx) + (vy * vy);
         double t = (l2 <= 0) ? 0 : Math.max(0, Math.min(1, (((px - ax) * vx) + ((py - ay) * vy)) / l2));
-        return(Math.hypot(px - (ax + (vx * t)), py - (ay + (vy * t))));
+        double dx = px - (ax + (vx * t)), dy = py - (ay + (vy * t));
+        return((dx * dx) + (dy * dy));
     }
 }

@@ -679,16 +679,13 @@ public class Recall {
     }
 
     /**
-     * Whether the remembered ground may be drawn: there is a base, a sweep has proved it, and nothing
-     * read through a base that has since failed is still held.
-     */
-    public boolean ready() {
-	return((base != null) && proven && !mustrelease);
-    }
-
-    /**
-     * The proved base, or {@code null} while there is none: the segment the far rings read their zoom
-     * grids out of, and the offset that places them. One object, so the two are always the same base's.
+     * The proved base, or {@code null} while there is none -- and the one answer to whether the remembered
+     * ground may be drawn: there is a base, a sweep has proved it, and nothing read through a base that has
+     * since failed is still held. It is also the segment the far rings read their zoom grids out of and the
+     * offset that places them, one object, so the two are always the same base's.
+     *
+     * <p>Ask it <b>once</b> per tick and decide everything on that answer: a sweep can fail the proof from
+     * its own thread between two asks.
      */
     public Base base() {
 	Base b = this.base;
