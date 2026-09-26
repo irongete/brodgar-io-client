@@ -523,6 +523,8 @@ public final class ProfHandle {
      * <p>{@code drawSlots} is the draw-slot count, the closest thing the tree has to "draw calls this
      * frame"; {@code uniqueInstances} + {@code batches} (holding {@code instances} between them) is the
      * batching split; {@code invalid} and {@code bypass} are the slots instancing could not take.
+     * {@code culled} is how many of the instancer's slots frustum culling leaves out of the draw this frame,
+     * of the {@code cullable} it could test at all.
      * {@code vram} is keyed by pool name ({@code indices}/{@code vertices}/{@code textures}/{@code vaos}/
      * {@code fbos}), each {@code {objects=, bytes=}}.
      */
@@ -578,6 +580,11 @@ public final class ProfHandle {
             t.set("instances", LuaValue.valueOf(il.ninst()));
             t.set("invalid", LuaValue.valueOf(il.ninvalid()));
             t.set("bypass", LuaValue.valueOf(il.nbypass()));
+        }
+        io.brodgar.perf.FrustumList fl = mv.frustum();
+        if(fl != null) {
+            t.set("culled", LuaValue.valueOf(fl.culled()));
+            t.set("cullable", LuaValue.valueOf(fl.cullable()));
         }
         DrawList dl = mv.drawlist();
         if(dl != null) {

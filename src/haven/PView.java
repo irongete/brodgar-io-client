@@ -41,6 +41,7 @@ public abstract class PView extends Widget {
     protected Environment env = null;
     protected InstanceList instancer;
     protected DrawList back = null;
+    protected io.brodgar.perf.FrustumList frustum = null;   // addon: between the instancer and `back`
     protected Coord rsz;
     private final Map<Object, Pipe.Op> basicstates = new IdentityHashMap<>();
     private ActAudio audio;
@@ -66,6 +67,13 @@ public abstract class PView extends Widget {
      * be null before the first draw has built the environment-bound lists. */
     public InstanceList instancer() {return(instancer);}
     public DrawList drawlist()      {return(back);}
+    /* addon: the frustum culling between the two -- null before the first draw, as they are. */
+    public io.brodgar.perf.FrustumList frustum() {return(frustum);}
+
+    /* addon: whether this view leaves out of its draw what its camera cannot see (FrustumList). Off here,
+     * so a small view of its own (a character preview) draws as upstream does; MapView answers the
+     * setting. */
+    protected boolean frustumcull() {return(false);}
 
     public static class WidgetContext extends RenderContext {
 	private final PView wdg;
@@ -306,13 +314,15 @@ public abstract class PView extends Widget {
     protected void envsetup() {
 	back = env.drawlist().desc("pview: " + this);
 	instancer = new InstanceList(tree);
-	instancer.add(back, Rendered.class);
+	frustum = new io.brodgar.perf.FrustumList(back);   // addon: the instancer feeds `back` through it
+	instancer.add(frustum, Rendered.class);
 	instancer.asyncadd(tree, Rendered.class);
     }
 
     protected void envdispose() {
 	tree.remove(instancer);
 	back.dispose(); back = null;
+	frustum = null;   // addon:
 	instancer.dispose(); instancer = null;
     }
 
@@ -365,6 +375,7 @@ public abstract class PView extends Widget {
 	ctx.prerender(g.out);
 	try(Locked lk = tree.lock()) {
 	    instancer.commit(g.out);
+	    frustum.cull(frustumcull());   // addon: after the instancer has settled this frame's slots
 	    maindraw(g.out);
 	}
 	ctx.postrender(g.out);

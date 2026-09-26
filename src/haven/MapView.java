@@ -1594,11 +1594,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public final Terrain terrain;
     public class Terrain extends MapRaster {
-	/* Computed once per tick and shared by both grids below, so the frustum test runs 25 times a
-	 * frame rather than 50 -- and so that the ground and the grass on it can never disagree about
-	 * which cuts are there. */
-	final Set<Coord> vis = new HashSet<>();
-
+	/* addon: no culling of its own. It left the cuts out of the camera's view out of the TREE, and so
+	 * out of the shadow pass too; frustum culling (frustumcull(), below) leaves them out of the main draw
+	 * list only, so ground behind the camera still casts into view. */
 	final Grid main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
@@ -1616,28 +1614,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	void tick() {
 	    super.tick();
 	    if(area != null) {
-		vis.clear();
-		if(culling()) {
-		    for(Coord cc : area) {
-			if(cutvisible(cc))
-			    vis.add(cc);
-		    }
-		}
 		main.tick();
 		flavobjs.tick();
 	    }
-	}
-
-	boolean skipcut(Coord cc) {
-	    return(culling() && !vis.contains(cc));
-	}
-
-	/* rts: the Video option. A member's patch is culled unconditionally -- it is somewhere else and
-	 * routinely off screen altogether, and it casts no shadow either way -- but the ground around
-	 * the player sits inside the shadow map's own box, so culling it there is a trade the player
-	 * makes rather than one the client makes for them. */
-	private boolean culling() {
-	    return((ui != null) && ui.gprefs.cullterrain.val);
 	}
 
 	public void added(RenderTree.Slot slot) {
@@ -2092,11 +2071,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * over a member's patch, and the join has no step in it because the height either side came from
      * the same record.
      *
-     * It culls unconditionally rather than on the cullterrain option. That setting exists because ground
-     * culled around the player stops casting into the shadow map, which is a trade the player makes for
-     * themselves; this ground is masked out of the shadow pass at its slot regardless (the shadow box is
-     * 750 units around the character and this is by definition somewhere else), so the one reason to keep
-     * an invisible cut cannot apply to it. */
+     * It culls unconditionally, out of the tree, rather than leaving it to frustum culling: this ground
+     * is masked out of the shadow pass at its slot regardless (the shadow box is 750 units around the
+     * character and this is by definition somewhere else), so there is no shadow to keep an invisible cut
+     * for, and a cut left out of the tree is not built at all. */
     /* 068.4: the cut cap. The full-detail square is whole level-one zoom cells around the centre --
      * at most six grids a side, and the cells over live ground -- so what is wanted is bounded by
      * construction, and past it the far rings (RecallLod) draw the ground at a detail that falls with
@@ -2848,7 +2826,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	String ret = String.format("Tree %s", tree.stats());
 	if(back != null)
 	    ret = String.format("%s, Inst %s, Draw %s", ret, instancer.stats(), back.stats());
+	if(frustum != null)   // addon: frustum culling -- left out of the draw / tested at all
+	    ret = String.format("%s, Cull %,d/%,d", ret, frustum.culled(), frustum.cullable());
 	return(ret);
+    }
+
+    /* addon: frustum culling, on the Performance page's setting. */
+    protected boolean frustumcull() {
+	return((ui != null) && ui.gprefs.frustumcull.val);
     }
 
     private Coord3f smapcc = null;

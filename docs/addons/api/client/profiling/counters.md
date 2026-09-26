@@ -61,6 +61,7 @@ The 3D scene: everything but `stateSlots`, `gobsHeld` and the two overlay counte
 | `drawSlots` | Draw slots this frame, the render tree's nearest thing to draw calls. |
 | `uniqueInstances` / `batches` / `instances` | The batching split: un-instanced slots, instanced batches, instances in them. |
 | `invalid` / `bypass` | Slots pending revalidation, and slots that cannot be instanced. |
+| `culled` / `cullable` | Slots frustum culling leaves out of the draw this frame because the camera cannot see them, and how many it could test at all; `0` of both with the Performance page's *Frustum culling* off. |
 | `treeLeaves` / `treeNodes` | Scene-tree size. |
 | `programs` | Shader programs the GL environment holds. Absent on any other backend. |
 | `vram` | Per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}`. Absent without a GL environment. |

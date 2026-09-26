@@ -9,6 +9,7 @@
 | What | Where |
 |---|---|
 | The scene's render objects (**on `PView`, not `MapView`**) | `PView.instancer` (an `InstanceList`) + `PView.back` (the `DrawList`) — `protected`, **null before the first draw** builds the env-bound lists; fork accessors `instancer()`/`drawlist()` (`// addon:`) |
+| **Frustum culling (fork)** | Upstream tests no visibility at all: every slot in the tree is a draw call every frame. Fork: `PView.envsetup` feeds `back` from the instancer **through** `PView.frustum`, which puts in `back` only the slots whose `FastMesh.bounds()` reach the frustum of the slot's **own** `Homo3D.cam` × `Homo3D.prj`, when `PView.frustumcull()` says so (`MapView`: `GSettings.frustumcull`). Run once a frame from `PView.draw` after `instancer.commit`. The shadow list is fed by the instancer too, so what the camera leaves out still casts. An `InstanceBatch`, a slot with no `Homo3D.loc` and a non-`FastMesh` object are always drawn. `MapView.Terrain` no longer culls cuts out of the tree |
 | Scene tree size | `RenderTree.stats` over `nleaves`/`nslots`; fork getters `nleaves()/nslots()` |
 | Batching effectiveness | `InstanceList.stats` over `nuinst`+`nbatches`(`ninst`) `ninvalid` `nbypass`; fork getters at. Written on the render side ⇒ a read may be **one frame stale** |
 | Draw slots ("draw calls") | `DrawList.stats` is an interface default; the real count is `GLDrawList.btsubsize(root)`. Fork: `DrawList.drawslots()` defaults **`-1`** = "does not count", overridden in `GLDrawList` |

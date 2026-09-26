@@ -56,10 +56,10 @@ public class PerformancePanel extends OptWnd.Panel {
         prev.settip("Whether the sun and the moon cast shadows. Off, the scene is drawn once less every"
                     + " frame, into the shadow map.", true);
 
-        prev = body.add(new CheckBox("Cull off-screen terrain") {
+        prev = body.add(new CheckBox("Frustum culling") {
                 public void set(boolean val) {
                     try {
-                        ui.setgprefs(ui.gprefs.update(null, ui.gprefs.cullterrain, val));
+                        ui.setgprefs(ui.gprefs.update(null, ui.gprefs.frustumcull, val));
                         a = val;
                     } catch(GSettings.SettingException e) {
                         error(this, e);
@@ -67,11 +67,12 @@ public class PerformancePanel extends OptWnd.Panel {
                 }
                 public void tick(double dt) {
                     super.tick(dt);
-                    a = ui.gprefs.cullterrain.val;
+                    a = ui.gprefs.frustumcull.val;
                 }
             }, prev.pos("bl").adds(0, 5));
-        prev.settip("Leaves out the ground the camera cannot see. Ground left out casts no shadow either, so a"
-                    + " hill behind the camera may lose the shadow it throws into view. Applies the next frame.", true);
+        prev.settip("Leaves out of the draw whatever the camera cannot see, ground and objects alike, with a margin"
+                    + " around the screen so nothing appears at the edge as the camera turns. What is left out still"
+                    + " casts its shadow into view. Applies the next frame.", true);
 
         /* The view distance: MapView's two recall statics, written live-and-persisted in one statement the
          * way hafen.client():options():client() writes them. */

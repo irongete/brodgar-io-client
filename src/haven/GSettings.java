@@ -170,12 +170,11 @@ public class GSettings extends State implements Serializable {
     public IntSetting shadowres = new IntSetting("sres") {
 	    public Integer defval() {return(0);}
 	};
-    /* rts: the renderer has no visibility test of its own -- every node in the tree is submitted every
-     * frame -- so the ground around the player is drawn in full whichever way the camera points. Off,
-     * that is what happens; on, a cut whose corners all fall outside the same side of the frustum is
-     * left out. The cost of leaving it out is that ground behind the camera also stops casting into
-     * the shadow map, which is why this is a setting and not a constant. */
-    public BoolSetting cullterrain = new BoolSetting("cullter") {
+    /* addon: frustum culling. The renderer has no visibility test of its own -- every slot in the tree
+     * is a draw call every frame -- so on, MapView's main draw list leaves out whatever its camera cannot
+     * see (io.brodgar.perf.FrustumList), ground and objects alike, while the shadow pass keeps all of it.
+     * Stored under the name the terrain-only culling it replaces was: on still means cull. */
+    public BoolSetting frustumcull = new BoolSetting("cullter") {
 	    public Boolean defval() {return(true);}
 	};
     public BoolSetting vsync = new BoolSetting("vsync") {
