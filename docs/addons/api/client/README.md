@@ -70,7 +70,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | `flavor()` / `flavor(percent)` | `number` | read Unprotected / write `client.settings` | How many of the flavor objects a tile seeds are drawn: the tufts, pebbles and flowers a tileset scatters over its ground. Whole `0`..`100`, default `100`. |
 | `crops()` / `crops(percent)` | `number` | read Unprotected / write `client.settings` | How many of a crop tile's sprouts are drawn, field crops and trellis crops alike. Whole `1`..`100`, default `100`. |
 | `forage()` / `forage(percent)` | `number` | read Unprotected / write `client.settings` | The same for forageables that grow as a clump. Whole `1`..`100`, default `100`. |
-| `groundBlend()` / `groundBlend(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the ground blends its texture variants by noise. Default `true`. |
+| `groundBlend()` / `groundBlend(passes)` | `number` | read Unprotected / write `client.settings` | How softly the ground blends its texture variants: the number of smoothing passes. Fewer passes leave harder edges between variants and draw fewer layers; `0` draws every tile's base texture alone. Whole `0`..`12`, default `12`. |
 | `transitions()` / `transitions(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether the skirts between two tile types are drawn. Default `true`. |
 | `flatTerrain()` / `flatTerrain(flag)` | `boolean` | read Unprotected / write `client.settings` | Draw the terrain flat: every tile corner at one height, objects standing on that plane, cliffs standing on that plane at their real height, water keeping its depth. Default `false`. |
 | `treeEffects()` / `treeEffects(flag)` | `boolean` | read Unprotected / write `client.settings` | Whether trees and bushes sway in the wind. Default `true`. |
@@ -83,8 +83,8 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 
 | Rule | Detail |
 |---|---|
-| Whole percentages | `flavor`, `crops` and `forage` are whole numbers in the unit the panel shows, never a `0.0`..`1.0` fraction. |
-| The floor differs | `0` is the floor of `flavor`: at `0` a tile still seeds the pieces that carry ambient sound. `1` is the floor of `crops` and `forage`: a plant tile never draws nothing, so its growth stage stays readable. |
+| Whole numbers | `flavor`, `crops` and `forage` are whole percentages in the unit the panel shows, never a `0.0`..`1.0` fraction; `groundBlend` is a whole count of passes. |
+| The floor differs | `0` is the floor of `flavor`: at `0` a tile still seeds the pieces that carry ambient sound. `0` is the floor of `groundBlend`, which the panel shows as *Off*. `1` is the floor of `crops` and `forage`: a plant tile never draws nothing, so its growth stage stays readable. |
 | The defaults draw the upstream picture | Every setting at its default is an exact no-op: the scene is what it has always been. |
 | Applies live | A write takes effect with no relogin. `flavor`, `groundBlend`, `transitions` and `flatTerrain` rebuild the ground lazily, cut by cut, as the scene draws it; `crops` and `forage` re-create the plants already in view; `treeEffects` shows on the next tick; `smoke`, `clouds`, `rain`, `snow`, `wetGround` and `seasonTint` show within a frame. |
 | Flat terrain changes the picture only | The server's heights, the recorded map and [`session:world():height`](../world.md#terrain-and-coordinates) stay real; the minimap and the map window draw their cliff lines as before. A click lands on the tile under the cursor. It applies live, cut by cut: objects reach the plane a moment before their hill does. |
@@ -93,7 +93,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 
 ```lua
 local performance = hafen.client():options():performance()
-performance:flavor(50):groundBlend(false)                -- needs client.settings
+performance:flavor(50):groundBlend(4)                    -- needs client.settings
 hafen.log():write("crop density: " .. performance:crops() .. " %")
 ```
 

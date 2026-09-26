@@ -53,7 +53,6 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	}
     }
 
-    private static final int sr = 12;
     public class Blend {
 	final MapMesh m;
 	final Scan vs, es;
@@ -62,14 +61,17 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 
 	private Blend(MapMesh m) {
 	    this.m = m;
+	    /* addon: 160.4 -- sr, upstream's constant 12, is the Performance panel's ground blend: the number
+	     * of blur passes, and the margin they read beyond the cut (a pass spreads a weight one vertex, so
+	     * the margin keeps neighbouring cuts seamless at any count). Fewer passes build faster and leave
+	     * harder edges, where more tiles take one opaque layer and the `en` loop draws fewer. At 0 the
+	     * noise, setbase and the blur are skipped: the base layer takes the whole tile (weight 1), every
+	     * variant stays at its fresh 0, and the post-processing and `en` loop below enable the base
+	     * alone, opaque, on every tile. */
+	    final int sr = io.brodgar.perf.Performance.groundBlend;
 	    vs = new Scan(Coord.z.sub(sr, sr), m.sz.add(sr * 2 + 1, sr * 2 + 1));
 	    float[][] buf1 = new float[var.length + 1][vs.l];
-	    /* addon: 160.4 -- the variant weights are computed only while ground blending is on: the noise
-	     * table, setbase and the sr blur passes. Off, the base layer takes the whole tile (weight 1) and
-	     * every variant stays at its fresh 0; the post-processing and the `en` loop below are untouched
-	     * and then enable the base alone, opaque, on every tile. The blur would leave 1/0 arrays as they
-	     * are, so skipping it and the noise is the build-time half of the saving. */
-	    if(io.brodgar.perf.Performance.groundBlend) {
+	    if(sr > 0) {
 	    float[][] lwc = new float[var.length + 1][vs.l];
 	    for(int i = 0; i < var.length + 1; i++) {
 		for(int y = vs.ul.y; y < vs.br.y; y++) {

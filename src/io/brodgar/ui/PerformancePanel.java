@@ -56,17 +56,37 @@ public class PerformancePanel extends OptWnd.Panel {
                       + " drawn. Ground already on screen is rebuilt as it comes back into view.", true);
         }
 
-        prev = add(new CheckBox("Blend ground textures") {
-                {a = Performance.groundBlend;}
-                public void set(boolean val) {Performance.groundBlend(val); a = val;}
-                public void tick(double dt) {
-                    super.tick(dt);
-                    a = Performance.groundBlend;
-                }
-            }, Coord.of(0, Math.max(flavorLbl.pos("bl").y, flavorEnd.y) + UI.scale(8)));
-        prev.settip("Whether the ground blends its texture variants by noise. Off, every tile draws its"
-                    + " tileset's base texture alone: one layer of ground where there were up to several."
-                    + " Ground already on screen is rebuilt as it comes back into view.", true);
+        Label blendLbl = add(new Label("Blend ground textures"),
+                             Coord.of(flavorLbl.c.x, Math.max(flavorLbl.pos("bl").y, flavorEnd.y) + UI.scale(8)));
+        Coord blendEnd;
+        {
+            Label dpy = new Label("");
+            HSlider sl = new HSlider(UI.scale(140), Performance.BLEND_MIN, Performance.BLEND_MAX,
+                                     Performance.groundBlend) {
+                    protected void added() {
+                        dpy();
+                    }
+                    void dpy() {
+                        dpy.settext((this.val == Performance.BLEND_MIN) ? "Off" : String.valueOf(this.val));
+                    }
+                    public void changed() {
+                        Performance.groundBlend(this.val);
+                        dpy();
+                    }
+                    public void tick(double dt) {
+                        super.tick(dt);
+                        if(this.val != Performance.groundBlend) {
+                            this.val = Performance.groundBlend;
+                            dpy();
+                        }
+                    }
+                };
+            blendEnd = addhlp(Coord.of(blendLbl.pos("ur").x + UI.scale(5), blendLbl.c.y), UI.scale(5), sl, dpy);
+            sl.settip("How softly the ground blends its texture variants: the number of smoothing passes."
+                      + " Fewer passes build the ground faster and leave harder edges between variants, which"
+                      + " draw fewer layers. Off, every tile draws its tileset's base texture alone. Ground"
+                      + " already on screen is rebuilt as it comes back into view.", true);
+        }
 
         prev = add(new CheckBox("Tile transitions") {
                 {a = Performance.transitions;}
@@ -75,7 +95,7 @@ public class PerformancePanel extends OptWnd.Panel {
                     super.tick(dt);
                     a = Performance.transitions;
                 }
-            }, prev.pos("bl").adds(0, 5));
+            }, Coord.of(0, Math.max(blendLbl.pos("bl").y, blendEnd.y) + UI.scale(8)));
         prev.settip("Whether the skirts between two tile types are drawn. Off, tile borders are hard edges."
                     + " Ground already on screen is rebuilt as it comes back into view.", true);
 

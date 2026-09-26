@@ -35,6 +35,8 @@ public final class Performance {
     public static final int FLAVOR_MAX = 100;
     public static final int PLANT_MIN = 1;
     public static final int PLANT_MAX = 100;
+    public static final int BLEND_MIN = 0;
+    public static final int BLEND_MAX = 12;
 
     /* 160.2: the two resource names withholding decides by name rather than by kind (a scent trail's
      * smoke is a plume of PLUME over an owner other than CLUE, and is never withheld). */
@@ -44,7 +46,10 @@ public final class Performance {
     public static volatile int flavor = clamp(Utils.getprefi("perf-flavor", 100), FLAVOR_MIN, FLAVOR_MAX);
     public static volatile int crops = clamp(Utils.getprefi("perf-crops", 100), PLANT_MIN, PLANT_MAX);
     public static volatile int forage = clamp(Utils.getprefi("perf-forage", 100), PLANT_MIN, PLANT_MAX);
-    public static volatile boolean groundBlend = Utils.getprefb("perf-groundblend", true);
+    /* The smoothing passes TerrainTile.Blend runs over the variant weights: 0 draws the base texture
+     * alone, BLEND_MAX is upstream's blend. Seeded from the former on/off switch where no count is stored. */
+    public static volatile int groundBlend = clamp(Utils.getprefi("perf-groundblend-passes",
+        Utils.getprefb("perf-groundblend", true) ? BLEND_MAX : BLEND_MIN), BLEND_MIN, BLEND_MAX);
     public static volatile boolean transitions = Utils.getprefb("perf-transitions", true);
     public static volatile boolean treeEffects = Utils.getprefb("perf-treeeffects", true);
     public static volatile boolean smoke = Utils.getprefb("perf-smoke", true);
@@ -92,9 +97,10 @@ public final class Performance {
             replant();
     }
 
-    public static void groundBlend(boolean on) {
-        boolean changed = on != groundBlend;
-        Utils.setprefb("perf-groundblend", groundBlend = on);
+    public static void groundBlend(int passes) {
+        int clamped = clamp(passes, BLEND_MIN, BLEND_MAX);
+        boolean changed = clamped != groundBlend;
+        Utils.setprefi("perf-groundblend-passes", groundBlend = clamped);
         if(changed)
             groundGeneration++;
     }

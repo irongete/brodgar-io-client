@@ -62,8 +62,9 @@ public final class PerformanceOptions {
                 return LuaValue.valueOf(Performance.groundBlend);
             }
             protected void onWrite(LuaValue value) {
-                Performance.groundBlend(bool(value, "on",
-                    "whether the ground blends its texture variants by noise"));
+                Performance.groundBlend((int)Args.integer(value, verb(), "passes",
+                    "how many smoothing passes blend the ground's texture variants",
+                    Performance.BLEND_MIN, Performance.BLEND_MAX));
             }
         });
         m.set("transitions", new OptionsMethod(owner, handle, "performance:transitions") {
