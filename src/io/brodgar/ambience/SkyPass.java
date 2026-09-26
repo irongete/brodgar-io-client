@@ -19,9 +19,18 @@ import static haven.render.sl.Type.*;
  * dark, how formed), each a cluster of PUFFS soft balls cut flat at a common base. Every pixel's ray is
  * tested against each cloud's bounding sphere and, where it hits, against its balls -- a few dozen
  * sphere tests a pixel, no marching -- and it stops at the scene: a hill in front hides a cloud, and
- * from above the clouds hide the ground. */
+ * from above the clouds hide the ground.
+ *
+ * The clouds are the dear part, so they are worked out in a pass of their own at half the screen's
+ * resolution each way (a quarter of the rays), into a texture of their own, and the sky pass reads them
+ * back filtered: soft shapes lose nothing to it. The sky, the stars, the moon and the fog stay at full
+ * resolution. */
 public class SkyPass implements RenderTree.Node {
-    static final Rendered.Order order = new Rendered.Order.Default(6500);
+    /* The clouds' pass first, then the sky's, which reads what it wrote. */
+    static final Rendered.Order corder = new Rendered.Order.Default(6500);
+    static final Rendered.Order order = new Rendered.Order.Default(6501);
+    /* How many screen pixels each way a cloud texel covers. */
+    static final int CLOUDRES = 2;
     /* NEAR clouds form round the player, FAR ones out on the horizon; the arrays hold the near first. */
     public static final int NEAR = 29, FAR = 20, MAXCL = NEAR + FAR, PUFFS = 12;
     /* The moon's angular radius: some three times the real one's, or it is a speck on a game screen. */
@@ -37,17 +46,22 @@ public class SkyPass implements RenderTree.Node {
 
     public SkyPass() {}
 
+    /* One of the two passes: its program, the scene's depth, and -- for the sky's -- the clouds' texture. */
     static class Draw extends State {
 	static final Slot<Draw> slot = new Slot<>(Slot.Type.DRAW, Draw.class);
-	final Texture2D.Sampler2D depth;
+	final ShaderMacro code;
+	final Texture2D.Sampler2D depth, clouds;
 
-	Draw(Texture2D.Sampler2D depth) {this.depth = depth;}
+	Draw(ShaderMacro code, Texture2D.Sampler2D depth, Texture2D.Sampler2D clouds) {
+	    this.code = code; this.depth = depth; this.clouds = clouds;
+	}
 
-	public ShaderMacro shader() {return(shader);}
+	public ShaderMacro shader() {return(code);}
 	public void apply(Pipe p) {p.put(slot, this);}
     }
 
     static final Uniform sdep = new Uniform(SAMPLER2D, p -> p.get(Draw.slot).depth, Draw.slot);
+    static final Uniform scl = new Uniform(SAMPLER2D, p -> p.get(Draw.slot).clouds, Draw.slot);
     static final Uniform sclouds = new Uniform(SAMPLER2D, p -> Ambience.cloudtex().img, Draw.slot);
     static final Uniform ivp = new Uniform(MAT4, p -> Homo3D.prjxf(p).mul(Homo3D.camxf(p)).invert(), Homo3D.prj, Homo3D.cam);
     static final Uniform eye = new Uniform(VEC3, p -> Ambience.eyeof(Homo3D.camxf(p)), Homo3D.cam);
@@ -240,10 +254,9 @@ public class SkyPass implements RenderTree.Node {
 	code.add(new Return(vec4(mul(div(acc, max(wsum, l(0.0001))), alpha), alpha)));
     }};
 
-    /* Where this pixel's ray goes, how far it gets before the scene, and what lies over it. What reaches
-     * the screen is one blend: the clouds, plus what shows through them of the sky, or of the fog laid
-     * over the scene. */
-    static final Function main = new Function.Def(VEC4) {{
+    /* This pixel's ray out of the scene's depth: where it goes, how far it gets before the scene, and
+     * whether it reaches no scene at all. */
+    static Expression[] ray(Block code) {
 	Expression tc = Tex2D.rtexcoord.ref();
 	Expression d = code.local(FLOAT, pick(texture2D(sdep.ref(), tc), "r")).ref();
 	Expression ndc = vec4(sub(mul(tc, l(2.0)), l(1.0)), sub(mul(d, l(2.0)), l(1.0)), l(1.0));
@@ -252,6 +265,20 @@ public class SkyPass implements RenderTree.Node {
 	Expression dist = code.local(FLOAT, length(rel)).ref();
 	Expression v = code.local(VEC3, div(rel, max(dist, l(0.0001)))).ref();
 	Expression issky = code.local(FLOAT, step(l(0.9999999), d)).ref();
+	return(new Expression[] {v, dist, issky});
+    }
+
+    /* The clouds' pass: the clouds along this texel's ray, premultiplied, into the clouds' texture. */
+    static final Function cmain = new Function.Def(VEC4) {{
+	Expression[] r = ray(code);
+	code.add(new Return(clouds.call(eye.ref(), r[0], mix(r[1], l(1.0e6), r[2]))));
+    }};
+
+    /* The sky's pass: what lies over this pixel. What reaches the screen is one blend: the clouds, plus
+     * what shows through them of the sky, or of the fog laid over the scene. */
+    static final Function main = new Function.Def(VEC4) {{
+	Expression[] r = ray(code);
+	Expression v = r[0], dist = r[1], issky = r[2];
 	Expression fp = fog.ref();
 	Expression f1 = mul(smoothstep(pick(fp, "x"), pick(fp, "y"), dist), pick(fp, "z"));
 	Expression f2 = sub(l(1.0), exp(neg(mul(max(sub(dist, fognear.ref()), l(0.0)), pick(fp, "w")))));
@@ -262,7 +289,7 @@ public class SkyPass implements RenderTree.Node {
 	code.add(new If(gt(issky, l(0.5)), stmt(ass(fc, skyopen.call(v))),
 			stmt(ass(fc, skybase.call(normalize(vec3(pick(v, "xy"), l(0.03))))))));
 	Expression ff = code.local(FLOAT, mix(f, l(1.0), issky)).ref();
-	Expression m = code.local(VEC4, clouds.call(eye.ref(), v, mix(dist, l(1.0e6), issky))).ref();
+	Expression m = code.local(VEC4, texture2D(scl.ref(), Tex2D.rtexcoord.ref())).ref();
 	Expression tr = code.local(FLOAT, sub(l(1.0), pick(m, "a"))).ref();
 	Expression a = code.local(FLOAT, sub(l(1.0), mul(tr, sub(l(1.0), ff)))).ref();
 	code.add(new Return(vec4(div(add(pick(m, "rgb"), mul(fc, tr, ff)), max(a, l(0.0001))), a)));
@@ -272,19 +299,73 @@ public class SkyPass implements RenderTree.Node {
 	FragColor.fragcol(prog.fctx).mod(in -> main.call(), 0);
     };
 
+    static final ShaderMacro cshader = prog -> {
+	FragColor.fragcol(prog.fctx).mod(in -> cmain.call(), 0);
+    };
+
+    /* The clouds' texture, at the screen's size over CLOUDRES, made again when the screen's size moves.
+     * One sampler over it, linear: the sky's pass reads it between texels. */
+    private Texture2D ctex;
+    private Texture2D.Sampler2D csamp;
+
+    private synchronized Texture2D.Sampler2D ctarget(Coord scr) {
+	Coord sz = Coord.of(Math.max((scr.x + CLOUDRES - 1) / CLOUDRES, 1), Math.max((scr.y + CLOUDRES - 1) / CLOUDRES, 1));
+	if((ctex == null) || !ctex.sz().equals(sz)) {
+	    if(ctex != null)
+		ctex.dispose();
+	    ctex = new Texture2D(sz, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.FLOAT16), null);
+	    csamp = new Texture2D.Sampler2D(ctex);
+	    csamp.magfilter(Texture.Filter.LINEAR).minfilter(Texture.Filter.LINEAR);
+	    csamp.swrap(Texture.Wrapping.CLAMP).twrap(Texture.Wrapping.CLAMP);
+	}
+	return(csamp);
+    }
+
+    /* The scene's depth, with the default sampler, exactly as Outlines makes its own: without sampler
+     * objects (GL 3.0) a texture holds ONE set of sampler parameters, and a second, different one over the
+     * same depth buffer throws in GLTexture.Tex2D.setsampler. The quads sample at texel centres anyway. */
+    private static Texture2D.Sampler2D depthof(Pipe p) {
+	DepthBuffer<?> dbuf = p.get(DepthBuffer.slot);
+	return(new Texture2D.Sampler2D((Texture2D)((Texture.Image)dbuf.image).tex));
+    }
+
     public void added(RenderTree.Slot slot) {
+	/* The clouds, into their own texture: nothing of the scene's own outputs is written, nor blended. */
 	slot.add(new Rendered.ScreenQuad(false), p -> {
-		DepthBuffer<?> dbuf = p.get(DepthBuffer.slot);
+		Texture2D.Sampler2D dep = depthof(p);
+		Texture2D.Sampler2D tgt = ctarget(p.get(FrameConfig.slot).sz);
+		Coord sz = tgt.tex.sz();
+		p.prep(corder);
+		p.put(DepthBuffer.slot, null);
+		p.put(RenderedNormals.slot, null);
+		p.put(AmbShadow.slot, null);
+		p.put(io.brodgar.addon.OutlineMask.slot, null);
+		p.prep(new FragColor<>(tgt.tex.image(0)));
+		p.put(FragColor.blend, null);
+		p.prep(new States.Viewport(Area.sized(Coord.z, sz)));
+		p.prep(new FrameConfig(sz));
+		p.prep(new Draw(cshader, dep, null));
+	    });
+	slot.add(new Rendered.ScreenQuad(false), p -> {
+		Texture2D.Sampler2D dep = depthof(p);
+		Texture2D.Sampler2D cl = ctarget(p.get(FrameConfig.slot).sz);
 		p.prep(order);
 		/* A pass that inherits the depth buffer it samples would also write it (Outlines). */
 		p.put(DepthBuffer.slot, null);
 		p.put(RenderedNormals.slot, null);
 		/* The ground's cloud shadow is a Phong state; this pass is unlit, but take it out regardless. */
 		p.put(AmbShadow.slot, null);
-		/* The default sampler, exactly as Outlines makes its own: without sampler objects (GL 3.0) a
-		 * texture holds ONE set of sampler parameters, and a second, different one over the same depth
-		 * buffer throws in GLTexture.Tex2D.setsampler. The quad samples at texel centres anyway. */
-		p.prep(new Draw(new Texture2D.Sampler2D((Texture2D)((Texture.Image)dbuf.image).tex)));
+		p.prep(new Draw(shader, dep, cl));
 	    });
     }
+
+    public void removed(RenderTree.Slot slot) {
+	synchronized(this) {
+	    if(ctex != null)
+		ctex.dispose();
+	    ctex = null;
+	    csamp = null;
+	}
+    }
+
 }
