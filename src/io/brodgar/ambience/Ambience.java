@@ -1158,6 +1158,8 @@ public class Ambience {
 	}
     }
 
+    // retained: weak on its key -- a View holds no MapView, so an entry goes with its map view; tick drops it
+    //   when the ambience is switched off, and the error path when it switches itself off.
     private static final Map<MapView, View> views = new WeakHashMap<>();
 
     /* Every tick of the drawn map view, after the game has composed its own weather (MapView.tick). */
