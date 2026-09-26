@@ -891,4 +891,165 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
     public String stats() {
 	return(String.format("%,d+%,d(%,d) %d %d", nuinst, nbatches, ninst, ninvalid, nbypass));
     }
+
+    /* addon: WHY A SLOT IS DRAWN ON ITS OWN -- the census behind the `instcensus` console command. Every
+     * slot the list holds alone (a Sole: one draw call each) is counted under the object it draws, and
+     * split in two: ALONE, no other slot of the list draws the same instance id, so there is nothing to
+     * batch it with; SPLIT, some other slot does -- another Sole or a batch -- and the keys differ. For a
+     * split one the reason is named: the state slots whose values differ from the first slot seen with
+     * that instance id (by value, or "same value, other object" when equal but not identical), the
+     * instancers that differ, or "groups only" when every state is the same and only the pipe groups are
+     * other objects. Read-only; the caller holds the tree's lock. */
+    public List<String> census() {
+	synchronized(this) {
+	    Map<Object, Slot<? extends Rendered>> first = new IdentityHashMap<>();
+	    Map<Object, Integer> seen = new IdentityHashMap<>();
+	    Set<Object> batched = Collections.newSetFromMap(new IdentityHashMap<>());
+	    List<Sole> soles = new ArrayList<>();
+	    for(Object reg : instreg.values()) {
+		if(reg instanceof Sole)
+		    soles.add((Sole)reg);
+		else if(reg instanceof InstancedSlot)
+		    batched.add(((InstancedSlot)reg).key.instid);
+	    }
+	    for(Sole s : soles) {
+		seen.merge(s.key.instid, 1, Integer::sum);
+		first.putIfAbsent(s.key.instid, s.slot);
+	    }
+	    Map<String, int[]> byobj = new TreeMap<>();      // label -> {alone, split, batched instances}
+	    Map<String, Integer> reasons = new HashMap<>();
+	    Map<String, Set<String>> reasonobjs = new HashMap<>();
+	    int alone = 0, split = 0;
+	    for(Sole s : soles) {
+		String lbl = censuslabel(s.slot);
+		int[] c = byobj.computeIfAbsent(lbl, k -> new int[4]);
+		if(s.slot.obj() instanceof haven.FastMesh)
+		    c[3] += ((haven.FastMesh)s.slot.obj()).indb.capacity() / 3;
+		boolean shared = batched.contains(s.key.instid) || (seen.get(s.key.instid) > 1);
+		if(!shared) {
+		    c[0]++; alone++;
+		    continue;
+		}
+		c[1]++; split++;
+		Slot<? extends Rendered> ref = first.get(s.key.instid);
+		if(ref == s.slot) {
+		    /* The first of its instance id: compared against a batch's own slot if there is one. */
+		    ref = null;
+		    for(Object reg : instreg.values()) {
+			if((reg instanceof InstancedSlot) && (((InstancedSlot)reg).key.instid == s.key.instid)) {
+			    ref = batchsample((InstancedSlot)reg);
+			    break;
+			}
+		    }
+		    if(ref == null) {
+			/* Compared against the second Sole of its id. */
+			for(Sole o : soles) {
+			    if((o != s) && (o.key.instid == s.key.instid)) {ref = o.slot; break;}
+			}
+		    }
+		}
+		String why = (ref == null) ? "?" : censusdiff(s.slot, ref);
+		reasons.merge(why, 1, Integer::sum);
+		reasonobjs.computeIfAbsent(why, k -> new TreeSet<>()).add(lbl);
+	    }
+	    for(Map.Entry<Slot<? extends Rendered>, InstancedSlot.Instance> e : islotmap.entrySet())
+		byobj.computeIfAbsent(censuslabel(e.getKey()), k -> new int[4])[2]++;
+	    List<String> out = new ArrayList<>();
+	    out.add(String.format("instcensus: %,d drawn alone (%,d with nothing to batch with, %,d split from a same-mesh slot),"
+				  + " %,d batches holding %,d, %,d bypassed, %,d invalid",
+				  soles.size(), alone, split, nbatches, ninst, nbypass, ninvalid));
+	    out.add("-- why the split ones did not batch (count: differing states -- objects)");
+	    List<Map.Entry<String, Integer>> rs = new ArrayList<>(reasons.entrySet());
+	    rs.sort((a, b) -> b.getValue() - a.getValue());
+	    for(Map.Entry<String, Integer> e : rs) {
+		Set<String> objs = reasonobjs.get(e.getKey());
+		String ol = String.join(", ", objs);
+		if(ol.length() > 300) ol = ol.substring(0, 300) + " ...";
+		out.add(String.format("%6d: %s -- %d objects: %s", e.getValue(), e.getKey(), objs.size(), ol));
+	    }
+	    out.add("-- by object (alone / split / batched instances / triangles per draw of the alone+split), most draw calls first");
+	    List<Map.Entry<String, int[]>> os = new ArrayList<>(byobj.entrySet());
+	    os.sort((a, b) -> (b.getValue()[0] + b.getValue()[1]) - (a.getValue()[0] + a.getValue()[1]));
+	    for(Map.Entry<String, int[]> e : os) {
+		int[] c = e.getValue();
+		int nd = c[0] + c[1];
+		out.add(String.format("%6d %6d %6d %6s  %s", c[0], c[1], c[2], (nd > 0) ? String.valueOf(c[3] / nd) : "-", e.getKey()));
+	    }
+	    return(out);
+	}
+    }
+
+    private Slot<? extends Rendered> batchsample(InstancedSlot b) {
+	for(Map.Entry<Slot<? extends Rendered>, InstancedSlot.Instance> e : islotmap.entrySet()) {
+	    if(uslotmap.get(e.getKey()) == b.key)
+		return(e.getKey());
+	}
+	return(null);
+    }
+
+    /* addon: the object a batch draws, for the shadow list's census (ShadowMap.ShadowList.census) -- the
+     * instance id every member shares, which for a mesh is the mesh itself. Null for any other slot. */
+    public static Object batchobj(RenderList.Slot<?> slot) {
+	if(slot instanceof InstanceList.InstancedSlot)
+	    return(((InstanceList.InstancedSlot)slot).key.instid);
+	return(null);
+    }
+
+    private static String censuslabel(Slot<? extends Rendered> slot) {
+	return(censuslabel(slot.obj(), slot.state().get(haven.ShadowMap.maskshadow.slot) != null));
+    }
+
+    public static String censuslabel(Object obj, boolean masked) {
+	if((obj != null) && (obj.getClass() == haven.FastMesh.class)) {
+	    /* A mesh the client built rather than a resource's: ground. The remembered ground and the far
+	     * rings carry maskshadow at their slot, the live ground does not. */
+	    return(masked ? "haven.FastMesh (built, maskshadow: remembered ground)" : "haven.FastMesh (built, casts: live ground)");
+	}
+	if(obj instanceof haven.FastMesh.ResourceMesh) {
+	    haven.FastMesh.ResourceMesh m = (haven.FastMesh.ResourceMesh)obj;
+	    return(m.res.name + "#" + m.id);
+	}
+	return((obj == null) ? "null" : obj.getClass().getName());
+    }
+
+    private static String censusdiff(Slot<? extends Rendered> a, Slot<? extends Rendered> b) {
+	GroupPipe sa = a.state(), sb = b.state();
+	int n = Math.max(sa.nstates(), sb.nstates());
+	TreeSet<String> diff = new TreeSet<>();
+	for(int i = 0; i < n; i++) {
+	    State.Slot<?> slot = State.Slot.byid(i);
+	    Object va = (i < sa.nstates()) ? sa.get(slot) : null;
+	    Object vb = (i < sb.nstates()) ? sb.get(slot) : null;
+	    if(va == vb)
+		continue;
+	    String nm = slot.scl.getSimpleName();
+	    if(slot.instanced != null) {
+		Instancer<?> ia = (va == null) ? null : instid1(slot, va);
+		Instancer<?> ib = (vb == null) ? null : instid1(slot, vb);
+		if(ia != ib)
+		    diff.add(nm + "(instancer)");
+		continue;
+	    }
+	    String what = (va == null) ? "absent/" : "";
+	    what += (vb == null) ? "absent" : "";
+	    if(what.isEmpty())
+		what = Objects.equals(va, vb) ? "same value, other object" : censusval(va);
+	    diff.add(nm + "(" + what + ")");
+	}
+	if(diff.isEmpty())
+	    return("groups only");
+	return(String.join(" ", diff));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends State> Instancer<?> instid1(State.Slot<T> slot, Object v) {
+	return(slot.instanced.instid((T)v));
+    }
+
+    private static String censusval(Object v) {
+	String cl = v.getClass().getSimpleName();
+	if(cl.isEmpty())
+	    cl = v.getClass().getName();
+	return(cl);
+    }
 }

@@ -44,6 +44,11 @@ public class MapMesh implements RenderTree.Node, Disposable {
     private Map<DataID, Object> data = new LinkedHashMap<DataID, Object>();
     private List<RenderTree.Node> extras = new ArrayList<RenderTree.Node>();
     private List<Disposable> dparts = new ArrayList<Disposable>();
+    /* addon: every Model's finished mesh with the material it is drawn in -- what `extras` holds, wrapped --
+     * so the remembered ground can draw a whole grid's cuts as one mesh per material
+     * (io.brodgar.session.GroundMerge). Written only while the cut is built, read after. */
+    private final List<Model> models = new ArrayList<>();
+    public List<Model> models() {return(Collections.unmodifiableList(models));}
 
     public interface DataID<T> {
 	public T make(MapMesh m);
@@ -274,6 +279,7 @@ public class MapMesh implements RenderTree.Node, Disposable {
     public static class Model extends MeshBuf implements ConsHooks {
 	public final MapMesh m;
 	public final NodeWrap mat;
+	public FastMesh mesh = null;   // addon: what postcalcnrm made of it
 
 	public Model(MapMesh m, NodeWrap mat) {
 	    this.m = m;
@@ -288,6 +294,8 @@ public class MapMesh implements RenderTree.Node, Disposable {
 	    FastMesh mesh = mkmesh();
 	    m.extras.add(mat.apply(mesh));
 	    m.dparts.add(mesh);
+	    this.mesh = mesh;   // addon:
+	    m.models.add(this);
 	}
 
 	public static class MatKey implements DataID<Model> {

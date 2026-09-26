@@ -2115,14 +2115,164 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	int nwanted = 0;
 
 	/* Typed rather than raw, unlike Terrain's beside it: 120.4 reads `cuts` by key, and a raw Grid
-	 * hands back a raw Map whose keys are Objects. */
+	 * hands back a raw Map whose keys are Objects.
+	 *
+	 * addon: it still holds every cut this raster has in the scene -- what the source may not drop,
+	 * what is clickable, what the budgets count -- but a cut's slot draws nothing: the ground is drawn
+	 * a GRID at a time by `merged` below. */
 	final Grid<MapMesh> main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
 		}
+		RenderTree.Node produce(MapMesh cut) {
+		    return(RenderTree.Node.nil);
+		}
 	    };
 	RecallTerrain(MCache map) {
 	    super(map);
+	}
+
+	/* addon: THE GROUND IS DRAWN A GRID AT A TIME. A cut's meshes are a draw call each -- one per
+	 * material it holds, a few hundred triangles apiece -- and hundreds of cuts on screen made them most
+	 * of the scene's draw calls. Each grid with cuts in `main` is drawn instead as the concatenation of
+	 * those cuts' meshes, one per material (io.brodgar.session.GroundMerge), made again whenever the set
+	 * of its cuts changes: at once when every cut the grid is to hold has arrived, otherwise once the set
+	 * has stood still for MERGEWAIT, so a grid still building is not copied again for every cut that
+	 * lands. At most MERGES grids are made per tick; one waiting keeps drawing its previous version, which
+	 * is a copy and outlives the cuts it came from. Frustum culling then tests the grid as one box. */
+	private static final int MERGES = 4;
+	private static final double MERGEWAIT = 0.5;
+	private final class Merged {
+	    final Map<Coord, MapMesh> src;
+	    final io.brodgar.session.GroundMerge.Node node;
+	    RenderTree.Slot slot = null;
+
+	    Merged(Map<Coord, MapMesh> src, io.brodgar.session.GroundMerge.Node node) {
+		this.src = src;
+		this.node = node;
+	    }
+
+	    void drop() {
+		if(slot != null) {
+		    slot.remove();
+		    slot = null;
+		}
+		node.dispose();
+	    }
+	}
+	final Map<Coord, Merged> merged = new HashMap<>();
+	long nmerges = 0;   // grids made since the raster was, for `instcensus`
+	private final Map<Coord, Merged> pending = new HashMap<>();
+	private final Map<Coord, Double> unsettled = new HashMap<>();
+
+	private boolean samecuts(Map<Coord, MapMesh> a, Map<Coord, MapMesh> b) {
+	    if(a.size() != b.size())
+		return(false);
+	    for(Map.Entry<Coord, MapMesh> e : a.entrySet()) {
+		if(b.get(e.getKey()) != e.getValue())
+		    return(false);
+	    }
+	    return(true);
+	}
+
+	private void mergetick() {
+	    if(slot == null)
+		return;
+	    Map<Coord, Map<Coord, MapMesh>> have = new HashMap<>();
+	    for(Map.Entry<Coord, Pair<MapMesh, RenderTree.Slot>> e : main.cuts.entrySet())
+		have.computeIfAbsent(e.getKey().div(MCache.cutn), k -> new HashMap<>()).put(e.getKey(), e.getValue().a);
+	    Map<Coord, Integer> want = new HashMap<>();
+	    for(Coord cc : draw)
+		want.merge(cc.div(MCache.cutn), 1, Integer::sum);
+	    for(Iterator<Map.Entry<Coord, Merged>> i = merged.entrySet().iterator(); i.hasNext();) {
+		Map.Entry<Coord, Merged> e = i.next();
+		if(!have.containsKey(e.getKey())) {
+		    e.getValue().drop();
+		    i.remove();
+		}
+	    }
+	    for(Iterator<Map.Entry<Coord, Merged>> i = pending.entrySet().iterator(); i.hasNext();) {
+		Map.Entry<Coord, Merged> e = i.next();
+		if(!have.containsKey(e.getKey()) || !samecuts(e.getValue().src, have.get(e.getKey()))) {
+		    e.getValue().drop();
+		    i.remove();
+		}
+	    }
+	    unsettled.keySet().retainAll(have.keySet());
+	    double now = Utils.rtime();
+	    int budget = MERGES;
+	    for(Map.Entry<Coord, Map<Coord, MapMesh>> e : have.entrySet()) {
+		Coord g = e.getKey();
+		Map<Coord, MapMesh> cur = e.getValue();
+		Merged m = merged.get(g);
+		if((m != null) && samecuts(m.src, cur)) {
+		    unsettled.remove(g);
+		    continue;
+		}
+		Merged p = pending.get(g);
+		if(p == null) {
+		    Double since = unsettled.get(g);
+		    if(since == null)
+			unsettled.put(g, since = now);
+		    boolean complete = cur.size() >= want.getOrDefault(g, 0);
+		    if(!complete && ((now - since) < MERGEWAIT))
+			continue;
+		    if(budget <= 0)
+			continue;
+		    budget--;
+		    Coord gul = g.mul(MCache.cutn);
+		    List<io.brodgar.session.GroundMerge.Cut> cuts = new ArrayList<>(cur.size());
+		    for(Map.Entry<Coord, MapMesh> ce : cur.entrySet()) {
+			Coord d = ce.getKey().sub(gul).mul(MCache.cutsz);
+			cuts.add(new io.brodgar.session.GroundMerge.Cut(ce.getValue(), (float)(d.x * tilesz.x), -(float)(d.y * tilesz.y)));
+		    }
+		    p = new Merged(new HashMap<>(cur), io.brodgar.session.GroundMerge.merge(cuts));
+		}
+		Coord2d gp = g.mul(MCache.cmaps).mul(tilesz);
+		try {
+		    p.slot = slot.add(p.node, Location.xlate(new Coord3f((float)gp.x, -(float)gp.y, 0)));
+		} catch(Loading l) {
+		    /* A material's texture not prepared yet: the copy waits, and the add is tried again next
+		     * tick without making it anew. */
+		    l.boostprio(Defer.URGENT);
+		    pending.put(g, p);
+		    continue;
+		}
+		pending.remove(g);
+		if(m != null)
+		    m.drop();
+		nmerges++;
+		merged.put(g, p);
+		unsettled.remove(g);
+	    }
+	}
+
+	/* addon: how many draw calls the merged ground is, and how many cut meshes went into it. */
+	int mergeddrawn() {
+	    int n = 0;
+	    for(Merged m : merged.values())
+		n += m.node.ndrawn;
+	    return(n);
+	}
+	int mergedsource() {
+	    int n = 0;
+	    for(Merged m : merged.values())
+		n += m.node.nsource;
+	    return(n);
+	}
+
+	public void removed(RenderTree.Slot slot) {
+	    /* The merged grids' slots went out with this one; what they built is disposed here. */
+	    for(Merged m : merged.values()) {
+		m.slot = null;
+		m.node.dispose();
+	    }
+	    merged.clear();
+	    for(Merged m : pending.values())
+		m.node.dispose();
+	    pending.clear();
+	    unsettled.clear();
+	    super.removed(slot);
 	}
 
 	void tick() {
@@ -2195,7 +2345,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    Area own = terrain.area;
 	    Map<Coord, Boolean> loaded = new HashMap<>();
 	    for(Coord g : held) {
-		float[] zr = heights.get(g);
 		Coord ul = g.mul(MCache.cutn);
 		for(int cy = 0; cy < MCache.cutn.y; cy++) {
 		    for(int cx = 0; cx < MCache.cutn.x; cx++) {
@@ -2205,8 +2354,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			 * twin, and two twins in one place is z-fighting. */
 			if((own != null) && own.contains(cc))
 			    continue;
-			if(!cutvisible(cc, zr[0], zr[1]))
-			    continue;
+			/* addon: no frustum test per cut. The ground is drawn a grid at a time (`merged`), so a
+			 * visible grid holds every cut it has, and a turn of the camera does not change which cuts
+			 * a grid is made of; frustum culling tests the grid's mesh as one box instead. */
 			/* addon: and only a cut whose mesh CAN be built: every grid it reads a tile of held.
 			 * One on the edge of explored ground reads across into a grid the record never had,
 			 * throws LoadingMap for good, and -- counted as in flight -- holds a slot of the build
@@ -2250,6 +2400,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		draw.add(cc);
 	    }
 	    main.tick();
+	    mergetick();   // addon:
 	}
 
 	/* addon: a held grid's height range, with a margin for what a tileset lays over the ground, and
@@ -2906,6 +3057,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * not move the map. Half the shadow pass's draw calls and GPU time, for one frame of lag. */
     private ShadowMap smapdrawn = null;
     private boolean smapskip = false;
+    /* addon: for `instcensus`: shadow maps drawn, how many of those were from a light camera other than the
+     * last one's, and how many suns amblight() put in the scene. */
+    private long nsmapdraws = 0, nsmapmoves = 0, nsuns = 0;
 
     private void drawsmap(Render out) {
 	// addon: the "shadow" named pass (spec 019, task 019.6) -- smap.update is the ENTIRE shadow render in
@@ -2917,6 +3071,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		smapskip = false;
 		return;
 	    }
+	    nsmapdraws++;
+	    if(!smap.samezone(smapdrawn))
+		nsmapmoves++;
 	    io.brodgar.prof.Passes.begin(out, io.brodgar.prof.Passes.SHADOW);
 	    try {
 		smap.update(out, slist);
@@ -2945,6 +3102,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if(Arrays.equals(key, sunkey) && ((key == null) == (s_amblight == null)))   // addon: the same sun
 		return;
 	    sunkey = key;
+	    nsuns++;   // addon: for `instcensus`
 	    if(pv != null) {
 		amblight = new DirLight(pv.amb, pv.dif, pv.spc, Coord3f.o.sadd(pv.elev, pv.ang, 1f));
 		amblight.prio(100);
@@ -4792,6 +4950,33 @@ public class MapView extends PView implements DTarget, Console.Directory {
 						       lod.ndrawn, lod.nwanted, lod.nbusy));
 		}
 	    });
+	/* addon: why the scene's slots are drawn one draw call each (InstanceList.census): the summary on the
+	 * console, the whole report in instcensus.txt beside the client. */
+	cmdmap.put("instcensus", (cons, args) -> {
+	    if(instancer == null)
+		throw(new Exception("instcensus: no scene drawn yet"));
+	    java.util.List<String> lines;
+	    try(Locked lk = tree.lock()) {
+		lines = new ArrayList<>();
+		RecallTerrain rt = recallterrain;
+		io.brodgar.perf.FrustumList fl = frustum;
+		lines.add(String.format("activity at %.1f s: remembered-ground grids made %d (drawn now %d, from %d cut meshes); frustum boxes taken %d new, %d moved",
+					Utils.rtime(), (rt == null) ? 0 : rt.nmerges, (rt == null) ? 0 : rt.merged.size(), (rt == null) ? 0 : rt.mergedsource(),
+					(fl == null) ? 0 : fl.nnewbox, (fl == null) ? 0 : fl.nmovedbox));
+		lines.add(String.format("activity: shadow maps drawn %d, from a moved light camera %d; suns put in the scene %d",
+					nsmapdraws, nsmapmoves, nsuns));
+		lines.addAll(instancer.census());
+		if(slist != null)
+		    lines.addAll(slist.census());
+		else
+		    lines.add("shadows: off");
+	    }
+	    java.nio.file.Path f = java.nio.file.Paths.get("instcensus.txt").toAbsolutePath();
+	    java.nio.file.Files.write(f, lines, java.nio.charset.StandardCharsets.UTF_8);
+	    for(int i = 0; i < Math.min(lines.size(), 12); i++)
+		cons.out.println(lines.get(i));
+	    cons.out.println("instcensus: the whole report is in " + f);
+	});
 	cmdmap.put("whyload", (cons, args) -> {
 	    Loading l = lastload;
 	    if(l == null)

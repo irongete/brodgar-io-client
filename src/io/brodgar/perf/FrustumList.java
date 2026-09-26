@@ -41,6 +41,9 @@ public class FrustumList implements RenderList<Rendered> {
     private final List<Entry> order = new ArrayList<>();
     private boolean enabled = false;
     private int nculled = 0, ncullable = 0;
+    /* How many world boxes have been taken since the list was made: for a slot seen the first time, and
+     * for one whose location moved. Two reads apart, with nothing moving, both should stand still. */
+    public long nnewbox = 0, nmovedbox = 0;
 
     /* The one clip matrix of the frame, for the camera and projection nearly every slot shares. */
     private Camera ccam = null;
@@ -165,6 +168,7 @@ public class FrustumList implements RenderList<Rendered> {
 	    if(e.nobox)
 		return(null);
 	    if(e.wloc != loc) {
+		if(e.wbox == null) nnewbox++; else nmovedbox++;
 		Rendered obj = slot.obj();
 		if(!(obj instanceof FastMesh)) {
 		    e.nobox = true;

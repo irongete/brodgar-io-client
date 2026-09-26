@@ -304,6 +304,72 @@ public class ShadowMap extends State {
 	    }
 	}
 
+	/* addon: WHAT CASTS -- the shadow half of the `instcensus` console command. Every candidate the list
+	 * holds, split into what stands in the box and is drawn and what the box leaves out, and what is drawn
+	 * counted by object and by the size of its mesh (the largest side of its bounds, in world units; a tile
+	 * is 11): draw calls, instances and triangles. A batch is one draw call for all its instances and is
+	 * counted under the mesh they share. The caller holds the tree's lock. */
+	public List<String> census() {
+	    final String[] bnm = {"<3", "3-6", "6-11", "11-22", "22-55", ">55", "?"};
+	    final float[] blim = {3, 6, 11, 22, 55, Float.POSITIVE_INFINITY};
+	    long[][] bk = new long[bnm.length][3];          // draws, instances, triangles
+	    Map<String, long[]> byobj = new HashMap<>();    // draws, instances, triangles, size
+	    int drawn = 0, out = 0;
+	    long tdraws = 0, ttris = 0;
+	    for(Shadowslot s : order) {
+		if(!s.drawn) {
+		    out++;
+		    continue;
+		}
+		drawn++;
+		Object obj;
+		int ni;
+		if(s.bk instanceof InstanceBatch) {
+		    obj = InstanceList.batchobj(s.bk);
+		    ni = ((InstanceBatch)s.bk).instances();
+		} else {
+		    obj = s.bk.obj();
+		    ni = 1;
+		}
+		long tris = 0;
+		float size = -1;
+		if(obj instanceof FastMesh) {
+		    FastMesh m = (FastMesh)obj;
+		    tris = (long)m.num * ni;
+		    try {
+			Volume3f b = m.bounds();
+			size = Math.max(b.p.x - b.n.x, Math.max(b.p.y - b.n.y, b.p.z - b.n.z));
+		    } catch(RuntimeException e) {
+		    }
+		}
+		int bi = bnm.length - 1;
+		if(size >= 0) {
+		    for(bi = 0; size >= blim[bi]; bi++);
+		}
+		bk[bi][0]++; bk[bi][1] += ni; bk[bi][2] += tris;
+		tdraws++; ttris += tris;
+		String lbl = InstanceList.censuslabel(obj, false) + ((s.bk instanceof InstanceBatch) ? " [batch]" : "");
+		long[] c = byobj.computeIfAbsent(lbl, k -> new long[4]);
+		c[0]++; c[1] += ni; c[2] += tris; c[3] = (long)Math.ceil(size);
+	    }
+	    List<String> ret = new ArrayList<>();
+	    ret.add(String.format("shadows: %,d candidates, %,d in the box and drawn (%,d draw calls, %,d triangles), %,d left out by the box",
+				  order.size(), drawn, tdraws, ttris, out));
+	    ret.add("-- drawn casters by mesh size (largest side, world units; a tile is 11): draws / instances / triangles");
+	    for(int i = 0; i < bnm.length; i++) {
+		if(bk[i][0] > 0)
+		    ret.add(String.format("%8s: %6d %7d %10d", bnm[i], bk[i][0], bk[i][1], bk[i][2]));
+	    }
+	    ret.add("-- drawn casters by object, most draw calls first: draws / instances / triangles / size");
+	    List<Map.Entry<String, long[]>> os = new ArrayList<>(byobj.entrySet());
+	    os.sort((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]));
+	    for(Map.Entry<String, long[]> e : os) {
+		long[] c = e.getValue();
+		ret.add(String.format("%6d %7d %9d %5d  %s", c[0], c[1], c[2], c[3], e.getKey()));
+	    }
+	    return(ret);
+	}
+
 	public void draw(Render out) {
 	    if((back == null) || !out.env().compatible(back)) {
 		if(back != null)
