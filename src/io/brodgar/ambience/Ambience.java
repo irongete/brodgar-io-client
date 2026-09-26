@@ -217,6 +217,8 @@ public class Ambience {
 	float[] cl = new float[SkyPass.MAXCL * 4], ci = new float[SkyPass.MAXCL * 4], cx = new float[SkyPass.MAXCL * 4];
 	float[] pf = new float[SkyPass.MAXCL * SkyPass.PUFFS * 4];
 	float[] ssh = new float[2];
+	/* The height of the ground under the player, which the shadows fall on. */
+	float ground = 0;
 	/* The moon: where it is, how lit (its phase), its colour, and how much of it shows. */
 	float[] mdir = {0, 0, -1}, mcol = {0.9f, 0.9f, 0.85f};
 	float mphase = 0.5f, mvis = 0;
@@ -234,6 +236,104 @@ public class Ambience {
 					    0, 0, 0, 0, Coord3f.o);
 
     static Frame frame() {return(frame);}
+
+    /* Of one frame's clouds, those a camera sees, as the shaders read them. A cloud whose bounding sphere
+     * lies wholly outside the view's sides is met by no pixel's ray, and a shadow that falls outside the
+     * view is on no ground that is drawn: neither is handed to the shaders, which test every cloud they
+     * are handed at every pixel. Worked out once a frame and camera, from the very matrices the frame is
+     * drawn with. */
+    static final class Seen {
+	final int ncl, nsh;
+	/* The lowest base of the clouds seen: a ray that never rises to it meets none of them. */
+	final float cbot;
+	final float[] cl, ci, cx, pf;
+	/* Each shadow: where the cloud's centre stands, less its run toward the sun from height zero, the
+	 * shadow's radius, and how much of the sun it takes at its middle. */
+	final float[] sh;
+
+	Seen(Frame f, Matrix4f vp) {
+	    float[][] sides = planes(vp, false), all = planes(vp, true);
+	    int[] vis = new int[f.ncl];
+	    int n = 0, ns = 0;
+	    float bot = Float.MAX_VALUE;
+	    float[] sh = new float[Math.max(f.nnear, 1) * 4];
+	    float sshl = (float)Math.hypot(f.ssh[0], f.ssh[1]);
+	    for(int k = 0; k < f.ncl; k++) {
+		float x = f.cl[k * 4], y = f.cl[(k * 4) + 1], z = f.cl[(k * 4) + 2], r = f.cl[(k * 4) + 3];
+		if(inside(sides, x, y, z, r)) {
+		    vis[n++] = k;
+		    bot = Math.min(bot, f.ci[(k * 4) + 1]);
+		}
+		if(k < f.nnear) {
+		    /* Where the shadow's middle lands on ground at the player's height; the ground round it
+		     * stands higher or lower, and moves the shadow along the sun's run by as much. */
+		    float foot = f.cx[(k * 4) + 2], rise = z - f.ground;
+		    float gx = x - (rise * f.ssh[0]), gy = y - (rise * f.ssh[1]);
+		    if(inside(all, gx, gy, f.ground, foot + 150 + (150 * sshl))) {
+			sh[(ns * 4) + 0] = x - (z * f.ssh[0]);
+			sh[(ns * 4) + 1] = y - (z * f.ssh[1]);
+			sh[(ns * 4) + 2] = foot;
+			sh[(ns * 4) + 3] = f.ci[k * 4] * (0.5f + (f.ci[(k * 4) + 2] * 0.35f));
+			ns++;
+		    }
+		}
+	    }
+	    /* Only as much of each array as is used is uploaded (SkyPass registers the upload). */
+	    cl = new float[Math.max(n, 1) * 4];
+	    ci = new float[Math.max(n, 1) * 4];
+	    cx = new float[Math.max(n, 1) * 4];
+	    pf = new float[Math.max(n, 1) * SkyPass.PUFFS * 4];
+	    for(int i = 0; i < n; i++) {
+		int k = vis[i];
+		System.arraycopy(f.cl, k * 4, cl, i * 4, 4);
+		System.arraycopy(f.ci, k * 4, ci, i * 4, 4);
+		System.arraycopy(f.cx, k * 4, cx, i * 4, 4);
+		System.arraycopy(f.pf, k * SkyPass.PUFFS * 4, pf, i * SkyPass.PUFFS * 4, SkyPass.PUFFS * 4);
+	    }
+	    this.ncl = n;
+	    this.nsh = ns;
+	    this.cbot = (n > 0) ? bot : 1e9f;
+	    this.sh = sh;
+	}
+
+	/* The view's planes, out of its combined projection and camera, each facing in and of unit normal:
+	 * its four sides -- which meet at the eye, so they also shut out all that is behind it -- and, with
+	 * far, the far plane. The sky's rays go on past the far plane, so the clouds are held to the sides. */
+	static float[][] planes(Matrix4f vp, boolean far) {
+	    float[] m = vp.m;
+	    float[][] ret = new float[far ? 5 : 4][];
+	    int[][] rows = {{0, 1}, {0, -1}, {1, 1}, {1, -1}, {2, -1}};
+	    for(int i = 0; i < ret.length; i++) {
+		int r = rows[i][0], s = rows[i][1];
+		float a = m[3] + (s * m[r]), b = m[7] + (s * m[4 + r]), c = m[11] + (s * m[8 + r]), d = m[15] + (s * m[12 + r]);
+		float l = (float)Math.sqrt((a * a) + (b * b) + (c * c));
+		ret[i] = new float[] {a / l, b / l, c / l, d / l};
+	    }
+	    return(ret);
+	}
+
+	static boolean inside(float[][] pl, float x, float y, float z, float r) {
+	    for(float[] p : pl) {
+		if((p[0] * x) + (p[1] * y) + (p[2] * z) + p[3] < -r)
+		    return(false);
+	    }
+	    return(true);
+	}
+    }
+
+    private static Frame seenf = null;
+    private static Matrix4f seenp = null, seenc = null;
+    private static Seen seen = null;
+    static synchronized Seen seen(Matrix4f prj, Matrix4f cam) {
+	Frame f = frame;
+	if((seen == null) || (seenf != f) || !prj.equals(seenp) || !cam.equals(seenc)) {
+	    seen = new Seen(f, prj.mul(cam));
+	    seenf = f;
+	    seenp = new Matrix4f(prj.m.clone());
+	    seenc = new Matrix4f(cam.m.clone());
+	}
+	return(seen);
+    }
 
     static float clamp(float x, float a, float b) {return(Math.max(a, Math.min(b, x)));}
     static float smooth(float a, float b, float x) {
@@ -638,6 +738,18 @@ public class Ambience {
 	float snowy(Weather w) {return((w.snow > 0) ? (0.3f + (0.7f * smooth(0, 0.5f, flake(w)))) : 0);}
 	/* How far round the player clouds form: closer in under rain, so more of them are overhead. */
 	float spawnr = SPAWN;
+	/* How closed a sky the weather wants, 0 to 1 (closed()), as populate last found it. */
+	float close = 0;
+
+	/* How closed a sky the weather wants: 0 under a fair or a merely cloudy one, most of the way under
+	 * an overcast, all but a break or two in the rain, and wholly in a downpour or thick snow. Where it
+	 * is, the clouds grow, crowd in and run into one another until no sky shows between them. */
+	float closed(float cover, float wet, float flake) {
+	    float c = smooth(0.5f, 0.95f, cover) * 0.85f;
+	    c = Math.max(c, wet * (0.8f + (0.2f * smooth(0.6f, 1.0f, wet))));
+	    c = Math.max(c, flake * 0.95f);
+	    return(clamp(c, 0, 1));
+	}
 
 	/* On a day the server gives no cloud and no rain, a few stray ones or none: a number that changes
 	 * every twenty minutes of real time. */
@@ -664,11 +776,18 @@ public class Ambience {
 		if(w.snow > 0)
 		    target = Math.max(target, Math.round(8 + (flake * 10)));
 	    }
-	    if(pclouds < 0)
+	    close = closed(cover, wet, flake);
+	    if(pclouds < 0) {
+		/* A sky closing over takes every cloud there can be. */
+		target = Math.max(target, Math.round(SkyPass.NEAR * smooth(0.3f, 0.9f, close)));
 		target = Math.round(target * MORE);
+	    }
 	    target = Math.max(0, Math.min(SkyPass.NEAR, target));
-	    spawnr = SPAWN * (1 - (0.25f * Math.max(wet, flake)));
-	    float size = 420 * (0.85f + (cover * 0.6f) + (wet * 0.4f) + (flake * 0.2f));
+	    /* Rain draws its clouds in overhead; a closed sky needs them out to the disc's edge as well. */
+	    spawnr = SPAWN * (1 - (0.25f * Math.max(wet, flake) * (1 - close)));
+	    float basesize = 420 * (0.85f + (cover * 0.6f) + (wet * 0.4f) + (flake * 0.2f));
+	    /* And more than twice the size, so that they run into one another. */
+	    float size = basesize * (1 + (1.2f * close));
 	    float dark = clamp((cover * 0.4f) + (wet * 0.6f) + (flake * 0.15f), 0, 0.9f);
 
 	    /* The wind: the game's clouds move their texture by (cvx, cvy) a game second, so the world under
@@ -697,8 +816,16 @@ public class Ambience {
 		c.op = c.dying ? Math.max(0, c.op - rate) : Math.min(1, c.op + rate);
 		c.dark += (clamp(dark + c.darkoff, 0, 0.95f) - c.dark) * (float)Math.min(1, dt / 20);
 	    }
+	    /* A sky closing over breaks up the fine weather's little clouds, which the big ones replace. */
+	    if(close > 0.5f) {
+		for(Cloud c : clouds) {
+		    if(c.size < (size * 0.45f))
+			c.dying = true;
+		}
+	    }
 	    clouds.removeIf(c -> c.dying && (c.op <= 0));
-	    populatefar(w, focus, dt, wx, wy, dgt, size, clamp((cover * 0.4f) + (wet * 0.6f) + (flake * 0.15f), 0, 0.9f), cover, wet, flake);
+	    /* The far ring grows less: its clouds are already big, and would otherwise tower over everything. */
+	    populatefar(w, focus, dt, wx, wy, dgt, basesize * (1 + (0.6f * close)), clamp((cover * 0.4f) + (wet * 0.6f) + (flake * 0.15f), 0, 0.9f), cover, wet, flake);
 
 	    int alive = 0;
 	    for(Cloud c : clouds)
@@ -719,8 +846,8 @@ public class Ambience {
 		seeded = true;
 	    } else if((alive < target) && (spawncool <= 0) && (clouds.size() < SkyPass.NEAR)) {
 		spawn(focus, size, dark, cover, wet, flake, true).op = 0;
-		/* Rain gathers its clouds faster than a fine day drifts one in. */
-		spawncool = ((w.rain > 0) || (w.snow > 0)) ? 2 : 4;
+		/* Rain gathers its clouds faster than a fine day drifts one in, and a closing sky faster still. */
+		spawncool = (((w.rain > 0) || (w.snow > 0)) ? 2 : 4) * (1 - (0.5f * close));
 	    }
 	}
 
@@ -734,6 +861,7 @@ public class Ambience {
 		target = 4;
 	    else
 		target = Math.round(4 + (cover * 6) + (Math.max(wet, flake) * 4));
+	    target = Math.max(target, Math.round(SkyPass.FAR * close));
 	    target = Math.max(0, Math.min(SkyPass.FAR, Math.round(target * MORE)));
 	    for(Cloud c : far) {
 		c.x += wx * dgt;
@@ -748,6 +876,12 @@ public class Ambience {
 		float rate = (float)(dt / (c.fast ? 10 : 90));
 		c.op = c.dying ? Math.max(0, c.op - rate) : Math.min(1, c.op + rate);
 		c.dark += (clamp(dark + c.darkoff, 0, 0.95f) - c.dark) * (float)Math.min(1, dt / 20);
+	    }
+	    if(close > 0.5f) {
+		for(Cloud c : far) {
+		    if(c.size < (size * 1.8f * 0.45f))
+			c.dying = true;
+		}
 	    }
 	    far.removeIf(c -> c.dying && (c.op <= 0));
 	    int alive = 0;
@@ -768,7 +902,7 @@ public class Ambience {
 		farseeded = true;
 	    } else if((alive < target) && (farcool <= 0) && (far.size() < SkyPass.FAR)) {
 		spawnfar(focus, size, dark, cover, wet, flake, true).op = 0;
-		farcool = 10;
+		farcool = 10 * (1 - (0.6f * close));
 	    }
 	}
 	boolean farseeded = false;
@@ -782,6 +916,7 @@ public class Ambience {
 	    Cloud c = new Cloud(rnd, kind, sz);
 	    c.dark = clamp(dark + c.darkoff, 0, 0.95f);
 	    c.life *= 2.5;
+	    c.soft *= 1 - (0.3f * close);
 	    /* Low, as the clouds on a real horizon are: half the near ones' base height, and a little over;
 	     * a high veil out there no higher than the near clouds' tops. */
 	    c.zoff = (kind == HIGH) ? (200 + (rnd.nextFloat() * 400)) : ((-cloudbase * 0.5f) + (rnd.nextFloat() * 200));
@@ -792,14 +927,16 @@ public class Ambience {
 		    a = Math.atan2(cvy, cvx) + ((rnd.nextDouble() - 0.5) * Math.PI);
 		    d = FAROUT - (rnd.nextDouble() * 4000);
 		} else {
+		    /* A closed sky brings the ring in, to meet the near clouds at the disc's edge. */
+		    double in = FARIN - (2500 * close);
 		    a = rnd.nextDouble() * Math.PI * 2;
-		    d = FARIN + (rnd.nextDouble() * (FAROUT - FARIN));
+		    d = in + (rnd.nextDouble() * (FAROUT - in));
 		}
 		bx = focus.x + (Math.cos(a) * d);
 		by = focus.y + (Math.sin(a) * d);
 		boolean clear = true;
 		for(Cloud o : far) {
-		    if(Math.hypot(o.x - bx, o.y - by) < (1.4 * (o.foot + c.foot))) {
+		    if(Math.hypot(o.x - bx, o.y - by) < ((1.4 - (0.9 * close)) * (o.foot + c.foot))) {
 			clear = false;
 			break;
 		    }
@@ -823,6 +960,10 @@ public class Ambience {
 	    float sz = size * (range[kind][0] + ((range[kind][1] - range[kind][0]) * rnd.nextFloat()));
 	    Cloud c = new Cloud(rnd, kind, sz);
 	    c.dark = clamp(dark + c.darkoff, 0, 0.95f);
+	    /* A closing sky's clouds are denser, crisp to their rims. */
+	    c.soft *= 1 - (0.3f * close);
+	    /* How close to one another they may stand: well apart on a fine day, run together in a storm. */
+	    double gap = 1.6 - (1.1 * close), hole = 0.3 * (1 - close);
 	    double bx = 0, by = 0;
 	    for(int tries = 0; tries < 12; tries++) {
 		double a, d;
@@ -832,13 +973,13 @@ public class Ambience {
 		    d = (spawnr * 0.7) + (rnd.nextDouble() * spawnr * 0.3);
 		} else {
 		    a = rnd.nextDouble() * Math.PI * 2;
-		    d = spawnr * (0.3 + (0.7 * Math.sqrt(rnd.nextDouble())));
+		    d = spawnr * (hole + ((1 - hole) * Math.sqrt(rnd.nextDouble())));
 		}
 		bx = focus.x + (Math.cos(a) * d);
 		by = focus.y + (Math.sin(a) * d);
 		boolean clear = true;
 		for(Cloud o : clouds) {
-		    if((Math.abs(o.zoff - c.zoff) < 400) && (Math.hypot(o.x - bx, o.y - by) < (1.6 * (o.foot + c.foot)))) {
+		    if((Math.abs(o.zoff - c.zoff) < 400) && (Math.hypot(o.x - bx, o.y - by) < (gap * (o.foot + c.foot)))) {
 			clear = false;
 			break;
 		    }
@@ -887,6 +1028,7 @@ public class Ambience {
 	    }
 	    f.ncl = n;
 	    f.nnear = nn;
+	    f.ground = ground;
 	}
 
 	/* Every add below compiles its slot on the spot, and a slot that samples the cloud texture throws
@@ -1087,7 +1229,8 @@ public class Ambience {
 		", clouds: " + ((pclouds < 0) ? "auto" : Integer.toString(pclouds)) +
 		String.format(" at %.0f, fog x%.2f, density x%.2f", cloudbase, fogmul, densmul));
 	    for(Map.Entry<MapView, View> e : new ArrayList<>(views.entrySet()))
-		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census());
+		say(cons, "the server says: " + describe(e.getKey()) + "; clouds up: " + e.getValue().census() +
+		    String.format("; sky closed %.2f", e.getValue().close));
 	    return;
 	default:
 	    throw(new RuntimeException("usage: amb [on|off|clouds auto|clouds <n>|moon <0-1>|moon server|cloudalt <units>|time <hour>|time server|weather <" +

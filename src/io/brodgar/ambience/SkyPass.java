@@ -67,17 +67,18 @@ public class SkyPass implements RenderTree.Node {
     static final Uniform mvis = new Uniform(FLOAT, p -> Ambience.frame().mvis, FrameInfo.slot);
     /* Where the player is: seen from above, the clouds clear a circle round it. */
     static final Uniform focus = new Uniform(VEC3, p -> Ambience.frame().focus, FrameInfo.slot);
-    /* The clouds: how many; each one's bounding sphere (centre, radius); each one's opacity, base height,
-     * darkness and noise seed; each one's edge -- how soft, how ragged -- its footprint's radius on the
-     * ground and the scale of its noise; and each one's PUFFS balls (centre, radius), cloud k's at
-     * k * PUFFS. */
-    static final Uniform ncl = new Uniform(INT, p -> Ambience.frame().ncl, FrameInfo.slot);
-    /* How many of them are near: only those cast a shadow on the ground that is drawn. */
-    static final Uniform nnear = new Uniform(INT, p -> Ambience.frame().nnear, FrameInfo.slot);
-    static final Uniform cl = new Uniform(new Array(VEC4, MAXCL), p -> Ambience.frame().cl, FrameInfo.slot);
-    static final Uniform ci = new Uniform(new Array(VEC4, MAXCL), p -> Ambience.frame().ci, FrameInfo.slot);
-    static final Uniform cx = new Uniform(new Array(VEC4, MAXCL), p -> Ambience.frame().cx, FrameInfo.slot);
-    static final Uniform pf = new Uniform(new Array(VEC4, MAXCL * PUFFS), p -> Ambience.frame().pf, FrameInfo.slot);
+    /* The clouds this camera sees (Ambience.Seen): how many; each one's bounding sphere (centre, radius);
+     * each one's opacity, base height, darkness and noise seed; each one's edge -- how soft, how ragged
+     * -- its footprint's radius on the ground and the scale of its noise; and each one's PUFFS balls
+     * (centre, radius), cloud k's at k * PUFFS. And the lowest of their bases. */
+    static final Uniform ncl = new Uniform(INT, p -> seen(p).ncl, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform cbot = new Uniform(FLOAT, p -> seen(p).cbot, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform cl = new Uniform(new Array(VEC4, MAXCL), p -> seen(p).cl, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform ci = new Uniform(new Array(VEC4, MAXCL), p -> seen(p).ci, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform cx = new Uniform(new Array(VEC4, MAXCL), p -> seen(p).cx, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform pf = new Uniform(new Array(VEC4, MAXCL * PUFFS), p -> seen(p).pf, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+
+    static Ambience.Seen seen(Pipe p) {return(Ambience.seen(Homo3D.prjxf(p), Homo3D.camxf(p)));}
     /* Texels of the noise per pixel, per unit of distance: what picks the mip level a sample reads. */
     static final Uniform lodk = new Uniform(FLOAT, p -> {
 	    float texels = (float)(1024 * NOISE);
@@ -123,7 +124,9 @@ public class SkyPass implements RenderTree.Node {
 	Expression inside = code.local(FLOAT, mul(sub(l(1.0), smoothstep(l(0.9), l(1.0), r2)), step(l(0.0), mu2), mvis.ref())).ref();
 	Expression ph = code.local(FLOAT, mul(mphase.ref(), l(Math.PI * 2))).ref();
 	Expression lit = smoothstep(l(-0.06), l(0.08), add(mul(mx, sin(ph)), mul(sqrt(max(sub(l(1.0), r2), l(0.0))), neg(Function.Builtin.cos.call(ph)))));
-	Expression spots = add(l(0.72), mul(pick(texture2D(sclouds.ref(), add(mul(vec2(mx, my), l(0.18)), vec2(l(0.3), l(0.6)))), "r"), l(0.35)));
+	/* Its level named, as the clouds' are: the open sky is drawn in a branch of its own (main). */
+	Expression mlod = max(log2(mul(lodk.ref(), l(0.18 / (MOONR * NOISE)))), l(0.0));
+	Expression spots = add(l(0.72), mul(pick(textureLod.call(sclouds.ref(), add(mul(vec2(mx, my), l(0.18)), vec2(l(0.3), l(0.6))), mlod), "r"), l(0.35)));
 	Expression disc = mul(mcol.ref(), add(mul(lit, spots, l(1.5)), l(0.04)));
 	code.add(ass(c, mix(c, disc, inside)));
 	Expression full = mul(sub(l(1.0), Function.Builtin.cos.call(ph)), l(0.5));
@@ -149,11 +152,17 @@ public class SkyPass implements RenderTree.Node {
 	LValue tr = code.local(FLOAT, l(1.0)).ref();
 	Expression mu = code.local(FLOAT, max(dot(v, sdir.ref()), l(0.0))).ref();
 	Expression vz = code.local(FLOAT, pick(v, "z")).ref();
-	LValue k = code.local(INT, null).ref();
+	/* Nothing of a cloud shows below its base, so a ray that does not rise to the lowest base before
+	 * the scene meets none: from the usual camera, under the clouds and looking down, that is all the
+	 * ground, which skips the clouds altogether. */
+	Expression ez = pick(e, "z");
+	Block any = new Block();
+	code.add(new If(or(ge(ez, cbot.ref()), and(gt(vz, l(0.0)), lt(sub(cbot.ref(), ez), mul(tmax, vz)))), any));
+	LValue k = any.local(INT, null).ref();
 	Block cb = new Block();
 	/* Nearest first (Ambience.View.write sorts them), and no further once what is in front is opaque:
 	 * under a full sky a ray stops at the first cloud or two. */
-	code.add(new For(ass(k, l(0)), and(lt(k, ncl.ref()), gt(tr, l(0.02))), linc(k), cb));
+	any.add(new For(ass(k, l(0)), and(lt(k, ncl.ref()), gt(tr, l(0.02))), linc(k), cb));
 
 	/* The cloud's bounding sphere first: most rays miss most clouds. */
 	Expression b = cb.local(VEC4, idx(cl.ref(), k)).ref();
@@ -237,13 +246,15 @@ public class SkyPass implements RenderTree.Node {
 	Expression dist = code.local(FLOAT, length(rel)).ref();
 	Expression v = code.local(VEC3, div(rel, max(dist, l(0.0001)))).ref();
 	Expression issky = code.local(FLOAT, step(l(0.9999999), d)).ref();
-	Expression fogc = code.local(VEC3, skybase.call(normalize(vec3(pick(v, "xy"), l(0.03))))).ref();
 	Expression fp = fog.ref();
 	Expression f1 = mul(smoothstep(pick(fp, "x"), pick(fp, "y"), dist), pick(fp, "z"));
 	Expression f2 = sub(l(1.0), exp(neg(mul(max(sub(dist, fognear.ref()), l(0.0)), pick(fp, "w")))));
 	Expression f = code.local(FLOAT, clamp(max(f1, f2), l(0.0), l(1.0))).ref();
-	Expression sky = code.local(VEC3, skyopen.call(v)).ref();
-	Expression fc = code.local(VEC3, mix(fogc, sky, issky)).ref();
+	/* The open sky where nothing was drawn, the fog's colour everywhere else: each only where it shows,
+	 * and the sky -- the stars, the moon -- is the dearer of the two. */
+	LValue fc = code.local(VEC3, null).ref();
+	code.add(new If(gt(issky, l(0.5)), stmt(ass(fc, skyopen.call(v))),
+			stmt(ass(fc, skybase.call(normalize(vec3(pick(v, "xy"), l(0.03))))))));
 	Expression ff = code.local(FLOAT, mix(f, l(1.0), issky)).ref();
 	Expression m = code.local(VEC4, clouds.call(eye.ref(), v, mix(dist, l(1.0e6), issky))).ref();
 	Expression tr = code.local(FLOAT, sub(l(1.0), pick(m, "a"))).ref();

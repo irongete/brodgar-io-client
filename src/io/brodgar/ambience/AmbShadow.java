@@ -9,10 +9,10 @@ import static haven.render.sl.Type.*;
 /* SPIKE: the clouds' shadows on the ground.
  *
  * The game's own CloudShadow in shape -- it dims the sun's light alone (MapView.amblight_idx), in every
- * per-fragment Phong program -- but cast by the ambience's own clouds: for each cloud, where the ray
- * from this fragment toward the sun reaches the cloud's middle height, and how close that falls to the
- * cloud's centre, gives a soft round shadow under it, whichever way the sun stands. A loop over a
- * handful of clouds, no texture. Its numbers are uniforms over the frame, so the state itself is one
+ * per-fragment Phong program -- but cast by the ambience's own clouds: for each cloud whose shadow falls
+ * where the camera sees, where the ray from this fragment toward the sun reaches the cloud's middle
+ * height, and how close that falls to the cloud's centre, gives a soft round shadow under it, whichever
+ * way the sun stands. A loop over a handful of clouds, no texture. Its numbers are uniforms over the frame, so the state itself is one
  * instance, installed once while there are clouds and never re-pushed. */
 public class AmbShadow extends State {
     static final Slot<AmbShadow> slot = new Slot<>(Slot.Type.DRAW, AmbShadow.class);
@@ -20,24 +20,27 @@ public class AmbShadow extends State {
 
     /* The run toward the sun per unit of rise. */
     static final Uniform ssh = new Uniform(VEC2, p -> Ambience.frame().ssh, FrameInfo.slot);
+    /* The shadows that fall where this camera sees (Ambience.Seen): how many, and each one's centre less
+     * its run toward the sun from height zero, its radius and its strength. */
+    static final Uniform nsh = new Uniform(INT, p -> SkyPass.seen(p).nsh, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
+    static final Uniform sh = new Uniform(new Array(VEC4, SkyPass.NEAR), p -> SkyPass.seen(p).sh, Homo3D.prj, Homo3D.cam, FrameInfo.slot);
 
     /* How much of the sun reaches a point of the ground, 1 for all of it. */
     static final Function shade = new Function.Def(FLOAT) {{
 	Expression g = param(PDir.IN, VEC3).ref();
 	LValue s = code.local(FLOAT, l(1.0)).ref();
+	/* The ray from here toward the sun reaches a cloud's middle height z at g.xy + (z - g.z) * ssh; its
+	 * distance from the cloud's centre is that of this point, moved back along the run by its own
+	 * height, from the centre moved back by the cloud's. */
+	Expression gp = code.local(VEC2, sub(pick(g, "xy"), mul(pick(g, "z"), ssh.ref()))).ref();
 	LValue k = code.local(INT, null).ref();
 	Block cb = new Block();
-	/* The near ones only: a far one's shadow falls where no ground is drawn. */
-	code.add(new For(ass(k, l(0)), lt(k, SkyPass.nnear.ref()), linc(k), cb));
-	Expression b = cb.local(VEC4, idx(SkyPass.cl.ref(), k)).ref();
-	Expression info = cb.local(VEC4, idx(SkyPass.ci.ref(), k)).ref();
-	Expression fp = cb.local(FLOAT, pick(idx(SkyPass.cx.ref(), k), "z")).ref();
-	Expression at = cb.local(VEC2, add(pick(g, "xy"), mul(sub(pick(b, "z"), pick(g, "z")), ssh.ref()))).ref();
-	Expression d = length(sub(at, pick(b, "xy")));
-	/* Round, the size of the cloud's footprint; a thin high cloud, being faint, casts a faint one. */
-	Expression cover = mul(pick(info, "x"), sub(l(1.0), smoothstep(mul(fp, l(0.35)), fp, d)));
-	/* A cloud takes half the sun away, a dark one more. */
-	cb.add(amul(s, sub(l(1.0), mul(cover, add(l(0.5), mul(pick(info, "z"), l(0.35)))))));
+	code.add(new For(ass(k, l(0)), lt(k, nsh.ref()), linc(k), cb));
+	Expression c = cb.local(VEC4, idx(sh.ref(), k)).ref();
+	Expression d = length(sub(gp, pick(c, "xy")));
+	/* Round, the size of the cloud's footprint; a faint cloud casts a faint one, a dark one takes more
+	 * than half the sun away. */
+	cb.add(amul(s, sub(l(1.0), mul(pick(c, "w"), sub(l(1.0), smoothstep(mul(pick(c, "z"), l(0.35)), pick(c, "z"), d))))));
 	code.add(new Return(s));
     }};
 
