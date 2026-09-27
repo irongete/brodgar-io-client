@@ -800,6 +800,10 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     private void updstate() {
+	/* addon: GobState is its mods and nothing else, so with none registered a new one equals the one in
+	 * place when that one has none either: nothing to build, every tick of every gob that has no SetupMod. */
+	if(setupmods.isEmpty() && (curstate != null) && (curstate.mods == null))
+	    return;
 	GobState nst;
 	try {
 	    nst = new GobState();
@@ -1018,6 +1022,15 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(ret);
     }
 
+    /* addon: whether Placed.autotick is to make this gob's placement again this frame. Upstream makes every
+     * gob's placement every frame, whether it is on screen or not, and keeps it only when it differs --
+     * cheap for a gob of the server's over live ground. A client-built ghost (io.brodgar.addon.GhostGob)
+     * answers false while it has not moved and the ground under it has not changed: thousands of them
+     * placed again every frame were the whole frame. placedone reports what came of a placement this
+     * answered true for: null when it was made, else the Loading it stopped at. */
+    protected boolean placestale() {return(true);}
+    protected void placedone(Loading l) {}
+
     public class Placed implements RenderTree.Node, TickList.Ticking, TickList.TickNode {
 	/* XXX: Using a COW list is far from an ideal solution. It
 	 * should work for the specific case of flavobjs (which are
@@ -1118,15 +1131,19 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	}
 
 	public void autotick(double dt) {
+	    if(!Gob.this.placestale())		// addon: see Gob.placestale
+		return;
 	    synchronized(Gob.this) {
 		Placement np;
 		try {
 		    np = new Placement();
 		} catch(Loading l) {
+		    Gob.this.placedone(l);	// addon
 		    return;
 		}
 		if(!Utils.eq(this.cur, np))
 		    update(np);
+		Gob.this.placedone(null);	// addon
 	    }
 	}
 

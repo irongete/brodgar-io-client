@@ -150,12 +150,30 @@ public final class LuaPosition {
 
     /** The world coordinate of a grid's upper-left corner in <b>that</b> session, or {@code null}. */
     private static Coord2d ulOf(long id, String user) {
+        Coord2d ul = ulNow(id, user);
+        return (ul == BUSY) ? null : ul;
+    }
+
+    /**
+     * What {@link #ulNow} answers when the map database could not be asked just now (its lock was held — a grid
+     * being read off the disk, a segment save): an unknown, not ground that is absent. Compared by identity.
+     */
+    static final Coord2d BUSY = new Coord2d(Double.NaN, Double.NaN);
+
+    /**
+     * The world upper-left of grid {@code id} in session {@code user} ({@code null}: the one on screen), or
+     * {@code null} where that session cannot locate it, or {@link #BUSY} when the map database could not be
+     * asked right now. A free world entity re-derives its place with this, and must not take a busy database
+     * for ground that went away.
+     */
+    static Coord2d ulNow(long id, String user) {
         if(user == null)
             user = AddonManager.drawnUser();
         Coord2d ul = AddonWidgets.gridWorldUL(AddonManager.mcache(user), id);
         if(ul != null)
             return ul;
-        return MapApi.gridUL(MapApi.gridInfoIn(MapApi.mapfile(user), id), user);
+        MapFile.GridInfo gi = MapApi.gridInfoNow(MapApi.mapfile(user), id);
+        return (gi == MapApi.BUSY) ? BUSY : MapApi.gridUL(gi, user);
     }
 
     /**

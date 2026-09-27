@@ -751,8 +751,26 @@ final class MapApi {
     /** Where a grid id sits: its segment and its grid coord inside it. The whole live→recorded bridge.
      *  The write lock, for {@link #segIn}'s reason: {@code gridinfo} is a {@link haven.BackCache} too. */
     static MapFile.GridInfo gridInfoIn(MapFile file, long id) {
-        if((file == null) || !file.lock.writeLock().tryLock())
+        MapFile.GridInfo gi = gridInfoNow(file, id);
+        return (gi == BUSY) ? null : gi;
+    }
+
+    /**
+     * What {@link #gridInfoNow} answers when the database could not be asked: its lock was held (a grid read
+     * off the disk, a segment save). It says nothing about the grid. Compared by identity.
+     */
+    static final MapFile.GridInfo BUSY = new MapFile.GridInfo(0, 0, Coord.z);
+
+    /**
+     * {@link #gridInfoIn}, telling a database that could not be asked right now ({@link #BUSY}) apart from one
+     * that does not know the grid ({@code null}). The write lock, and tried rather than waited for: the
+     * {@code BackCache} lookup mutates its map, and the lock is held across disk I/O ({@code mapfile.md}).
+     */
+    static MapFile.GridInfo gridInfoNow(MapFile file, long id) {
+        if(file == null)
             return null;
+        if(!file.lock.writeLock().tryLock())
+            return BUSY;
         try {
             return file.gridinfo.get(Long.valueOf(id));
         } catch(RuntimeException e) {

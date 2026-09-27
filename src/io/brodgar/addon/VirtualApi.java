@@ -29,6 +29,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
@@ -774,6 +775,8 @@ final class VirtualApi {
             e.grounded = groundUnder(e);
         }
         synchronized(free) { free.add(e); }
+        if(e.rc == null)
+            asknextTick(e);                            // perhaps only a busy map database: ask again next tick
     }
 
     /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
@@ -1432,6 +1435,8 @@ final class VirtualApi {
                 e.agx = place.x;
                 e.agy = place.y;
                 e.rc = rc;                             // 045.2: null ⇒ moved to a place that is not here yet
+                if((rc == null) && (e.followTgt == 0))
+                    asknextTick(e);                    // perhaps only a busy map database: ask again next tick
             }
             if(ang != null)
                 e.a = ang.doubleValue();
@@ -2911,6 +2916,15 @@ final class VirtualApi {
         }
     }
 
+    /**
+     * The remembered ground's cache while the drawn view has it in the scene, whatever it holds, else
+     * {@code null} ({@code MapView.recallmap}): what {@link GhostGob} looks its grid up in once, and keeps.
+     */
+    static MCache recallMap() {
+        MapView mv = screenView();
+        return (mv == null) ? null : mv.recallmap();
+    }
+
     /** Raised by the terrain's cut map changing, or by the session coordinate space moving; drained on the addon tick. */
     private static volatile boolean groundDirty;
 
@@ -3035,13 +3049,22 @@ final class VirtualApi {
         if(moved)
             scene = mv;
         boolean ground = groundDirty || moved, anchors = anchorsDirty || moved;
-        if(!ground && !anchors)
+        List<LuaWorldEntity> again = null;
+        synchronized(asknext) {
+            if(!asknext.isEmpty()) {
+                again = new ArrayList<LuaWorldEntity>(asknext);
+                asknext.clear();
+            }
+        }
+        if(!ground && !anchors && (again == null))
             return;
         groundDirty = false;
         anchorsDirty = false;
         List<LuaWorldEntity> l = new ArrayList<LuaWorldEntity>();
         if(ground) {
             synchronized(free) { l.addAll(free); }
+        } else if(again != null) {
+            l.addAll(again);                           // only the ones the map database could not be asked about
         }
         if(anchors) {
             synchronized(anchored) {
@@ -3051,13 +3074,32 @@ final class VirtualApi {
         }
         if(l.isEmpty())
             return;
-        passes++;                                      // 045.2: what p:entities() reports, and the poll test
+        if(ground || anchors)
+            passes++;                                  // 045.2: what p:entities() reports, and the poll test
+        Map<Long, Coord2d> uls = new HashMap<Long, Coord2d>();
         for(LuaWorldEntity e : l) {
             try {
-                reground(e, mv);
+                reground(e, mv, uls);
             } catch(RuntimeException ex) {
                 /* best-effort: one bad entity never stops the rest from being re-asked */
             }
+        }
+    }
+
+    /**
+     * Free entities whose place the map database could not be asked about on the last pass ({@link
+     * LuaPosition#BUSY}: its lock was held — the remembered ground reading a grid off the disk, a segment save).
+     * They are left exactly as they stood and asked again on the next tick: a busy database says nothing about
+     * where they are, and taking it for "not here" put every ghost past the live ground out of the scene and
+     * back at every step the remembered ground took. A place that could not be located when it was given
+     * ({@code :add}, {@code :position}) is asked once more the same way, for that too may have been only a busy
+     * database; one that is really not here is then left waiting, as before, for the ground to move.
+     */
+    private static final java.util.Set<LuaWorldEntity> asknext = new java.util.LinkedHashSet<LuaWorldEntity>();
+
+    private static void asknextTick(LuaWorldEntity e) {
+        synchronized(asknext) {
+            asknext.add(e);
         }
     }
 
@@ -3187,7 +3229,7 @@ final class VirtualApi {
      * object nobody present can see is not drawn. It is not ended — that is {@link #anchorGone}, and only when
      * no session at all can see it.
      */
-    private static void reground(LuaWorldEntity e, MapView mv) {
+    private static void reground(LuaWorldEntity e, MapView mv, Map<Long, Coord2d> uls) {
         if(e.mv != mv)
             rehome(e, mv);                             // takes the monitor itself, and the scene locks outside it
         if(e.mv != mv) {
@@ -3213,8 +3255,17 @@ final class VirtualApi {
                 return;
             }
             // A free entity holds the server's grid id, so its world coordinate is derived per
-            // session — and the one it is drawn in is the one on screen (null asks that).
-            Coord2d rc = LuaPosition.worldOf(e.anchorGrid, e.agx, e.agy, null);
+            // session — and the one it is drawn in is the one on screen (null asks that). Once per grid
+            // per pass: the entities standing on one grid share its answer.
+            Long gid = Long.valueOf(e.anchorGrid);
+            Coord2d ul = uls.get(gid);
+            if((ul == null) && !uls.containsKey(gid))
+                uls.put(gid, ul = LuaPosition.ulNow(e.anchorGrid, null));
+            if(ul == LuaPosition.BUSY) {
+                asknextTick(e);                        // could not be asked: as it stands, asked again next tick
+                return;
+            }
+            Coord2d rc = (ul == null) ? null : Coord2d.of(ul.x + e.agx, ul.y + e.agy);
             if((rc != null) && !rc.equals(e.rc)) {
                 e.rc = rc;
                 if(e.gob != null)

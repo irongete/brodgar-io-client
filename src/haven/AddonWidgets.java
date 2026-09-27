@@ -182,6 +182,32 @@ public final class AddonWidgets {
     }
 
     /**
+     * The first grid a cut's mesh needs that this cache does not hold, or {@code null} when it can be built:
+     * its own grid, and every neighbour its edge reaches across. {@code MapMesh} reads one tile and one corner
+     * past each side of its cut, so a cut on a grid's edge reads the grid beside it, and one whose neighbour
+     * is absent throws {@code LoadingMap} from its build for as long as the neighbour stays absent -- the
+     * {@link Defer} pool running that build again every time somebody asks for the mesh. A plain lookup like
+     * {@link #loadedGrid}: requests nothing.
+     */
+    public static Coord cutmissing(MCache mc, Coord gc, Coord cc) {
+        synchronized(mc.grids) {
+            for(int dy = -1; dy <= 1; dy++) {
+                if(((dy < 0) && (cc.y > 0)) || ((dy > 0) && (cc.y < MCache.cutn.y - 1)))
+                    continue;
+                for(int dx = -1; dx <= 1; dx++) {
+                    if(((dx < 0) && (cc.x > 0)) || ((dx > 0) && (cc.x < MCache.cutn.x - 1)))
+                        continue;
+                    Coord ngc = gc.add(dx, dy);
+                    MCache.Grid g = mc.grids.get(ngc);
+                    if((g == null) || g.removed)
+                        return ngc;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * addon: install a tileset in a map cache under an id that cache chose for itself (spec
      * {@code 068-remembered-ground}) — the door to {@link MCache}'s own {@code settileset}, whose
      * {@code sets} array and {@code cktileid} are private to that class.
@@ -233,6 +259,7 @@ public final class AddonWidgets {
             MCache.Grid prev = mc.grids.put(gc, g);
             if(prev != null)
                 prev.dispose();
+            mc.gridput();   // a grid arrived, said as mapdata2 says it for the live map: what waits for ground looks again
         }
     }
 

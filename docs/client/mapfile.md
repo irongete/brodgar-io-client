@@ -25,6 +25,9 @@
   *assert* the caller holds it. The **processor thread** takes the WRITE lock for segment
   saves and the index save, **across disk I/O** — so a UI-thread reader must `tryLock`, never `lock`
   (`MiniMap.resolve`, below). `defersave()` only queues; nothing writes synchronously.
+  ⚠️ **A `tryLock` that fails says nothing about the data**: the read lock is held by every `Defer` grid read
+  and the write lock by every save, so a caller that takes the failure for *not in the database* gets a
+  different answer at every grid the file reads. Keep what was known and ask again later.
 - Both caches are `BackCache` (`haven/BackCache.java`): a `load` function, a `store` function, and a
   size-bounded access-ordered `LinkedHashMap`. **`get` mutates the map** (insert + LRU touch) while
   callers hold only the *read* lock — the client's own discipline; mirror it rather than fixing it.

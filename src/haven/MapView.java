@@ -3813,16 +3813,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	}
 	// addon: gtick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above,
-	//        and under each ghost's own monitor for the same reason the Plob is.
-	for(Gob gob : clientGobs) {
-	    try {
-		synchronized(gob) {
-		    gob.gtick(g.out);
-		}
-	    } catch(RuntimeException e) {
-		/* isolate one ghost's error from the frame */
-	    }
-	}
+	//        and under each ghost's own monitor for the same reason the Plob is. Across the pool with a
+	//        Render of each worker's own, exactly as OCache.gtick does the server's: an addon may hold
+	//        thousands, and one after another on this thread they were a slice of every frame.
+	cgtick(g.out);
 	glob.map.sendreqs();
 	if((olftimer != 0) && (olftimer < Utils.rtime()))
 	    unflashol();
@@ -3965,8 +3959,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		ob.ctick(dt);
 	    }
 	}
-	// addon: ctick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above.
-	for(Gob gob : clientGobs) {
+	// addon: ctick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above;
+	//        across the pool as OCache.ctick does the server's (see cgtick).
+	Consumer<Gob> task = gob -> {
 	    try {
 		synchronized(gob) {
 		    gob.ctick(dt);
@@ -3974,7 +3969,50 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    } catch(RuntimeException e) {
 		/* isolate one ghost's error from the frame (Loading etc.) */
 	    }
+	};
+	if(!Config.par.get())
+	    clientGobs.forEach(task);
+	else
+	    clientGobs.parallelStream().forEach(task);
+    }
+
+    // addon: OCache.gtick's shape over the client-only gobs, one ghost's error isolated from the frame.
+    private void cgtick(Render g) {
+	if(!Config.par.get()) {
+	    for(Gob gob : clientGobs) {
+		try {
+		    synchronized(gob) {
+			gob.gtick(g);
+		    }
+		} catch(RuntimeException e) {
+		}
+	    }
+	    return;
 	}
+	Collection<Render> subs = new ArrayList<>();
+	ThreadLocal<Render> subv = new ThreadLocal<>();
+	try {
+	    clientGobs.parallelStream().forEach(gob -> {
+		    Render sub = subv.get();
+		    if(sub == null) {
+			sub = g.env().render();
+			synchronized(subs) {
+			    subs.add(sub);
+			}
+			subv.set(sub);
+		    }
+		    try {
+			synchronized(gob) {
+			    gob.gtick(sub);
+			}
+		    } catch(RuntimeException e) {
+		    }
+		});
+	} finally {
+	    subv.remove();	/* perf: see OCache.gtick */
+	}
+	for(Render sub : subs)
+	    g.submit(sub);
     }
 
     public void resize(Coord sz) {
@@ -4147,6 +4185,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if((r == null) || (s_recall == null) || (rc == null))
 	    return(null);
 	return((AddonWidgets.loadedGrid(r.map, rc.floor(tilesz).div(MCache.cmaps)) != null) ? r.map : null);
+    }
+
+    // addon: the remembered ground's own cache while it is in the scene, or null -- the map recallground
+    //        answers from, for a caller that asks about many points and keeps what it found.
+    public MCache recallmap() {
+	io.brodgar.session.Recall r = this.recall;
+	return(((r == null) || (s_recall == null)) ? null : r.map);
     }
 
     // addon: (120.1) the remembered ground's four numbers, so that what it holds and what it draws are

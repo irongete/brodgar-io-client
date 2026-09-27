@@ -1299,6 +1299,16 @@ public class MCache implements MapSource {
 	}
     }
 
+    /* addon: a grid was put into this cache by hand (AddonWidgets.putgrid, the remembered ground's source),
+     * and it says so the way mapdata2 says it for the live map: chseq for what caches on it, gridwait for
+     * what waits for a grid (MCache.LoadingMap). */
+    public void gridput() {
+	synchronized(grids) {
+	    chseq++;
+	    gridwait.wnotify();
+	}
+    }
+
     public double getcz(Coord2d pc) {
 	return(getcz(pc.x, pc.y));
     }
