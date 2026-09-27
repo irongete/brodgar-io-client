@@ -37,6 +37,59 @@ public class FrustumList implements RenderList<Rendered> {
      * taking out is, past this many a frame, and the rest are taken on the frames after. */
     private static final int REMOVES = 256;
 
+    /* LEVELS OF DETAIL. A batch of a mesh (InstanceList.batchmesh) is drawn at the level its size on screen
+     * calls for: the mesh's box diagonal over the nearest depth of the batch's box -- its nearest member, so
+     * no member is drawn coarser than its own size asks -- as a share of the screen's height, the "screen
+     * size" engines pick levels by. Below each of LODAT the next coarser level (haven.FastMesh.lod) is drawn,
+     * and below TINY nothing is: a member of a batch that small is a pixel or two. A level boundary is crossed
+     * only ten per cent past it, so a batch on the edge does not flip every frame. `:lod on|off` and
+     * `:lodbias <x>` (more than 1 keeps detail further out) set them live. */
+    private static final double[] LODAT = {0.10, 0.05, 0.025};
+    private static final double TINY = 0.0015, HYST = 0.1;
+    public static volatile boolean lodon = true;
+    public static volatile double lodbias = 1.0;
+    /* The last pass's batches of a mesh by the level they draw, full first, and those left out as tiny. */
+    private static volatile int[] lodcounts = new int[LODAT.length + 2];
+
+    static {
+	haven.Console.setscmd("lod", (cons, args) -> {
+		if(args.length > 1)
+		    lodon = haven.Utils.parsebool(args[1]);
+		int[] c = lodcounts;
+		cons.out.println("lod: " + (lodon ? "on" : "off") + ", bias " + lodbias + "; batches by level (full, 1, 2, 3): "
+				 + c[0] + " " + c[1] + " " + c[2] + " " + c[3] + ", left out as tiny: " + c[4]);
+	    });
+	haven.Console.setscmd("lodbias", (cons, args) -> {
+		double b = Double.parseDouble(args[1]);
+		if(!(b > 0))
+		    throw(new Exception("lodbias: a positive number"));
+		lodbias = b;
+	    });
+    }
+
+    private static int lodlevel(double s, int cur) {
+	int lvl = 0;
+	for(int i = 0; i < LODAT.length; i++) {
+	    double edge = LODAT[i] * ((cur > i) ? (1 + HYST) : (1 - HYST));
+	    if(s < edge)
+		lvl = i + 1;
+	}
+	return(lvl);
+    }
+
+    /* The share of the screen's height `diam` world units take at the nearest depth of box `wb`. */
+    private static double screensize(float[] m, float[] wb, double diam) {
+	float minw = Float.POSITIVE_INFINITY;
+	for(int i = 0; i < 24; i += 3) {
+	    float cw = (m[3] * wb[i]) + (m[7] * wb[i + 1]) + (m[11] * wb[i + 2]) + m[15];
+	    minw = Math.min(minw, cw);
+	}
+	if(!(minw > 1e-3f))
+	    return(Double.POSITIVE_INFINITY);
+	double sy = Math.sqrt((m[1] * m[1]) + (m[5] * m[5]) + (m[9] * m[9]));
+	return((diam * sy) / (2 * minw));
+    }
+
     private final DrawList back;
     private final Map<Slot<? extends Rendered>, Entry> slots = new HashMap<>();
     private final List<Entry> order = new ArrayList<>();
@@ -59,6 +112,11 @@ public class FrustumList implements RenderList<Rendered> {
 	Location.Chain wloc;
 	float[] wbox;
 	boolean nobox;
+	/* A batch's: its mesh's box diagonal (0: no mesh, no levels; -1: not taken yet), its size on screen
+	 * this frame, and the level it was last given. */
+	double diam = -1, scr;
+	int lod;
+	boolean tiny;	// left out this pass for being too small to see, rather than off screen
 
 	Entry(Slot<? extends Rendered> slot) {
 	    this.slot = slot;
@@ -128,33 +186,45 @@ public class FrustumList implements RenderList<Rendered> {
 	enabled = on;
 	ccam = null; cprj = null; cclip = null;
 	int removes = 0, testable = 0;
+	boolean lod = on && lodon;
+	double bias = lodbias;
+	int[] counts = new int[LODAT.length + 2];
 	for(int i = 0; i < order.size(); i++) {
 	    Entry e = order.get(i);
 	    Boolean vis = on ? visible(e, e.drawn ? LEAVE : ENTER) : null;
 	    if(vis != null)
 		testable++;
 	    boolean want = (vis != Boolean.FALSE);
-	    if(want == e.drawn)
-		continue;
-	    if(want) {
-		try {
-		    back.add(e.slot);
-		} catch(RuntimeException exc) {
-		    /* Not compilable yet -- a texture still loading. Asked again next frame. */
-		    continue;
+	    if(want != e.drawn) {
+		if(want) {
+		    try {
+			back.add(e.slot);
+			e.drawn = true;
+			nculled--;
+		    } catch(RuntimeException exc) {
+			/* Not compilable yet -- a texture still loading. Asked again next frame. */
+		    }
+		} else if(removes < REMOVES) {
+		    removes++;
+		    back.remove(e.slot);
+		    e.drawn = false;
+		    nculled++;
 		}
-		e.drawn = true;
-		nculled--;
-	    } else {
-		if(removes >= REMOVES)
-		    continue;
-		removes++;
-		back.remove(e.slot);
-		e.drawn = false;
-		nculled++;
+	    }
+	    if(e.drawn && (e.slot instanceof InstanceBatch) && (lod || (e.lod != 0))) {
+		int lvl = (lod && (e.diam > 0) && (vis != null)) ? lodlevel(e.scr * bias, e.lod) : 0;
+		e.lod = lvl;
+		/* Every frame, not only on a change: the levels are made off the frame, and until they are
+		 * the batch goes on drawing all of itself. */
+		InstanceList.batchlod(e.slot, lvl);
+		counts[lvl]++;
+	    } else if(!e.drawn && e.tiny && (vis == Boolean.FALSE)) {
+		counts[LODAT.length + 1]++;
 	    }
 	}
 	ncullable = testable;
+	if(on)
+	    lodcounts = counts;
     }
 
     /* TRUE in view, FALSE out of it, null when this slot cannot be tested and is always drawn. */
@@ -206,7 +276,24 @@ public class FrustumList implements RenderList<Rendered> {
 		clip = prj.fin(Matrix4f.id).mul(cam.fin(Matrix4f.id));
 		ccam = cam; cprj = prj; cclip = clip;
 	    }
-	    return(inside(clip.m, (wbox != null) ? wbox : e.wbox, (float)(1.0 + margin)));
+	    if(wbox != null) {
+		e.tiny = false;
+		if(!inside(clip.m, wbox, (float)(1.0 + margin)))
+		    return(Boolean.FALSE);
+		if(e.diam < 0) {
+		    FastMesh m = InstanceList.batchmesh(slot);
+		    e.diam = (m == null) ? 0 : m.bounds().n.dist(m.bounds().p);
+		}
+		if(e.diam > 0) {
+		    e.scr = screensize(clip.m, wbox, e.diam * InstanceList.batchscale(slot));
+		    if(lodon && ((e.scr * lodbias) < (TINY * (e.drawn ? (1 - HYST) : (1 + HYST))))) {
+			e.tiny = true;
+			return(Boolean.FALSE);
+		    }
+		}
+		return(Boolean.TRUE);
+	    }
+	    return(inside(clip.m, e.wbox, (float)(1.0 + margin)));
 	} catch(RuntimeException exc) {
 	    return(null);
 	}

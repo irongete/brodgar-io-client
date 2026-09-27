@@ -384,6 +384,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	/* addon: the box around every member's mesh at its own location, for batchbox: made again only after
 	 * a member was added, moved or taken out (iupdate, itrim). */
 	private float[] wbox = null;
+	private float wscale = 1;	// the largest scale a member's location puts on its mesh
 	private boolean boxdirty = true, nobox = false;
 
 	InstanceList owner() {return(InstanceList.this);}
@@ -393,6 +394,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 		return(nobox ? null : wbox);
 	    boxdirty = false;
 	    float nx = Float.POSITIVE_INFINITY, ny = nx, nz = nx, px = Float.NEGATIVE_INFINITY, py = px, pz = px;
+	    float sc = 0;
 	    for(int i = 0; i < ni; i++) {
 		Slot<? extends Rendered> s = insts[i].slot;
 		Location.Chain loc = s.state().get(Homo3D.loc);
@@ -402,6 +404,9 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 		}
 		haven.Volume3f b = ((haven.FastMesh)s.obj()).bounds();
 		float[] m = loc.fin(Matrix4f.id).m;
+		sc = Math.max(sc, (float)Math.sqrt(Math.max((m[0] * m[0]) + (m[1] * m[1]) + (m[2] * m[2]),
+						     Math.max((m[4] * m[4]) + (m[5] * m[5]) + (m[6] * m[6]),
+							      (m[8] * m[8]) + (m[9] * m[9]) + (m[10] * m[10])))));
 		for(int c = 0; c < 8; c++) {
 		    float x = ((c & 1) == 0) ? b.n.x : b.p.x, y = ((c & 2) == 0) ? b.n.y : b.p.y, z = ((c & 4) == 0) ? b.n.z : b.p.z;
 		    float wx = (m[0] * x) + (m[4] * y) + (m[ 8] * z) + m[12];
@@ -423,6 +428,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 		w[c * 3 + 2] = ((c & 4) == 0) ? nz : pz;
 	    }
 	    nobox = false;
+	    wscale = sc;
 	    return(wbox = w);
 	}
 
@@ -1093,6 +1099,36 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	InstanceList.InstancedSlot b = (InstanceList.InstancedSlot)slot;
 	synchronized(b.owner()) {
 	    return(b.worldbox());
+	}
+    }
+
+    /* addon: the largest scale a batch's members' locations put on its mesh, as of its last batchbox. */
+    public static float batchscale(RenderList.Slot<?> slot) {
+	if(!(slot instanceof InstanceList.InstancedSlot))
+	    return(1);
+	InstanceList.InstancedSlot b = (InstanceList.InstancedSlot)slot;
+	synchronized(b.owner()) {
+	    return(b.wscale);
+	}
+    }
+
+    /* addon: the mesh a batch draws, or null for any other slot and for a batch of anything else. */
+    public static haven.FastMesh batchmesh(RenderList.Slot<?> slot) {
+	if(!(slot instanceof InstanceList.InstancedSlot))
+	    return(null);
+	Object id = ((InstanceList.InstancedSlot)slot).key.instid;
+	return((id instanceof haven.FastMesh) ? (haven.FastMesh)id : null);
+    }
+
+    /* addon: have a batch of a mesh draw detail level `level` (haven.FastMesh.Instanced.lod), from the next
+     * commit on, where the batch goes to its clients as updated. Anything else is left alone. */
+    public static void batchlod(RenderList.Slot<?> slot, int level) {
+	if(!(slot instanceof InstanceList.InstancedSlot))
+	    return;
+	InstanceList.InstancedSlot b = (InstanceList.InstancedSlot)slot;
+	synchronized(b.owner()) {
+	    if(b.rend instanceof haven.FastMesh.Instanced)
+		((haven.FastMesh.Instanced)b.rend).lod(level);
 	}
     }
 

@@ -106,9 +106,97 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
     }
 
     public void dispose() {
+	Object ls = lodstate;
+	if(ls instanceof Lod[]) {
+	    Set<Lod> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+	    for(Lod l : (Lod[])ls) {
+		if((l != null) && seen.add(l))
+		    l.ind.dispose();
+	    }
+	}
 	model.ind.dispose();
 	model.dispose();
 	vert.dispose();
+    }
+
+    /* addon: LEVELS OF DETAIL. Index lists over this mesh's own vertices that draw fewer triangles
+     * (io.brodgar.perf.MeshLod), made once, off the frame, the first time a batch of this mesh asks for one
+     * (Instanced.lod). A level shares the vertex buffer -- and, instanced, the instance buffer -- so it costs
+     * one index buffer. */
+    public static final class Lod {
+	public final Indices ind;
+	public final int n;
+
+	Lod(Indices ind, int n) {
+	    this.ind = ind;
+	    this.n = n;
+	}
+    }
+
+    /* null: never asked; a Defer.Future: being made; a Lod[]: made, finest first, possibly none. */
+    private volatile Object lodstate = null;
+
+    /**
+     * addon: detail level {@code level} (1 the first below full), or the coarsest there is when this mesh has
+     * fewer; null for all of it -- while the levels are still being made, when it has none, and for a level
+     * that could not go usefully below full. Asking starts the making.
+     */
+    @SuppressWarnings("unchecked")
+    public Lod lod(int level) {
+	if(level <= 0)
+	    return(null);
+	Object ls = lodstate;
+	if(ls == null) {
+	    synchronized(this) {
+		if((ls = lodstate) == null) {
+		    lodstate = ls = Defer.later(new Defer.Callable<short[][]>() {
+			    public short[][] call() {
+				VertexBuf.VertexData vbuf = null;
+				VertexBuf.NormalData nbuf = null;
+				for(VertexBuf.AttribData buf : vert.bufs) {
+				    if(buf instanceof VertexBuf.VertexData)
+					vbuf = (VertexBuf.VertexData)buf;
+				    else if(buf instanceof VertexBuf.NormalData)
+					nbuf = (VertexBuf.NormalData)buf;
+				}
+				if(vbuf == null)
+				    return(new short[0][]);
+				return(io.brodgar.perf.MeshLod.build(vbuf.data.duplicate(), (nbuf == null) ? null : nbuf.data.duplicate(), indb.duplicate()));
+			    }
+			    public String toString() {return("Simplifying " + FastMesh.this);}
+			});
+		}
+	    }
+	}
+	if(ls instanceof Defer.Future) {
+	    Defer.Future<short[][]> f = (Defer.Future<short[][]>)ls;
+	    if(!f.done())
+		return(null);
+	    short[][] idx;
+	    try {
+		idx = f.get();
+	    } catch(RuntimeException e) {
+		idx = new short[0][];
+	    }
+	    /* A level that repeats the one before is the same array, and gets the same buffer; null is all of it. */
+	    Lod[] made = new Lod[idx.length];
+	    Map<short[], Lod> byarr = new IdentityHashMap<>();
+	    for(int i = 0; i < idx.length; i++) {
+		short[] ia = idx[i];
+		if(ia == null)
+		    continue;
+		made[i] = byarr.computeIfAbsent(ia, k -> new Lod(new Indices(k.length, NumberFormat.UINT16, DataBuffer.Usage.STATIC, (ibuf, env) -> {
+			    FillBuffer dst = env.fillbuf(ibuf);
+			    dst.push().asShortBuffer().put(k);
+			    return(dst);
+		}).shared().desc(this), k.length));
+	    }
+	    lodstate = ls = made;
+	}
+	Lod[] lods = (Lod[])ls;
+	if(lods.length == 0)
+	    return(null);
+	return(lods[Math.min(level, lods.length) - 1]);
     }
 
     public class Instanced implements Rendered.Instanced {
@@ -118,6 +206,7 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	private VertexArray data;
 	private Model model;
 	private int ninst;
+	private Lod curlod = null;	// addon: the level drawn, null for all of it
 
 	private Layout mkfmt(Layout.Input[] ifmt) {
 	    VertexArray sdat = vert.data();
@@ -158,11 +247,24 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	    if(model != null)
 		model.dispose();
 	    Model smod = FastMesh.this.model;
+	    Lod l = curlod;
 	    model = new Model(smod.mode, (data != null) ? data : vert.data(),
-			      smod.ind, smod.f, smod.n,
+			      (l == null) ? smod.ind : l.ind, (l == null) ? smod.f : 0, (l == null) ? smod.n : l.n,
 			      ninst).desc(this);
 	    if(batupd)
 		bat.instupdate();
+	}
+
+	/* addon: draw detail level `level` (FastMesh.lod; 0 is all of it) from the next commit on. Nothing
+	 * happens while the levels are still being made, nor when the level asked for is the one drawn. */
+	public void lod(int level) {
+	    Lod l = FastMesh.this.lod(level);
+	    if((level > 0) && (l == null) && (curlod == null))
+		return;
+	    if(l == curlod)
+		return;
+	    curlod = l;
+	    modupdate(true);
 	}
 
 	private void vertupdate() {
