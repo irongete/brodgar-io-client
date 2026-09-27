@@ -97,6 +97,34 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	return(ret);
     }
 
+    /* addon: A BATCH IS ONE MAP GRID'S. Upstream batches every slot of one mesh and one state wherever it
+     * stands, so a batch is one draw call over the whole scene: it can never be left out for being off
+     * screen, and every instance of it is drawn every frame -- thirteen thousand palisade pieces were ten
+     * million triangles a frame with the camera on the ground. The grid its location puts a slot in is part
+     * of the key, so a batch holds one grid's members, has a box a frustum can test (batchbox), and costs a
+     * draw call per grid it covers instead of one. A slot with no location is in no grid. */
+    private static final float CELL = (float)(haven.MCache.cmaps.x * haven.MCache.tilesz.x);
+    private static final long NOCELL = Long.MIN_VALUE;
+
+    private static long cellof(GroupPipe st) {
+	Location.Chain loc = st.get(Homo3D.loc);
+	if(loc == null)
+	    return(NOCELL);
+	float[] m = loc.fin(Matrix4f.id).m;
+	long cx = (long)Math.floor(m[12] / CELL), cy = (long)Math.floor(m[13] / CELL);
+	return((cx << 32) ^ (cy & 0xffffffffL));
+    }
+
+    /* addon: whether a location change in `mask` took the slot to another grid than its key's. */
+    private static boolean movedcell(Slot<? extends Rendered> slot, InstKey key, int[] mask) {
+	int lid = Homo3D.loc.id;
+	for(int i = 0; i < mask.length; i++) {
+	    if(mask[i] == lid)
+		return(cellof(slot.state()) != key.cell);
+	}
+	return(false);
+    }
+
     private static class InstKey {
 	final Object instid;
 	final Pipe[] ust;
@@ -104,10 +132,12 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	 * rather than by identity, if need be. */
 	final Instancer[] instids;
 	final int[] instidmap;
+	final long cell;	// addon: see CELL
 
 	InstKey(Slot<? extends Rendered> slot) {
 	    this.instid = ((Instancable)slot.obj()).instanceid();
 	    GroupPipe st = slot.state();
+	    this.cell = cellof(st);
 	    int ls;
 	    for(ls = st.nstates() - 1; (ls >= 0) && (st.gstate(ls) < 0); ls--);
 	    if(ls < 0) {
@@ -132,7 +162,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	}
 
 	public int hashCode() {
-	    int ret = System.identityHashCode(instid);
+	    int ret = System.identityHashCode(instid) ^ Long.hashCode(cell);	// addon: the grid
 	    for(int i = 0; i < ust.length; i++)
 		ret = (ret * 31) + System.identityHashCode(ust[i]);
 	    for(int i = 0; i < instids.length; i++)
@@ -142,6 +172,8 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 
 	private boolean equals(InstKey that) {
 	    if(this.instid != that.instid)
+		return(false);
+	    if(this.cell != that.cell)		// addon: the grid
 		return(false);
 	    if(this.ust.length != that.ust.length)
 		return(false);
@@ -291,6 +323,11 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	    }
 
 	    void update(Pipe group, int[] mask) {
+		if(movedcell(slot, key, mask)) {	// addon: into another grid's batch
+		    InstanceList.this.remove(slot);
+		    InstanceList.this.add(slot);
+		    return;
+		}
 		for(int i = 0; i < key.instids.length; i++) {
 		    for(int o = 0; o < mask.length; o++) {
 			if(mask[o] == key.instidmap[i]) {
@@ -344,7 +381,53 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	    }
 	}
 
+	/* addon: the box around every member's mesh at its own location, for batchbox: made again only after
+	 * a member was added, moved or taken out (iupdate, itrim). */
+	private float[] wbox = null;
+	private boolean boxdirty = true, nobox = false;
+
+	InstanceList owner() {return(InstanceList.this);}
+
+	float[] worldbox() {
+	    if(!boxdirty)
+		return(nobox ? null : wbox);
+	    boxdirty = false;
+	    float nx = Float.POSITIVE_INFINITY, ny = nx, nz = nx, px = Float.NEGATIVE_INFINITY, py = px, pz = px;
+	    for(int i = 0; i < ni; i++) {
+		Slot<? extends Rendered> s = insts[i].slot;
+		Location.Chain loc = s.state().get(Homo3D.loc);
+		if((loc == null) || !(s.obj() instanceof haven.FastMesh)) {
+		    nobox = true;
+		    return(null);
+		}
+		haven.Volume3f b = ((haven.FastMesh)s.obj()).bounds();
+		float[] m = loc.fin(Matrix4f.id).m;
+		for(int c = 0; c < 8; c++) {
+		    float x = ((c & 1) == 0) ? b.n.x : b.p.x, y = ((c & 2) == 0) ? b.n.y : b.p.y, z = ((c & 4) == 0) ? b.n.z : b.p.z;
+		    float wx = (m[0] * x) + (m[4] * y) + (m[ 8] * z) + m[12];
+		    float wy = (m[1] * x) + (m[5] * y) + (m[ 9] * z) + m[13];
+		    float wz = (m[2] * x) + (m[6] * y) + (m[10] * z) + m[14];
+		    nx = Math.min(nx, wx); px = Math.max(px, wx);
+		    ny = Math.min(ny, wy); py = Math.max(py, wy);
+		    nz = Math.min(nz, wz); pz = Math.max(pz, wz);
+		}
+	    }
+	    if(ni < 1) {
+		nobox = true;
+		return(null);
+	    }
+	    float[] w = new float[24];
+	    for(int c = 0; c < 8; c++) {
+		w[c * 3]     = ((c & 1) == 0) ? nx : px;
+		w[c * 3 + 1] = ((c & 2) == 0) ? ny : py;
+		w[c * 3 + 2] = ((c & 4) == 0) ? nz : pz;
+	    }
+	    nobox = false;
+	    return(wbox = w);
+	}
+
 	private void iupdate(int idx) {
+	    boxdirty = true;	// addon: see worldbox
 	    rend.iupdate(idx);
 	    for(int i = 0; i < ist.mask.length; i++) {
 		State st = ist.get(State.Slot.byid(ist.mask[i]));
@@ -356,6 +439,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	}
 
 	private void itrim(int idx) {
+	    boxdirty = true;	// addon: see worldbox
 	    rend.itrim(idx);
 	    for(int i = 0; i < ist.mask.length; i++) {
 		State st = ist.get(State.Slot.byid(ist.mask[i]));
@@ -552,6 +636,11 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	}
 
 	void update(Pipe group, int[] mask) {
+	    if(movedcell(slot, key, mask)) {	// addon: into another grid, where it may batch
+		InstanceList.this.remove(slot);
+		InstanceList.this.add(slot);
+		return;
+	    }
 	    for(int i = 0; i < key.instids.length; i++) {
 		for(int o = 0; o < mask.length; o++) {
 		    if(mask[o] == key.instidmap[i]) {
@@ -993,6 +1082,18 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 	if(slot instanceof InstanceList.InstancedSlot)
 	    return(((InstanceList.InstancedSlot)slot).key.instid);
 	return(null);
+    }
+
+    /* addon: the world box a batch's members stand in -- eight corners, x y z each, as FrustumList keeps
+     * a mesh's -- or null for any other slot, and for a batch whose members are not all located meshes.
+     * One grid's members at most (see CELL), so the box is a grid wide plus how far its meshes reach. */
+    public static float[] batchbox(RenderList.Slot<?> slot) {
+	if(!(slot instanceof InstanceList.InstancedSlot))
+	    return(null);
+	InstanceList.InstancedSlot b = (InstanceList.InstancedSlot)slot;
+	synchronized(b.owner()) {
+	    return(b.worldbox());
+	}
     }
 
     private static String censuslabel(Slot<? extends Rendered> slot) {

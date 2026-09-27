@@ -24,10 +24,11 @@ import haven.render.*;
  * out. The margins are fractions of the half-width of the view at that distance: 0.1 widens a frustum
  * of 90 degrees across by about 3 degrees on each side, 0.2 by about 5. The far plane is not tested.
  *
- * <p>An instanced batch is always drawn -- its members stand all over the scene and it is one draw call
- * however many of them are in view -- and so is a slot with no location, a non-mesh object (the sky, the
- * weather, an outline) or one whose bounds cannot be had. Every call here is under the tree's lock, as
- * the instancer's are.
+ * <p>An instanced batch is tested as one box around all its members ({@link InstanceList#batchbox}): the
+ * instancer puts one map grid's members in a batch, so the box is a grid wide and a batch off screen is
+ * left out whole. A slot with no location, a non-mesh object (the sky, the weather, an outline), a batch
+ * of something else than located meshes, or anything whose bounds cannot be had is always drawn. Every
+ * call here is under the tree's lock, as the instancer's are.
  */
 public class FrustumList implements RenderList<Rendered> {
     public static final double ENTER = 0.1, LEAVE = 0.2;
@@ -160,19 +161,26 @@ public class FrustumList implements RenderList<Rendered> {
     private Boolean visible(Entry e, double margin) {
 	try {
 	    Slot<? extends Rendered> slot = e.slot;
-	    if(slot instanceof InstanceBatch)
-		return(null);
 	    GroupPipe st = slot.state();
-	    Location.Chain loc = st.get(Homo3D.loc);
-	    if(loc == null)
+	    float[] wbox;
+	    if(slot instanceof InstanceBatch) {
+		/* One grid's members (InstanceList.CELL), in the box around them all, which the list keeps
+		 * until a member comes, goes or moves. */
+		if((wbox = InstanceList.batchbox(slot)) == null)
+		    return(null);
+	    } else {
+		wbox = null;
+	    }
+	    Location.Chain loc = (wbox == null) ? st.get(Homo3D.loc) : null;
+	    if((wbox == null) && (loc == null))
 		return(null);
 	    Camera cam = st.get(Homo3D.cam);
 	    Projection prj = st.get(Homo3D.prj);
 	    if((cam == null) || (prj == null))
 		return(null);
-	    if(e.nobox)
+	    if((wbox == null) && e.nobox)
 		return(null);
-	    if(e.wloc != loc) {
+	    if((wbox == null) && (e.wloc != loc)) {
 		if(e.wbox == null) nnewbox++; else nmovedbox++;
 		Rendered obj = slot.obj();
 		if(!(obj instanceof FastMesh)) {
@@ -198,7 +206,7 @@ public class FrustumList implements RenderList<Rendered> {
 		clip = prj.fin(Matrix4f.id).mul(cam.fin(Matrix4f.id));
 		ccam = cam; cprj = prj; cclip = clip;
 	    }
-	    return(inside(clip.m, e.wbox, (float)(1.0 + margin)));
+	    return(inside(clip.m, (wbox != null) ? wbox : e.wbox, (float)(1.0 + margin)));
 	} catch(RuntimeException exc) {
 	    return(null);
 	}
