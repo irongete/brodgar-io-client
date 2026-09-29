@@ -51,6 +51,34 @@ under, or by an unversioned ask when it failed under a version; an unversioned a
 the same failed `Queued` for the pool's lifetime (`Pool.load`'s `XXX` branch). A name the server has no
 resource for therefore costs one round of every source, once.
 
+⚠️ **A queued ask that a newer version supersedes.** With the name queued and not yet cached, an ask for
+a newer version than the queued one makes a new `Queued` and takes the old one off `queued`. Upstream takes
+it off the queue as well and never completes it, so whatever holds it waits for good — `Resource.Saved`
+keeps the versioned ask it made (`wver`) and asks that same one on every `get`. The fork (`// addon:`) has
+the superseded ask wait on the new one and be answered with what it loads, the way a child pool's ask
+waits on its parent's (`Queued.awaiting`, `rdep`, `prior`): no ask is left hanging, and no version nothing
+asks for any more is fetched — the disk cache holds one copy per name (`res/<name>`), so a fetched old
+version would push out the current one. Only when the new ask fails does the old one go back to loading
+its own version. `Queued.done` caches its object only when nothing newer is cached under the name, and
+takes out only its own `queued` entry.
+
+**A saved reference (`Resource.Saved`).** A `Saved` names a resource at the version it was saved with:
+`MapFile` records every grid's tilesets and overlays so (`MapFile.Grid.from`, the version the session had
+loaded), a zoom grid takes the highest version of its four children, and markers and `GobIcon` settings
+keep theirs. The server serves only its latest, so a record keeps versions that no longer exist anywhere.
+Upstream's `get` asks the saved version first and the latest only when that fails, and for a version older
+than the latest that first ask can only fail — after every source has been asked, the network included:
+the brodgar.io cache answers `404` for `<name>.res.v<old>`, and the proxy behind it the latest, which the
+parse refuses. The fork's `get` (`// addon:`) takes the copy at hand first — `Pool.load(name, -1)`: this
+pool's, a jar's, the disk cache's, or else the network's latest — when its version is at least the saved
+one, and asks the saved version only when that copy is older than it. It ends with the object upstream's
+order ends with, in every case, without the round trips that could only fail. ⚠️ Upstream's order costs
+those round trips for every reader of a record asking before a current copy is loaded: a handful for the
+map window, which shows what the character has walked, while the live terrain loads the current tilesets
+around them; dozens at login for the remembered ground, which draws the record out to the view distance
+([mapfile.md](mapfile.md)) — ten seconds of the resource loaders' time, measured, with every tile the far
+ground and the map window wait for queued behind them.
+
 **Parsing (`Resource.load(Message)`).** The stream opens with `"Haven Resource 1"` and a `uint16`
 version. When the object was created with `ver == -1` that number becomes `Resource.ver`; otherwise any
 mismatch — higher or lower — is `LoadException("Wrong res version")` and `Pool.handle` asks the next

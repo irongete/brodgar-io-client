@@ -116,6 +116,7 @@ public class Resource implements Serializable {
 	private transient Indir<Resource> wver = null;
 	private Throwable verr = null;
 	private transient Resource loaded;
+	private transient boolean older = false;   // addon: see get
 
 	public Saved(Pool pool, String name, int ver) {
 	    super(name, ver);
@@ -125,6 +126,25 @@ public class Resource implements Serializable {
 	public Resource get(int prio) {
 	    if(loaded != null)
 		return(loaded);
+	    /* addon: the copy at hand first -- this pool's, a jar's, the disk cache's, or else the network's latest --
+	     * taken when it is at least the version saved. The saved version is where it was when the reference was
+	     * saved (MapFile records every grid's tilesets so), the server serves only its latest, and every source
+	     * holds one copy per name: asked first, an old version could only fail, and it failed only after the
+	     * network had been asked for it -- before this fell back to the latest all the same. Only a copy older
+	     * than the one saved sends the ask for the saved version, as upstream has it. */
+	    if(!older) {
+		Resource cur;
+		try {
+		    cur = pool.load(name, -1, prio).get();
+		} catch(Loading l) {
+		    throw(l);
+		} catch(Exception e) {
+		    cur = null;
+		}
+		if((cur != null) && (cur.ver >= ver))
+		    return(loaded = cur);
+		older = true;
+	    }
 	    if(verr == null) {
 		try {
 		    if(wver == null)
@@ -616,10 +636,14 @@ public class Resource implements Serializable {
 		}
 		if(res != null) {
 		    synchronized(cache) {
-			cache.put(name, res);
+			/* addon: and never over a newer version: an older ask can finish after a newer one -- one a newer
+			 * ask superseded goes back to loading its own version when that one fails (Pool.load, prior). */
+			Resource cur = cache.get(name);
+			if((cur == null) || (cur.ver <= res.ver))
+			    cache.put(name, res);
 		    }
 		    synchronized(queue) {
-			queued.remove(name);
+			queued.remove(name, this);   // addon: its own entry only -- a newer ask may stand under the name
 		    }
 		}
 	    }
@@ -691,6 +715,7 @@ public class Resource implements Serializable {
 		    }
 		}
 		synchronized(queue) {
+		    Queued sup = null;   // addon: see below
 		    Queued cq = queued.get(name);
 		    if(cq != null) {
 			if(ver != -1) {
@@ -709,7 +734,12 @@ public class Resource implements Serializable {
 			    }
 			}
 			queued.remove(name);
-			queue.removeid(cq);
+			/* addon: the ask a newer one supersedes leaves the queue, as upstream has it, but is not dropped: it
+			 * waits on the new ask and is answered with what that one loads (below). Dropped, it was never done,
+			 * and whatever held it waited on it for good -- Resource.Saved keeps the ask it made. One a loader
+			 * has taken already, or one waiting on the parent pool, is answered by its own load. */
+			if(queue.removeid(cq))
+			    sup = cq;
 		    }
 		    Queued nq = new Queued(name, ver, prio);
 		    if(parent == null) {
@@ -732,6 +762,16 @@ public class Resource implements Serializable {
 			} else {
 			    nq.res = pr.get();
 			    nq.done = true;
+			}
+		    }
+		    if(sup != null) {   // addon: see above -- the parent pool's own way of answering one ask with another
+			synchronized(nq) {
+			    if(nq.done) {
+				sup.prior(nq);
+			    } else {
+				sup.awaiting = nq;
+				nq.rdep.add(sup);
+			    }
 			}
 		    }
 		    ret = nq;
