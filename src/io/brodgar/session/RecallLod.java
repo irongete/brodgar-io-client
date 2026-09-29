@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import haven.Coord;
 import haven.Coord2d;
@@ -36,6 +37,7 @@ import haven.GOut;
 import haven.Utils;
 import haven.Warning;
 import haven.render.DataBuffer;
+import haven.render.Environment;
 import haven.render.FillBuffer;
 import haven.render.Homo3D;
 import haven.render.Location;
@@ -94,7 +96,9 @@ import io.brodgar.perf.Performance;
  * edge hangs a strip down, as deep as the slope there, so two cells whose sampled
  * heights disagree along a shared edge show no crack between them. It is built on a {@link Defer} thread,
  * cached by level, place and flat-terrain state, and dropped least-recently-wanted first past {@link
- * #CACHECAP} more than the tick draws and wants. A cell follows the record: when a grid under it is taken in
+ * #CACHECAP} more than the tick draws and wants. It is put on the GPU as soon as it is built, drawn or not,
+ * and keeps no copy of what it put there ({@link #upload}, {@link Source}): a cached cell costs video memory,
+ * and of the heap only the zoom grid it was built from. A cell follows the record: when a grid under it is taken in
  * again with different ground, it is built again and swapped in for the build it replaces ({@link #refresh}).
  *
  * <p>Nothing stands on it and nothing reaches it: no objects, no overlays, no shadow cast. A click on it is a
@@ -747,6 +751,29 @@ public class RecallLod implements RenderTree.Node {
 	trim(inuse);
     }
 
+    /**
+     * Put a cell just built on the GPU, drawn or not: into this node's scene slot and the click pass's and out of
+     * both again at once. Adding a slot is what fills its buffers and texture -- the draw list prepares a slot as
+     * it compiles it, in view or not -- so the build's arrays go as they are taken ({@link Source}) and a turn of
+     * the camera that brings the cell on screen has nothing to upload. What is on the GPU goes with the cell
+     * ({@code Built.dispose}). Out of the scene nothing is put anywhere, and the cell uploads when first drawn.
+     */
+    private void upload(Key key, Built b) {
+	Recall.Base base = placed;
+	if(base == null)
+	    return;
+	Coord tc = key.sc.sub(base.off).mul(MCache.cmaps);
+	Pipe.Op at = Location.xlate(Coord3f.of((float)(tc.x * MCache.tilesz.x), -(float)(tc.y * MCache.tilesz.y), 0));
+	try {
+	    if(slot != null)
+		slot.add(b.node, at).remove();
+	    if(cslot != null)
+		cslot.add(MapView.farclick(tc, MCache.cmaps.mul(1 << key.lvl), b.click), at).remove();
+	} catch(Loading l) {
+	    /* Nothing of its own waits, but a material of the scene's might: it uploads when first drawn. */
+	}
+    }
+
     /** One step of a cell in flight: collect its zoom grid and start its mesh, or collect its mesh. Whether it
      * is still in flight after it. */
     private boolean advance(Key key, Cell c) {
@@ -767,6 +794,8 @@ public class RecallLod implements RenderTree.Node {
 	    }
 	    c.building = null;
 	    cellchange = true;
+	    if(c.built != prev)
+		upload(key, c.built);
 	    return(false);
 	}
 	if(c.fetched)
@@ -1262,6 +1291,243 @@ public class RecallLod implements RenderTree.Node {
     }
 
     /**
+     * What a built cell's buffers and texture are filled from: the arrays its build made, each handed to the
+     * environment the first time it asks for it and let go of then -- the GPU holds the cell from there on, and
+     * a cell is put there as soon as it is built, drawn or not ({@link #upload}). An environment asking again (a
+     * new GL context) has them made again from the zoom grid the cell was built from, which the cell keeps in
+     * any case ({@code Cell.from}): upstream's own way with a texture it can make again from its source
+     * ({@code TexL}, {@code RUtils.CubeFill}). A copy kept here would be three hundred kilobytes a cell for as
+     * long as the cell is cached, and most cells are built ahead for a turn of the camera and never drawn.
+     *
+     * <p>The build's other answers ({@link #zlo}, {@link #zhi}, {@link #quads}, {@link #nclick}) are made with
+     * the arrays and are the same every time; the arrays are taken under the monitor, from whatever thread
+     * prepares the buffer.
+     */
+    private static final class Source {
+	final MapFile.DataGrid g;
+	final int lvl;
+	final boolean flat;
+	final boolean[] nil;
+	float zlo, zhi;
+	int quads, nclick;
+	private float[] vert, cvert;
+	private short[] idx, cidx;
+	private byte[][] tex;
+
+	Source(MapFile.DataGrid g, int lvl, boolean flat) {
+	    this.g = g;
+	    this.lvl = lvl;
+	    this.flat = flat;
+	    this.nil = unrecorded(g);
+	    mesh();
+	    this.tex = texels(g, nil, false);
+	}
+
+	synchronized float[] vert() {
+	    if(vert == null)
+		mesh();
+	    float[] ret = vert;
+	    vert = null;
+	    return(ret);
+	}
+
+	synchronized short[] idx() {
+	    if(idx == null)
+		mesh();
+	    short[] ret = idx;
+	    idx = null;
+	    return(ret);
+	}
+
+	synchronized float[] cvert() {
+	    if(cvert == null)
+		mesh();
+	    float[] ret = cvert;
+	    cvert = null;
+	    return(ret);
+	}
+
+	synchronized short[] cidx() {
+	    if(cidx == null)
+		mesh();
+	    short[] ret = cidx;
+	    cidx = null;
+	    return(ret);
+	}
+
+	/* Every level is asked for in turn, and then done() (GLTexture.Tex2D.create). */
+	synchronized byte[] tex(int level) {
+	    if(tex == null)
+		tex = texels(g, nil, true);
+	    return(tex[level]);
+	}
+
+	synchronized void texdone() {
+	    tex = null;
+	}
+
+	/**
+	 * The mesh: a height map of {@link #QUADS}² quads with a ring of skirt vertices, and the click mesh over
+	 * the same surface. Interleaved position, normal, texcoord; the texcoords span the samples, which fill the
+	 * corner of a larger texture ({@link #texels}).
+	 */
+	private void mesh() {
+	    int n = QUADS, nv = n + 1;
+	    int step = MCache.cmaps.x / n;                                  // samples per quad
+	    float q = (float)(step * (1 << lvl) * MCache.tilesz.x);         // world units per quad
+	    float[] z = new float[nv * nv];
+	    float zlo = Float.POSITIVE_INFINITY, zhi = Float.NEGATIVE_INFINITY;
+	    for(int j = 0; j < nv; j++) {
+		for(int i = 0; i < nv; i++) {
+		    float v = flat ? 0 : cornerz(g, nil, i * step, j * step);
+		    z[i + (j * nv)] = v;
+		    if(!Float.isNaN(v)) {
+			zlo = Math.min(zlo, v);
+			zhi = Math.max(zhi, v);
+		    }
+		}
+	    }
+	    if(zlo > zhi)
+		zlo = zhi = 0;
+	    /* A corner with no recorded sample around it stands in a hole, which the texture discards; it takes
+	     * its level from the recorded ground's lowest so no edge of the hole juts up or down. */
+	    for(int k = 0; k < z.length; k++) {
+		if(Float.isNaN(z[k]))
+		    z[k] = zlo;
+	    }
+	    int quads = 0;
+	    for(int y = 0; y < MCache.cmaps.y; y++) {
+		for(int x = 0; x < MCache.cmaps.x; x++) {
+		    if(!nil[g.tiles[x + (y * MCache.cmaps.x)]])
+			quads |= 1 << (((x * 2) / MCache.cmaps.x) + (((y * 2) / MCache.cmaps.y) * 2));
+		}
+	    }
+
+	    float tcs = (float)MCache.cmaps.x / TEXSZ;
+	    int nskirt = 4 * n;
+	    int nvert = (nv * nv) + nskirt;
+	    float[] vert = new float[nvert * 8];
+	    for(int j = 0; j < nv; j++) {
+		for(int i = 0; i < nv; i++) {
+		    float zl = z[Math.max(i - 1, 0) + (j * nv)], zr = z[Math.min(i + 1, n) + (j * nv)];
+		    float zu = z[i + (Math.max(j - 1, 0) * nv)], zd = z[i + (Math.min(j + 1, n) * nv)];
+		    float dzdx = (zr - zl) / (q * (Math.min(i + 1, n) - Math.max(i - 1, 0)));
+		    /* Local y runs the other way from j. */
+		    float dzdy = -(zd - zu) / (q * (Math.min(j + 1, n) - Math.max(j - 1, 0)));
+		    float nx = -dzdx, ny = -dzdy, nz = 1;
+		    float nl = (float)Math.sqrt((nx * nx) + (ny * ny) + (nz * nz));
+		    int o = (i + (j * nv)) * 8;
+		    vert[o]     = i * q;
+		    vert[o + 1] = -(j * q);
+		    vert[o + 2] = z[i + (j * nv)];
+		    vert[o + 3] = nx / nl;
+		    vert[o + 4] = ny / nl;
+		    vert[o + 5] = nz / nl;
+		    vert[o + 6] = (tcs * i) / n;
+		    vert[o + 7] = (tcs * j) / n;
+		}
+	    }
+	    /* The skirt's ring walks the edge in order, one vertex under each edge vertex, a corner once. */
+	    int[] ring = new int[nskirt];
+	    {
+		int k = 0;
+		for(int i = 0; i < n; i++) ring[k++] = i;                          // top edge, left to right
+		for(int j = 0; j < n; j++) ring[k++] = n + (j * nv);               // right edge, downward
+		for(int i = n; i > 0; i--) ring[k++] = i + (n * nv);               // bottom edge, right to left
+		for(int j = n; j > 0; j--) ring[k++] = j * nv;                     // left edge, upward
+	    }
+	    int sbase = nv * nv;
+	    /* Each skirt vertex hangs only as far as the ground around it moves: a crack between two cells is
+	     * the two disagreeing about a height the slope there puts within that reach. A fixed deep skirt
+	     * stands as a wall wherever no neighbour is drawn -- unexplored ground, a cell still loading. */
+	    float deepest = 0;
+	    for(int k = 0; k < nskirt; k++) {
+		int v = ring[k], vi = v % nv, vj = v / nv;
+		float zc = z[v], dz = 0;
+		if(vi > 0) dz = Math.max(dz, Math.abs(zc - z[v - 1]));
+		if(vi < n) dz = Math.max(dz, Math.abs(zc - z[v + 1]));
+		if(vj > 0) dz = Math.max(dz, Math.abs(zc - z[v - nv]));
+		if(vj < n) dz = Math.max(dz, Math.abs(zc - z[v + nv]));
+		float depth = 10 + (dz * 2);
+		deepest = Math.max(deepest, depth);
+		int src = v * 8, o = (sbase + k) * 8;
+		System.arraycopy(vert, src, vert, o, 8);
+		vert[o + 2] -= depth;
+	    }
+	    zlo -= deepest;
+
+	    int nidx = (n * n * 6) + (nskirt * 6);
+	    short[] idx = new short[nidx];
+	    int p = 0;
+	    for(int j = 0; j < n; j++) {
+		for(int i = 0; i < n; i++) {
+		    int a = i + (j * nv), b = a + 1, c = a + nv, d = c + 1;
+		    idx[p++] = (short)a; idx[p++] = (short)c; idx[p++] = (short)b;
+		    idx[p++] = (short)b; idx[p++] = (short)c; idx[p++] = (short)d;
+		}
+	    }
+	    for(int k = 0; k < nskirt; k++) {
+		int k2 = (k + 1) % nskirt;
+		int a = ring[k], b = ring[k2], c = sbase + k, d = sbase + k2;
+		idx[p++] = (short)a; idx[p++] = (short)c; idx[p++] = (short)b;
+		idx[p++] = (short)b; idx[p++] = (short)c; idx[p++] = (short)d;
+	    }
+
+	    /* The click mesh: the surface's vertices with their 0..1 place over the cell as ClickLocation's, and
+	     * every quad that has a recorded sample in it -- a click on a hole reaches whatever lies behind. */
+	    float[] cvert = new float[nv * nv * 5];
+	    for(int v = 0; v < nv * nv; v++) {
+		System.arraycopy(vert, v * 8, cvert, v * 5, 3);
+		cvert[(v * 5) + 3] = (float)(v % nv) / n;
+		cvert[(v * 5) + 4] = (float)(v / nv) / n;
+	    }
+	    short[] cidx = new short[n * n * 6];
+	    int cp = 0;
+	    for(int j = 0; j < n; j++) {
+		for(int i = 0; i < n; i++) {
+		    boolean any = false;
+		    for(int sy = j * step; (sy < (j + 1) * step) && !any; sy++) {
+			for(int sx = i * step; (sx < (i + 1) * step) && !any; sx++)
+			    any = !nil[g.tiles[sx + (sy * MCache.cmaps.x)]];
+		    }
+		    if(!any)
+			continue;
+		    int a = i + (j * nv), b = a + 1, c = a + nv, d = c + 1;
+		    cidx[cp++] = (short)a; cidx[cp++] = (short)c; cidx[cp++] = (short)b;
+		    cidx[cp++] = (short)b; cidx[cp++] = (short)c; cidx[cp++] = (short)d;
+		}
+	    }
+	    int nclick = Math.max(cp, 3);   // a cell of holes alone: one degenerate triangle, no pixel
+
+	    this.zlo = zlo;
+	    this.zhi = zhi;
+	    this.quads = quads;
+	    this.nclick = nclick;
+	    this.vert = vert;
+	    this.idx = idx;
+	    this.cvert = cvert;
+	    this.cidx = java.util.Arrays.copyOf(cidx, nclick);
+	}
+    }
+
+    /* A buffer's filler that takes its array from a cell's source each time it is filled: see Source. */
+    private static DataBuffer.Filler<DataBuffer> floats(Supplier<float[]> src) {
+	return((tgt, env) -> {
+		FillBuffer buf = env.fillbuf(tgt);
+		buf.push().asFloatBuffer().put(src.get());
+		return(buf);
+	    });
+    }
+
+    private static DataBuffer.Filler<DataBuffer> shorts(Supplier<short[]> src) {
+	return((tgt, env) -> {
+		FillBuffer buf = env.fillbuf(tgt);
+		buf.push().asShortBuffer().put(src.get());
+		return(buf);
+	    });
+    }
+
+    /**
      * The cell's texture: one texel per sample, the colour the tileset's minimap image has there, as the map
      * window draws a zoom grid. Magnified -- a sample covers a few pixels by design ({@link #texelpx}) -- it is
      * drawn as crisp squares, as the map window draws its grids and the game its own ground tiles; minified, it
@@ -1269,9 +1535,35 @@ public class RecallLod implements RenderTree.Node {
      * level and linear between two), so ground seen at a grazing angle is averaged rather than shimmering.
      * The samples fill the corner of the texture and the rest repeats the last row and column, so no level
      * reads past the ground. Ground never recorded is transparent, and the material discards it: a hole, not
-     * a black floor, and avg leaves it out of every average.
+     * a black floor, and avg leaves it out of every average. Its levels are the source's ({@link Source#tex}),
+     * let go of once they are all on the GPU ({@code done}).
      */
-    private static TexRender texture(MapFile.DataGrid g, boolean[] nil) {
+    private static TexRender texture(Source src) {
+	VectorFormat fmt = new VectorFormat(4, NumberFormat.UNORM8);
+	Texture2D tex = new Texture2D(TEXSZ, TEXSZ, DataBuffer.Usage.STATIC, fmt, fmt, new DataBuffer.Filler<Texture.Image>() {
+		public FillBuffer fill(Texture.Image img, Environment env) {
+		    FillBuffer buf = env.fillbuf(img);
+		    buf.pull(ByteBuffer.wrap(src.tex(img.level)));
+		    return(buf);
+		}
+
+		public void done() {
+		    src.texdone();
+		}
+	    });
+	Texture2D.Sampler2D smp = new Texture2D.Sampler2D(tex);
+	smp.magfilter(Texture.Filter.NEAREST).minfilter(Texture.Filter.NEAREST).mipfilter(Texture.Filter.LINEAR);
+	smp.wrapmode(Texture.Wrapping.CLAMP);
+	return(new TexRender(smp) {
+		public void render(GOut gout, float[] gc, float[] tc) {}
+	    });
+    }
+
+    /**
+     * The texture's levels ({@link #texture}), finest first. Made again for another environment ({@code again}),
+     * it cannot wait for a tileset still loading: that tileset's samples are grey, as an image-less one's are.
+     */
+    private static byte[][] texels(MapFile.DataGrid g, boolean[] nil, boolean again) {
 	int w = MCache.cmaps.x, h = MCache.cmaps.y;
 	BufferedImage[] texes = new BufferedImage[g.tilesets.length];
 	boolean[] got = new boolean[g.tilesets.length];
@@ -1286,7 +1578,9 @@ public class RecallLod implements RenderTree.Node {
 		    try {
 			r = g.tilesets[t].res.get();
 		    } catch(Loading l) {
-			throw(l);
+			if(!again)
+			    throw(l);
+			r = null;
 		    } catch(Exception e) {
 			r = null;
 		    }
@@ -1317,18 +1611,7 @@ public class RecallLod implements RenderTree.Node {
 	levels.add(px);
 	for(Coord sz = Coord.of(TEXSZ, TEXSZ); (sz.x > 1) || (sz.y > 1); sz = Mipmapper.nextsz(sz))
 	    levels.add(px = Mipmapper.avg.gen4(sz, px, fmt));
-	final byte[][] data = levels.toArray(new byte[0][]);
-	Texture2D tex = new Texture2D(TEXSZ, TEXSZ, DataBuffer.Usage.STATIC, fmt, fmt, (img, env) -> {
-		FillBuffer buf = env.fillbuf(img);
-		buf.pull(ByteBuffer.wrap(data[img.level]));
-		return(buf);
-	    });
-	Texture2D.Sampler2D smp = new Texture2D.Sampler2D(tex);
-	smp.magfilter(Texture.Filter.NEAREST).minfilter(Texture.Filter.NEAREST).mipfilter(Texture.Filter.LINEAR);
-	smp.wrapmode(Texture.Wrapping.CLAMP);
-	return(new TexRender(smp) {
-		public void render(GOut gout, float[] gc, float[] tc) {}
-	    });
+	return(levels.toArray(new byte[0][]));
     }
 
     /**
@@ -1339,165 +1622,39 @@ public class RecallLod implements RenderTree.Node {
     private static final Pipe.Op groundlight = new Light.PhongLight(true, new FColor(128 / 255f, 128 / 255f, 128 / 255f),
 								     FColor.WHITE, FColor.BLACK, FColor.BLACK, 0f);
 
+    /**
+     * A cell's build, on a {@link Defer} thread: its source ({@link Source}), which makes the arrays here, and the
+     * buffers, texture and material drawn from them, which take the arrays when they are uploaded.
+     */
     private static Built build(MapFile.DataGrid g, int lvl, boolean flat) {
+	Source src = new Source(g, lvl, flat);
 	int n = QUADS, nv = n + 1;
-	int step = MCache.cmaps.x / n;                                  // samples per quad
-	float q = (float)(step * (1 << lvl) * MCache.tilesz.x);         // world units per quad
-	boolean[] nil = unrecorded(g);
-	float[] z = new float[nv * nv];
-	float zlo = Float.POSITIVE_INFINITY, zhi = Float.NEGATIVE_INFINITY;
-	for(int j = 0; j < nv; j++) {
-	    for(int i = 0; i < nv; i++) {
-		float v = flat ? 0 : cornerz(g, nil, i * step, j * step);
-		z[i + (j * nv)] = v;
-		if(!Float.isNaN(v)) {
-		    zlo = Math.min(zlo, v);
-		    zhi = Math.max(zhi, v);
-		}
-	    }
-	}
-	if(zlo > zhi)
-	    zlo = zhi = 0;
-	/* A corner with no recorded sample around it stands in a hole, which the texture discards; it takes
-	 * its level from the recorded ground's lowest so no edge of the hole juts up or down. */
-	for(int k = 0; k < z.length; k++) {
-	    if(Float.isNaN(z[k]))
-		z[k] = zlo;
-	}
-	int quads = 0;
-	for(int y = 0; y < MCache.cmaps.y; y++) {
-	    for(int x = 0; x < MCache.cmaps.x; x++) {
-		if(!nil[g.tiles[x + (y * MCache.cmaps.x)]])
-		    quads |= 1 << (((x * 2) / MCache.cmaps.x) + (((y * 2) / MCache.cmaps.y) * 2));
-	    }
-	}
-
-	/* Interleaved position, normal, texcoord: the main grid, then one ring of skirt vertices. The texcoords
-	 * span the samples, which fill the corner of a larger texture (texture()). */
-	float tcs = (float)MCache.cmaps.x / TEXSZ;
-	int nskirt = 4 * n;
-	int nvert = (nv * nv) + nskirt;
-	float[] vert = new float[nvert * 8];
-	for(int j = 0; j < nv; j++) {
-	    for(int i = 0; i < nv; i++) {
-		float zl = z[Math.max(i - 1, 0) + (j * nv)], zr = z[Math.min(i + 1, n) + (j * nv)];
-		float zu = z[i + (Math.max(j - 1, 0) * nv)], zd = z[i + (Math.min(j + 1, n) * nv)];
-		float dzdx = (zr - zl) / (q * (Math.min(i + 1, n) - Math.max(i - 1, 0)));
-		/* Local y runs the other way from j. */
-		float dzdy = -(zd - zu) / (q * (Math.min(j + 1, n) - Math.max(j - 1, 0)));
-		float nx = -dzdx, ny = -dzdy, nz = 1;
-		float nl = (float)Math.sqrt((nx * nx) + (ny * ny) + (nz * nz));
-		int o = (i + (j * nv)) * 8;
-		vert[o]     = i * q;
-		vert[o + 1] = -(j * q);
-		vert[o + 2] = z[i + (j * nv)];
-		vert[o + 3] = nx / nl;
-		vert[o + 4] = ny / nl;
-		vert[o + 5] = nz / nl;
-		vert[o + 6] = (tcs * i) / n;
-		vert[o + 7] = (tcs * j) / n;
-	    }
-	}
-	/* The skirt's ring walks the edge in order, one vertex under each edge vertex, a corner once. */
-	int[] ring = new int[nskirt];
-	{
-	    int k = 0;
-	    for(int i = 0; i < n; i++) ring[k++] = i;                          // top edge, left to right
-	    for(int j = 0; j < n; j++) ring[k++] = n + (j * nv);               // right edge, downward
-	    for(int i = n; i > 0; i--) ring[k++] = i + (n * nv);               // bottom edge, right to left
-	    for(int j = n; j > 0; j--) ring[k++] = j * nv;                     // left edge, upward
-	}
-	int sbase = nv * nv;
-	/* Each skirt vertex hangs only as far as the ground around it moves: a crack between two cells is
-	 * the two disagreeing about a height the slope there puts within that reach. A fixed deep skirt
-	 * stands as a wall wherever no neighbour is drawn -- unexplored ground, a cell still loading. */
-	float deepest = 0;
-	for(int k = 0; k < nskirt; k++) {
-	    int v = ring[k], vi = v % nv, vj = v / nv;
-	    float zc = z[v], dz = 0;
-	    if(vi > 0) dz = Math.max(dz, Math.abs(zc - z[v - 1]));
-	    if(vi < n) dz = Math.max(dz, Math.abs(zc - z[v + 1]));
-	    if(vj > 0) dz = Math.max(dz, Math.abs(zc - z[v - nv]));
-	    if(vj < n) dz = Math.max(dz, Math.abs(zc - z[v + nv]));
-	    float depth = 10 + (dz * 2);
-	    deepest = Math.max(deepest, depth);
-	    int src = v * 8, o = (sbase + k) * 8;
-	    System.arraycopy(vert, src, vert, o, 8);
-	    vert[o + 2] -= depth;
-	}
-	zlo -= deepest;
-
-	int nidx = (n * n * 6) + (nskirt * 6);
-	short[] idx = new short[nidx];
-	int p = 0;
-	for(int j = 0; j < n; j++) {
-	    for(int i = 0; i < n; i++) {
-		int a = i + (j * nv), b = a + 1, c = a + nv, d = c + 1;
-		idx[p++] = (short)a; idx[p++] = (short)c; idx[p++] = (short)b;
-		idx[p++] = (short)b; idx[p++] = (short)c; idx[p++] = (short)d;
-	    }
-	}
-	for(int k = 0; k < nskirt; k++) {
-	    int k2 = (k + 1) % nskirt;
-	    int a = ring[k], b = ring[k2], c = sbase + k, d = sbase + k2;
-	    idx[p++] = (short)a; idx[p++] = (short)c; idx[p++] = (short)b;
-	    idx[p++] = (short)b; idx[p++] = (short)c; idx[p++] = (short)d;
-	}
-
+	int nvert = (nv * nv) + (4 * n), nidx = (n * n * 6) + (4 * n * 6);
 	int stride = 32;
 	VertexArray.Layout fmt = new VertexArray.Layout(
 	    new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0, stride),
 	    new VertexArray.Layout.Input(Homo3D.normal, new VectorFormat(3, NumberFormat.FLOAT32), 0, 12, stride),
 	    new VertexArray.Layout.Input(Tex2D.texc, new VectorFormat(2, NumberFormat.FLOAT32), 0, 24, stride));
-	VertexArray vao = new VertexArray(fmt, new VertexArray.Buffer(vert.length * 4, DataBuffer.Usage.STATIC,
-								      DataBuffer.Filler.of(vert)));
+	VertexArray vao = new VertexArray(fmt, new VertexArray.Buffer(nvert * stride, DataBuffer.Usage.STATIC, floats(src::vert)));
 	Model model = new Model(Model.Mode.TRIANGLES, vao,
-				new Model.Indices(nidx, NumberFormat.UINT16, DataBuffer.Usage.STATIC,
-						  DataBuffer.Filler.of(idx)),
+				new Model.Indices(nidx, NumberFormat.UINT16, DataBuffer.Usage.STATIC, shorts(src::idx)),
 				0, nidx);
 
-	TexRender tr = texture(g, nil);
+	TexRender tr = texture(src);
 	Material mat = new Material(new Pipe.Op[] {
 		tr.draw,
 		tr.clip,
 		groundlight,
 		Material.nofacecull,
 	    });
-	/* The click mesh: the surface's vertices with their 0..1 place over the cell as ClickLocation's, and
-	 * every quad that has a recorded sample in it -- a click on a hole reaches whatever lies behind. */
-	float[] cvert = new float[nv * nv * 5];
-	for(int v = 0; v < nv * nv; v++) {
-	    System.arraycopy(vert, v * 8, cvert, v * 5, 3);
-	    cvert[(v * 5) + 3] = (float)(v % nv) / n;
-	    cvert[(v * 5) + 4] = (float)(v / nv) / n;
-	}
-	short[] cidx = new short[n * n * 6];
-	int cp = 0;
-	for(int j = 0; j < n; j++) {
-	    for(int i = 0; i < n; i++) {
-		boolean any = false;
-		for(int sy = j * step; (sy < (j + 1) * step) && !any; sy++) {
-		    for(int sx = i * step; (sx < (i + 1) * step) && !any; sx++)
-			any = !nil[g.tiles[sx + (sy * MCache.cmaps.x)]];
-		}
-		if(!any)
-		    continue;
-		int a = i + (j * nv), b = a + 1, c = a + nv, d = c + 1;
-		cidx[cp++] = (short)a; cidx[cp++] = (short)c; cidx[cp++] = (short)b;
-		cidx[cp++] = (short)b; cidx[cp++] = (short)c; cidx[cp++] = (short)d;
-	    }
-	}
 	VertexArray.Layout cfmt = new VertexArray.Layout(
 	    new VertexArray.Layout.Input(Homo3D.vertex, new VectorFormat(3, NumberFormat.FLOAT32), 0, 0, 20),
 	    new VertexArray.Layout.Input(ClickLocation.vertex, new VectorFormat(2, NumberFormat.FLOAT32), 0, 12, 20));
-	VertexArray cvao = new VertexArray(cfmt, new VertexArray.Buffer(cvert.length * 4, DataBuffer.Usage.STATIC,
-								       DataBuffer.Filler.of(cvert)));
-	short[] cidxf = java.util.Arrays.copyOf(cidx, Math.max(cp, 3));
+	VertexArray cvao = new VertexArray(cfmt, new VertexArray.Buffer(nv * nv * 20, DataBuffer.Usage.STATIC, floats(src::cvert)));
 	Model click = new Model(Model.Mode.TRIANGLES, cvao,
-				new Model.Indices(cidxf.length, NumberFormat.UINT16, DataBuffer.Usage.STATIC,
-						  DataBuffer.Filler.of(cidxf)),
-				0, Math.max(cp, 3));   // a cell of holes alone: one degenerate triangle, no pixel
+				new Model.Indices(src.nclick, NumberFormat.UINT16, DataBuffer.Usage.STATIC, shorts(src::cidx)),
+				0, src.nclick);
 
-	return(new Built(model, tr, mat.apply(model), click, zlo, zhi, quads));
+	return(new Built(model, tr, mat.apply(model), click, src.zlo, src.zhi, src.quads));
     }
 }

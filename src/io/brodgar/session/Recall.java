@@ -67,8 +67,12 @@ public class Recall {
      * {@link #trim}), and what is wanted this tick is never dropped for it. A square around the camera
      * cannot keep anything at all: one grid of travel puts a whole rank of grids outside it, so panning one
      * way and back re-reads and re-meshes every one of them, which is what made the second visit cost as
-     * much as the first. A grid is an array copy and some eighty kilobytes; what is expensive is meshing
-     * one, and that cap is the drawn raster's.
+     * much as the first. A grid is an array copy and some eighty kilobytes; what it costs to hold is its
+     * meshes, once the raster has had it drawn whole: each cut's vertex and index arrays, which every merge of
+     * the grid reads, and its click mesh -- some two megabytes a grid under the lightest ground settings and
+     * five under the defaults, since the cache is lean ({@link MCache#lean}) and a merged grid keeps no copy
+     * of its own ({@link GroundMerge}). What is expensive in time is meshing one, and that cap is the drawn
+     * raster's.
      */
     public static int gridcap() {
 	return(256);
@@ -336,10 +340,13 @@ public class Recall {
      * The cache is built on the live {@link Session} so that {@code sess.glob} and the resource pool
      * are the ones already running — a tileset resolved for the remembered ground is the same object
      * the live map resolved, and costs nothing twice.
+     *
+     * <p>And it is lean ({@link MCache#lean}): nothing here lays a cut again, so each lets go of its surface and
+     * tile data the moment it is built.
      */
     public Recall(Session sess) {
 	this.sess = sess;
-	this.map = new MCache(sess);
+	this.map = new MCache(sess, true);
     }
 
     /**

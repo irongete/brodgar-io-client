@@ -55,6 +55,20 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	this(vert, ShortBuffer.wrap(ind));
     }
 
+    /* addon: a mesh that keeps no index array of its own (indb is null): `ind` fills the GPU's the first time an
+     * environment asks and again if another one ever does, and the box is given, as there is nothing here to
+     * take it from. What the remembered ground's merged grids are (io.brodgar.session.GroundMerge), whose
+     * vertices and indices are written from the cuts' own meshes as they are uploaded and kept nowhere else. */
+    public FastMesh(VertexBuf vert, int num, DataBuffer.Filler<? super Indices> ind, Volume3f bounds) {
+	this.vert = vert;
+	this.num = num;
+	this.indb = null;
+	this.bounds = bounds;
+	this.model = new Model(Model.Mode.TRIANGLES, vert.data(),
+			       new Indices(num * 3, NumberFormat.UINT16, DataBuffer.Usage.STATIC, ind).shared().desc(this),
+			       0, num * 3).desc(this);
+    }
+
     private FillBuffer indfill(Indices ibuf, Environment env) {
 	FillBuffer dst = env.fillbuf(ibuf);
 	ShortBuffer buf = dst.push().asShortBuffer();
@@ -146,7 +160,7 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
      */
     @SuppressWarnings("unchecked")
     public Lod lod(int level) {
-	if(level <= 0)
+	if((level <= 0) || (indb == null))   // no index array of its own, nothing to simplify
 	    return(null);
 	Object ls = lodstate;
 	if(ls == null) {

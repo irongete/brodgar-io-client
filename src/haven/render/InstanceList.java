@@ -1019,7 +1019,7 @@ public class InstanceList implements RenderList<Rendered>, RenderList.Adapter, D
 		String lbl = censuslabel(s.slot);
 		int[] c = byobj.computeIfAbsent(lbl, k -> new int[4]);
 		if(s.slot.obj() instanceof haven.FastMesh)
-		    c[3] += ((haven.FastMesh)s.slot.obj()).indb.capacity() / 3;
+		    c[3] += ((haven.FastMesh)s.slot.obj()).num;
 		boolean shared = batched.contains(s.key.instid) || (seen.get(s.key.instid) > 1);
 		if(!shared) {
 		    c[0]++; alone++;

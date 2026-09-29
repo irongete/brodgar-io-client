@@ -46,9 +46,21 @@ public class MapMesh implements RenderTree.Node, Disposable {
     private List<Disposable> dparts = new ArrayList<Disposable>();
     /* addon: every Model's finished mesh with the material it is drawn in -- what `extras` holds, wrapped --
      * so the remembered ground can draw a whole grid's cuts as one mesh per material
-     * (io.brodgar.session.GroundMerge). Written only while the cut is built, read after. */
-    private final List<Model> models = new ArrayList<>();
-    public List<Model> models() {return(Collections.unmodifiableList(models));}
+     * (io.brodgar.session.GroundMerge). Written only while the cut is built, read after. The mesh and its
+     * material, never the Model: a Model is the MeshBuf the mesh was made from, every vertex, face and layer
+     * value of it an object, which the build lets go of (clean) and a list of Models keeps for as long as the
+     * cut lives -- half of what a built cut holds, and two thirds under the default ground settings. */
+    public static class Part {
+	public final NodeWrap mat;
+	public final FastMesh mesh;
+
+	Part(NodeWrap mat, FastMesh mesh) {
+	    this.mat = mat;
+	    this.mesh = mesh;
+	}
+    }
+    private final List<Part> parts = new ArrayList<>();
+    public List<Part> parts() {return(Collections.unmodifiableList(parts));}
 
     public interface DataID<T> {
 	public T make(MapMesh m);
@@ -83,6 +95,8 @@ public class MapMesh implements RenderTree.Node, Disposable {
 
     @SuppressWarnings("unchecked")
     public <T> T data(DataID<T> id) {
+	if(data == null)   // addon: see lean
+	    throw(new IllegalStateException(this + " was built lean (MCache.lean): its tiles are never laid again"));
 	T ret = (T)data.get(id);
 	if(ret == null)
 	    data.put(id, ret = id.make(this));
@@ -279,7 +293,6 @@ public class MapMesh implements RenderTree.Node, Disposable {
     public static class Model extends MeshBuf implements ConsHooks {
 	public final MapMesh m;
 	public final NodeWrap mat;
-	public FastMesh mesh = null;   // addon: what postcalcnrm made of it
 
 	public Model(MapMesh m, NodeWrap mat) {
 	    this.m = m;
@@ -294,8 +307,7 @@ public class MapMesh implements RenderTree.Node, Disposable {
 	    FastMesh mesh = mkmesh();
 	    m.extras.add(mat.apply(mesh));
 	    m.dparts.add(mesh);
-	    this.mesh = mesh;   // addon:
-	    m.models.add(this);
+	    m.parts.add(new Part(mat, mesh));   // addon: see parts
 	}
 
 	public static class MatKey implements DataID<Model> {
@@ -657,6 +669,18 @@ public class MapMesh implements RenderTree.Node, Disposable {
 							new haven.render.Model.Indices(buf.fn, NumberFormat.UINT16, DataBuffer.Usage.STATIC,
 										       DataBuffer.Filler.of(Arrays.copyOf(buf.fl, buf.fn))));
 	return(new ShallowWrap(mod, Pipe.Op.compose(new OLOrder(id), new States.LineWidth(2))));
+    }
+
+    /* addon: let go of everything only laying this cut's tiles again reads -- the surface they were laid over
+     * (MapSurface: every corner an object, the corners of every face, the normals) and each tiler's own data
+     * (Ridges, a water bottom) -- which `clean` keeps for overlays, grid lines, ground decals and flavour
+     * objects, and which is a quarter of what a built cut holds once `parts` has let its Models go. For a cut
+     * none of those is ever asked of: a lean cache's (MCache.lean). What stays is what is drawn (`parts`,
+     * `extras`), clicked (`flat`) and stood on (`getsurf` for SurfaceID.map, whose surface reads the map's
+     * heights and not this). Anything that reads the tile data from here on throws (`data`): laying the cut
+     * again, and a water bottom's surface (WaterTile.BottomSurface, a SurfaceID.trn). */
+    void lean() {
+	data = null;
     }
 
     private void clean() {

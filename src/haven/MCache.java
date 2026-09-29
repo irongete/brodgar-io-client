@@ -61,6 +61,11 @@ public class MCache implements MapSource {
      * only by the next getcut, so a raster that stops asking while nothing changes reads here that a rebuild
      * it started -- an invalidated cut goes on answering its old mesh until then -- has landed. */
     public volatile int meshbuilt = 0;
+    /* addon: a cache whose cut meshes nothing lays again -- each let go of its surface and tile data as soon as
+     * it is built (MapMesh.lean). The remembered ground's (io.brodgar.session.Recall): its cuts are drawn only
+     * through a grid's merged mesh, clicked through their `flat` and stood on through getsurf, and nothing
+     * overlays, grids, decorates or flavours them -- those ask the live map alone. */
+    public final boolean lean;
     /* addon: (119.2) ONE SEQUENCE PER OVERLAY, where `olseq` above was one for all of them. `olseq` is
      * still what means "everything in this grid changed" -- the mapdata2 fill, Grid's own olseq = -1 on
      * a rebuilt cut mesh, and an overlay that cannot name itself yet (see olbump) -- and these are what
@@ -547,6 +552,8 @@ public class MCache implements MapSource {
 			    rnd.setSeed(rnd.nextInt() ^ cc.x);
 			    rnd.setSeed(rnd.nextInt() ^ cc.y);
 			    MapMesh ret = MapMesh.build(MCache.this, rnd, ul.add(cc.mul(cutsz)), cutsz);
+			    if(lean)
+				ret.lean();   // addon: see lean
 			    meshbuilt++;   // addon: see meshbuilt
 			    return(ret);
 			}
@@ -1096,7 +1103,13 @@ public class MCache implements MapSource {
     }
 
     public MCache(Session sess) {
+	this(sess, false);   // addon: see lean
+    }
+
+    /* addon: see lean */
+    public MCache(Session sess, boolean lean) {
 	this.sess = sess;
+	this.lean = lean;
     }
 
     public void ctick(double dt) {

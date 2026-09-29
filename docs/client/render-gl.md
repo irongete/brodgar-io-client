@@ -37,6 +37,20 @@ backend has no VRAM or program counts at all. Report an **absent** value, never 
 neither is a per-frame count. Instrument the two **dispatch** seams above (`GLDrawList.draw`, `GLRender.draw`);
 the replay loop is far too hot to touch.
 
+**Gotcha — a filler holds what it fills, for as long as the buffer lives.** A `STATIC` buffer or texture is
+filled once per environment: `GLEnvironment.prepare` calls its `DataBuffer.Filler` when a slot drawing it is
+compiled (`GLDrawList.add` → the `DrawSlot` ctor → `env.prepare(Model)` / `env.prepare(mod.ind)`, and a texture
+as the slot's state is compiled), copies the answer into its own `FillBuffer`, and never asks again unless
+another environment prepares the same object — a new GL context (`NEWTContext` disposes the old environment
+and makes a new one when the context changes). So the arrays a filler reaches are a copy of what is on the GPU,
+kept on the heap for nothing: `DataBuffer.Filler.of(array)` and a lambda over one keep theirs for the life of
+the `Model`/`Texture2D`. Upstream's own way out is a filler that makes its data from a source when asked and
+lets it go after: `TexL`, `RUtils.CubeFill` and `CrackTex` drop theirs in `Filler.done()`. ⚠️ `done()` is
+called for a texture alone (`GLTexture.Tex2D.create`, after every level): a buffer's filler lets its array go
+inside `fill`. ⚠️ The fill happens when the slot is **compiled**, in view or not — `FrustumList.add` puts every
+slot in the draw list before taking an off-screen one out — so adding a slot and removing it at once puts its
+object on the GPU without drawing it.
+
 ## Programs: where a link is paid, and the binary cache
 
 | What | Where |

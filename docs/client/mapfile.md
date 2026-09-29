@@ -101,6 +101,11 @@
   levels — so a sample is a crisp square; linear magnification smears a few-pixel sample into its
   neighbours. A leaf keeps the zoom grid's `Indir` and is built again when it answers another grid that
   draws differently (the record moved, in the gotchas below), the old mesh drawn until the new one is built.
+  A leaf is put on the GPU as soon as it is built, drawn or not (its slot added and removed at once, which is
+  what prepares it), and keeps **no copy**: its buffers' and texture's fillers take the arrays the build made
+  the first time the environment asks — some 280 KB of the 310 a built leaf is — and make them again from the
+  zoom grid if another environment ever does. So a cached leaf costs video memory, and of the heap only the
+  zoom grid it keeps anyway ([render-gl.md](render-gl.md), a filler holds what it fills).
   ⚠️ Ground never recorded is not absent from a zoom grid: `from` fills a missing quarter with
   `DataGrid.nogrid`, tileset `gfx/tiles/notile` at height `0`, and it wins the majority vote like any
   tile — so a coarse cell carries unexplored samples, and their zero enters the min of a mixed block.

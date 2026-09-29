@@ -1,7 +1,9 @@
 package io.brodgar.session;
 
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.ShortBuffer;
 import java.util.*;
 
 import haven.*;
@@ -15,13 +17,17 @@ import haven.render.*;
  * meshes is a draw call of its own on the one thread that talks to GL. This concatenates the meshes of a
  * grid's cuts that share a material and a vertex layout into one, each cut's positions moved by where that
  * cut stands in the grid, so what was a draw call per material per cut is one per material per grid. The
- * cuts themselves are untouched and stay the source's: what is built here is a copy, owned and disposed by
- * the {@link Node} that draws it.
+ * cuts themselves are untouched and stay the source's: what is built here is a mesh of its own, owned and
+ * disposed by the {@link Node} that draws it, which <b>keeps no copy</b> of the cuts' data. Its vertices and
+ * indices are written from the cuts' own meshes straight into the buffers the GPU is filled from, when it is
+ * uploaded ({@link Joined}, {@link #indices}), and again if another GL environment ever asks: a copy kept here
+ * would be the whole of the ground's data held twice, once on the GPU that draws it and once on the heap for
+ * nothing.
  *
  * <p>Two meshes are merged only when their materials are equal (the key a cut itself groups its tiles by,
  * {@code MapMesh.Model.MatKey}) and their vertex buffers carry the same attributes in the same formats. A
  * mesh past 65,535 vertices in total starts another -- the indices are 16 bits -- and a mesh whose buffers
- * this cannot copy is drawn as it was, from the cut's own mesh, moved to where its cut stands.
+ * this cannot read is drawn as it was, from the cut's own mesh, moved to where its cut stands.
  */
 public final class GroundMerge {
     private static final int MAXVERT = 65535;
@@ -91,7 +97,7 @@ public final class GroundMerge {
 	}
     }
 
-    /* The vertex layout, or null when a buffer is of a kind this cannot copy. */
+    /* The vertex layout, or null when a buffer is of a kind this cannot read. */
     private static String layout(VertexBuf vb) {
 	StringBuilder buf = new StringBuilder();
 	for(VertexBuf.AttribData a : vb.bufs) {
@@ -109,19 +115,17 @@ public final class GroundMerge {
 	Node ret = new Node();
 	Map<Key, List<Piece>> groups = new LinkedHashMap<>();
 	for(Cut c : cuts) {
-	    for(MapMesh.Model mod : c.mesh.models()) {
-		FastMesh fm = mod.mesh;
-		if(fm == null)
-		    continue;
+	    for(MapMesh.Part mp : c.mesh.parts()) {
+		FastMesh fm = mp.mesh;
 		ret.nsource++;
 		String lay = layout(fm.vert);
 		if(lay == null) {
-		    /* Not copyable: the cut's own mesh, where the cut stands. */
-		    ret.parts.add(xlated(mod.mat.apply(fm), c.dx, c.dy));
+		    /* Not readable: the cut's own mesh, where the cut stands. */
+		    ret.parts.add(xlated(mp.mat.apply(fm), c.dx, c.dy));
 		    ret.ndrawn++;
 		    continue;
 		}
-		groups.computeIfAbsent(new Key(mod.mat, lay), k -> new ArrayList<>()).add(new Piece(fm, c.dx, c.dy));
+		groups.computeIfAbsent(new Key(mp.mat, lay), k -> new ArrayList<>()).add(new Piece(fm, c.dx, c.dy));
 	    }
 	}
 	for(Map.Entry<Key, List<Piece>> e : groups.entrySet()) {
@@ -152,66 +156,100 @@ public final class GroundMerge {
 	    });
     }
 
+    /* The pieces as one mesh that keeps nothing of theirs: each attribute a Joined over the pieces' own buffers,
+     * the indices written from theirs as they are uploaded, and the box around their positions taken here,
+     * since the mesh has nothing to take it from later. */
     private static FastMesh concat(List<Piece> ps, int nv) {
-	VertexBuf.AttribData[] proto = ps.get(0).mesh.vert.bufs;
+	Piece[] pa = ps.toArray(new Piece[0]);
+	VertexBuf.AttribData[] proto = pa[0].mesh.vert.bufs;
 	VertexBuf.AttribData[] out = new VertexBuf.AttribData[proto.length];
-	for(int a = 0; a < proto.length; a++) {
-	    VertexBuf.AttribData pa = proto[a];
-	    int nc = pa.elfmt.nc;
-	    if(pa instanceof VertexBuf.FloatData) {
-		float[] dst = new float[nv * nc];
-		boolean pos = (pa.attr == Homo3D.vertex) && (nc == 3);
-		int o = 0;
-		for(Piece p : ps) {
-		    FloatBuffer src = ((VertexBuf.FloatData)p.mesh.vert.bufs[a]).data;
-		    int n = p.mesh.vert.num * nc;
-		    for(int i = 0; i < n; i++)
-			dst[o + i] = src.get(i);
-		    if(pos) {
-			for(int i = 0; i < n; i += 3) {
-			    dst[o + i] += p.dx;
-			    dst[o + i + 1] += p.dy;
-			}
-		    }
-		    o += n;
-		}
-		out[a] = floatdata(pa, FloatBuffer.wrap(dst));
-	    } else {
-		int[] dst = new int[nv * nc];
-		int o = 0;
-		for(Piece p : ps) {
-		    IntBuffer src = ((VertexBuf.IntData)p.mesh.vert.bufs[a]).data;
-		    int n = p.mesh.vert.num * nc;
-		    for(int i = 0; i < n; i++)
-			dst[o + i] = src.get(i);
-		    o += n;
-		}
-		out[a] = new VertexBuf.IntData(pa.attr, nc, IntBuffer.wrap(dst)) {};
-	    }
-	}
+	for(int a = 0; a < proto.length; a++)
+	    out[a] = new Joined(proto[a], pa, a, nv);
 	int ni = 0;
-	for(Piece p : ps)
+	for(Piece p : pa)
 	    ni += p.mesh.indb.capacity();
-	short[] idx = new short[ni];
-	int o = 0, base = 0;
-	for(Piece p : ps) {
-	    int n = p.mesh.indb.capacity();
-	    for(int i = 0; i < n; i++)
-		idx[o + i] = (short)((p.mesh.indb.get(i) & 0xffff) + base);
-	    o += n;
-	    base += p.mesh.vert.num;
-	}
-	return(new FastMesh(new VertexBuf(out), idx));
+	return(new FastMesh(new VertexBuf(out), ni / 3, indices(pa), bounds(pa)));
     }
 
-    /* The same kind of buffer as the one it copies, where that kind has the one-buffer constructor the
-     * standard ones do; any other float layer keeps its attribute and format. */
-    private static VertexBuf.AttribData floatdata(VertexBuf.AttribData proto, FloatBuffer data) {
-	Class<?> cl = proto.getClass();
-	if(cl == VertexBuf.VertexData.class)  return(new VertexBuf.VertexData(data));
-	if(cl == VertexBuf.NormalData.class)  return(new VertexBuf.NormalData(data));
-	if(cl == VertexBuf.TexelData.class)   return(new VertexBuf.TexelData(data));
-	if(cl == VertexBuf.ColorData.class)   return(new VertexBuf.ColorData(data));
-	return(new VertexBuf.FloatData(proto.attr, proto.elfmt.nc, data) {});
+    /**
+     * One attribute of a merged mesh: the pieces' own buffers of it, one after another, positions moved to where
+     * each piece's cut stands in the grid, written straight into the buffer the environment fills
+     * ({@code VertexBuf.fill}) and kept nowhere. The pieces are the cuts' own meshes, which every merge of the
+     * grid reads anyway, and a cut's mesh never changes once built: a cut built again is a mesh of its own, and
+     * the grid is merged again for it.
+     */
+    private static final class Joined extends VertexBuf.AttribData {
+	final Piece[] ps;
+	final int a, num;
+	final boolean pos;
+
+	Joined(VertexBuf.AttribData proto, Piece[] ps, int a, int num) {
+	    super(proto.attr, proto.elfmt);
+	    this.ps = ps;
+	    this.a = a;
+	    this.num = num;
+	    this.pos = (proto instanceof VertexBuf.FloatData) && (proto.attr == Homo3D.vertex) && (proto.elfmt.nc == 3);
+	}
+
+	public int size() {return(num);}
+
+	public void data(ByteBuffer dst, int offset, int stride) {
+	    int nc = elfmt.nc, o = offset;
+	    for(Piece p : ps) {
+		VertexBuf.AttribData src = p.mesh.vert.bufs[a];
+		int n = p.mesh.vert.num;
+		if(src instanceof VertexBuf.IntData) {
+		    IntBuffer d = ((VertexBuf.IntData)src).data;
+		    for(int v = 0, i = 0; v < n; v++, o += stride) {
+			for(int e = 0; e < nc; e++, i++)
+			    dst.putInt(o + (e * 4), d.get(i));
+		    }
+		} else {
+		    FloatBuffer d = ((VertexBuf.FloatData)src).data;
+		    for(int v = 0, i = 0; v < n; v++, o += stride) {
+			for(int e = 0; e < nc; e++, i++) {
+			    float f = d.get(i);
+			    if(pos && (e < 2))
+				f += (e == 0) ? p.dx : p.dy;
+			    dst.putFloat(o + (e * 4), f);
+			}
+		    }
+		}
+	    }
+	}
+    }
+
+    /* The pieces' indices, each moved past the vertices of the pieces before it, written straight into the buffer
+     * the environment fills -- the first time it asks, and again if another one ever does. */
+    private static DataBuffer.Filler<haven.render.Model.Indices> indices(Piece[] ps) {
+	return((ibuf, env) -> {
+		FillBuffer dst = env.fillbuf(ibuf);
+		ShortBuffer out = dst.push().asShortBuffer();
+		int base = 0;
+		for(Piece p : ps) {
+		    ShortBuffer src = p.mesh.indb;
+		    for(int i = 0, n = src.capacity(); i < n; i++)
+			out.put((short)((src.get(i) & 0xffff) + base));
+		    base += p.mesh.vert.num;
+		}
+		return(dst);
+	    });
+    }
+
+    /* The box around every position of the pieces, where each stands in the grid: what the frustum test takes
+     * the merged mesh's place from (FastMesh.bounds). */
+    private static Volume3f bounds(Piece[] ps) {
+	float nx = Float.POSITIVE_INFINITY, ny = nx, nz = nx;
+	float px = Float.NEGATIVE_INFINITY, py = px, pz = px;
+	for(Piece p : ps) {
+	    FloatBuffer d = p.mesh.vert.buf(VertexBuf.VertexData.class).data;
+	    for(int i = 0, n = p.mesh.vert.num * 3; i < n; i += 3) {
+		float x = d.get(i) + p.dx, y = d.get(i + 1) + p.dy, z = d.get(i + 2);
+		nx = Math.min(nx, x); px = Math.max(px, x);
+		ny = Math.min(ny, y); py = Math.max(py, y);
+		nz = Math.min(nz, z); pz = Math.max(pz, z);
+	    }
+	}
+	return(Volume3f.corn(Coord3f.of(nx, ny, nz), Coord3f.of(px, py, pz)));
     }
 }
