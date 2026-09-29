@@ -382,10 +382,13 @@ public class RecallLod implements RenderTree.Node {
     private static final class Shown {
 	final RenderTree.Slot slot;
 	final Built built;
+	/* The cell drawn, which stays cached while it is in the scene (trim): what tells a rebuild, with no lookup. */
+	final Cell cell;
 
-	Shown(RenderTree.Slot slot, Built built) {
+	Shown(RenderTree.Slot slot, Built built, Cell cell) {
 	    this.slot = slot;
 	    this.built = built;
+	    this.cell = cell;
 	}
     }
 
@@ -407,6 +410,10 @@ public class RecallLod implements RenderTree.Node {
 
     /** Built and pending cells, least recently wanted first. */
     private final Map<Key, Cell> cells = new LinkedHashMap<Key, Cell>(64, 0.75f, true);
+    /** The same cells, looked up without making them recent: {@link #cells} is in access order, so each get()
+     * moves the entry it finds, and the walks look up thousands a tick only to read them. Written wherever a cell
+     * enters or leaves {@link #cells}. */
+    private final Map<Key, Cell> cellidx = new HashMap<Key, Cell>();
     /** What is in the scene right now, and the slot it is in. */
     private final Map<Key, Shown> inscene = new HashMap<Key, Shown>();
     private RenderTree.Slot slot = null;
@@ -486,11 +493,19 @@ public class RecallLod implements RenderTree.Node {
     private List<Coord> lastfulls = new ArrayList<Coord>();
     private boolean lastflat = false;
     /* A tick's scratch, cleared and filled again rather than made anew: the live grids in segment coords, what is
-     * wanted, what is drawn, and what the cap may not drop. */
+     * drawn, and what the cap may not drop. */
     private final Set<Coord> slive = new HashSet<Coord>();
-    private final Map<Key, Leaf> wanted = new HashMap<Key, Leaf>();
     private final Set<Key> drawset = new HashSet<Key>();
     private final Set<Key> inuse = new HashSet<Key>();
+    /* What the keep walk decided, as the ticks between two of its runs use it: every key it wants built or found
+     * empty (kset); and what it wants built that had no cell when it ran, in the order it is to be started
+     * (kstart, from kstartat on), as MAXBUSY allows on this tick and the ones after. Both are made when the walk
+     * runs, so a tick that only draws goes over what the view draws and nothing kept. */
+    private final Set<Key> kset = new HashSet<Key>();
+    private final List<Leaf> kstart = new ArrayList<Leaf>();
+    private int kstartat = 0;
+    /* When the cap was last enforced (trim): at most every KEEPWAIT, and when the keep walk runs. */
+    private double trimat = 0;
     /* The cells in flight -- their zoom grid still being fetched, or their mesh built -- which are all a tick has
      * to move on (advance): a cell at rest is only asked about the record again (refresh). */
     private final Map<Key, Cell> flight = new HashMap<Key, Cell>();
@@ -570,6 +585,9 @@ public class RecallLod implements RenderTree.Node {
 	    kwants.clear();
 	    kempty.clear();
 	    kwhole = new HashSet<Coord>();
+	    kset.clear();
+	    kstart.clear();
+	    kstartat = 0;
 	    lastkeep = null;
 	    placed = base;
 	    cellchange = true;
@@ -651,7 +669,8 @@ public class RecallLod implements RenderTree.Node {
 	    top++;
 	int tn = 1 << top;
 	Coord lo = wcg.sub(range, range), hi = wcg.add(range, range);
-	if(!keepsame && ((lastkeep == null) || ((now - keptat) >= KEEPWAIT))) {
+	boolean keepran = !keepsame && ((lastkeep == null) || ((now - keptat) >= KEEPWAIT));
+	if(keepran) {
 	    kwants.clear();
 	    kempty.clear();
 	    kwhole = new HashSet<Coord>();
@@ -659,6 +678,18 @@ public class RecallLod implements RenderTree.Node {
 		for(int x = Math.floorDiv(lo.x, tn) * tn; x <= hi.x; x += tn)
 		    keep(top, Coord.of(x, y));
 	    }
+	    /* What the ticks until the next run use of it (kset, kstart): every cell kept is touched here, once a
+	     * run, which makes it recent -- and not by every tick in between. */
+	    kset.clear();
+	    kstart.clear();
+	    kstartat = 0;
+	    for(Leaf l : kwants) {
+		kset.add(l.key);
+		if(cells.get(l.key) == null)   // the touch
+		    kstart.add(l);
+	    }
+	    kset.addAll(kempty);
+	    Collections.sort(kstart, LEAFORDER);
 	    lastkeep = view;
 	    keptat = now;
 	    keepdirty = false;
@@ -703,23 +734,22 @@ public class RecallLod implements RenderTree.Node {
 	wready = null;
 	wlive = null;
 
-	/* What is wanted: what the view draws first, then what is kept for the turns of the camera. Every one of it
-	 * is touched, which makes it recent; of it, what is not asked for yet is started as MAXBUSY allows -- the
-	 * view's own first, and of each the largest first. Only that is sorted: it is most often nothing. */
-	wanted.clear();
-	for(Leaf l : wants)
-	    wanted.put(l.key, l);
-	for(Leaf l : kwants)
-	    wanted.putIfAbsent(l.key, l);
-	nwanted = wanted.size();
+	/* What is wanted: what the view draws, and what is kept for the turns of the camera as its walk last decided
+	 * (kset). What the view draws is touched, which makes it recent -- what is kept was when its walk ran -- and
+	 * what is not asked for yet is started as MAXBUSY allows: the view's own first, the largest first, then what
+	 * the keep walk left to start, in its order. */
+	int nw = kwants.size();
 	List<Leaf> order = null;
-	for(Leaf l : wanted.values()) {
-	    if(cells.get(l.key) == null) {   // the touch that makes it recent
+	for(Leaf l : wants) {
+	    if(!kset.contains(l.key))
+		nw++;
+	    if(cells.get(l.key) == null) {   // the touch
 		if(order == null)
 		    order = new ArrayList<Leaf>();
 		order.add(l);
 	    }
 	}
+	nwanted = nw;
 	boolean left = false;
 	if(order != null) {
 	    Collections.sort(order, LEAFORDER);
@@ -728,14 +758,23 @@ public class RecallLod implements RenderTree.Node {
 		    left = true;
 		    break;
 		}
-		Cell c = new Cell();
-		c.src = base.seg.grid(l.key.lvl, l.key.sc);
-		cells.put(l.key, c);
-		if(advance(l.key, c)) {
+		if(start(base, l.key))
 		    busy++;
-		    flight.put(l.key, c);
-		}
 	    }
+	}
+	while(!left && (kstartat < kstart.size())) {
+	    Key k = kstart.get(kstartat).key;
+	    if(cellidx.containsKey(k)) {
+		kstartat++;   // started meanwhile, by the view
+		continue;
+	    }
+	    if(busy >= MAXBUSY) {
+		left = true;
+		break;
+	    }
+	    kstartat++;
+	    if(start(base, k))
+		busy++;
 	}
 	unfinished = left;
 
@@ -745,17 +784,17 @@ public class RecallLod implements RenderTree.Node {
 	draw.addAll(dcells);
 	for(Iterator<Map.Entry<Key, Shown>> i = inscene.entrySet().iterator(); i.hasNext();) {
 	    Map.Entry<Key, Shown> e = i.next();
-	    Cell c = cells.get(e.getKey());
-	    if(!draw.contains(e.getKey()) || (c == null) || (c.built != e.getValue().built)) {
-		e.getValue().slot.remove();
+	    Shown s = e.getValue();
+	    if(!draw.contains(e.getKey()) || (s.cell.built != s.built)) {
+		s.slot.remove();
 		i.remove();
 	    }
 	}
 	for(Iterator<Map.Entry<Key, Shown>> i = inclick.entrySet().iterator(); i.hasNext();) {
 	    Map.Entry<Key, Shown> e = i.next();
-	    Cell c = cells.get(e.getKey());
-	    if(!draw.contains(e.getKey()) || (c == null) || (c.built != e.getValue().built)) {
-		e.getValue().slot.remove();
+	    Shown s = e.getValue();
+	    if(!draw.contains(e.getKey()) || (s.cell.built != s.built)) {
+		s.slot.remove();
 		i.remove();
 	    }
 	}
@@ -764,15 +803,18 @@ public class RecallLod implements RenderTree.Node {
 	    b.dispose();
 	retired.clear();
 	for(Key k : dcells) {
-	    Built b = cells.get(k).built;
+	    if(((slot == null) || inscene.containsKey(k)) && ((cslot == null) || inclick.containsKey(k)))
+		continue;
+	    Cell dc = cellidx.get(k);
+	    Built b = dc.built;
 	    Coord tc = k.sc.sub(base.off).mul(MCache.cmaps);
 	    Coord3f at = Coord3f.of((float)(tc.x * MCache.tilesz.x), -(float)(tc.y * MCache.tilesz.y), 0);
 	    if((slot != null) && !inscene.containsKey(k))
-		inscene.put(k, new Shown(slot.add(b.node, Location.xlate(at)), b));
+		inscene.put(k, new Shown(slot.add(b.node, Location.xlate(at)), b, dc));
 	    /* The click's 0..1 place spans the cell's tiles, in session tile coords: the view turns it into
 	     * the ground position the click is sent with. */
 	    if((cslot != null) && !inclick.containsKey(k))
-		inclick.put(k, new Shown(cslot.add(MapView.farclick(tc, MCache.cmaps.mul(1 << k.lvl), b.click), Location.xlate(at)), b));
+		inclick.put(k, new Shown(cslot.add(MapView.farclick(tc, MCache.cmaps.mul(1 << k.lvl), b.click), Location.xlate(at)), b, dc));
 	}
 	/* The raster's share, in session coords: every grid of a cell wanted whole, every grid drawn whole, and
 	 * which are drawn. */
@@ -824,13 +866,32 @@ public class RecallLod implements RenderTree.Node {
 	lastfulls = dfulls;
 	dfulls = lf;
 	lastflat = flat;
-	inuse.clear();
-	inuse.addAll(draw);
-	inuse.addAll(wanted.keySet());
-	inuse.addAll(dempty);
-	inuse.addAll(kempty);
 	wbase = null;
-	trim(inuse);
+	/* The cap, at most every KEEPWAIT and whenever the keep walk has run: what it may not drop is what is drawn,
+	 * what the view wants and what is kept, and what either found empty. A few cells over the cap for a quarter
+	 * of a second cost nothing; the set of every cell in use, made every tick a camera moves, did. */
+	if(keepran || ((now - trimat) >= KEEPWAIT)) {
+	    trimat = now;
+	    inuse.clear();
+	    inuse.addAll(draw);
+	    for(Leaf l : wants)
+		inuse.add(l.key);
+	    inuse.addAll(kset);
+	    inuse.addAll(dempty);
+	    trim(inuse);
+	}
+    }
+
+    /** Start a cell: cached, and asked for its zoom grid. Whether it is in flight after that first step. */
+    private boolean start(Recall.Base base, Key key) {
+	Cell c = new Cell();
+	c.src = base.seg.grid(key.lvl, key.sc);
+	cells.put(key, c);
+	cellidx.put(key, c);
+	if(!advance(key, c))
+	    return(false);
+	flight.put(key, c);
+	return(true);
     }
 
     /** Which wanted cell is started first: one the view draws before one kept for a turn, and the larger first. */
@@ -1000,7 +1061,7 @@ public class RecallLod implements RenderTree.Node {
 	   (sc.y > cg.y + range) || (sc.y + n - 1 < cg.y - range))
 	    return(true);
 	Key key = new Key(wbase.seg.id, lvl, sc, wflat);
-	Cell known = cells.get(key);
+	Cell known = cellidx.get(key);
 	/* A zoom grid of nothing: there is nothing under it to draw. */
 	if((known != null) && known.empty) {
 	    dempty.add(key);
@@ -1129,7 +1190,7 @@ public class RecallLod implements RenderTree.Node {
 	   (sc.y > cg.y + range) || (sc.y + n - 1 < cg.y - range))
 	    return;
 	Key key = new Key(wbase.seg.id, lvl, sc, wflat);
-	Cell known = cells.get(key);
+	Cell known = cellidx.get(key);
 	if((known != null) && known.empty) {
 	    kempty.add(key);
 	    return;
@@ -1228,7 +1289,7 @@ public class RecallLod implements RenderTree.Node {
 	for(Object o : under) {
 	    if(o instanceof Key) {
 		Key k = (Key)o;
-		Cell c = cells.get(k);
+		Cell c = cellidx.get(k);
 		if((c == null) || (c.built == null))
 		    continue;
 		dcells.add(k);
@@ -1330,6 +1391,7 @@ public class RecallLod implements RenderTree.Node {
 	    if(c.built != null)
 		c.built.dispose();
 	    i.remove();
+	    cellidx.remove(e.getKey());
 	    over--;
 	}
     }
@@ -1349,7 +1411,11 @@ public class RecallLod implements RenderTree.Node {
 		c.built.dispose();
 	}
 	cells.clear();
+	cellidx.clear();
 	flight.clear();
+	kset.clear();
+	kstart.clear();
+	kstartat = 0;
 	for(Built b : retired)
 	    b.dispose();
 	retired.clear();
