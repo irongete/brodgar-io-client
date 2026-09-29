@@ -483,7 +483,10 @@ public class GLDrawList implements DrawList {
 	abstract void compile(BGL gl);
 
 	void update() {
-	    BufferBGL buf = new BufferBGL();
+	    /* addon: a setting compiles one uniform or one pipe state -- a command or two -- and is compiled again
+	     * whenever a state it depends on changes, which for the frame's own time (FrameInfo) is every frame:
+	     * the default 128 commands made a kilobyte of garbage a setting a frame. It grows if it has to. */
+	    BufferBGL buf = new BufferBGL(4);
 	    compile(buf);
 	    this.gl.update(buf.trim());
 	}

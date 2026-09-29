@@ -1514,6 +1514,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	abstract class Grid<T> extends RenderTree.Node.Track1 {
 	    final Map<Coord, Pair<T, RenderTree.Slot>> cuts = new HashMap<>();
+	    /* addon: moves whenever `cuts` does -- a cut in or out, a mesh swapped -- so what is derived from it can be
+	     * kept until it moves (RecallTerrain.mergetick). */
+	    int gen = 0;
 	    final boolean position;
 	    Loading lastload = new Loading("Initializing map...");
 
@@ -1533,8 +1536,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		for(Coord cc : MapRaster.this.walk()) {   // addon: area, unless the raster holds a set of its own
 		    if(MapRaster.this.skipcut(cc)) {   // rts: (F7)
 			Pair<T, RenderTree.Slot> cur = cuts.remove(cc);
-			if(cur != null)
+			if(cur != null) {
 			    cur.b.remove();
+			    gen++;   // addon: see gen
+			}
 			continue;
 		    }
 		    try {
@@ -1557,6 +1562,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 				throw(l);
 			    }
 			    cuts.put(cc, new Pair<>(cut, added));
+			    gen++;   // addon: see gen
 			    if(cur != null)
 				cur.b.remove();
 			    if(MapRaster.this.liveground())
@@ -1573,6 +1579,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    if(!MapRaster.this.holds(ent.getKey())) {   // addon: area.contains, unless as above
 			ent.getValue().b.remove();
 			i.remove();
+			gen++;   // addon: see gen
 			if(MapRaster.this.liveground())
 			    io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- ...and one left it
 		    }
@@ -1582,6 +1589,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    public void removed(RenderTree.Slot slot) {
 		super.removed(slot);
 		cuts.clear();
+		gen++;   // addon: see gen
 	    }
 	}
 
@@ -2228,19 +2236,31 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(true);
 	}
 
+	/* addon: what mergetick derives from `main.cuts` and the live cuts, kept until either moves (MapRaster.Grid.gen,
+	 * and a live set of other contents): a camera panning over grids held whole moves neither, tick after tick. */
+	private Map<Coord, Map<Coord, MapMesh>> have = new HashMap<>(), mine = new HashMap<>();
+	private int havegen = -1;
+	private Set<Coord> havelive = null;
+
 	/* addon: `live` is the cuts the live raster has in the scene this tick. */
 	private void mergetick(Set<Coord> live) {
 	    if(slot == null)
 		return;
 	    /* addon: what this raster holds of each grid, and of that what it draws: every cut it holds that the
 	     * live raster is not drawing. */
-	    Map<Coord, Map<Coord, MapMesh>> have = new HashMap<>(), mine = new HashMap<>();
-	    for(Map.Entry<Coord, Pair<MapMesh, RenderTree.Slot>> e : main.cuts.entrySet()) {
-		Coord g = e.getKey().div(MCache.cutn);
-		have.computeIfAbsent(g, k -> new HashMap<>()).put(e.getKey(), e.getValue().a);
-		if(!live.contains(e.getKey()))
-		    mine.computeIfAbsent(g, k -> new HashMap<>()).put(e.getKey(), e.getValue().a);
+	    if((main.gen != havegen) || !live.equals(havelive)) {
+		have = new HashMap<>();
+		mine = new HashMap<>();
+		for(Map.Entry<Coord, Pair<MapMesh, RenderTree.Slot>> e : main.cuts.entrySet()) {
+		    Coord g = e.getKey().div(MCache.cutn);
+		    have.computeIfAbsent(g, k -> new HashMap<>()).put(e.getKey(), e.getValue().a);
+		    if(!live.contains(e.getKey()))
+			mine.computeIfAbsent(g, k -> new HashMap<>()).put(e.getKey(), e.getValue().a);
+		}
+		havegen = main.gen;
+		havelive = live;
 	    }
+	    Map<Coord, Map<Coord, MapMesh>> have = this.have, mine = this.mine;
 	    /* addon: and the grids whose share the live raster has just changed. Each is made again in this very
 	     * tick, past MERGEWAIT and past the budget: the frame that sees a cut join the live ground or leave
 	     * it must see this raster give that cut up or take it over, or the cut is drawn twice or not at all.
@@ -2566,9 +2586,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 		draw.add(cc);
 	    }
-	    main.tick();
+	    if(!maincurrent(built, chseq, gen)) {   // addon:
+		main.tick();
+		mtbuilt = built;
+		mtchseq = chseq;
+		mtgen = gen;
+	    }
 	    mergetick(live);   // addon:
 	    settled = settle(cand.size());   // addon:
+	}
+
+	/* addon: whether main.tick() would find nothing to do this tick: every cut of `draw` in the scene already --
+	 * so none to add and none to take out, since `cuts` holds exactly `draw` after a tick that met no Loading --
+	 * no cut mesh built since that tick ran (a rebuilt cut answers its new mesh), and the grids and the ground
+	 * settings where they were (a grid filled again, or a setting moved, invalidates a cut only as getcut asks
+	 * for it). A camera panning over grids held whole moves none of it, and the walk of every cut held is spared. */
+	private int mtbuilt = -1, mtchseq = -1, mtgen = -1;
+	private boolean maincurrent(int built, int chseq, int gen) {
+	    if((main.lastload != null) || (built != mtbuilt) || (chseq != mtchseq) || (gen != mtgen) || (main.cuts.size() != draw.size()))
+		return(false);
+	    for(Coord cc : draw) {
+		if(!main.cuts.containsKey(cc))
+		    return(false);
+	    }
+	    return(true);
 	}
 
 	/* addon: whether a tick left nothing to do: every cut it could build admitted and in the scene, none

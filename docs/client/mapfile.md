@@ -91,7 +91,9 @@
   `MapView`'s view distance draws the ground it does not draw whole from them — a quadtree over segment
   grid coords, a cell splitting while one of its samples would cover more than a few pixels at its
   nearest depth — drawn as the view calls for, and built and kept beforehand as every view a turn of the
-  camera about its centre gives calls for, so a turn of the camera builds nothing — each leaf one
+  camera about its centre gives calls for, so a turn of the camera builds nothing; what is drawn is decided
+  every tick, what is kept at most every quarter second while the camera zooms or pans or cells arrive, as
+  that walk over every turn is most of what a moving camera's tick costs — each leaf one
   height-map mesh over `zmap` with the tilesets'
   `Resource.imgc` colours as its texture, one texel per sample, and a skirt hung from every edge, since
   neighbouring levels sample different heights along a shared edge. `zmap` is the **minimum** of each

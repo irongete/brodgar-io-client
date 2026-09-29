@@ -51,6 +51,16 @@ inside `fill`. ⚠️ The fill happens when the slot is **compiled**, in view or
 slot in the draw list before taking an off-screen one out — so adding a slot and removing it at once puts its
 object on the GPU without drawing it.
 
+**Gotcha — a draw list's settings are compiled again whenever a state they depend on changes, and the frame's own
+state changes every frame.** `GLDrawList.update(Pipe, int[])` runs `DepSetting.ckupdate` for every setting whose
+slots the change touches, and `Setting.update` compiles that setting afresh into a new `BufferBGL`: a
+`UniformSetting` is one uniform, a `PipeSetting` one pipe state — a command or two. `PView.tick` sets
+`FrameInfo` (the frame's time) on `conf` every tick, so every setting that reads the time is compiled again
+every frame, and the camera and the lights do the same while the camera moves. ⚠️ `new BufferBGL()` holds 128
+commands, a kilobyte of garbage a setting a frame — measured, a quarter of what the UI thread allocates with the
+camera still. Fork: `Setting.update` starts its buffer at 4 (`// addon:`); it grows as it must, and `trim()`
+keeps what was used.
+
 ## Programs: where a link is paid, and the binary cache
 
 | What | Where |

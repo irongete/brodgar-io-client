@@ -70,8 +70,10 @@ import io.brodgar.perf.Performance;
  * them as real cut meshes. That is what is DRAWN, for what is on screen. What is BUILT and kept is decided the
  * same way over every view a turn of the camera about the centre gives ({@link #keep}), on screen now or not:
  * a turn of the camera only swaps in what is built already, and builds nothing and merges nothing, while the
- * ground is drawn no finer than the view itself calls for. So a camera high over the map draws it all from
- * zoom grids however it pans, and one down at the ground draws whole only the grids close to it. A boundary
+ * ground is drawn no finer than the view itself calls for. What is drawn is decided every tick; what is kept,
+ * at most every {@link #KEEPWAIT} while the camera zooms or pans or cells arrive. So a camera high over the
+ * map draws it all from zoom grids however it pans, and one down at the ground draws whole only the grids
+ * close to it. A boundary
  * is crossed a share past where
  * it lies ({@link #HYST}), on the side of it the ground is DRAWN on, so a camera standing on one does not
  * flicker; and no piece of ground goes finer while the camera goes away from it, nor coarser while the camera
@@ -260,33 +262,32 @@ public class RecallLod implements RenderTree.Node {
 
 	/**
 	 * Pixels a world unit covers at the nearest depth of this rectangle of map ground (map coords in world
-	 * units) over heights {@code mlo..mhi}, infinite where that reaches the eye; and negative when no part
-	 * of it over heights {@code vlo..vhi} is on screen. A box is off screen only when all eight corners are
-	 * outside one same side of the view, or behind it, never merely when none is inside: that is how a box
-	 * larger than the screen vanishes.
+	 * units, from {@code ulx, uly} to {@code brx, bry}) over heights {@code mlo..mhi}, infinite where that
+	 * reaches the eye; and negative when no part of it over heights {@code vlo..vhi} is on screen. A box is off
+	 * screen only when all eight corners are outside one same side of the view, or behind it, never merely when
+	 * none is inside: that is how a box larger than the screen vanishes. Coordinates rather than {@code Coord2d}s:
+	 * a walk asks it of every cell it reaches, every tick.
 	 */
-	public double sight(Coord2d ul, Coord2d br, float vlo, float vhi, float mlo, float mhi) {
-	    return(sight(m, 1, ul, br, vlo, vhi, mlo, mhi));
+	public double sight(double ulx, double uly, double brx, double bry, float vlo, float vhi, float mlo, float mhi) {
+	    return(sight(m, 1, ulx, uly, brx, bry, vlo, vhi, mlo, mhi));
 	}
 
 	/**
-	 * The same through every turn of the camera about the centre it is oriented on, one a turn: negative for a
-	 * turn that does not have the box on screen.
+	 * The same through every turn of the camera about the centre it is oriented on, one a turn, into
+	 * {@code into}: negative for a turn that does not have the box on screen.
 	 */
-	double[] turned(Coord2d ul, Coord2d br, float vlo, float vhi, float mlo, float mhi) {
-	    double[] ret = new double[turns.length];
+	void turned(double[] into, double ulx, double uly, double brx, double bry, float vlo, float vhi, float mlo, float mhi) {
 	    for(int i = 0; i < turns.length; i++)
-		ret[i] = sight(turns[i], 1 + TURNMARGIN, ul, br, vlo, vhi, mlo, mhi);
-	    return(ret);
+		into[i] = sight(turns[i], 1 + TURNMARGIN, ulx, uly, brx, bry, vlo, vhi, mlo, mhi);
 	}
 
-	private double sight(float[] m, float wide, Coord2d ul, Coord2d br, float vlo, float vhi, float mlo, float mhi) {
+	private double sight(float[] m, float wide, double ulx, double uly, double brx, double bry, float vlo, float vhi, float mlo, float mhi) {
 	    boolean left = true, right = true, down = true, up = true, behind = true;
 	    float minw = Float.POSITIVE_INFINITY;
 	    for(int i = 0; i < 4; i++) {
-		float x = (float)(((i & 1) == 0) ? ul.x : br.x);
+		float x = (float)(((i & 1) == 0) ? ulx : brx);
 		/* The scene's y runs the other way from the map's. */
-		float y = -(float)(((i & 2) == 0) ? ul.y : br.y);
+		float y = -(float)(((i & 2) == 0) ? uly : bry);
 		float bx = (m[0] * x) + (m[4] * y) + m[12];
 		float by = (m[1] * x) + (m[5] * y) + m[13];
 		float bw = (m[3] * x) + (m[7] * y) + m[15];
@@ -457,9 +458,10 @@ public class RecallLod implements RenderTree.Node {
     private int wrange;
     private boolean wflat;
     /* What the walk draws, in the order it found them: cells, and grids drawn whole in SEGMENT coords; and what
-     * it wants built. */
-    private final List<Key> dcells = new ArrayList<Key>();
-    private final List<Coord> dfulls = new ArrayList<Coord>();
+     * it wants built. The two drawn lists change places with lastcells and lastfulls at the end of a walk, so
+     * neither is made anew every tick. */
+    private List<Key> dcells = new ArrayList<Key>();
+    private List<Coord> dfulls = new ArrayList<Coord>();
     private final List<Leaf> wants = new ArrayList<Leaf>();
     /* Cells found to hold nothing, which the cap leaves alone as long as the walk keeps finding them. */
     private final List<Key> dempty = new ArrayList<Key>();
@@ -468,20 +470,55 @@ public class RecallLod implements RenderTree.Node {
      * was wanted: a cell wanted split or whole while a coarser one stands in for it has crossed nothing on
      * screen yet, and judged as if it had it would go on wanting the finer ground as a zoom went back out -- to
      * be swapped in the moment it was built, and back out a few frames later. Nor what was decided: ground a
-     * cell is drawn over as the finer pieces it stands for has not left them on screen. */
-    private Set<Key> splitlast = new HashSet<Key>();
-    private Set<Coord> fulllast = new HashSet<Coord>();
+     * cell is drawn over as the finer pieces it stands for has not left them on screen. Each has a second set
+     * the next walk's is made in, and the two change places. */
+    private Set<Key> splitlast = new HashSet<Key>(), splitnext = new HashSet<Key>();
+    private Set<Coord> fulllast = new HashSet<Coord>(), fullnext = new HashSet<Coord>();
     /* The level-one cells wanted whole this tick, drawn or not: what the raster is to hold. */
-    private Set<Coord> wantnow = null;
+    private final Set<Coord> wantnow = new HashSet<Coord>();
     /* How many pixels a world unit of each cell the walk reached covered, this tick and the last: whether the
-     * camera is coming closer to a cell or going away from it. */
-    private Map<Key, Double> pxlast = new HashMap<Key, Double>(), pxnow = null;
+     * camera is coming closer to a cell or going away from it. Two maps and a spare, which change places. */
+    private Map<Key, Double> pxlast = new HashMap<Key, Double>(), pxnow = null, pxspare = new HashMap<Key, Double>();
     /* What last tick drew, and the same filed under every cell above each piece (made when a tick first
      * needs it): what a cell wanted and not built yet is drawn as meanwhile. */
-    private List<Key> lastcells = Collections.emptyList();
-    private Set<Key> lastcellset = Collections.emptySet();
-    private List<Coord> lastfulls = Collections.emptyList();
+    private List<Key> lastcells = new ArrayList<Key>();
+    private final Set<Key> lastcellset = new HashSet<Key>();
+    private List<Coord> lastfulls = new ArrayList<Coord>();
     private boolean lastflat = false;
+    /* A tick's scratch, cleared and filled again rather than made anew: the live grids in segment coords, what is
+     * wanted, what is drawn, and what the cap may not drop. */
+    private final Set<Coord> slive = new HashSet<Coord>();
+    private final Map<Key, Leaf> wanted = new HashMap<Key, Leaf>();
+    private final Set<Key> drawset = new HashSet<Key>();
+    private final Set<Key> inuse = new HashSet<Key>();
+    /* The cells in flight -- their zoom grid still being fetched, or their mesh built -- which are all a tick has
+     * to move on (advance): a cell at rest is only asked about the record again (refresh). */
+    private final Map<Key, Cell> flight = new HashMap<Key, Cell>();
+    /**
+     * How often, at most, a cell at rest asks its zoom grid again ({@link #refresh}): what the record takes in
+     * reaches the far ground within this, and a tick does not walk every cell cached to find out.
+     */
+    private static final double REFRESHWAIT = 0.5;
+    private double refreshat = 0;
+    /**
+     * How often, at most, the keep walk ({@link #keep}) runs again while what it depends on goes on changing: a
+     * camera zooming or panning moves the centre the turns are taken about every frame, and cells arriving
+     * while the ground loads change what it decides from them -- and a walk of every turn over every cell is
+     * most of what a moving camera's tick costs. The walk that draws ({@link #visit}) still runs every tick, so
+     * what is drawn follows the camera exactly; what is built ahead for a turn of the camera is asked for at
+     * most this much later, and a camera that stops has it exactly this much after.
+     */
+    private static final double KEEPWAIT = 0.25;
+    /* What the keep walk last ran over, which the ticks it is skipped on keep: a cell changed since it ran
+     * (keepdirty), the centre's grid, the range, the flat state and the two limits; when it ran; and its scratch,
+     * a sight for each turn. */
+    private boolean keepdirty = true;
+    private double keptat = 0;
+    private Coord keepcg = null;
+    private int keeprange = -1;
+    private boolean keepflat = false;
+    private double keeptpx = -1, keepfpx = -1;
+    private final double[] kpx = new double[View.TURNS];
     private Map<Key, List<Object>> lastunder = null;
     /* What the last walk was made from. Everything a walk decides is a function of these, of the cells' own
      * states and of what the raster has whole: a tick that finds all of them where they were, no cell changed
@@ -506,9 +543,11 @@ public class RecallLod implements RenderTree.Node {
      * @param base     the recorded ground's proved base
      * @param center   where the view is centred, in map coords (world units): what the view distance is around
      * @param range    the view distance, in grids
-     * @param live     the grids the live terrain is drawing, in session grid coords
+     * @param live     the grids the live terrain is drawing, in session grid coords -- kept to compare the next
+     *                 tick's with, not copied, so a set the caller goes on changing may not be handed over
      * @param near     the grids the live terrain can reach before one could be built, in session grid coords:
-     *                 its area grown by a margin. Every level-one cell over one is held whole.
+     *                 its area grown by a margin. Every level-one cell over one is held whole. Kept as
+     *                 {@code live} is.
      * @param view     the camera, for this tick
      * @param ready    whether the recorded ground's raster can draw a grid whole now (session grid coords):
      *                 it has it merged with every cut it can build, or has nothing of it to show
@@ -523,13 +562,20 @@ public class RecallLod implements RenderTree.Node {
 	    for(Shown s : inclick.values())
 		s.slot.remove();
 	    inclick.clear();
-	    lastcells = Collections.emptyList();
-	    lastcellset = Collections.emptySet();
-	    lastfulls = Collections.emptyList();
+	    lastcells.clear();
+	    lastcellset.clear();
+	    lastfulls.clear();
+	    /* What the keep walk decided is in the old base's segment and may not be asked for through the new one:
+	     * it goes, and the walk runs again this tick. */
+	    kwants.clear();
+	    kempty.clear();
+	    kwhole = new HashSet<Coord>();
+	    lastkeep = null;
 	    placed = base;
 	    cellchange = true;
 	}
 	boolean flat = Performance.flatTerrain;
+	double now = Utils.rtime();
 
 	/* Every cell in flight moves on first, wanted or not, so the walk sees what has just been built. Only a
 	 * cell's own progress gives back its share of MAXBUSY, so a cell moved on only while it is wanted holds
@@ -537,33 +583,45 @@ public class RecallLod implements RenderTree.Node {
 	 * a re-base mid-load -- and MAXBUSY of them start nothing ever again. One left behind is finished like
 	 * any other, and cached for when the view comes back to it. */
 	int busy = 0;
-	for(Map.Entry<Key, Cell> e : cells.entrySet()) {   // no get(): access order moves on a get
+	for(Iterator<Map.Entry<Key, Cell>> i = flight.entrySet().iterator(); i.hasNext();) {
+	    Map.Entry<Key, Cell> e = i.next();
 	    if(advance(e.getKey(), e.getValue()))
 		busy++;
+	    else
+		i.remove();
 	}
 	/* And every cell at rest asks its zoom grid again, out of what MAXBUSY leaves: the record may have taken
-	 * in again a grid under it (refresh). */
-	for(Map.Entry<Key, Cell> e : cells.entrySet()) {
-	    if(busy >= MAXBUSY)
-		break;
-	    if(refresh(e.getKey(), e.getValue()))
-		busy++;
+	 * in again a grid under it (refresh). Every REFRESHWAIT, and not every tick: it is a walk of every cell
+	 * cached. */
+	if((now - refreshat) >= REFRESHWAIT) {
+	    refreshat = now;
+	    for(Map.Entry<Key, Cell> e : cells.entrySet()) {   // no get(): access order moves on a get
+		if(busy >= MAXBUSY)
+		    break;
+		if(refresh(e.getKey(), e.getValue())) {
+		    busy++;
+		    flight.put(e.getKey(), e.getValue());
+		}
+	    }
 	}
 	nbusy = busy;
 	Coord cg = center.floor(MCache.tilesz).div(MCache.cmaps).add(base.off);
 	double tpx = texelpx, fpx = fullpx;
 	/* What is kept is decided over every turn of the camera about the centre, so nothing a turn changes moves
-	 * it; what is drawn, by the view itself. */
+	 * it; what is drawn, by the view itself. A cell changed since the keep walk last ran leaves it to run again
+	 * (keepdirty), whether or not this tick is the one it runs on (KEEPWAIT). */
 	view.orient(center);
-	boolean keepsame = !cellchange && view.sameturns(lastkeep) && cg.equals(lastcg) && (range == lastrange) &&
-	    (flat == lastflat) && (tpx == lasttexelpx) && (fpx == lastfullpx);
-	if(keepsame && !unfinished && view.same(lastview) && live.equals(lastlive) && near.equals(lastnear) &&
-	   (readygen == lastreadygen))
-	    return;
+	keepdirty |= cellchange;
 	cellchange = false;
+	boolean keepsame = !keepdirty && view.sameturns(lastkeep) && cg.equals(keepcg) && (range == keeprange) &&
+	    (flat == keepflat) && (tpx == keeptpx) && (fpx == keepfpx);
+	if(keepsame && !unfinished && view.same(lastview) && cg.equals(lastcg) && (range == lastrange) &&
+	   (flat == lastflat) && (tpx == lasttexelpx) && (fpx == lastfullpx) && live.equals(lastlive) &&
+	   near.equals(lastnear) && (readygen == lastreadygen))
+	    return;
 	lastview = view;
-	lastlive = new HashSet<Coord>(live);
-	lastnear = new HashSet<Coord>(near);
+	lastlive = live;
+	lastnear = near;
 	lastcg = cg;
 	lastrange = range;
 	lastreadygen = readygen;
@@ -576,7 +634,7 @@ public class RecallLod implements RenderTree.Node {
 	wflat = flat;
 	wrange = range;
 	wcg = cg;
-	Set<Coord> slive = new HashSet<Coord>();
+	slive.clear();
 	for(Coord g : live)
 	    slive.add(g.add(base.off));
 	wlive = slive;
@@ -584,15 +642,16 @@ public class RecallLod implements RenderTree.Node {
 	dfulls.clear();
 	wants.clear();
 	dempty.clear();
-	wantnow = new HashSet<Coord>();
-	pxnow = new HashMap<Key, Double>();
+	wantnow.clear();
+	pxnow = pxspare;
+	pxnow.clear();
 	lastunder = null;
 	int top = 1;
 	while((top < MAXLVL) && ((1 << top) < ((range * 2) + 2)))
 	    top++;
 	int tn = 1 << top;
 	Coord lo = wcg.sub(range, range), hi = wcg.add(range, range);
-	if(!keepsame) {
+	if(!keepsame && ((lastkeep == null) || ((now - keptat) >= KEEPWAIT))) {
 	    kwants.clear();
 	    kempty.clear();
 	    kwhole = new HashSet<Coord>();
@@ -601,6 +660,13 @@ public class RecallLod implements RenderTree.Node {
 		    keep(top, Coord.of(x, y));
 	    }
 	    lastkeep = view;
+	    keptat = now;
+	    keepdirty = false;
+	    keepcg = cg;
+	    keeprange = range;
+	    keepflat = flat;
+	    keeptpx = tpx;
+	    keepfpx = fpx;
 	}
 	for(int y = Math.floorDiv(lo.y, tn) * tn; y <= hi.y; y += tn) {
 	    for(int x = Math.floorDiv(lo.x, tn) * tn; x <= hi.x; x += tn)
@@ -608,8 +674,10 @@ public class RecallLod implements RenderTree.Node {
 	}
 	/* The next walk's hysteresis, from what this one draws: every cell above a piece drawn is drawn split,
 	 * and a level-one cell a grid of which is drawn whole is drawn whole. */
-	Set<Key> spl = new HashSet<Key>();
-	Set<Coord> ful = new HashSet<Coord>();
+	Set<Key> spl = splitnext;
+	Set<Coord> ful = fullnext;
+	spl.clear();
+	ful.clear();
 	for(Key k : dcells) {
 	    for(int l = k.lvl + 1; l <= MAXLVL; l++) {
 		if(!spl.add(new Key(k.seg, l, align(k.sc, l), k.flat)))
@@ -623,51 +691,58 @@ public class RecallLod implements RenderTree.Node {
 		    break;
 	    }
 	}
+	splitnext = splitlast;
 	splitlast = spl;
+	fullnext = fulllast;
 	fulllast = ful;
 	Set<Coord> wantwhole = wantnow;
-	wantnow = null;
+	pxspare = pxlast;
 	pxlast = pxnow;
 	pxnow = null;
 	wview = null;
 	wready = null;
 	wlive = null;
 
-	/* What is wanted: what the view draws first, then what is kept for the turns of the camera; and of each the
-	 * largest first. */
-	Map<Key, Leaf> wanted = new HashMap<Key, Leaf>();
+	/* What is wanted: what the view draws first, then what is kept for the turns of the camera. Every one of it
+	 * is touched, which makes it recent; of it, what is not asked for yet is started as MAXBUSY allows -- the
+	 * view's own first, and of each the largest first. Only that is sorted: it is most often nothing. */
+	wanted.clear();
 	for(Leaf l : wants)
 	    wanted.put(l.key, l);
 	for(Leaf l : kwants)
 	    wanted.putIfAbsent(l.key, l);
-	List<Leaf> order = new ArrayList<Leaf>(wanted.values());
-	Collections.sort(order, new Comparator<Leaf>() {
-		public int compare(Leaf a, Leaf b) {
-		    if(a.seen != b.seen)
-			return(a.seen ? -1 : 1);
-		    return(Double.compare(b.px, a.px));
-		}
-	    });
-	nwanted = order.size();
+	nwanted = wanted.size();
+	List<Leaf> order = null;
+	for(Leaf l : wanted.values()) {
+	    if(cells.get(l.key) == null) {   // the touch that makes it recent
+		if(order == null)
+		    order = new ArrayList<Leaf>();
+		order.add(l);
+	    }
+	}
 	boolean left = false;
-	for(Leaf l : order) {
-	    Cell c = cells.get(l.key);   // the touch that makes it recent
-	    if(c == null) {
+	if(order != null) {
+	    Collections.sort(order, LEAFORDER);
+	    for(Leaf l : order) {
 		if(busy >= MAXBUSY) {
 		    left = true;
-		    continue;
+		    break;
 		}
-		c = new Cell();
+		Cell c = new Cell();
 		c.src = base.seg.grid(l.key.lvl, l.key.sc);
 		cells.put(l.key, c);
-		if(advance(l.key, c))
+		if(advance(l.key, c)) {
 		    busy++;
+		    flight.put(l.key, c);
+		}
 	    }
 	}
 	unfinished = left;
 
 	/* Out first, then in: what leaves the scene frees nothing it would draw, and nothing is added twice. */
-	Set<Key> draw = new HashSet<Key>(dcells);
+	Set<Key> draw = drawset;
+	draw.clear();
+	draw.addAll(dcells);
 	for(Iterator<Map.Entry<Key, Shown>> i = inscene.entrySet().iterator(); i.hasNext();) {
 	    Map.Entry<Key, Shown> e = i.next();
 	    Cell c = cells.get(e.getKey());
@@ -739,17 +814,33 @@ public class RecallLod implements RenderTree.Node {
 	nbusy = busy;
 	nwhole = shw.size();
 	nwholewanted = wantwhole.size() * 4;
-	lastcells = new ArrayList<Key>(dcells);
-	lastcellset = new HashSet<Key>(dcells);
-	lastfulls = new ArrayList<Coord>(dfulls);
+	/* This walk's drawn lists become the last ones, and the last ones the next walk's to fill. */
+	List<Key> lc = lastcells;
+	lastcells = dcells;
+	dcells = lc;
+	lastcellset.clear();
+	lastcellset.addAll(lastcells);
+	List<Coord> lf = lastfulls;
+	lastfulls = dfulls;
+	dfulls = lf;
 	lastflat = flat;
-	Set<Key> inuse = new HashSet<Key>(draw);
+	inuse.clear();
+	inuse.addAll(draw);
 	inuse.addAll(wanted.keySet());
 	inuse.addAll(dempty);
 	inuse.addAll(kempty);
 	wbase = null;
 	trim(inuse);
     }
+
+    /** Which wanted cell is started first: one the view draws before one kept for a turn, and the larger first. */
+    private static final Comparator<Leaf> LEAFORDER = new Comparator<Leaf>() {
+	    public int compare(Leaf a, Leaf b) {
+		if(a.seen != b.seen)
+		    return(a.seen ? -1 : 1);
+		return(Double.compare(b.px, a.px));
+	    }
+	};
 
     /**
      * Put a cell just built on the GPU, drawn or not: into this node's scene slot and the click pass's and out of
@@ -929,12 +1020,9 @@ public class RecallLod implements RenderTree.Node {
 		mhi = r[1];
 	    }
 	}
-	Coord tc = sc.sub(wbase.off).mul(MCache.cmaps);
-	Coord2d ul = new Coord2d(tc).mul(MCache.tilesz);
-	Coord2d br = ul.add(new Coord2d(MCache.cmaps.mul(n)).mul(MCache.tilesz));
 	/* Drawn as the view itself calls for, and only what is on screen: what a turn of the camera brings on
 	 * screen the keep walk has built already (keep). */
-	double px = wview.sight(ul, br, vlo, vhi, mlo, mhi);
+	double px = wview.sight(wx(sc.x), wy(sc.y), wx(sc.x + n), wy(sc.y + n), vlo, vhi, mlo, mhi);
 	if(px < 0)
 	    return(true);
 	pxnow.put(key, px);
@@ -1058,10 +1146,9 @@ public class RecallLod implements RenderTree.Node {
 		mhi = r[1];
 	    }
 	}
-	Coord tc = sc.sub(wbase.off).mul(MCache.cmaps);
-	Coord2d ul = new Coord2d(tc).mul(MCache.tilesz);
-	Coord2d br = ul.add(new Coord2d(MCache.cmaps.mul(n)).mul(MCache.tilesz));
-	double[] px = wview.turned(ul, br, vlo, vhi, mlo, mhi);
+	/* One scratch for the whole walk: this cell's sights are read in full before any cell under it is walked. */
+	double[] px = kpx;
+	wview.turned(px, wx(sc.x), wy(sc.y), wx(sc.x + n), wy(sc.y + n), vlo, vhi, mlo, mhi);
 	/* What the draw weighs against its limit: one sample of the cell, and at level one one tile (visit). And a
 	 * level-one cell is whole only over its own heights, as the draw has it: until they are known it is kept as
 	 * a far cell, which shows them. */
@@ -1106,6 +1193,15 @@ public class RecallLod implements RenderTree.Node {
 		}
 	    }
 	}
+    }
+
+    /* Where a segment grid coord's corner stands in map coords (world units), placed through the walk's base. */
+    private double wx(int sx) {
+	return((sx - wbase.off.x) * MCache.cmaps.x * MCache.tilesz.x);
+    }
+
+    private double wy(int sy) {
+	return((sy - wbase.off.y) * MCache.cmaps.y * MCache.tilesz.y);
     }
 
     /** A cell the walk ends at: wanted, and drawn -- itself once built, and until then what drew its ground last tick. */
@@ -1221,7 +1317,7 @@ public class RecallLod implements RenderTree.Node {
     }
 
     /** Past the cap, the least recently wanted cells go -- never one the tick draws, wants or keeps finding
-     * empty, nor one building. */
+     * empty, nor one in flight. */
     private void trim(Set<Key> inuse) {
 	int over = cells.size() - inuse.size() - CACHECAP;
 	for(Iterator<Map.Entry<Key, Cell>> i = cells.entrySet().iterator(); i.hasNext() && (over > 0);) {
@@ -1229,7 +1325,7 @@ public class RecallLod implements RenderTree.Node {
 	    if(inuse.contains(e.getKey()) || inscene.containsKey(e.getKey()) || inclick.containsKey(e.getKey()))
 		continue;
 	    Cell c = e.getValue();
-	    if(c.building != null)
+	    if(flight.containsKey(e.getKey()))
 		continue;
 	    if(c.built != null)
 		c.built.dispose();
@@ -1253,12 +1349,13 @@ public class RecallLod implements RenderTree.Node {
 		c.built.dispose();
 	}
 	cells.clear();
+	flight.clear();
 	for(Built b : retired)
 	    b.dispose();
 	retired.clear();
-	lastcells = Collections.emptyList();
-	lastcellset = Collections.emptySet();
-	lastfulls = Collections.emptyList();
+	lastcells.clear();
+	lastcellset.clear();
+	lastfulls.clear();
 	cellchange = true;
     }
 
