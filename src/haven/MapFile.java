@@ -60,6 +60,19 @@ public class MapFile {
     }
     public final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Random rnd = new Random();
+    /* addon: every grid a segment has taken in, in order (Segment.include). include refreshes this file's own
+     * caches and nothing else, so a reader that keeps a copy of what it read -- the view distance's remembered
+     * ground -- reads here which of its copies the record has moved under. */
+    public final io.brodgar.session.Recall.Journal journal = new io.brodgar.session.Recall.Journal();
+    /* addon: the thread running an import, while one runs. Its includes do not relaunch the live zoom grids
+     * over each grid one at a time (Segment.include): they note the coord, and the import relaunches every
+     * cell it touched once, when it ends (zrelaunch). A client holds thousands of live zoom grids (the minimap
+     * and the view distance's far ground), upstream relaunched each of them over every imported grid -- the
+     * top level once per grid under it -- and every relaunch recomputes and stores a column of zoom grids
+     * under the read lock, the lock the importer's next grid then waits on. */
+    private volatile Thread importer = null;
+    /* addon: the segments holding coords an import noted for zrelaunch. Guarded by itself. */
+    private final Set<Segment> zpending = new HashSet<>();
 
     public MapFile(ResCache store, String filename) {
 	this.store = store;
@@ -1225,6 +1238,9 @@ public class MapFile {
 	 * past EMPTIES_MAX the set is cleared, which is exactly today's behaviour. */
 	private final Set<ByZCoord> empties = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 	private static final int EMPTIES_MAX = 65536;
+	/* addon: the coords an import took in whose live zoom grids wait for zrelaunch (see MapFile.importer).
+	 * Guarded by zcache. */
+	private final Set<Coord> zdeferred = new HashSet<>();
 
 	public Segment(long id) {
 	    this.id = id;
@@ -1356,6 +1372,12 @@ public class MapFile {
 	    map.put(sc, id);
 	    int zl = ZoomGrid.inval(MapFile.this, this.id, sc);
 	    synchronized(zcache) {
+		if(Thread.currentThread() == importer) {   // addon: see MapFile.importer
+		    zdeferred.add(sc);
+		    synchronized(zpending) {
+			zpending.add(this);
+		    }
+		} else
 		/* XXX? Not sure how nice it is to iterate through the
 		 * entire zcache to do invalidations, but I also don't
 		 * think it ought to tend to be enormously large.
@@ -1376,6 +1398,7 @@ public class MapFile {
 	    }
 	    if((bc != null) && (bc.cur == null))
 		bc.cur = grid0(id);
+	    journal.included(this.id, sc);   // addon: see `journal`
 	}
 
 	private void include(Grid grid, Coord sc) {
@@ -1387,6 +1410,42 @@ public class MapFile {
 		    cur.loaded = grid;
 	    }
 	}
+
+	/* addon: relaunch, once each, the live zoom grids over the coords an import took in (see
+	 * MapFile.importer) -- what include()'s loop would have relaunched over each of them. */
+	private void zrelaunch() {
+	    synchronized(zcache) {
+		if(zdeferred.isEmpty())
+		    return;
+		Set<Integer> lvls = new HashSet<>();
+		for(ZoomCoord zc : zcache.keySet())
+		    lvls.add(zc.lvl);
+		Set<ZoomCoord> cells = new HashSet<>();
+		for(Coord sc : zdeferred) {
+		    for(int lvl : lvls)
+			cells.add(new ZoomCoord(lvl, new Coord(sc.x & ~((1 << lvl) - 1), sc.y & ~((1 << lvl) - 1))));
+		}
+		zdeferred.clear();
+		for(ZoomCoord zc : cells) {
+		    ByZCoord zg = zcache.get(zc);
+		    if(zg != null) {
+			zg.loading = loadzgrid(zc);
+			empties.remove(zg);
+		    }
+		}
+	    }
+	}
+    }
+
+    /* addon: see `importer` -- every segment an import noted coords in, relaunched once. */
+    private void zrelaunch() {
+	List<Segment> segs;
+	synchronized(zpending) {
+	    segs = new ArrayList<>(zpending);
+	    zpending.clear();
+	}
+	for(Segment seg : segs)
+	    seg.zrelaunch();
     }
 
     public static class View implements MapSource {
@@ -1579,11 +1638,19 @@ public class MapFile {
 	});
 
     private void merge(Segment dst, Segment src, Coord soff) {
+	merge(dst, src, soff, false);
+    }
+
+    /* addon: `keep` -- a coord dst already holds keeps its grid (the importer's add-only merge, see
+     * Importer.fresh); update() merges with it false, as upstream does. */
+    private void merge(Segment dst, Segment src, Coord soff, boolean keep) {
 	checklock();
 	for(Map.Entry<Coord, Long> gi : src.map.entrySet()) {
 	    long id = gi.getValue();
 	    Coord sc = gi.getKey();
 	    Coord dc = sc.sub(soff);
+	    if(keep && dst.map.containsKey(dc))
+		continue;
 	    dst.include(id, dc);
 	    gridinfo.put(id, new GridInfo(id, dst.id, dc));
 	}
@@ -1905,6 +1972,13 @@ public class MapFile {
 	final Map<Long, ImportedSegment> segs = new HashMap<>();
 	final ImportFilter filter;
 	Segment curseg;
+	/* addon: the segments this import has made itself -- the only ones it may merge away, and add-only
+	 * even then. A segment the database already held keeps its id, its grids and their coords: an import
+	 * adds ground where nothing is recorded and never moves or replaces ground that is, which is what a
+	 * live session is proved against (MapFile.update's "oddly gone", Recall's witnesses) and what an
+	 * export from another snapshot of the world would otherwise overwrite under grid ids the server no
+	 * longer sends. It also leaves the player's own segments unmerged, so no import moves the whole map. */
+	final Set<Long> fresh = new HashSet<>();
 
 	class ImportedSegment {
 	    final Map<Long, Coord> offs = new HashMap<>();
@@ -1967,10 +2041,10 @@ public class MapFile {
 		lock.writeLock().lock();
 		try {
 		    Grid rgrid = grid.togrid();
-		    rgrid.save(MapFile.this);
 		    if(seg.noff == null) {
 			if(info == null) {
 			    rseg = chseg(new Segment(seg.nseg = grid.gid));
+			    fresh.add(seg.nseg);   // addon: see `fresh`
 			    seg.noff = Coord.z;
 			    seg.offs.put(seg.nseg, Coord.z);
 			} else {
@@ -1980,7 +2054,7 @@ public class MapFile {
 			    seg.noff = seg.offs.get(info.seg);
 			}
 		    } else {
-			if((info == null) || (info.seg == seg.nseg)) {
+			if((info == null) || (info.seg == seg.nseg) || !fresh.contains(seg.nseg)) {   // addon: see `fresh`
 			    rseg = chseg(seg.nseg);
 			    if(rseg == null)
 				throw(new NullPointerException());
@@ -1990,14 +2064,15 @@ public class MapFile {
 			    Segment nseg = segments.get(info.seg);
 			    Coord noff = seg.offs.get(info.seg);
 			    Coord soff = seg.noff.sub(noff);
-			    merge(nseg, curseg, soff);
+			    merge(nseg, curseg, soff, true);   // addon: add-only, see `fresh`
 			    seg.nseg = nseg.id;
 			    seg.noff = noff;
 			    rseg = curseg = nseg;
 			}
 		    }
 		    Coord nc = grid.sc.add(seg.noff);
-		    if(info == null) {
+		    if((info == null) && !rseg.map.containsKey(nc)) {   // addon: add-only, see `fresh`
+			rgrid.save(MapFile.this);
 			rseg.include(rgrid, nc);
 			gridinfo.put(rgrid.id, new GridInfo(rgrid.id, rseg.id, nc));
 		    }
@@ -2067,6 +2142,8 @@ public class MapFile {
 	    if(!Arrays.equals(EXPORT_SIG, data.bytes(EXPORT_SIG.length)))
 		throw(new Message.FormatError("Invalid map file format"));
 	    data = new ZMessage(data);
+	    importer = Thread.currentThread();   // addon: see `importer`
+	    try {
 	    try {
 		while(!data.eom()) {
 		    String type = data.string();
@@ -2093,6 +2170,10 @@ public class MapFile {
 		throw(e);
 	    }
 	    flush();
+	    } finally {   // addon: however the import ends, what it deferred is relaunched
+		importer = null;
+		zrelaunch();
+	    }
 	}
     }
 

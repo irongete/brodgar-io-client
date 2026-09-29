@@ -74,7 +74,10 @@ public class FastMesh implements Rendered.Instancable, RenderTree.Node, Disposab
 	    }
 	}
 	for(int i = 0; i < indb.capacity(); i++) {
-	    int vi = indb.get(i) * 3;
+	    /* addon: unsigned, as GL draws them (UINT16): a mesh of more than 32767 vertices -- the remembered
+	     * ground merged a grid at a time -- read a negative index here and threw, so its bounds were never
+	     * kept and the frustum test took them again, and threw again, every frame. */
+	    int vi = (indb.get(i) & 0xffff) * 3;
 	    float x = vbuf.data.get(vi), y = vbuf.data.get(vi + 1), z = vbuf.data.get(vi + 2);
 	    if(nb == null) {
 		nb = new Coord3f(x, y, z);

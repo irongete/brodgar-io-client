@@ -57,6 +57,10 @@ public class MCache implements MapSource {
      * ConcurrentModificationException, or a corrupt bucket, waiting for a mine to come into view. */
     Set<LocalOverlay> ols = ConcurrentHashMap.newKeySet();
     public volatile int olseq = 0, chseq = 0;
+    /* addon: how many cut meshes have been built, counted as each build finishes (Cut.mesh). A mesh is taken up
+     * only by the next getcut, so a raster that stops asking while nothing changes reads here that a rebuild
+     * it started -- an invalidated cut goes on answering its old mesh until then -- has landed. */
+    public volatile int meshbuilt = 0;
     /* addon: (119.2) ONE SEQUENCE PER OVERLAY, where `olseq` above was one for all of them. `olseq` is
      * still what means "everything in this grid changed" -- the mapdata2 fill, Grid's own olseq = -1 on
      * a rebuilt cut mesh, and an overlay that cannot name itself yet (see olbump) -- and these are what
@@ -542,7 +546,9 @@ public class MCache implements MapSource {
 			    Random rnd = new Random(id);
 			    rnd.setSeed(rnd.nextInt() ^ cc.x);
 			    rnd.setSeed(rnd.nextInt() ^ cc.y);
-			    return(MapMesh.build(MCache.this, rnd, ul.add(cc.mul(cutsz)), cutsz));
+			    MapMesh ret = MapMesh.build(MCache.this, rnd, ul.add(cc.mul(cutsz)), cutsz);
+			    meshbuilt++;   // addon: see meshbuilt
+			    return(ret);
 			}
 			public void update(MapMesh mesh) {
 			    super.update(mesh);
@@ -867,6 +873,19 @@ public class MCache implements MapSource {
 	    removed = true;
 	    for(Cut cut : cuts)
 		cut.dispose();
+	}
+
+	/* addon: a grid put in by hand (AddonWidgets.putgrid) filled again from a newer record, the way fill()
+	 * fills one the server sends again: in place, so every cut goes on drawing its old mesh until the new one
+	 * is built, and the neighbours' edge cuts with it, which read across into this grid. A new Grid in its
+	 * place would dispose the meshes a raster's slots still hold. Under the cache's monitor, as mapdata2
+	 * calls fill. */
+	void refill(long id, int[] tiles, float[] z) {
+	    System.arraycopy(tiles, 0, this.tiles, 0, this.tiles.length);
+	    System.arraycopy(z, 0, this.z, 0, this.z.length);
+	    this.id = id;
+	    invalidate();
+	    seq++;
 	}
 
 	private void filltiles(Message buf) {

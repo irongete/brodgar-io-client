@@ -88,16 +88,30 @@
   of its own and may be asked from anywhere.
 - **A zoom grid is a level of detail.** Every level is one `cmaps` array, so a cell costs the same to
   read and to mesh at any level while covering four times the ground of the one below. Fork:
-  `MapView`'s view distance draws past its full-detail square from them — a quadtree over segment grid
-  coords, a cell splitting while it is closer than two of its widths, each leaf one height-map mesh
-  over `zmap` with the tilesets' `Resource.imgc` colours as its texture and a skirt hung from every
-  edge, since neighbouring levels sample different heights along a shared edge. `zmap` is the
-  **minimum** of each 2×2, so a coarse cell sits at or under the ground it stands for.
+  `MapView`'s view distance draws the ground it does not draw whole from them — a quadtree over segment
+  grid coords, a cell splitting while one of its samples would cover more than a few pixels at its
+  nearest depth — drawn as the view calls for, and built and kept beforehand as every view a turn of the
+  camera about its centre gives calls for, so a turn of the camera builds nothing — each leaf one
+  height-map mesh over `zmap` with the tilesets'
+  `Resource.imgc` colours as its texture, one texel per sample, and a skirt hung from every edge, since
+  neighbouring levels sample different heights along a shared edge. `zmap` is the **minimum** of each
+  2×2, so a coarse cell sits at or under the ground it stands for. The texture is sampled nearest when
+  magnified — the map window draws a zoom grid with `TexI`'s own `NEAREST` both ways, and the game's
+  ground tiles (`Tileset`'s atlas) with `NEAREST` in a level, `LINEAR` between two and `Mipmapper.avg`
+  levels — so a sample is a crisp square; linear magnification smears a few-pixel sample into its
+  neighbours. A leaf keeps the zoom grid's `Indir` and is built again when it answers another grid that
+  draws differently (the record moved, in the gotchas below), the old mesh drawn until the new one is built.
   ⚠️ Ground never recorded is not absent from a zoom grid: `from` fills a missing quarter with
   `DataGrid.nogrid`, tileset `gfx/tiles/notile` at height `0`, and it wins the majority vote like any
   tile — so a coarse cell carries unexplored samples, and their zero enters the min of a mixed block.
-  And `TexI(img)` rounds to a power of two: a 100-sample texture is padded to 128, so `TexI(img, false)`
-  for texcoords that span `0..1`.
+  ⚠️ Only a power-of-two texture has mipmaps: `Texture2D.image(level)` throws past level 0 for any other
+  size, `TexL` refuses one outright, and `TexI` fills level 0 alone (`TexI(img)` pads to a power of two,
+  `TexI(img, false)` keeps the size). A 100-sample texture to be mipmapped is laid in the corner of a 128
+  one, with texcoords spanning `0..100/128`.
+  ⚠️ `Light.PhongLight`'s defaults are not the ground's lighting: `defamb` 0.2 and `defdif` 0.8, where the
+  terrain materials' `col` asks for an ambient of 128/255 and a full diffuse (`GroundTile`'s `gcol` the same;
+  paving 0.8 and 0.64). A mesh standing in for ground lit with the defaults is a third darker than the ground
+  beside it under a high sun, and three fifths darker at night.
 
 ## Reading a recorded grid back as a live one
 
@@ -194,3 +208,43 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   hundreds of markers. A resource that exists but fails to load now (`LoadFailedException`: a broken file,
   no network — the HTTP sources throw a non-`FileNotFound` `IOException`, which sets `found`) is imported
   like any other marker, so an offline import drops nothing.
+- **Upstream's importer replaces recorded ground and merges the player's own segments.**
+  `Importer.importgrid` records an imported grid at its coord whatever the segment already holds there, and
+  a grid the file shares with another of the database's segments makes it `merge` the segment it is filling
+  into that one — after the first shared grid, usually the player's main segment. An export taken from
+  another snapshot of the world carries other grid ids for the same ground, so the player's grids are
+  replaced by ids the server no longer sends: `update` then finds the live grid "oddly gone" and starts a
+  segment of its own, and every reader proved against a live grid id (the remembered ground's witnesses)
+  stops drawing. Each merge also re-records the whole map, one `gridinfo` store per grid, while the
+  import's progress (bytes read) stands still. The fork's importer is add-only (`// addon:`,
+  `Importer.fresh`): a grid is recorded only where the segment holds nothing, a grid the database already
+  has keeps its data, and only a segment the import made itself is ever merged — with `merge`'s `keep`,
+  which leaves a coord the destination holds alone. The database's own segments stay unmerged by an import;
+  `update` still joins them as the character walks from one into another.
+- **An import relaunches every live zoom grid over each grid it takes in.** `Segment.include` invalidates the
+  stored zoom grids above the coord and relaunches every live `ByZCoord` over it, each relaunch a `Defer` task
+  that recomputes and stores a column of zoom grids under the read lock. The minimap holds a few; the view
+  distance's far ground holds thousands, so an import relaunches the top levels once per grid under them,
+  the tasks pile up, and the importer's next grid waits on the write lock while the far ground rebuilds its
+  textures. The fork defers it (`// addon:`, `MapFile.importer`): an include on the importing thread only
+  notes the coord, and when the import ends, however it ends, `zrelaunch` relaunches each touched cell once.
+  The stored zoom grids are still invalidated per grid, so what the view asks for first meanwhile is built
+  fresh.
+- **A copy read out of the record is never told the record moved.** `Segment.include` — the one door a grid
+  enters a segment by: `update` off the live map, the importer, `merge` — refreshes `MapFile`'s own caches
+  and nothing else. It empties the stored zoom grids above the coord (`ZoomGrid.inval`), relaunches every
+  `ByZCoord` still alive over it and sets `Cached.loaded` on the grid's id, so an `Indir` from
+  `Segment.grid` answers the new object once its reload lands — the previous one until then, never
+  `Loading` (`got`) — and that identity is the whole of the signal: `MiniMap.DisplayGrid.CachedImage`
+  compares `gref.get()` with the grid it drew. A copy taken out of an `Indir` is not an `Indir`. And
+  `update` takes in the 3×3 grids around the character whenever the character's grid or its `seq` changes,
+  the first sight of each grid in a session included, changed or not — so the ground just walked over is
+  exactly the ground whose kept copy went stale. Fork: `MapFile.journal` (`// addon:`) is the ring of every
+  `(segment id, grid coord)` `include` has taken in, which a reader keeping copies reads from a place of its
+  own. It reads its entries **before** it takes the read lock for its reads: `include` runs under the write
+  lock, so an `Indir` asked for after that answers at least as new as every entry found.
+  ⚠️ **The same ground taken in twice is not the same arrays.** `Grid.from` numbers a grid's tilesets in the
+  order the live tile ids first appear, so compare tiles by tileset name and version; and `savez` rounds
+  every height it stores to a step of a quantum of the grid's own, within 0.01, while `include` hands the
+  in-memory grid to any `Cached` it finds — so one reader gets the grid as recorded and another the grid read
+  back off the disk, and their heights agree to within hundredths, never to the bit.

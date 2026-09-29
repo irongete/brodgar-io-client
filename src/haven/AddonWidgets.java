@@ -245,9 +245,26 @@ public final class AddonWidgets {
      * and {@code Defer.Future.run} catches {@code Loading} into {@code resched} rather than
      * completing. A cut can only finish with every grid it read present, so there is no stale edge
      * for an invalidation to repair — the caller fills a margin beyond what it draws instead.
+     *
+     * <p><b>A grid already in the cache is filled again in place</b>, and that is where it joins
+     * {@code Grid.fill} after all: the record moved under it, and {@code mapdata2} fills a grid the server
+     * sends again the same way. Its cuts and its neighbours' edge cuts, which were built reading its old
+     * border, are invalidated — lazily, so only a cut something asks for is built again — and each goes on
+     * drawing its old mesh until the new one lands. Put in whole instead, the new grid would dispose the
+     * meshes a raster's slots are still drawing.
+     *
+     * @return whether a grid already there was filled again, rather than a new one put in
      */
     @SuppressWarnings("unchecked")
-    public static void putgrid(MCache mc, Coord gc, long id, int[] tiles, float[] z) {
+    public static boolean putgrid(MCache mc, Coord gc, long id, int[] tiles, float[] z) {
+        synchronized(mc.grids) {
+            MCache.Grid cur = mc.grids.get(gc);
+            if(cur != null) {
+                cur.refill(id, tiles, z);
+                mc.gridput();
+                return(true);
+            }
+        }
         MCache.Grid g = mc.new Grid(gc);
         System.arraycopy(tiles, 0, g.tiles, 0, g.tiles.length);
         System.arraycopy(z, 0, g.z, 0, g.z.length);
@@ -261,6 +278,7 @@ public final class AddonWidgets {
                 prev.dispose();
             mc.gridput();   // a grid arrived, said as mapdata2 says it for the live map: what waits for ground looks again
         }
+        return(false);
     }
 
     /**

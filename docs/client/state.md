@@ -89,7 +89,8 @@
   the map file derives as `(sc * cmaps) - sessloc.tc`, which is why one anchor survives a grid unloading.
 - **`MCache.grids` has exactly one door in and three out, and a miss is none of them.** In:
   `mapdata2`, and only for a coord already in `req` — plus `AddonWidgets.putgrid` (`// addon:`) on a cache
-  filled from somewhere other than the wire. Out: `trimall`, `trim(ul, lr)` and `drop(Collection)`
+  filled from somewhere other than the wire, which fills a grid already there again in place
+  (`Grid.refill`, `// addon:`) as `mapdata2` fills one the server sends again. Out: `trimall`, `trim(ul, lr)` and `drop(Collection)`
   (`// addon:`), and each of the three calls `Grid.dispose()` in the same statement that unlinks the entry,
   so `Grid.removed` is set on grids that are already gone and **never on one still in the map** — which is
   why `numgrids()` (the raw size) and a walk that filters `removed` agree. ⚠️ `getgrid`'s miss looks like a

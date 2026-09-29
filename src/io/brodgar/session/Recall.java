@@ -1,6 +1,8 @@
 package io.brodgar.session;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -50,51 +52,26 @@ import haven.Session;
  * distinct name+version seen gets an id minted here, in first-seen order, and installed through
  * {@code MCache.settileset}. The ids therefore mean nothing outside this source, which is fine —
  * nothing but this source's own meshes ever reads them.
+ *
+ * <p><b>What it holds follows the record.</b> A grid is a copy, and the record goes on moving under it:
+ * the character re-records the ground around them as the server sends it. Every grid held that the record
+ * takes in again is read again ({@link Journal}, {@link #stale}) and, where the ground changed, filled in
+ * place, so walking away from ground that changed hands it back as it is now and not as it was read.
  */
 public class Recall {
     /**
-     * How far a read may reach around what the raster asked for, in grids: the full-detail reach
-     * ({@link MapView#recalldetail}, or the view distance where that is shorter), one grid for the rings'
-     * alignment (the full-detail square is whole level-one zoom cells, see {@code RecallLod}), and one grid
-     * more.
-     *
-     * <p>That extra ring is the fill margin the drawn raster needs rather than reach of its own.
-     * {@code MapMesh.dotrans} reads a tile across the cut edge and the corner heights need the same
-     * tile, so a cut at the fill's own edge throws {@code MCache.LoadingMap} and never completes —
-     * which is why what is read is always one grid wider than what is drawn. {@link #want} is where
-     * that ring is actually added, so what is read stays inside this square without being a square.
-     *
-     * <p>It is a method and not a constant because the range is a setting: a write from the panel or
-     * from Lua is answered by the next set the raster hands to {@link #want}, and by the cap that set is
-     * trimmed against, with nothing to rebuild and nothing to tell.
-     */
-    public static int radius() {
-	return(Math.min(MapView.recallrange, MapView.recalldetail) + 2);
-    }
-
-    /**
-     * How many read squares' worth of grids {@link #gridcap()} is, and the whole of what keeping buys:
-     * one square is the ground the camera is standing over, and the other two are how far it may travel
-     * and still come back to ground that is already there.
-     */
-    private static final int keepsquares = 3;
-
-    /**
-     * How many grids this source may hold — the whole of the budget on this side, and not a square.
+     * How many grids this source may hold besides the ones wanted right now — the whole of the budget on
+     * this side, and not a square.
      *
      * <p>What is read is kept until this cap says otherwise, in the order it was last wanted (see
-     * {@link #trim}). A square around the camera cannot keep anything at all: one grid of travel puts a
-     * whole rank of grids outside it, so panning one way and back re-reads and re-meshes every one of
-     * them, which is what made the second visit cost as much as the first.
-     *
-     * <p>The cap is {@link #keepsquares} times the read square, so at the default range it is a hundred
-     * and forty-seven grids and two whole squares — fourteen grids — of travel come back free. A grid is
-     * an array copy and some eighty kilobytes; what is expensive is meshing one, and that cap is the
-     * drawn raster's, a ring further in.
+     * {@link #trim}), and what is wanted this tick is never dropped for it. A square around the camera
+     * cannot keep anything at all: one grid of travel puts a whole rank of grids outside it, so panning one
+     * way and back re-reads and re-meshes every one of them, which is what made the second visit cost as
+     * much as the first. A grid is an array copy and some eighty kilobytes; what is expensive is meshing
+     * one, and that cap is the drawn raster's.
      */
     public static int gridcap() {
-	int r = radius();
-	return(((r * 2) + 1) * ((r * 2) + 1) * keepsquares);
+	return(256);
     }
 
     /**
@@ -180,6 +157,55 @@ public class Recall {
 	}
     }
 
+    /**
+     * Every grid a map database has taken in, in order: the segment and the grid coord in it -- how a reader
+     * that keeps a copy of what it read hears that the record moved under it. One per {@link MapFile}
+     * ({@code MapFile.journal}).
+     *
+     * <p>{@code MapFile.Segment.include} is the one door a grid enters a segment by -- recorded off the live
+     * map, imported, merged in -- and it refreshes the file's own caches and nothing else. The character
+     * re-records the grids around them every time the server sends one again, and the first time each is
+     * seen in a session, so the ground just walked over is exactly the ground whose copy here went stale.
+     *
+     * <p>A ring of the last {@link #CAP}, and nothing registers in it: each reader keeps its own place, so
+     * nothing has to be let go of. One further behind than that -- a merge or an import takes in a whole
+     * segment at once -- has lost the trail, and is told so.
+     */
+    public static final class Journal {
+	private static final int CAP = 4096;
+	private final long[] segs = new long[CAP];
+	private final Coord[] scs = new Coord[CAP];
+	private long next = 0;
+
+	/** A grid entered segment {@code seg} at {@code sc}: {@code MapFile.Segment.include}, under the file's write lock. */
+	public synchronized void included(long seg, Coord sc) {
+	    int i = (int)(next % CAP);
+	    segs[i] = seg;
+	    scs[i] = Coord.of(sc);
+	    next++;
+	}
+
+	/** Where the journal stands: a reader starting here has read nothing of what came before. */
+	public synchronized long at() {
+	    return(next);
+	}
+
+	/**
+	 * What segment {@code seg} has taken in from place {@code from} on, added to {@code into}: the place to
+	 * read from next, or {@code -1} when {@code from} has already left the ring.
+	 */
+	public synchronized long since(long from, long seg, Collection<Coord> into) {
+	    if(from < next - CAP)
+		return(-1);
+	    for(long s = from; s < next; s++) {
+		int i = (int)(s % CAP);
+		if(segs[i] == seg)
+		    into.add(scs[i]);
+	    }
+	    return(next);
+	}
+    }
+
     private volatile Base base = null;
     private volatile String unbased = "no session location yet";
 
@@ -224,7 +250,7 @@ public class Recall {
 
     /**
      * What to read: every grid the drawn raster asked for and one grid more in every direction, which is
-     * the fill margin {@link #radius()} describes. Immutable and replaced whole, because the sweep reads
+     * the fill margin {@link #want} adds. Immutable and replaced whole, because the sweep reads
      * it from a {@link Defer} thread while the raster hands it over from the UI thread.
      *
      * <p>Empty is the ordinary state and not a failure — with the raster out of the scene nothing is
@@ -248,6 +274,25 @@ public class Recall {
      * {@code trimall} that dropped its neighbours.
      */
     private final Set<Coord> pending = Collections.newSetFromMap(new ConcurrentHashMap<Coord, Boolean>());
+
+    /**
+     * Grids held here that the record has taken in again since they were read -- read again, wanted or not,
+     * and filled in place where they changed ({@link #install}).
+     *
+     * <p>Without it a grid read once is what this source draws for as long as it holds it: the character
+     * walks up to ground that changed, the live terrain draws it as it is now and the record takes it in,
+     * and walking away hands the ground back to a copy of what the record said before.
+     *
+     * <p>Found by {@link #journal} at the head of each sweep, before anything is read, and that order is the
+     * whole of the correctness here: {@code include} runs under the file's write lock, so a read asked for
+     * after the sweep has had the read lock answers at least as new as every entry found before it -- the
+     * {@code Indir} is the one {@code include} refreshed, or one loaded off the disk after the save.
+     * Dropped from here when the read arrives, whatever it says.
+     */
+    private final Set<Coord> stale = Collections.newSetFromMap(new ConcurrentHashMap<Coord, Boolean>());
+    /* Where the sweep has read the base's journal up to, and for which base: the sweep's alone. */
+    private Base jbase = null;
+    private long jat = 0;
 
     /**
      * The grids this source holds, least recently wanted first — the keep set, and the reason a pan back
@@ -283,7 +328,7 @@ public class Recall {
 
     private volatile boolean sweeping = false;
 
-    private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nstale = 0;
+    private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nstale = 0, nreread = 0, nchanged = 0;
     private volatile int nreleased = 0;
     private volatile String lasterr = null;
 
@@ -356,8 +401,8 @@ public class Recall {
      *
      * <p>The margin is added here rather than asked for: {@code MapMesh.dotrans} reads a tile across the
      * cut edge and the corner heights need the same tile, so a cut at the fill's own edge throws
-     * {@code MCache.LoadingMap} and never completes — see {@link #radius()}. So what is read is always
-     * the wanted set dilated by one grid, and the raster asks for exactly what it means to draw.
+     * {@code MCache.LoadingMap} and never completes. So what is read is always the wanted set dilated by
+     * one grid, and the raster asks for exactly what it means to draw.
      *
      * <p>Wanting is also what makes a grid <b>recent</b>, so this is where the keep set is decided and
      * where it is trimmed. Nothing wanted is not nothing kept: with the raster out of the scene what was
@@ -372,6 +417,11 @@ public class Recall {
      *              says, or {@code null} when it is holding none
      */
     public void want(Set<Coord> grids, Set<Coord> held) {
+	/* The very sets of the last call, which the raster hands over again while nothing it holds moves: nothing
+	 * to decide. A grid arriving meanwhile made its own room (install). */
+	if((grids != null) && !grids.isEmpty() && (grids == wantlast) && (held == pinned))
+	    return;
+	wantlast = grids;
 	pinned = (held == null) ? Collections.<Coord>emptySet() : held;
 	if((grids == null) || grids.isEmpty()) {
 	    readset = Collections.emptySet();
@@ -397,18 +447,20 @@ public class Recall {
 	}
 	trim(0);
     }
+    /* What the last want() was handed, on the UI thread alone. */
+    private Set<Coord> wantlast = null;
 
     /**
-     * Drop the least recently wanted grids down to {@link #gridcap()} — and never a grid the raster is
-     * holding a cut of ({@link #pinned}), whatever the order says.
+     * Drop the least recently wanted grids down to {@link #gridcap()} past what is wanted — and never a
+     * grid the raster is holding a cut of ({@link #pinned}), nor one wanted right now ({@link #readset}),
+     * whatever the order says.
      *
-     * <p>That exception is the whole of the safety here, and it is not the LRU being polite. A
+     * <p>The first exception is the whole of the safety here, and it is not the LRU being polite. A
      * {@code MCache.Grid} disposes its cut meshes with itself, and {@code MapRaster.Grid} holds a scene
      * slot per cut it has drawn — so a grid dropped while the raster holds one of its cuts leaves that
      * slot drawing a disposed mesh, with nothing to notice. The raster's own cut map is therefore the
-     * authority over this budget rather than the other way about, and it can never cost more than the cap:
-     * what holds a cut is inside the drawn square, which is a ring smaller than the read square this cap
-     * is a multiple of.
+     * authority over this budget rather than the other way about. The second is what keeps a wanted set
+     * larger than the cap from being read, dropped and read again on every sweep.
      *
      * <p>What goes is named rather than what stays ({@code MCache.drop}), because a grid may arrive from a
      * {@link Defer} thread at any moment and naming what stays would dispose one read off the disk before
@@ -427,14 +479,15 @@ public class Recall {
 	     * it holds to decide that is a copy of the cache per tick to decide nothing.
 	     *
 	     * The drop list is made after that decision for the same reason. */
-	    int over = (lru.size() + room) - gridcap();
+	    Set<Coord> wanted = this.readset;
+	    int over = (lru.size() + room) - (gridcap() + wanted.size());
 	    if(over <= 0)
 		return;
 	    List<Coord> drop = new ArrayList<Coord>();
 	    Set<Coord> pin = this.pinned;
 	    for(Iterator<Coord> i = lru.keySet().iterator(); i.hasNext() && (over > 0);) {
 		Coord gc = i.next();
-		if(pin.contains(gc))
+		if(pin.contains(gc) || wanted.contains(gc))
 		    continue;
 		i.remove();
 		drop.add(gc);
@@ -500,6 +553,8 @@ public class Recall {
 	Map<Coord, Long> ids = null;
 	Map<Coord, MapFile.Grid> ready = null;
 	int blank = 0;
+	/* What the record has taken in again of what is held, and BEFORE the read lock: see `stale`. */
+	journal(base);
 	/* Name the proof's witnesses OUTSIDE the file lock: MapFile's own writers walk a map cache while
 	 * holding it, and taking the two in the other order here is how that becomes a deadlock. */
 	int nwitness = gather(base);
@@ -547,9 +602,23 @@ public class Recall {
 	     * behind the camera that no pan will ever want. Read once, because the raster may hand over
 	     * a new set under a sweep that is already running. */
 	    Set<Coord> want = this.readset;
+	    /* And every grid held that the record has taken in again, wanted or not (see `stale`): asked for
+	     * like one never read, and out of the same budget. */
+	    Set<Coord> ask = want;
+	    if(!stale.isEmpty()) {
+		ask = new HashSet<Coord>(want);
+		ask.addAll(stale);
+	    }
 	    int newask = 0;
-	    for(Coord gc : want) {
+	    for(Coord gc : ask) {
 		if(AddonWidgets.loadedGrid(map, gc) != null) {
+		    if(!stale.contains(gc)) {
+			pending.remove(gc);
+			continue;
+		    }
+		} else if(stale.remove(gc) && !want.contains(gc)) {
+		    /* Dropped since the record moved under it, and not wanted: there is nothing held to bring up
+		     * to date. */
 		    pending.remove(gc);
 		    continue;
 		}
@@ -559,6 +628,7 @@ public class Recall {
 		     * retry into -- there is simply nothing recorded there. */
 		    blank++;
 		    pending.remove(gc);
+		    stale.remove(gc);
 		    continue;
 		}
 		if(!pending.contains(gc)) {
@@ -587,6 +657,7 @@ public class Recall {
 		    if(g == null) {
 			blank++;
 			pending.remove(ent.getKey());
+			stale.remove(ent.getKey());
 			continue;
 		    }
 		    if(ready == null)
@@ -600,6 +671,7 @@ public class Recall {
 		     * a RuntimeException everywhere on this path. One grid's failure is not the sweep's --
 		     * and the ask is over, however it went, so the coord stops being pending. */
 		    pending.remove(ent.getKey());
+		    stale.remove(ent.getKey());
 		    nfailed++;
 		    lasterr = String.valueOf(e);
 		}
@@ -618,13 +690,51 @@ public class Recall {
 	    if(this.base != base)
 		break;
 	    pending.remove(ent.getKey());
+	    stale.remove(ent.getKey());
 	    try {
-		install(ent.getKey(), ids.get(ent.getKey()).longValue(), ent.getValue());
-		nread++;
+		if(install(ent.getKey(), ids.get(ent.getKey()).longValue(), ent.getValue()))
+		    nread++;
 	    } catch(RuntimeException e) {
 		nfailed++;
 		lasterr = String.valueOf(e);
 	    }
+	}
+    }
+
+    /**
+     * Find which of the grids held the record has taken in again since the last sweep, into {@link #stale}.
+     * The sweep's first act, ahead of its read lock, which is what makes a read asked for after it new
+     * enough (see {@link #stale}).
+     *
+     * <p>A base met for the first time starts where the journal stands: everything read through it is read
+     * from here on. A sweep that has fallen out of the ring takes everything held for stale, which costs a
+     * read of each and a rebuild of none that did not change.
+     */
+    private void journal(Base base) {
+	Journal j = base.file.journal;
+	if(base != jbase) {
+	    jbase = base;
+	    jat = j.at();
+	    stale.clear();
+	    return;
+	}
+	/* Nothing taken in is the ordinary sweep, and it allocates nothing. */
+	if(j.at() == jat)
+	    return;
+	List<Coord> moved = new ArrayList<Coord>();
+	long at = j.since(jat, base.segid, moved);
+	if(at < 0) {
+	    jat = j.at();
+	    synchronized(lru) {
+		stale.addAll(lru.keySet());
+	    }
+	    return;
+	}
+	jat = at;
+	for(Coord sc : moved) {
+	    Coord gc = sc.sub(base.off);
+	    if(AddonWidgets.loadedGrid(map, gc) != null)
+		stale.add(gc);
 	}
     }
 
@@ -683,7 +793,7 @@ public class Recall {
     /**
      * The proved base, or {@code null} while there is none -- and the one answer to whether the remembered
      * ground may be drawn: there is a base, a sweep has proved it, and nothing read through a base that has
-     * since failed is still held. It is also the segment the far rings read their zoom grids out of and the
+     * since failed is still held. It is also the segment the far ground reads its zoom grids out of and the
      * offset that places them, one object, so the two are always the same base's.
      *
      * <p>Ask it <b>once</b> per tick and decide everything on that answer: a sweep can fail the proof from
@@ -705,6 +815,7 @@ public class Recall {
 	mustrelease = false;
 	nreleased++;
 	pending.clear();
+	stale.clear();
 	pinned = Collections.emptySet();
 	/* The third door: trimall empties the cache wholesale, so the order goes with it. Left standing it
 	 * would hold coords for grids that no longer exist, and trim would drop nothing while believing
@@ -717,31 +828,72 @@ public class Recall {
     }
 
     /**
-     * Remap the recorded grid's tile indices onto this cache's own ids, and install it.
+     * Remap the recorded grid's tile indices onto this cache's own ids, and install it -- or, for a grid
+     * already held and read again because the record took it in again ({@link #stale}), fill it in place
+     * where it changed.
      *
      * <p>Room first, and that is what makes {@link #gridcap()} a bound on what is <b>held</b> rather than
      * on what the last tick trimmed. Installing happens here, on a {@link Defer} thread, while the trim
      * runs on the tick; between the two, a count read from outside would stand as far above the cap as one
      * sweep can install, and a budget that is only true at the instant it is enforced is not one.
+     *
+     * @return whether a grid was put in that this source did not hold
      */
-    private void install(Coord gc, long id, MapFile.Grid g) {
-	trim(1);
+    private boolean install(Coord gc, long id, MapFile.Grid g) {
 	int[] gmap = new int[g.tilesets.length];
 	for(int i = 0; i < gmap.length; i++)
 	    gmap[i] = tileid(g.tilesets[i]);
 	int[] tiles = new int[g.tiles.length];
 	for(int i = 0; i < tiles.length; i++)
 	    tiles[i] = gmap[g.tiles[i]];
-	AddonWidgets.putgrid(map, gc, id, tiles, g.zmap);
-	/* The first door. AFTER the trim above, so the entry does not count against the room just made for
-	 * it, and after the put, so a grid that threw on its way in is in no order. Taken after putgrid has
-	 * returned rather than around it: this monitor is always the outer one of the two. */
-	synchronized(lru) {
-	    lru.put(gc, Boolean.TRUE);
+	MCache.Grid cur = AddonWidgets.loadedGrid(map, gc);
+	if(cur != null) {
+	    /* Most often the same ground -- the character merely walked past it, and the record takes in every
+	     * grid it is shown -- and then there is nothing to rebuild. The ids are this source's own for a
+	     * tileset's name and version, so the tiles compare as they stand; the heights, as the record keeps
+	     * them (samez). Only the sweep writes either. */
+	    nreread++;
+	    if((cur.id == id) && Arrays.equals(cur.tiles, tiles) && samez(cur.z, g.zmap))
+		return(false);
+	    nchanged++;
+	} else {
+	    trim(1);
+	}
+	/* Filled in place when held (AddonWidgets.putgrid): the cuts go on drawing the old ground until the
+	 * new is built, and the raster merges each grid again as its cuts land. */
+	boolean put = !AddonWidgets.putgrid(map, gc, id, tiles, g.zmap);
+	if(put) {
+	    /* The first door. AFTER the trim above, so the entry does not count against the room just made for
+	     * it, and after the put, so a grid that threw on its way in is in no order. Taken after putgrid has
+	     * returned rather than around it: this monitor is always the outer one of the two. */
+	    synchronized(lru) {
+		lru.put(gc, Boolean.TRUE);
+	    }
 	}
 	/* A free hafen.virtual() entity may stand on this grid now (MapView.recallground). A flag, drained on
 	 * the addon tick, so raising it from this Defer thread is sound. */
 	io.brodgar.addon.AddonManager.groundChanged();
+	return(put);
+    }
+
+    /** How far apart two heights of the same ground may read (see {@link #samez}). */
+    static final float ZSAME = 0.1f;
+
+    /**
+     * Whether two height maps are the same ground as the record keeps it. The record rounds every height it
+     * saves, to a step of a quantum of its grid's own, within 0.01 of the height it was given
+     * ({@code MapFile.savez}), and a zoom grid is saved again at every level -- so the same ground read out of
+     * memory ({@code include} hands its {@code Indir} the grid just recorded) and read off the disk agrees to
+     * within hundredths, and never to the bit.
+     */
+    static boolean samez(float[] a, float[] b) {
+	if(a.length != b.length)
+	    return(false);
+	for(int i = 0; i < a.length; i++) {
+	    if(!(Math.abs(a[i] - b[i]) <= ZSAME))
+		return(false);
+	}
+	return(true);
     }
 
     /**
@@ -778,6 +930,9 @@ public class Recall {
 	}
 	out.add(String.format("recall: grids held %d of %d, grids read %d, unrecorded %d, asked %d, failed %d",
 			      map.numgrids(), gridcap(), nread, nblank, pending.size(), nfailed));
+	/* Held grids the record took in again -- read again, and filled in place where the ground changed. */
+	out.add(String.format("recall: grids read again after the record took them in again %d, changed %d, still to read %d",
+			      nreread, nchanged, stale.size()));
 	out.add(String.format("recall: rebases %d, sweeps refused on a stale session location %d, releases %d",
 			      nrebase, nstale, nreleased));
 	/* "sent" is zero by construction and not by a counter: nothing ticks this source, so
