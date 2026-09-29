@@ -442,10 +442,23 @@ public class RecallLod implements RenderTree.Node {
     public Set<Coord> detail = Collections.emptySet();
     /** Of {@link #detail}, the grids drawn whole this tick; the rest are built and not drawn. */
     public Set<Coord> shown = Collections.emptySet();
-    /** Cells this tick wanted, cells it had in the scene, and cells loading or building, for {@code :recall}. */
-    public int nwanted = 0, ndrawn = 0, nbusy = 0;
+    /** Cells this tick had in the scene, and cells loading or building, for {@code :recall}. */
+    public int ndrawn = 0, nbusy = 0;
     /** Grids drawn whole this tick and wanted whole, for {@code :recall}. */
     public int nwhole = 0, nwholewanted = 0;
+
+    /**
+     * Cells the last walks want, each once: what the view draws and what the keep walk keeps. For {@code :recall},
+     * and counted when it asks rather than by every tick of a moving camera.
+     */
+    public int nwanted() {
+	int n = kwants.size();
+	for(Leaf l : wants) {
+	    if(!kset.contains(l.key))
+		n++;
+	}
+	return(n);
+    }
 
     public void added(RenderTree.Slot slot) {
 	this.slot = slot;
@@ -738,18 +751,14 @@ public class RecallLod implements RenderTree.Node {
 	 * (kset). What the view draws is touched, which makes it recent -- what is kept was when its walk ran -- and
 	 * what is not asked for yet is started as MAXBUSY allows: the view's own first, the largest first, then what
 	 * the keep walk left to start, in its order. */
-	int nw = kwants.size();
 	List<Leaf> order = null;
 	for(Leaf l : wants) {
-	    if(!kset.contains(l.key))
-		nw++;
 	    if(cells.get(l.key) == null) {   // the touch
 		if(order == null)
 		    order = new ArrayList<Leaf>();
 		order.add(l);
 	    }
 	}
-	nwanted = nw;
 	boolean left = false;
 	if(order != null) {
 	    Collections.sort(order, LEAFORDER);

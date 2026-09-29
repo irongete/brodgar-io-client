@@ -2655,7 +2655,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		draw.clear();
 		draw.addAll(nd);
 	    }
-	    if(!maincurrent(built, chseq, gen)) {   // addon:
+	    if(!maincurrent(built, chseq, gen, now)) {   // addon:
 		main.tick();
 		mtbuilt = built;
 		mtchseq = chseq;
@@ -2667,12 +2667,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	/* addon: whether main.tick() would find nothing to do this tick: every cut of `draw` in the scene already --
 	 * so none to add and none to take out, since `cuts` holds exactly `draw` after a tick that met no Loading --
-	 * no cut mesh built since that tick ran (a rebuilt cut answers its new mesh), and the grids and the ground
-	 * settings where they were (a grid filled again, or a setting moved, invalidates a cut only as getcut asks
-	 * for it). A camera panning over grids held whole moves none of it, and the walk of every cut held is spared. */
+	 * no cut mesh built within IDLEWAIT of this tick, and the grids and the ground settings where they were (a
+	 * grid filled again, or a setting moved, invalidates a cut only as getcut asks for it). A camera panning over
+	 * grids held whole moves none of it, and the walk of every cut held is spared. Within IDLEWAIT of a build,
+	 * as the idle test above has it, and not only on the tick that first sees one: MCache.meshbuilt counts a
+	 * build before its future is done, and a walk on that tick is answered the rebuilt cut's old mesh. */
 	private int mtbuilt = -1, mtchseq = -1, mtgen = -1;
-	private boolean maincurrent(int built, int chseq, int gen) {
-	    if((main.lastload != null) || (built != mtbuilt) || (chseq != mtchseq) || (gen != mtgen) || (main.cuts.size() != draw.size()))
+	private boolean maincurrent(int built, int chseq, int gen, double now) {
+	    if((main.lastload != null) || (built != mtbuilt) || ((now - tbuiltat) <= IDLEWAIT) || (chseq != mtchseq) || (gen != mtgen) ||
+	       (main.cuts.size() != draw.size()))
 		return(false);
 	    for(Coord cc : draw) {
 		if(!main.cuts.containsKey(cc))
@@ -5318,7 +5321,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    io.brodgar.session.RecallLod lod = recalllod;
 		    if(lod != null)
 			cons.out.println(String.format("recall: far cells drawn %d, wanted %d, in flight %d; grids drawn whole %d, wanted whole %d",
-						       lod.ndrawn, lod.nwanted, lod.nbusy, lod.nwhole, lod.nwholewanted));
+						       lod.ndrawn, lod.nwanted(), lod.nbusy, lod.nwhole, lod.nwholewanted));
 		}
 	    });
 	/* addon: why the scene's slots are drawn one draw call each (InstanceList.census): the summary on the
