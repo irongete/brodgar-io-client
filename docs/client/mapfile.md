@@ -174,6 +174,15 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
 - **`Loading` is everywhere on this path** (`Indir.get`, a tileset resource, `olid.get`) and it is a
   `RuntimeException`: catch broadly at the API boundary or it escapes into user code.
 - A grid id and a segment id are **64-bit**; expose them as decimal strings, never Lua numbers.
+- **A version is a `uint16` in the record, and -1 goes in as `0xffff`.** Every resource reference the record
+  keeps — a tileset's, an overlay's, a marker's icon — is `Resource.Saved.savever()` written with `adduint16`, so a
+  reference to any version (`DataGrid.notile`, and whatever an import brings unversioned: other clients write
+  their unknown versions so) is stored as `0xffff`. Upstream reads it back as version 65535, which no source has:
+  every load of it asks the network twice and fails before falling back to the latest ([resource
+  loading](resource-loading.md)), and `ZoomGrid.from`, which keeps the **highest** version of the four grids below,
+  spreads it to every zoom grid above one grid that carries it. `MapFile.resver` (`// addon:`) reads `0xffff` as -1
+  at all four places a version is read (`DataGrid.loadtiles`, `loadols`, a marker, `ImportedGrid`'s older format),
+  so the value round-trips.
 - **`TileInfo.prio` is 0 on every grid recorded off the live map.** `update`'s first loop passes `prios[i]` into
   each `TileInfo`; the loop that *fills* `prios` runs after it, and the array is never read again. So the
   ordering the field exists to keep is thrown away at the one place it is written — which flattens

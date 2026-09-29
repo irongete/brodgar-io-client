@@ -389,7 +389,7 @@ public class MapFile {
 		return(new PMarker(this, seg, tc, nm, color, onmap));
 	    case 's':
 		UID oid = UID.of(fp.int64());
-		Resource.Saved res = new Resource.Saved(Resource.remote(), fp.string(), fp.uint16());
+		Resource.Saved res = new Resource.Saved(Resource.remote(), fp.string(), resver(fp));   // addon: resver
 		byte[] data = new byte[0];
 		if(ver >= 3)
 		    data = fp.bytes(fp.uint8());
@@ -490,6 +490,15 @@ public class MapFile {
 		return(sm);
 	}
 	return(null);
+    }
+
+    /* addon: a resource's version as the record keeps it, a uint16. A reference to any version (-1: notile, and
+     * whatever an import brings unversioned) is written 0xffff by savever(), and is -1 again here -- read as
+     * 65535, it asked every source for a version none has, and through ZoomGrid.from's maximum it spread to every
+     * zoom grid above the grid that carried it. */
+    static int resver(Message fp) {
+	int ver = fp.uint16();
+	return((ver == 0xffff) ? -1 : ver);
     }
 
     public static class TileInfo {
@@ -651,7 +660,7 @@ public class MapFile {
 	public static Pair<TileInfo[], int[]> loadtiles(Message fp, int ver) {
 	    TileInfo[] tilesets = new TileInfo[(ver >= 2) ? fp.uint16() : fp.uint8()];
 	    for(int i = 0; i < tilesets.length; i++)
-		tilesets[i] = new TileInfo(new Resource.Saved(Resource.remote(), fp.string(), fp.uint16()), fp.uint8());
+		tilesets[i] = new TileInfo(new Resource.Saved(Resource.remote(), fp.string(), resver(fp)), fp.uint8());   // addon: resver
 	    int[] tiles = new int[cmaps.x * cmaps.y];
 	    if(tilesets.length <= 256) {
 		for(int i = 0; i < cmaps.x * cmaps.y; i++)
@@ -751,7 +760,7 @@ public class MapFile {
 		String resnm = fp.string();
 		if(resnm.equals(""))
 		    break;
-		int resver = fp.uint16();
+		int resver = resver(fp);   // addon: resver
 		boolean[] ol = new boolean[cmaps.x * cmaps.y];
 		for(int i = 0, p = 0; i < ol.length; i += 8) {
 		    p = fp.uint8();
@@ -1915,7 +1924,7 @@ public class MapFile {
 	    } else {
 		tilesets = new TileInfo[data.uint8()];
 		for(int i = 0; i < tilesets.length; i++)
-		    tilesets[i] = new TileInfo(new Resource.Saved(Resource.remote(), data.string(), data.uint16()), data.uint8());
+		    tilesets[i] = new TileInfo(new Resource.Saved(Resource.remote(), data.string(), resver(data)), data.uint8());   // addon: resver
 		if(ver >= 2) {
 		    int len = data.int32();
 		    if(len != (cmaps.x * cmaps.y))
