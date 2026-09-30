@@ -200,6 +200,13 @@ final class Wire {
                 mods(verb, a, 2);
             }
         });
+        // Fightsess "use" {n, 1, mods, [place]} (170.4) — a combat key: the button is always 1 and the modifiers a
+        // keyboard's. The action menu's "use" is sent with no arguments and never reaches a row.
+        SHAPES.put("use", new Shape() {
+            public void check(String verb, Object[] a) {
+                mods(verb, a, 2);
+            }
+        });
         // ChatUI.EntryChannel "msg" {text} — what the entry line composes is ONE line of typed characters,
         // so a control character is a shape no keyboard puts there and a novel is not a chat line.
         SHAPES.put("msg", new Shape() {

@@ -1,10 +1,12 @@
 package io.brodgar.addon;
 
+import haven.Coord2d;
 import haven.FightWnd;
 import haven.Fightsess;
 import haven.Fightview;
 import haven.GameUI;
 import haven.Indir;
+import haven.OCache;
 import haven.Resource;
 import haven.Utils;
 
@@ -39,6 +41,11 @@ import java.util.Map;
  * follows the key rather than the manoeuvre in it, and the account is half the handle because every character
  * has its own row. Every read re-resolves the row through that character's HUD, copying the slot under the
  * row's monitor, where the loader thread writes {@code act} and {@code acool}.
+ *
+ * <p><b>{@code :use(mods, position)}</b> (170.4, {@code fight.use}) taps the key: the row's own {@code use}, then
+ * its {@code rel}, back to back inside one {@link Wire#send}. The client posts its own release through a render
+ * fence only because its {@code use} rides an asynchronous map pick; the connection numbers every message in
+ * order, so two sends from one thread under one monitor arrive in that order.
  */
 public final class LuaCombatAction {
     /** The places of the row: the client's own combat keys, "Combat action 1".."Combat action 10". */
@@ -230,6 +237,49 @@ public final class LuaCombatAction {
                     t.set("name", LuaValue.valueOf(n));
                 t.set("cooldown", LuaValue.valueOf(left(s.cs, s.ct)));
                 return t;
+            }
+        });
+        // use(mods, position) — 170.4, protected ("fight.use"), gated as the FIRST statement (D-213): a tap of the
+        // combat key, the row's own "use" and then its "rel", sent back to back from THAT character's Fightsess
+        // inside one Wire.send so nothing lands between them. mods (Shift=1, Ctrl=2, Alt=4) is optional and first,
+        // as slot:use(mods) takes it; position is an optional Position in that character's world, floored as a
+        // place is: the ground the client adds when the key is pressed over the map. Refused before anything is
+        // sent: out of a fight, past the server's row, on an empty place.
+        m.set("use", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_USE);
+                Args.only(a, 2, "action:use");
+                LuaCombatAction h = handle(self, "use");
+                int mods = Args.optint(a, 2, "action:use", "mods", "Shift=1, Ctrl=2, Alt=4; a place goes second,"
+                                       + " action:use(0, position)", 0);
+                Coord2d at = Args.passed(a, 3) ? LuaPosition.worldArg(a, 3, "action:use", "position", h.user) : null;
+                if(AddonManager.gameui(h.user) == null)
+                    throw new LuaError("action:use(): no game UI (that character is not in the world yet)."
+                        + " Nothing was sent.");
+                final Fightsess fs = row(h.user);
+                if(fs == null)
+                    throw new LuaError("action:use(): that character is not in a fight — the combat row is there"
+                        + " only while it fights (" + CharApi.FO + ":current() is nil). Nothing was sent.");
+                final int n = h.slot;
+                final Object[] args = (at == null)
+                    ? new Object[] {Integer.valueOf(n), Integer.valueOf(1), Integer.valueOf(mods)}
+                    : new Object[] {Integer.valueOf(n), Integer.valueOf(1), Integer.valueOf(mods),
+                                    at.floor(OCache.posres)};
+                // The dispatch re-reads the row under the monitor Wire holds: the loader thread writes "act" under
+                // it, and the row may have lost this place since the look above.
+                Wire.send(h.user, "action:use", fs, "use", args, () -> {
+                    if(n >= fs.actions.length)
+                        throw new LuaError("action:use(): this fight's row has " + fs.actions.length
+                            + " actions and this is action " + (n + 1) + " — the client's own key for it sends"
+                            + " nothing. Nothing was sent.");
+                    if(fs.actions[n] == null)
+                        throw new LuaError("action:use(): action " + (n + 1) + " is empty (check action:empty()"
+                            + " first). Nothing was sent.");
+                    fs.wdgmsg("use", args);
+                    fs.wdgmsg("rel", Integer.valueOf(n));
+                });
+                return self;
             }
         });
         return m;

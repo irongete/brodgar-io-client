@@ -4679,7 +4679,7 @@ hafen.console():on("t170", function() after(0, run) end)
 
 ---
 
-- [ ] **170.4 — An addon uses a combat action as its key does, under fight.use.**
+- [x] **170.4 — An addon uses a combat action as its key does, under fight.use.**
 
 `action:use(mods, position)`, protected by the new key `fight.use` (and the group `fight.*`): the row's own `use`
 and then its `rel`, sent back to back from that character's `Fightsess` inside one `Wire.send`, as a tapped key.

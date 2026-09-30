@@ -31,6 +31,7 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 | `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press the action-bar buttons of any of your characters |
 | `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | assign one of the game's own actions to any of your characters' action-bar buttons |
 | `actionbar.clear` | [`slot:clear`](../api/actionbar.md#write-protected) | empty any of your characters' action-bar buttons |
+| `fight.use` | [`action:use`](../api/fight.md#write-protected) | use combat actions, in the fights of any of your characters |
 | `kin.add` | [`session:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
 | `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on any of your characters' kin lists |
 | `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group, on any of your characters |
@@ -74,6 +75,7 @@ A `<prefix>.*` entry stands for every key under that prefix.
 | `world.*` | `world.place`, `world.select` |
 | `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
 | `actionbar.*` | `actionbar.use`, `actionbar.res`, `actionbar.clear` |
+| `fight.*` | `fight.use` |
 | `player.*` | `player.move`, `player.hand.use` |
 | `player.hand.*` | `player.hand.use` |
 | `widget.*` | `widget.send`, `widget.value` |

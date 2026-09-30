@@ -21,7 +21,7 @@ end)
 | One character's | Every character configures its own deck against its own budget and fights its own fight: `hafen.session():get("alt"):fight():opponent():current()` answers about the alt. A hotkey slot and an opponent's gob id count inside one character, so a `DeckCard` and an `Opponent` carry their character beside their key. |
 | `opponent:gob()` answers in the login asked through | That character's own world, where the id came from: `opponent:gob():exists()` is that character's line of sight, not the screen's. |
 | Before the tab has built, and out of a fight | `:maneuver():list()` and `:deck():list()` are empty and `:summary()` is `nil` until the tab has built. Out of a fight, `:opponent()` and `:opening()` are empty, every `:action()` is `:empty()`, and `:opponent():current()`, `:cooldown()` and `:last()` are `nil`. |
-| Unprotected, no write side | Nothing throws. The opponents, the manoeuvres used and the combat row fire [the fight events](event/bus/fight.md), a fight's buffs the [opening events](event/bus/character.md#character-and-status), and the schools are read on demand. |
+| Reads are unprotected | Nothing throws, and the verbs that act are under [Write (protected)](#write-protected). The opponents, the manoeuvres used and the combat row fire [the fight events](event/bus/fight.md), a fight's buffs the [opening events](event/bus/character.md#character-and-status), and the schools are read on demand. |
 
 ## Read
 
@@ -154,6 +154,25 @@ The place a combat key presses: `session:fight():action():get(n)` is the one "Co
 | `filter` | A string matches the manoeuvre's resource and display name, as on `:maneuver()`, so one needle finds the same manoeuvre through either door. |
 | Identity | Interned on character and place: `session:fight():action():get(1) == session:fight():action():list()[1]`. A stashed action follows its key from fight to fight. |
 | Events | [`CombatActionChanged`](event/bus/fight.md) when a place is set, cleared or its name resolves, never as a cooldown runs. The moment a manoeuvre is used is [`ManeuverUsed`](event/bus/fight.md). |
+| Using it | [`action:use(mods, position)`](#write-protected), under `fight.use`. |
+
+## Write (protected)
+
+The client sends only shapes a player could compose.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `action:use(mods, position)` | the `CombatAction` | `fight.use` | Use that action, as tapping its combat key does. |
+
+| Rule | Detail |
+|---|---|
+| Permission | Each key [declared](../guides/permissions.md) in your manifest, or the group `fight.*`. An undeclared key raises naming it. One key covers every character ([a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target)). |
+| A tap | The row's `use` and then its release, sent back to back from that character's combat row: the key pressed and let go. There is no verb for holding one down. |
+| `mods` | Optional and first: Shift = 1, Ctrl = 2, Alt = 4, as for [`slot:use(mods)`](actionbar.md#write-protected). The client's own keys for actions 6 to 10 are Shift+`1` to Shift+`5`, so pressing one of them carries Shift. |
+| `position` | Optional and second: a [Position](position.md) in that character's world, the ground the client adds when a key is pressed with the pointer over the map. `action:use(0, position)` passes one without modifiers. |
+| Raises before anything is sent | An addon that did not declare `fight.use`, naming the key. A surplus argument. A `mods` that is not a whole number `0..7`, and a `position` that is not a Position. Out of a fight. An empty action (`action:empty()`), and one past the server's row. |
+| Asynchronous | The server answers the use: the cooldowns start, [`ManeuverUsed`](event/bus/fight.md) fires and `session:fight():last()` names it, or nothing moves when the server refused it. Read them on the next frames. |
+| The outbound stream sees it | Both messages pass [`hafen.event():action()`](event/streams.md#intercepting-an-outbound-action) like the client's own, so a handler can stop or rewrite them. |
 
 ---
 
@@ -164,5 +183,6 @@ The place a combat key presses: `session:fight():action():get(n)` is the one "Co
 - [The fight](types/fight.md) — the snapshot shapes `:info()` returns.
 - [The fight events](event/bus/fight.md) — an opponent coming and going, its numbers moving, the target changing, a manoeuvre used, the combat row changing.
 - [`session:buff`](buff.md) — the buff bar, and the `Buff` a fight's buffs are too.
-- [`session:actionbar`](actionbar.md) — the other hotkey surface, which is writable.
+- [`session:actionbar`](actionbar.md) — the other hotkey surface.
+- [Permissions](../guides/permissions.md) — the `fight.*` keys.
 - [`session:char`](char.md) — the skills that unlock manoeuvres.
