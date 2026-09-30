@@ -487,7 +487,15 @@ public class Recall {
 	     *
 	     * The drop list is made after that decision for the same reason. */
 	    Set<Coord> wanted = this.readset;
-	    int over = (lru.size() + room) - (gridcap() + wanted.size());
+	    /* The wanted grids held, and not every wanted coord: at the edge of explored ground most of what is wanted
+	     * is ground the record never had, and a coord that is no grid leaves no grid room past the cap. A lookup
+	     * and not a get, which would make it recent. */
+	    int wheld = 0;
+	    for(Coord gc : wanted) {
+		if(lru.containsKey(gc))
+		    wheld++;
+	    }
+	    int over = (lru.size() + room) - (gridcap() + wheld);
 	    if(over <= 0)
 		return;
 	    List<Coord> drop = new ArrayList<Coord>();
