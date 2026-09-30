@@ -1,9 +1,10 @@
 # Cross-cutting client services
 
-> Keybindings, resources, the live fight, buffs, the vitals bars, the speed selector, the belt, the
-> action menu, minimap icons, crafting and equipment. Six subjects have a page of their own:
-> [audio.md](audio.md), [character-sheet.md](character-sheet.md), [kin-window.md](kin-window.md),
-> [chat.md](chat.md), [console.md](console.md) and [prefs-and-options.md](prefs-and-options.md).
+> Keybindings, resources, buffs, the vitals bars, the speed selector, the belt, the action menu,
+> minimap icons, crafting and equipment. Seven subjects have a page of their own:
+> [audio.md](audio.md), [character-sheet.md](character-sheet.md), [combat.md](combat.md),
+> [kin-window.md](kin-window.md), [chat.md](chat.md), [console.md](console.md) and
+> [prefs-and-options.md](prefs-and-options.md).
 
 | Service | Where |
 |---|---|
@@ -16,7 +17,6 @@
 | Settings, and where each is written | [prefs-and-options.md](prefs-and-options.md) — the client's file, its 6144-byte list budget, and what each `OptWnd` panel writes |
 | Warnings and the error log | `Warning.issue()` — every warning to stderr; one at `Warning.CRITICAL` also appended to `haven-errors.log` **beside the client**, in the folder that holds `savedata/`, through the fork's path helper rather than `Debug.somedir`. `Debug.somedir` resolves against `user.home` and is what the click and light dumps behind the debug flags still use. `issue()` reads no preference, so a warning out of the preference store cannot recurse into it |
 | Audio | [audio.md](audio.md) — the three channels, playing and stopping a clip, per-clip volume, ambience |
-| Combat — the live fight | `Fightview`: `lsrel`  (a `LinkedList`, added/removed by the `new`/`del` uimsgs under the ui monitor), `current`  (the picked opponent, reassigned by `setcur`  off the `cur` uimsg — **`null` out of a fight**), `Relation.gobid/gst/ip/oip`  (`ip` is YOURS, `oip` theirs — `Fightsess` paints them left/right; `gst` is the **give** state, written by `Relation.give` off the `give` uimsg and read straight into `Relbox`'s `GiveButton.state`). All three are plain public ints written from `uimsg`, `Relation.invalid` set by `remove()`; deck `Fightsess.actions`; `GameUI.fv`. **The only id it publishes is the gob id** — no name, no creature data |
 | Buffs | `GameUI.buffs` is a `Bufflist` (a plain `Widget`, 5 per row) — the buffs are its `children(Buff.class)` in **child order = draw order** (`GameUI.addchild "buff"`  `addchild`s them, so it is arrival order, not sorted). `Buff.res` (an `Indir` → `Loading`-throwing), `Buff.info()` (`ItemInfo` list, empty until the server's `tt`). **The same resource can be up twice** ⇒ identity is the *widget*, never the res name. **Removal is not immediate**: `Buff.reqdestroy` only sets `protected dest` and starts a 0.35 s fade `NormAnim`, calling `destroy()` at its end — so a removed buff stays a live child for ~21 frames. Read the flag via `AddonWidgets.buffDest` and treat `dest` as gone, or removals lag by that fade. **A destroyed buff stays READABLE**: `Widget.destroy` only unlinks the widget from its parent — it clears neither `res` nor the cached `info`, so a `Buff` a handler stashed keeps answering after removal (`:exists()` is a *bar-membership* scan, not a liveness flag on the widget) |
 | The Kin window | [kin-window.md](kin-window.md) — the buddy roster, its palette, and the village and realm panels beside it |
 | The character sheet | [character-sheet.md](character-sheet.md) — `CharWnd` and its six tabs: attributes and FEP, study, skills and credos, the deck builder, quests, wounds |

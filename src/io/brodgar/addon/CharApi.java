@@ -483,6 +483,18 @@ final class CharApi {
      * <p>The per-buff {@code "ch"}/{@code "tt"} content updates ARE {@code uimsg}s, so <b>refresh</b>
      * (unchanged) re-reads the cached buffs and fires {@code BuffChanged}.
      *
+     * <p><b>Two key families over one object</b> (170.1). A buff on the bar fires {@code BuffAdded}/{@code
+     * BuffChanged}/{@code BuffRemoved}; a buff the combat view draws — yours in the fight, or beside an opponent
+     * — fires {@code OpeningAdded}/{@code OpeningChanged}/{@code OpeningRemoved}, with the opponent it was drawn
+     * beside (or {@code nil} for yours) as the second argument. The place is recorded when the buff is
+     * announced ({@link Seen}), so the removal names the opponent the buff itself can no longer name.
+     *
+     * <p><b>A fight's buffs follow the combat row</b> (170.1). {@code Fightsess} paints them, and the server
+     * takes it down with the fight while the combat view keeps the buffs of yours it has not yet expired, so
+     * {@link LuaBuff#active} counts a list under the view only while the row stands. The row's own entry and
+     * removal are the two seams that move that: {@link #placed} announces the buffs that arrived before it,
+     * {@link #removed} retires the ones it no longer counts, each with the object the opening was announced with.
+     *
      * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
      * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business. Since 025.2 the
      * three events carry the <b>Buff object</b> ({@link AddonManager#fireBuff}), so a handler reads the
@@ -491,34 +503,71 @@ final class CharApi {
      * content changes only. It is never handed to Lua any more — {@code buff:info()} is that, on demand.
      */
     private static final class BuffsAdapter implements TreeAdapter {
-        // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
-        // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
-        // Buff widgets are keyed by object identity, like the meters.
-        // retained: change-detection state whose drain ANNOUNCES -- removed() fires BuffRemoved -- so it stays
-        //   on the removal seam: the disposal drain retires and never fires. Bounded by its SessionState, which
-        //   this adapter dies with.
-        private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
+        /**
+         * What the adapter keeps of an announced buff: its last snapshot (the change-detection key, NOT a
+         * payload) and where the client drew it when it was announced (170.1) — the bar, which fires the
+         * {@code Buff} keys, or the combat view, which fires the {@code Opening} keys with the opponent it is
+         * drawn beside. The place is kept because it cannot be read again at the end: an opponent's list dies
+         * with its relation.
+         */
+        private static final class Seen {
+            LuaValue snap;
+            final LuaBuff.Place place;
+
+            Seen(LuaValue snap, LuaBuff.Place place) {
+                this.snap = snap;
+                this.place = place;
+            }
+        }
+
+        // Active buff -> what was announced of it. UI-thread-only (placed/removed/refresh); built with its
+        // session's state (073.3). IdentityHashMap: Buff widgets are keyed by object identity, like the meters.
+        // retained: change-detection state whose drain ANNOUNCES -- removed() fires BuffRemoved or OpeningRemoved
+        //   -- so it stays on the removal seam: the disposal drain retires and never fires. Bounded by its
+        //   SessionState, which this adapter dies with.
+        private final Map<Buff, Seen> cache = new IdentityHashMap<Buff, Seen>();
+
+        /** One edge ({@code Added}, {@code Changed}, {@code Removed}), under the key family of where the buff is drawn. */
+        private static void edge(String which, Buff b, Seen s) {
+            if(s.place.fight)
+                fireOpening("Opening" + which, b, s.place.opponent);
+            else
+                fireBuff("Buff" + which, b);
+        }
 
         public boolean interested(Widget w, String msg) {
             return (w instanceof Buff) && ("ch".equals(msg) || "tt".equals(msg));
         }
 
         public void refresh() {
-            if(!AddonManager.anySub("BuffChanged"))   // audit2 B10 (bm-07) — MeterAdapter.refresh's reason
+            if(!AddonManager.anySub("BuffChanged") && !AddonManager.anySub("OpeningChanged"))   // audit2 B10 (bm-07) — MeterAdapter.refresh's reason
                 return;
-            for(Map.Entry<Buff, LuaValue> e : cache.entrySet()) {
+            for(Map.Entry<Buff, Seen> e : cache.entrySet()) {
                 LuaValue snap = LuaBuff.snapshot(e.getKey());
-                if(!buffEqual(snap, e.getValue())) {
-                    e.setValue(snap);
-                    fireBuff("BuffChanged", e.getKey());
+                if(!buffEqual(snap, e.getValue().snap)) {
+                    e.getValue().snap = snap;
+                    edge("Changed", e.getKey(), e.getValue());
                 }
             }
         }
 
         public void placed(Widget w) {
-            if(!(w instanceof Buff))
+            if(w instanceof haven.Fightsess) {
+                // 170.1: the combat row is what paints the fight's buffs, so a buff that arrived before it is
+                // announced now, when the row comes up (a buff arriving after it is announced by its own entry).
+                GameUI g = w.getparent(GameUI.class);
+                haven.Fightview fv = (g == null) ? null : g.fv;
+                if(fv != null) {
+                    for(Buff b : LuaBuff.fought(fv))
+                        announce(b);
+                }
                 return;
-            Buff b = (Buff)w;
+            }
+            if(w instanceof Buff)
+                announce((Buff)w);
+        }
+
+        private void announce(Buff b) {
             // audit2 B16 (bm-16): the liveness half of the MeterAdapter mirror, which this had dropped
             // while its comment claimed the whole of it. LuaBuff.active is buff:exists() -- on the bar and
             // not already fading -- exactly as LuaMeter.exists is meter:exists(), so a Buff widget standing
@@ -526,23 +575,39 @@ final class CharApi {
             // entry and announces nothing. The two adapters now seed on one condition.
             if(cache.containsKey(b) || !LuaBuff.active(b))
                 return;
+            LuaBuff.Place place = LuaBuff.placeOf(b);
+            if(place == null)
+                return;   // 170.1: its relation ended between the two looks: nothing draws it, so nothing announces it
             // Seed the diff key with the buff's current snapshot AT add time (027.2, mirrored from
             // MeterAdapter) -- there is no tick ordering to lean on here since placed/refresh are two
             // different seams.
-            cache.put(b, LuaBuff.snapshot(b));
-            fireBuff("BuffAdded", b);
+            Seen s = new Seen(LuaBuff.snapshot(b), place);
+            cache.put(b, s);
+            edge("Added", b, s);
         }
 
         public void removed(Widget w) {
+            if(w instanceof haven.Fightsess) {
+                // 170.1: the row went with the fight, and the buffs of yours the server has not yet expired
+                // stay in the combat view, unpainted: what LuaBuff.active no longer counts is removed here.
+                for(Buff b : new ArrayList<Buff>(cache.keySet())) {
+                    if(!LuaBuff.active(b)) {
+                        edge("Removed", b, cache.get(b));
+                        cache.remove(b);
+                    }
+                }
+                return;
+            }
             if(!(w instanceof Buff))
                 return;
             Buff b = (Buff)w;
-            if(!cache.containsKey(b))
+            Seen s = cache.get(b);
+            if(s == null)
                 return;   // already announced at dest (the // addon: tap in Buff.reqdestroy) -- the late
                           // unlink M1 fires 0.35s afterwards must not produce a second BuffRemoved (D-180)
             // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… and now
             // reports :exists() false. Fire BEFORE dropping the entry (025.2).
-            fireBuff("BuffRemoved", b);
+            edge("Removed", b, s);
             cache.remove(b);
         }
     }
@@ -1483,6 +1548,7 @@ final class CharApi {
      */
     static LuaValue fight(final Addon owner, final String user) {
         final LuaValue maneuvers = LuaManeuver.collection(owner, user);
+        final LuaValue fightBuffs = LuaBuff.fightCollection(owner, user);
         LuaTable fight = new LuaTable();
         // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
@@ -1513,6 +1579,17 @@ final class CharApi {
                     throw new LuaError(FT + ":summary() takes no arguments — the five counts are its own"
                         + " verbs, and sum:info() is the whole table at once");
                 return LuaFightSummary.of(owner, fightwnd(user));
+            }
+        });
+        // opening() — 170.1: yours in the fight, the list the combat view paints beside THAT character, minted
+        // once and handed back by identity. Empty out of a fight.
+        fight.set("opening", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "opening", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":opening() takes no arguments — it IS the collection of your openings"
+                        + " in the fight, and :find(needle) searches it");
+                return fightBuffs;
             }
         });
         // target() — who THAT character is fighting, nil out of combat. An Opponent, whose :gob() is the

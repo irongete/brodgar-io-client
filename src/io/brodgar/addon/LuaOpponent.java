@@ -6,7 +6,9 @@ import haven.GameUI;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -177,6 +179,14 @@ public final class LuaOpponent {
                 return LuaValue.valueOf(fighting(h.user, h.gobid));
             }
         });
+        // opening() — 170.1: that opponent's openings, the list the combat view paints beside them. A view minted
+        // per call; empty once the fight with them has ended.
+        m.set("opening", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:opening"), "opening");
+                return LuaBuff.opponentCollection(owner, h.user, h.gobid);
+            }
+        });
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -198,10 +208,14 @@ public final class LuaOpponent {
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** <b>That character's</b> combat view, or {@code null} before its HUD is up (it is created with the rest of the HUD). */
-    private static Fightview view(String user) {
+    /**
+     * <b>That character's</b> combat view, or {@code null} before its HUD is up. {@code GameUI.fv} is never
+     * cleared, so a view that has left the tree answers {@code null} too (170.1).
+     */
+    static Fightview view(String user) {
         GameUI g = AddonManager.gameui(user);
-        return (g == null) ? null : g.fv;
+        Fightview fv = (g == null) ? null : g.fv;
+        return ((fv == null) || (fv.ui == null) || !fv.hasparent(fv.ui.root)) ? null : fv;
     }
 
     /** Is {@code user} still in a fight with {@code gobid}? The predicate {@code :exists()} answers. */

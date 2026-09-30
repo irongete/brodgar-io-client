@@ -298,6 +298,8 @@ RETURNS = {
     ("item", "contents"): "contents",
     ("message", "channel"): "channel",
     ("buff", "widget"): "widget",
+    ("buff", "opponent"): "opponent",
+    ("opponent", "opening"): "@collection",
     ("meter", "widget"): "widget",
     ("kin", "widget"): "widget",
     ("wound", "parent"): "wound",

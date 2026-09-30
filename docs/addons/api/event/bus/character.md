@@ -25,9 +25,12 @@ From the HUD's own widgets, so they start once the HUD is up. Attributes, learni
 | `MeterAdded` | [`Meter`](../../meter.md) | A HUD meter bar appears. |
 | `MeterRemoved` | [`Meter`](../../meter.md) | A HUD meter bar goes away. The object still reads, `:exists()` is false. |
 | `MeterChanged` | [`Meter`](../../meter.md) | A meter bar's value or colour changes. |
-| `BuffAdded` | [`Buff`](../../buff.md) | A buff appears. |
-| `BuffRemoved` | [`Buff`](../../buff.md) | A buff goes away. The object still reads, `:exists()` is false. |
-| `BuffChanged` | [`Buff`](../../buff.md) | A buff's content updates. |
+| `BuffAdded` | [`Buff`](../../buff.md) | A buff appears on the buff bar. |
+| `BuffRemoved` | [`Buff`](../../buff.md) | A buff leaves the bar. The object still reads, `:exists()` is false. |
+| `BuffChanged` | [`Buff`](../../buff.md) | A bar buff's content updates. |
+| `OpeningAdded` | [`Buff`](../../buff.md), [`Opponent`](../../fight.md)` \| nil` | The fight draws a buff: beside you (`nil`), or beside that opponent. |
+| `OpeningRemoved` | [`Buff`](../../buff.md), [`Opponent`](../../fight.md)` \| nil` | The fight stops drawing it. The object still reads, `:exists()` is false. |
+| `OpeningChanged` | [`Buff`](../../buff.md), [`Opponent`](../../fight.md)` \| nil` | A drawn buff's content updates. |
 | `FepChanged` | [`Food`](../../char.md#food) | FEP or hunger changes. |
 | `StudyChanged` | [`StudySlot`](../../study.md#a-slot)`[]` | The study slots change: an add, a removal, or data resolving. |
 | `EquipChanged` | [`Item`](../../ui/items.md#the-item-object)`[]` | Worn equipment changes. |
@@ -39,6 +42,7 @@ From the HUD's own widgets, so they start once the HUD is up. Attributes, learni
 | Containers are not here | A chest is not a global fact: subscribe to the container with [`widget:on("ItemAdded"/"ItemRemoved"/"Removed", fn)`](../../ui/container.md). `EquipChanged` is global because worn gear is one fixed surface. |
 | `ActionbarChanged` payload | The changed slot as the interned [`Slot`](../../actionbar.md) `session:actionbar():get(n)` returns, so `payload` and `session:actionbar():get(payload:index())` are one object. Fires on a set, a clear, a drag, or a slot's data resolving, not on `:cooldown()` ticking. At login the occupied slots stream in as a burst, one fire each. |
 | A held slot fires on both edges | Once when the [hold](../../actionbar.md#hold-a-slot-unprotected) takes the slot, once when it ends and the server's content returns. While held, `slot:res()` is the entry's identity. |
+| A fight's buffs | The buffs a fight draws, your own row and each opponent's, fire the three `Opening` keys and never the `Buff` keys, which are the bar's. The second argument says whose: the opponent the buff is drawn beside, `nil` for yours. It is what the client recorded when it announced the buff, so `OpeningRemoved` still names the opponent after [`buff:opponent()`](../../buff.md) can no longer. A fight relation ending takes its buffs with it: each fires `OpeningRemoved` once, with the object `OpeningAdded` handed. So does the end of the fight, for your own buffs the server has not yet expired: they are no longer drawn, and fire `OpeningAdded` again if the next fight draws them again. |
 
 ## Roster, quests, markers
 

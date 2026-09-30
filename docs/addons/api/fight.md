@@ -20,7 +20,7 @@ end
 | One character's | Every character configures its own deck against its own budget and fights its own fight: `hafen.session():get("alt"):fight():target()` answers about the alt. A hotkey slot and an opponent's gob id count inside one character, so a `DeckCard` and an `Opponent` carry their character beside their key. |
 | `target:gob()` answers in the login asked through | That character's own world, where the id came from: `target:gob():exists()` is that character's line of sight, not the screen's. |
 | Before the tab has built | `:maneuver():list()` and `:deck():list()` are empty, `:summary()` is `nil`. `:target()` is `nil` whenever the character is not in a fight. |
-| Unprotected, no write side, no event | Nothing throws. Read on demand. |
+| Unprotected, no write side | Nothing throws. The buffs of a fight fire the [opening events](event/bus/character.md#character-and-status); everything else is read on demand. |
 
 ## Read
 
@@ -80,6 +80,27 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 
 [`session:study():summary()`](study.md#the-summary) is a summary of the same kind. It is a live object with its own `:exists()` and `:info()`, interned on its window, `nil` while the window is not up.
 
+## The fight in progress
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:fight():opening()` | collection | Unprotected | Your buffs in the fight: the row of icons the client paints over the map, to the left of that character. Not the buff bar. [Buff](buff.md) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
+
+| Rule | Detail |
+|---|---|
+| One object | `session:fight():opening()` is the same object every call. Empty out of a fight. |
+| Only while the client draws them | The icon rows exist while the fight lasts. A debuff of yours that outlasts the fight is no longer drawn once it is over: it is not listed, `buff:exists()` is `false`, and `OpeningRemoved` fires for it when the fight ends. If it is still there when the next fight starts, it is drawn again and fires `OpeningAdded` again. |
+| The same objects as the events | A buff of a fight fires [`OpeningAdded`, `OpeningChanged` and `OpeningRemoved`](event/bus/character.md#character-and-status), and the doors here hand the same interned `Buff`. When the fight with an opponent ends, each of its buffs fires `OpeningRemoved` once. |
+| Whose it is | Each opening event hands the buff, then the opponent it is drawn beside, then the session: `nil` where the buff is yours. `OpeningRemoved` still names the opponent after the fight with them has ended, when [`buff:opponent()`](buff.md) answers `nil`. |
+| Not on the bar | [`session:buff()`](buff.md) is the buff bar alone, and `BuffAdded`, `BuffChanged` and `BuffRemoved` are its events. A buff of a fight never fires them. |
+
+```lua
+hafen.event():on("OpeningAdded", function(buff, opponent, session)
+  local whose = opponent and ("on opponent " .. opponent:id()) or "on you"
+  hafen.log():write((buff:name() or buff:res()) .. " " .. whose)
+end)
+```
+
 ## The target
 
 | Method | Returns | Permission | Description |
@@ -87,11 +108,12 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 | `target:id()` | `number` | Unprotected | The creature's gob id. Always answers. |
 | `target:gob()` | [Gob](gob.md) | Unprotected | The creature, in the login whose fight this is. Never `nil`. |
 | `target:exists()` | `boolean` | Unprotected | Whether that character is still fighting them. Always answers. |
+| `target:opening()` | collection | Unprotected | Their openings: the row of icons the client paints over the map, to the right of that character, opposite yours. [Buff](buff.md) objects, a view minted per call. Empty once the fight with them has ended. |
 | `target:info()` | `{ id } \| nil` | Unprotected | A plain-table snapshot. |
 
 | Rule | Detail |
 |---|---|
-| Who, and nothing else | Name, health and position belong to the gob. The relation, initiative and openings are on the client and this API does not publish them. |
+| Who, and nothing else | Name, health and position belong to the gob, and the openings drawn beside them are `target:opening()`. The relation and the initiative are on the client and this API does not publish them. |
 | `target:gob()` is never `nil` | Like [`session:world():gob():get(id)`](gob.md): ask `target:gob():exists()`. |
 | Identity | Interned on character and gob id: `session:fight():target() == session:fight():target()` and `seen[target] = true` work. A stashed one goes `:exists() == false` when the fight ends. |
 

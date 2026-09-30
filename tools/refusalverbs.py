@@ -112,6 +112,7 @@ MEMBER = {
     "session:party()": "partymember", "session:speed()": "speed", "session:chat()": "channel",
     "session:flowermenu()": "petal", "session:study():curiosity()": "studyslot",
     "session:fight():deck()": "deckcard", "session:fight():maneuver()": "maneuver",
+    "session:fight():opening()": "buff", "opponent:opening()": "buff",
     "session:char():skill()": "skill", "session:char():credo()": "credo", "session:char():attr()": "attr",
     "session:char():experience()": "experience", "hafen.map():marker()": "marker",
     "hafen.map():segment()": "segment", "hafen.map():grid()": "grid", "hafen.map():icon()": "iconcat",

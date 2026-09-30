@@ -49,7 +49,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 |---|---|---|
 | `id` | `string` | Unique id. Equals the folder name. |
 | `files` | `string[]` | The `.lua` files to run, in this order. At least one, each inside your own folder. |
-| `api_version` | `string` | The API you wrote against, `"X.Y"`. This client implements API `1.2`. Absent, your addon is [out of date](#the-api-version). |
+| `api_version` | `string` | The API you wrote against, `"X.Y"`. This client implements API `1.3`. Absent, your addon is [out of date](#the-api-version). |
 | `name` | `string` | Display name in the [AddOns manager](panel.md). Defaults to `id`. |
 | `version` | `string` | Shown in the panel and in `:addons`. |
 | `author` | `string` | Shown in the panel. |
@@ -77,18 +77,19 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | Not a version | A number, `"1"`, `"0.1"`, `"1.0.0"`, `"v1.0"`: a manifest error, the row reading `manifest error (hover)` and the tooltip naming the form and the client's version. |
 | No read from Lua | A current addon has everything it declared against. An optional newer section is a feature probe, `if hafen.something then`. An addon needing it outright declares the edition that added it. |
 | What needs `1.1` | [`hafen.ui():keybinding()`](api/ui/controls/interactive.md#key-button), the key button. |
-| What needs `1.2` | [`gob:outline(color, width)`](api/look.md#outline-unprotected), the ring round an object. Everything else these pages describe is in `1.0`. |
+| What needs `1.2` | [`gob:outline(color, width)`](api/look.md#outline-unprotected), the ring round an object. |
+| What needs `1.3` | [`session:fight():opening()`](api/fight.md#the-fight-in-progress), [`buff:opponent()`](api/buff.md) and the [`OpeningAdded`, `OpeningRemoved` and `OpeningChanged`](api/event/bus/character.md#character-and-status) events: a fight's buffs and whose they are. Everything else these pages describe is in `1.0`. |
 
 | You declare | On this client | Your addon |
 |---|---|---|
-| `"1.0"`, `"1.1"`, `"1.2"` | Its generation, an edition it has. | Loads. |
-| `"1.3"` | An edition it has not got. | Out of date: `too new: needs API 1.3 or newer, this client implements 1.2`. |
-| `"2.0"` | Another generation. | Out of date: `written for API 2.0, this client implements 1.2`. |
-| Nothing | | Out of date: `declares no api_version, this client implements 1.2`. |
+| `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"` | Its generation, an edition it has. | Loads. |
+| `"1.4"` | An edition it has not got. | Out of date: `too new: needs API 1.4 or newer, this client implements 1.3`. |
+| `"2.0"` | Another generation. | Out of date: `written for API 2.0, this client implements 1.3`. |
+| Nothing | | Out of date: `declares no api_version, this client implements 1.3`. |
 
 | Rule | Detail |
 |---|---|
-| Out of date is not an error | The client cannot tell it has what the addon was written against, so it does not run it. The [AddOns manager](panel.md) row reads `outdated (API 2.0, client 1.2)`, or `outdated (no api_version, client 1.2)`. Its tooltip opens with the sentence above. `:addons` lists it `[outdated]`. The enable checkbox keeps its value. A disabled addon is never read, so its row reads `disabled` and the tooltip still says why it would not load. |
+| Out of date is not an error | The client cannot tell it has what the addon was written against, so it does not run it. The [AddOns manager](panel.md) row reads `outdated (API 2.0, client 1.3)`, or `outdated (no api_version, client 1.3)`. Its tooltip opens with the sentence above. `:addons` lists it `[outdated]`. The enable checkbox keeps its value. A disabled addon is never read, so its row reads `disabled` and the tooltip still says why it would not load. |
 | Load out of date AddOns | A box on the [Installed tab](panel.md#installed). While ticked, the next reload runs every out-of-date addon as a current one. The log names each and why. |
 
 ---
