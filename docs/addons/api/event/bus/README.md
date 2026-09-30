@@ -18,10 +18,11 @@ end)
 | [The world](world.md) | A game object coming and going, what is attached to one, a click on an entity of your own. |
 | [The character and the rosters](character.md) | Meters, buffs, the buffs a fight draws, food, study, equipment, action bar, wounds, the kin roster, quests, the map's pins, the radial menu. |
 | [The chat](chat.md) | A channel appearing, going away or taking the tab, and a line landing in one. |
+| [The fight](fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing. |
 
 ## Whose character it was
 
-Most events are one character's (meters, buffs, food, study slots, equipment, action bar, wounds, roster, quests, radial menu, chat channels and lines). Each of those hands your handler the [`Session`](../../session.md) it was about as its last argument. `function(meter, session)` reads the bar that moved and the character it belongs to. `session:user()` is the account. Last, not first, so a handler that does not care declares no second parameter. There is a [worked example](../../../guides/events-and-timers.md) in the guide.
+Most events are one character's (meters, buffs, food, study slots, equipment, action bar, wounds, roster, quests, radial menu, chat channels and lines, the fight). Each of those hands your handler the [`Session`](../../session.md) it was about as its last argument. `function(meter, session)` reads the bar that moved and the character it belongs to. `session:user()` is the account. Last, not first, so a handler that does not care declares no second parameter. There is a [worked example](../../../guides/events-and-timers.md) in the guide.
 
 | Events without a session | Why |
 |---|---|

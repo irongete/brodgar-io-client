@@ -266,6 +266,7 @@ public final class LuaCollection {
                 LuaCollection c = receiver(a.arg1(), coll.name, "list");
                 Args.only(a, 1, c.name + ":list");
                 LuaValue filter = a.arg(2);
+                refuseNameless(filter, c.src, c.name, "list");
                 LuaTable t = new LuaTable();
                 int n = 0;
                 for(LuaValue member : c.src.members()) {
@@ -284,6 +285,7 @@ public final class LuaCollection {
                 LuaValue filter = a.arg(2);
                 if(filter.isnil())
                     return LuaValue.valueOf(c.src.size());
+                refuseNameless(filter, c.src, c.name, "count");
                 int n = 0;
                 for(LuaValue member : c.src.members()) {
                     if(keeps(filter, member, c.src, c.name, "count"))
@@ -298,6 +300,7 @@ public final class LuaCollection {
                 LuaCollection c = receiver(a.arg1(), coll.name, "find");
                 Args.only(a, 1, c.name + ":find");
                 LuaValue filter = a.arg(2);
+                refuseNameless(filter, c.src, c.name, "find");
                 for(LuaValue member : c.src.members()) {
                     if(keeps(filter, member, c.src, c.name, "find"))
                         return member;
@@ -422,14 +425,24 @@ public final class LuaCollection {
             }
         }
         if(filter.isstring()) {
-            if(!src.named())
-                throw new LuaError(coll + ":" + verb + "(filter): these have no name to match a string"
-                    + " against — pass a function, or nothing for all of them");
+            refuseNameless(filter, src, coll, verb);
             String needle = src.needle(member);
             return (needle != null) && needle.contains(filter.tojstring());
         }
         throw new LuaError(coll + ":" + verb + "(filter): expected nothing, a string or a function, got "
             + filter.typename());
+    }
+
+    /**
+     * A string filter over a <b>nameless kind</b> is refused, and refused before the first member is read: an
+     * empty collection refuses it too, since matching nothing is the lie the refusal exists to prevent, and a
+     * collection is empty most of the time some kinds are asked (170.2: {@code s:fight():opponent()} out of a
+     * fight). {@link #keeps} asks it again per member for the extra verbs that filter on their own.
+     */
+    private static void refuseNameless(LuaValue filter, Source src, String coll, String verb) {
+        if((filter != null) && filter.isstring() && !src.named())
+            throw new LuaError(coll + ":" + verb + "(filter): these have no name to match a string"
+                + " against — pass a function, or nothing for all of them");
     }
 
     /** A key as the caller wrote it, for a refusal: a string in quotes, anything else as it prints. */

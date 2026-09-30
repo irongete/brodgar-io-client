@@ -102,7 +102,7 @@ An event key is a subject and an edge. A new key takes the first edge below true
 | It went | `Removed` | `GobRemoved`, `MeterRemoved`, `SessionRemoved`, `Removed` on a [widget](ui/widget.md#subscribing). |
 | It changed | `Changed` | `MeterChanged`, `KinChanged`, `MarkerChanged`. |
 | It crossed a threshold | `EnteredWorld` | `SessionEnteredWorld`. |
-| It was picked | `Selected` | `SessionSelected`, `ChannelSelected`. |
+| It was picked | `Selected` | `SessionSelected`, `ChannelSelected`, `OpponentSelected`. |
 | It was clicked | `Clicked` | `GhostClicked`, `SpriteClicked`, `ObjectClicked`, `PatchClicked`. |
 
 | Rule | Detail |

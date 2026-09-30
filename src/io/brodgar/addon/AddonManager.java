@@ -2486,6 +2486,7 @@ public final class AddonManager {
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
         "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
         "FlowerMenuAdded", "FlowerMenuRemoved",
+        "OpponentAdded", "OpponentRemoved", "OpponentChanged", "OpponentSelected",
         "ChannelAdded", "ChannelRemoved", "ChannelSelected", "MessageAdded",
         "GhostClicked", "SpriteClicked", "ObjectClicked", "PatchClicked",
         "AchievementUnlocked", "SteamStatsLoaded",
@@ -2514,6 +2515,9 @@ public final class AddonManager {
                 + " SessionRemoved";
         else if(key.toLowerCase().contains("sdt"))
             hint = " — the key is GobSdtChanged";
+        else if(key.toLowerCase().startsWith("opponent"))
+            hint = " — the fight's opponent keys are OpponentAdded, OpponentRemoved, OpponentChanged and"
+                + " OpponentSelected";
         else
             hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
@@ -4353,6 +4357,22 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "ActionbarChanged"))
             fireTo(c, "ActionbarChanged", LuaSlot.of(c, user, index), sessionArg(c, user));
+    }
+
+    /**
+     * Fire an opponent event ({@code OpponentAdded}/{@code OpponentRemoved}/{@code OpponentChanged}/
+     * {@code OpponentSelected}, 170.2) whose payload is the interned <b>Opponent</b> for {@code gobid} in
+     * {@code user}'s fight. Same shape as {@link #fireSlot}: interning is per addon, so the payload is minted for
+     * each owner that subscribes and for nobody else. Change <i>detection</i> is {@code CharApi}'s fight adapter.
+     */
+    static void fireOpponent(String event, String user, long gobid) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaOpponent.of(a, user, gobid), sessionArg(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaOpponent.of(c, user, gobid), sessionArg(c, user));
     }
 
     /**

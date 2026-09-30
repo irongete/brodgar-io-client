@@ -23,6 +23,7 @@ A place and a screen pixel share the same two keys. Only the verb you called tel
 | `{x=, y=}` | A screen point, in [design pixels](ui/pixels.md). | `widget:position()`, `widget:rootPos()`, `session:world():worldToScreen(position)`, `event:pixel(index)`. |
 | `{w=, h=}` | A size, in design pixels. | `widget:size()`, `widget:cellSize()`, `image:size()`, a map drawing's `:size()` and `:info().size`, `rule:size()`. |
 | `{cur=, max=}` | A pair of counts. | `item:durability()`, `contents:fill()`. |
+| `{mine=, theirs=}` | A relation's two sides: yours and the opponent's. | `opponent:ip()`, `opponent:give()`. |
 | `{l=, t=, r=, b=}` | Four insets in design pixels: left, top, right, bottom. | `rule:padding()`, `rule:margin()`, the `padding` and `margin` of `widget:style()`, a border's `slice`. |
 | `{x=, y=, z=}` | A point or a span in world units. | The `min`, `max` and `extent` of `mesh:bounds()`. |
 

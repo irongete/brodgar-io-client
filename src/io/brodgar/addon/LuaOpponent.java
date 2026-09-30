@@ -13,41 +13,48 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * An <b>Opponent object</b> — who a character is fighting ({@code s:fight():target()}). That character's
- * combat view keeps one of these per creature it is in a fight with and paints the one it has picked; this is
- * that one.
+ * An <b>Opponent object</b> — one creature a character is fighting: a relation its combat view keeps
+ * ({@code Fightview.Relation}), reached through {@code s:fight():opponent()}, the collection of every one of them,
+ * whose {@code :current()} is the one the view has picked (170.2).
  *
- * <p><b>{@code target:gob()} is what this entity exists for.</b> The creature is otherwise the one thing in
- * the world you can see and not read: the view publishes a number and nothing else. It is one verb, and like
- * every other door onto a gob it is never {@code nil} — an id the object cache does not hold answers a Gob
- * whose {@code :exists()} is false.
+ * <p><b>The creature is its gob, the relation is this object.</b> Everything about the creature (name, health,
+ * position) is read off {@code opponent:gob()}, which is never {@code nil}: an id the object cache does not hold
+ * answers a Gob whose {@code :exists()} is false. What the view holds about the RELATION is read here: the IP
+ * pair it paints ({@code :ip()}), the two halves of the give button ({@code :give()}) and the openings drawn
+ * beside the creature ({@code :opening()}).
  *
- * <p><b>The intern key is the gob id</b> (§2.4) — the only thing the server publishes about an opponent. The
- * combat view mints a fresh record whenever a fight starts, so keying on the record would call the same
- * creature two opponents across two fights.
+ * <p><b>The intern key is the gob id</b> (§2.4). The combat view mints a fresh record whenever a fight starts, so
+ * keying on the record would call the same creature two opponents across two fights. <b>And a gob id counts
+ * inside one session's object cache</b> (077.4), which is why the account is half the handle: two characters
+ * fighting are two fights, each with its own view and its own ids, and id 4711 in one of them is not the
+ * creature id 4711 names in the other. Two levels of intern map, on {@code (account, id)}: the {@link LuaGob}
+ * shape, and what makes {@code opponent:gob()} resolve in the same cache {@code s:world():gob():get(id)} reads.
  *
- * <p><b>And a gob id counts inside one session's object cache</b> (077.4), which is why the account is half
- * the handle: two characters fighting are two fights, each with its own view and its own ids, and id 4711 in
- * one of them is not the creature id 4711 names in the other. Two levels of intern map, on
- * {@code (account, id)} — the {@link LuaGob} shape, and what makes {@code target:gob()} resolve in the same
- * cache {@code s:world():gob():get(id)} reads.
+ * <p><b>Once the fight with them ends</b> the relation's reads go {@code nil}, {@code :opening()} is empty and
+ * {@code :exists()} is false, while {@code :id()} and {@code :gob()} go on answering. A later fight with the
+ * same creature hands back the same object.
  *
- * <p><b>What is deliberately not here.</b> An opponent carries no name and no moment-to-moment combat numbers:
- * everything you can read about the creature belongs to its gob, and is read there. There is no collection
- * either — {@code :target()} is the one who is picked, which is the question an addon has.
- *
- * <p><b>Threading.</b> The combat view's records are added and removed from a loader thread under the UI
- * monitor, so the list is walked inside it.
+ * <p><b>Threading.</b> The combat view's records are added, removed and rewritten from a loader thread under the
+ * UI monitor, and "Switch targets" reorders them on the UI thread, so every read copies what it needs inside
+ * {@link LuaWidget#monitor} and mints its handles outside it.
  */
 public final class LuaOpponent {
     /** The account whose fight this is — half the address, and the cache the id resolves in. */
     public final String user;
     /** The opponent's gob id, in that session's own object cache. */
     public final long gobid;
+
+    /**
+     * The two halves of the give state {@code Relation.gst}, as {@code GiveButton.draw} paints them: bit 1 the
+     * left half, the side the combat view paints as yours, and bit 2 the right.
+     */
+    static final int MINE = 1, THEIRS = 2;
 
     private LuaOpponent(String user, long gobid) {
         this.user = user;
@@ -157,26 +164,45 @@ public final class LuaOpponent {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
+        // 170.2: every verb counts its arguments (Args.only), where a OneArgFunction dropped a surplus one unseen.
         // id() — the opponent's gob id, the only thing the server publishes about them.
-        m.set("id", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf((double)handle(self, "id").gobid);
+        m.set("id", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf((double)handle(Args.only(a, 0, "opponent:id"), "id").gobid);
             }
         });
         // gob() — the creature itself. NEVER nil: an id the object cache does not hold answers a Gob whose
         // :exists() is false, exactly as s:world():gob():get(id) does. Resolved in the object cache of the
         // session whose fight this is (077.4), which is the cache the id came out of.
-        m.set("gob", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaOpponent h = handle(self, "gob");
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:gob"), "gob");
                 return LuaGob.of(owner, h.user, h.gobid);
             }
         });
         // exists() — is that character still in a fight with them?
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaOpponent h = handle(self, "exists");
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:exists"), "exists");
                 return LuaValue.valueOf(fighting(h.user, h.gobid));
+            }
+        });
+        // ip() — 170.2: the IP pair the view paints, {mine, theirs}. Upstream's Relation.ip is yours (painted on
+        // the left) and Relation.oip theirs. nil once the fight with them has ended.
+        m.set("ip", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:ip"), "ip");
+                int[] n = numbers(h.user, h.gobid);
+                return (n == null) ? LuaValue.NIL : ip(n);
+            }
+        });
+        // give() — 170.2: the give button's two halves, {mine, theirs}, as booleans. nil once the fight with them
+        // has ended.
+        m.set("give", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:give"), "give");
+                int[] n = numbers(h.user, h.gobid);
+                return (n == null) ? LuaValue.NIL : give(n);
             }
         });
         // opening() — 170.1: that opponent's openings, the list the combat view paints beside them. A view minted
@@ -187,11 +213,17 @@ public final class LuaOpponent {
                 return LuaBuff.opponentCollection(owner, h.user, h.gobid);
             }
         });
-        // info() — the one SNAPSHOT escape hatch.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // info() — the one SNAPSHOT escape hatch: {id, ip, give} while the fight lasts, {id} after it.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:info"), "info");
                 LuaTable t = new LuaTable();
-                t.set("id", LuaValue.valueOf((double)handle(self, "info").gobid));
+                t.set("id", LuaValue.valueOf((double)h.gobid));
+                int[] n = numbers(h.user, h.gobid);
+                if(n != null) {
+                    t.set("ip", ip(n));
+                    t.set("give", give(n));
+                }
                 return t;
             }
         });
@@ -201,9 +233,27 @@ public final class LuaOpponent {
     private static LuaOpponent handle(LuaValue self, String method) {
         LuaOpponent h = resolve(self);
         if(h == null)
-            throw new LuaError("opp:" + method + "() — use a COLON call on an Opponent object"
-                + " (" + CharApi.FT + ":target())");
+            throw new LuaError("opponent:" + method + "() — use a COLON call on an Opponent object"
+                + " (" + CharApi.FO + ":current(), " + CharApi.FO + ":list()[n])");
         return h;
+    }
+
+    /** {@code {mine = m, theirs = t}}: a relation's two sides, the shape shapes.md names. */
+    private static LuaTable pair(LuaValue mine, LuaValue theirs) {
+        LuaTable t = new LuaTable();
+        t.set("mine", mine);
+        t.set("theirs", theirs);
+        return t;
+    }
+
+    /** The IP pair out of {@link #numbers}. */
+    private static LuaTable ip(int[] n) {
+        return pair(LuaValue.valueOf(n[0]), LuaValue.valueOf(n[1]));
+    }
+
+    /** The give state out of {@link #numbers}, as its two halves. */
+    private static LuaTable give(int[] n) {
+        return pair(LuaValue.valueOf((n[2] & MINE) != 0), LuaValue.valueOf((n[2] & THEIRS) != 0));
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
@@ -219,7 +269,7 @@ public final class LuaOpponent {
     }
 
     /** Is {@code user} still in a fight with {@code gobid}? The predicate {@code :exists()} answers. */
-    private static boolean fighting(String user, long gobid) {
+    static boolean fighting(String user, long gobid) {
         Fightview fv = view(user);
         if(fv == null)
             return false;
@@ -232,8 +282,43 @@ public final class LuaOpponent {
         return false;
     }
 
-    /** {@code s:fight():target()} — the opponent <b>that character's</b> combat view has picked, or {@code NIL} out of a fight. */
-    static LuaValue target(Addon owner, String user) {
+    /**
+     * {@code {ip, oip, gst}} of the relation with {@code gobid}, copied under the view's monitor, or {@code null}
+     * once the fight with them has ended. The three ints are written from the {@code new}/{@code upd} uimsgs.
+     */
+    static int[] numbers(String user, long gobid) {
+        Fightview fv = view(user);
+        if(fv == null)
+            return null;
+        synchronized(LuaWidget.monitor(fv)) {
+            for(Fightview.Relation rel : fv.lsrel) {
+                if((rel.gobid == gobid) && !rel.invalid)
+                    return new int[] {rel.ip, rel.oip, rel.gst};
+            }
+        }
+        return null;
+    }
+
+    /** The gob ids of the live relations, in the view's own order, copied under its monitor. */
+    static List<Long> ids(String user) {
+        List<Long> out = new ArrayList<Long>();
+        Fightview fv = view(user);
+        if(fv == null)
+            return out;
+        synchronized(LuaWidget.monitor(fv)) {
+            for(Fightview.Relation rel : fv.lsrel) {
+                if(!rel.invalid)
+                    out.add(Long.valueOf(rel.gobid));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * {@code s:fight():opponent():current()} — the opponent <b>that character's</b> combat view has picked, or
+     * {@code NIL} out of a fight.
+     */
+    static LuaValue current(Addon owner, String user) {
         Fightview fv = view(user);
         if(fv == null)
             return LuaValue.NIL;
@@ -247,5 +332,53 @@ public final class LuaOpponent {
             live = (rel != null) && !rel.invalid;
         }
         return live ? of(owner, user, rel.gobid) : LuaValue.NIL;
+    }
+
+    // ---- the collection -----------------------------------------------------------------------------
+
+    /**
+     * {@code s:fight():opponent()} (170.2) — every opponent THAT character's combat view holds, in the view's own
+     * order ({@code Fightview.lsrel}: a new relation joins at the front, the target is moved to the front, and
+     * "Switch targets" rotates it). Addressed by gob id, the one thing the server publishes about an opponent; a
+     * string filter is refused, since an opponent has no name of its own. {@code :current()} is the
+     * distinguished member, the one the view has picked (§2.2). Minted once per (addon, session) by
+     * {@code CharApi.fight}.
+     */
+    static LuaValue collection(final Addon owner, final String user) {
+        LuaTable extra = new LuaTable();
+        extra.set("current", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), CharApi.FO, "current");
+                if(Args.passed(a, 2))
+                    throw new LuaError(CharApi.FO + ":current() takes no argument — it reads the opponent that"
+                        + " character's fight has picked");
+                return current(owner, user);
+            }
+        });
+        return LuaCollection.create(CharApi.FO, new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<Long> ids = ids(user);
+                List<LuaValue> out = new ArrayList<LuaValue>(ids.size());
+                for(int i = 0; i < ids.size(); i++)
+                    out.add(of(owner, user, ids.get(i).longValue()));
+                return out;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                long id = Args.integer(key, CharApi.FO + ":get", "gobId", "a GOB ID — an opponent has no name"
+                                       + " of its own (opponent:gob():name() is the creature's)",
+                                       -Args.EXACT, Args.EXACT);
+                return fighting(user, id) ? of(owner, user, id) : LuaValue.NIL;
+            }
+
+            /** An opponent is addressed by gob id: it has no name of its own. */
+            public String keyName() {
+                return "gobId";
+            }
+        }, extra);
     }
 }

@@ -41,7 +41,7 @@ end
 | `buff:number()` | `number \| nil` | Unprotected | The integer badge drawn on the icon. |
 | `buff:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that holds it: the crossing back into the tree. A buff of a fight stands in a list the fight view keeps hidden, so its widget does not mark where the icon is drawn. |
 | `buff:exists()` | `boolean` | Unprotected | Whether the client still draws this buff: on the bar, or in the icon row of a fight that is still on. Always answers. |
-| `buff:opponent()` | [`Opponent`](fight.md) `\| nil` | Unprotected | The opponent a buff of a fight is drawn beside. `nil` for a buff on the bar, for one of yours in a fight, and for one the fight no longer draws: the [`Opening` events](event/bus/character.md#character-and-status) name the opponent at the moment they fire. |
+| `buff:opponent()` | [`Opponent`](fight.md#an-opponent) `\| nil` | Unprotected | The opponent a buff of a fight is drawn beside. `nil` for a buff on the bar, for one of yours in a fight, and for one the fight no longer draws: the [`Opening` events](event/bus/character.md#character-and-status) name the opponent at the moment they fire. |
 | `buff:info()` | [`Buff`](types/character.md#buff) `\| nil` | Unprotected | A plain-table snapshot, for logging and serialising. |
 
 | Rule | Detail |
@@ -49,7 +49,7 @@ end
 | Content-defined meters | `amount`, `remaining` and `number` are published by the buff's resource and often absent. `remaining` is a [`0..1` fraction](shapes.md#units) of the whole run (`0.25` is a quarter left). The client has no seconds-based buff timer. |
 | A removed buff keeps answering | `:exists()` is `false` while `:res()`, `:name()` and the meters read the values it had, so a `BuffRemoved` payload or a stashed buff still reads. `:exists()` is the predicate `:list()` filters on. |
 | Events | [`BuffAdded`, `BuffRemoved`, `BuffChanged`](event/bus/character.md#character-and-status), for the buffs on the bar. Each payload is the `Buff` object. The buffs a character already has arrive as a burst of `BuffAdded` shortly after it enters the world. |
-| On the bar or in a fight | A fight's buffs have events of their own: [`OpeningAdded`, `OpeningRemoved`, `OpeningChanged`](event/bus/character.md#character-and-status) hand the same interned `Buff` and the opponent it is drawn beside, `nil` for yours. [`session:fight():opening()`](fight.md#the-fight-in-progress) and an opponent's `:opening()` list the same objects. The `Buff` keys never fire for one of them. |
+| On the bar or in a fight | A fight's buffs have events of their own: [`OpeningAdded`, `OpeningRemoved`, `OpeningChanged`](event/bus/character.md#character-and-status) hand the same interned `Buff` and the opponent it is drawn beside, `nil` for yours. [`session:fight():opening()`](fight.md#the-fight-in-progress) and [`opponent:opening()`](fight.md#an-opponent) list the same objects. The `Buff` keys never fire for one of them. |
 
 ```lua
 hafen.event():on("BuffRemoved", function(buff)

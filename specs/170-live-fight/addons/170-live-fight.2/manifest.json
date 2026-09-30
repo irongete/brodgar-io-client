@@ -1,0 +1,9 @@
+{
+  "name": "170.2 — the opponents",
+  "id": "170-live-fight.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 170.2: session:fight():opponent() lists every opponent with the target as :current(), an opponent reads its IP and give pairs, the four Opponent events fire on their edges, and session:fight():target() is gone.",
+  "api_version": "1.3",
+  "files": ["main.lua"]
+}

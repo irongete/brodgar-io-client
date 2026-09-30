@@ -9,6 +9,7 @@ import haven.Coord;
 import haven.Coord2d;
 import haven.Equipory;
 import haven.FightWnd;
+import haven.Fightview;
 import haven.GameUI;
 import haven.GItem;
 import haven.Glob;
@@ -42,9 +43,11 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +67,7 @@ import static io.brodgar.addon.AddonManager.*;
  * (D-178); {@link #dispatchPlaced} (M3) comes off {@link UiApi#dispatchEntered} instead since 112.5, which is
  * the widget-entry seam's drain. Not instantiable.
  *
- * <p><b>The adapters are one session's</b> (073.3). Each of the nine caches the HUD widgets it has seen, as
+ * <p><b>The adapters are one session's</b> (073.3). Each caches the HUD widgets it has seen, as
  * its diff key, and those widgets are <b>one login's</b>, so the set of them lives in {@code SessionState}
  * ({@link #newAdapters}) and every seam reaches it with the {@code ui} of the widget it was handed:
  * {@code w.ui} at the uimsg tap, and the state the drain already holds everywhere else. Never
@@ -124,9 +127,11 @@ final class CharApi {
     static final String MG = "session:menugrid()";
     /** {@code s:fight()} — the combat-schools tab, and the fight that character is in. */
     static final String FT = "session:fight()";
+    /** {@code s:fight():opponent()} — every opponent of the fight in progress (170.2). */
+    static final String FO = "session:fight():opponent()";
 
     /**
-     * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
+     * <b>The change-detection adapters, for one session</b> (073.3) — built when that session's
      * {@code SessionState} is and held by it, which is what makes each of them a reader of <i>that</i>
      * login's HUD rather than of "the" HUD.
      *
@@ -136,7 +141,7 @@ final class CharApi {
      * happens.
      */
     static List<TreeAdapter> newAdapters(SessionState st) {
-        List<TreeAdapter> l = new ArrayList<TreeAdapter>(9);
+        List<TreeAdapter> l = new ArrayList<TreeAdapter>(10);
         l.add(new MeterAdapter());
         l.add(new BuffsAdapter());
         l.add(new FepAdapter(st));
@@ -146,15 +151,16 @@ final class CharApi {
         l.add(new KinAdapter(st));
         l.add(new QuestAdapter(st));
         l.add(new WoundAdapter(st));
+        l.add(new FightAdapter(st));
         return Collections.unmodifiableList(l);
     }
 
     /**
-     * <b>The seven readers that reach a HUD by ACCOUNT</b> (092.4, A-089) — the base the state travels on.
+     * <b>The readers that reach a HUD by ACCOUNT</b> (092.4, A-089) — the base the state travels on.
      *
      * <p>The other two ({@code MeterAdapter}, {@code BuffsAdapter}) cache the widgets themselves and read
-     * through them, so they were addressed already. These seven look their subject up: the character sheet,
-     * the belt, the equipory, the roster, the quest log, the wound list. Each of those lookups took
+     * through them, so they were addressed already. These look their subject up: the character sheet, the
+     * belt, the equipory, the roster, the quest log, the wound list, the combat view. Each of those lookups took
      * {@link AddonManager#drawnUser()} — the character on SCREEN — while the adapter itself was held by one
      * session's state and fed that session's widgets. So eating on a background character marked its own
      * adapter dirty and fired {@code FepChanged} carrying <i>the drawn character's</i> Food, under the drawn
@@ -609,6 +615,93 @@ final class CharApi {
             // reports :exists() false. Fire BEFORE dropping the entry (025.2).
             edge("Removed", b, s);
             cache.remove(b);
+        }
+    }
+
+    /**
+     * The fight in progress (170.2) — the relations of THAT character's combat view ({@code Fightview.lsrel}),
+     * announced on four edges: {@code OpponentAdded} when a gob id joins the list, {@code OpponentRemoved} when
+     * one leaves it or the view leaves the tree, {@code OpponentChanged} when a present opponent's IP pair or give
+     * state moves, {@code OpponentSelected} when the target becomes another opponent. Losing the target fires
+     * nothing, as for {@code SessionSelected}.
+     *
+     * <p><b>uimsg-driven.</b> Every change arrives as a {@code Fightview} message ({@code new}, {@code del},
+     * {@code upd}, {@code cur}), so {@link #interested} flags those and {@link #refresh} re-reads the whole list
+     * once per frame under the view's monitor and diffs it against what was last ANNOUNCED: the one-frame diff
+     * contract of {@link TreeAdapter}. "Switch targets" reorders {@code lsrel} with no message, so an order change
+     * is not an edge. The server also sends {@code used} to the {@code Fightsess}, so the class is tested.
+     *
+     * <p>Within one refresh the order is Added, Removed, Changed, Selected: for any one opponent its {@code new}
+     * comes before its {@code del}, and a lost target is announced gone before the next one is announced picked.
+     */
+    private static final class FightAdapter extends SessionAdapter {
+        FightAdapter(SessionState st) {
+            super(st);
+        }
+
+        // gob id -> {ip, oip, gst} as last ANNOUNCED, in announcement order. UI-thread-only; built with its
+        // session's state (073.3). Keyed by the gob id, never by a widget: the view outlives every relation.
+        private final LinkedHashMap<Long, int[]> announced = new LinkedHashMap<Long, int[]>();
+        private long selected = -1;       // the gob id OpponentSelected last named, -1 for none
+        private Fightview view;           // the view last read, which is how the removal seam knows it
+
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof Fightview)
+                && ("new".equals(msg) || "del".equals(msg) || "upd".equals(msg) || "cur".equals(msg));
+        }
+
+        public void refresh() {
+            sync();
+        }
+
+        public void removed(Widget w) {
+            if((w != null) && (w == view))
+                sync();
+        }
+
+        /** Re-read the view and fire the difference, Added, Removed, Changed, Selected. */
+        private void sync() {
+            String user = user();
+            Fightview fv = LuaOpponent.view(user);   // null once it has left the tree
+            view = fv;
+            LinkedHashMap<Long, int[]> now = new LinkedHashMap<Long, int[]>();
+            long current = -1;
+            if(fv != null) {
+                synchronized(LuaWidget.monitor(fv)) {
+                    for(Fightview.Relation rel : fv.lsrel) {
+                        if(!rel.invalid)
+                            now.put(Long.valueOf(rel.gobid), new int[] {rel.ip, rel.oip, rel.gst});
+                    }
+                    Fightview.Relation cur = fv.current;
+                    if((cur != null) && !cur.invalid)
+                        current = cur.gobid;
+                }
+            }
+            for(Map.Entry<Long, int[]> e : now.entrySet()) {
+                if(!announced.containsKey(e.getKey())) {
+                    announced.put(e.getKey(), e.getValue());
+                    fireOpponent("OpponentAdded", user, e.getKey().longValue());
+                }
+            }
+            for(Iterator<Map.Entry<Long, int[]>> i = announced.entrySet().iterator(); i.hasNext();) {
+                Map.Entry<Long, int[]> e = i.next();
+                if(!now.containsKey(e.getKey())) {
+                    i.remove();
+                    fireOpponent("OpponentRemoved", user, e.getKey().longValue());
+                }
+            }
+            for(Map.Entry<Long, int[]> e : announced.entrySet()) {
+                int[] is = now.get(e.getKey());
+                if(!Arrays.equals(e.getValue(), is)) {
+                    e.setValue(is);
+                    fireOpponent("OpponentChanged", user, e.getKey().longValue());
+                }
+            }
+            if(current != selected) {
+                selected = current;
+                if(current >= 0)
+                    fireOpponent("OpponentSelected", user, current);
+            }
         }
     }
 
@@ -1532,9 +1625,10 @@ final class CharApi {
     /**
      * Build the fight section object for {@code (owner, user)} — <b>one character's combat schools, and the
      * fight it is in</b>, reached as {@code s:fight()} (077.4). Three projections of that character's
-     * combat-schools tab plus one read of its live combat view: {@code :maneuver()} is the collection of what
-     * it knows, {@code :deck()} the loaded school's layout as a plain array (§2.3 — a layout is addressed by
-     * its own order), {@code :summary()} the scalars around it, and {@code :target()} who it is fighting.
+     * combat-schools tab: {@code :maneuver()} is the collection of what it knows, {@code :deck()} the loaded
+     * school's layout as a plain array (§2.3 — a layout is addressed by its own order), {@code :summary()} the
+     * scalars around it. And the fight in progress, off its live combat view (170): {@code :opponent()} every
+     * opponent with the target as {@code :current()}, {@code :opening()} the buffs drawn beside that character.
      *
      * <p><b>A school is configured on one character and a fight is fought by one body.</b> Both halves read
      * the named session's own widgets — its {@link FightWnd} through {@link #fightwnd(String)} and its
@@ -1549,6 +1643,7 @@ final class CharApi {
     static LuaValue fight(final Addon owner, final String user) {
         final LuaValue maneuvers = LuaManeuver.collection(owner, user);
         final LuaValue fightBuffs = LuaBuff.fightCollection(owner, user);
+        final LuaValue opponents = LuaOpponent.collection(owner, user);
         LuaTable fight = new LuaTable();
         // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
@@ -1592,15 +1687,15 @@ final class CharApi {
                 return fightBuffs;
             }
         });
-        // target() — who THAT character is fighting, nil out of combat. An Opponent, whose :gob() is the
-        // creature, resolved in the session the fight is in.
-        fight.set("target", new VarArgFunction() {
+        // opponent() — 170.2: every opponent THAT character is fighting, minted once and handed back by
+        // identity; :current() is the one its fight has picked. It replaces target(), which is gone.
+        fight.set("opponent", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "fight", "target", FT);
+                Section.self(a.arg1(), "fight", "opponent", FT);
                 if(Args.passed(a, 2))
-                    throw new LuaError(FT + ":target() takes no arguments — there is one opponent picked,"
-                        + " and target:gob() is the creature it names");
-                return LuaOpponent.target(owner, user);
+                    throw new LuaError(FT + ":opponent() takes no arguments — it IS the collection of the"
+                        + " opponents: :get(gobId) addresses one and :current() is the target");
+                return opponents;
             }
         });
         return Section.object("fight", fight, FT);

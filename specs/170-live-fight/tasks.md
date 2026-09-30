@@ -1426,7 +1426,7 @@ hafen.console():on("t170", function() after(0, run) end)
 
 ---
 
-- [ ] **170.2 — The fight lists every opponent, the target as its current one, their numbers, and four events.**
+- [x] **170.2 — The fight lists every opponent, the target as its current one, their numbers, and four events.**
 
 `session:fight():opponent()` is the collection of every relation of the combat view (`Fightview.lsrel`, in its
 own order), addressed by gob id, with `:current()` the target; `session:fight():target()` is gone, cut with no

@@ -34,7 +34,7 @@ A Session is the address, so the reads about one character hang off it rather th
 | [`session:speed()`](speed.md) | Its crawl, walk, run and sprint selector. |
 | [`session:craft()`](craft.md) | The recipe window it has open, and its Craft button. |
 | [`session:menugrid()`](menugrid.md) | Its action menu: every action it knows, invoking one, entries of your own. |
-| [`session:fight()`](fight.md) | Its combat schools, its manoeuvre deck, who it is fighting. |
+| [`session:fight()`](fight.md) | Its combat schools and manoeuvre deck, and the fight it is in. |
 | [`session:flowermenu()`](flowermenu.md) | The radial menu it has open, the petal to pick, a petal of your own, whether it is painted. |
 | [`session:ui()`](ui/README.md) | The widgets the client put up for it: find one, watch for one, read its backpack. |
 | [`session:store()`](store/vars.md) | Its own vars: that character's rows in your addon's file. |

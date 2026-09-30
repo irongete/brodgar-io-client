@@ -103,7 +103,7 @@ RECEIVERS = {
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "section": "section", "sound": "sound", "bell": "sound", "timer": "timer",
     "miss": "miss", "opt": "option", "option": "option", "rows": "option", "pl": "placing", "placing": "placing",
-    "target": "opponent", "grab": "grab", "scope": "scope", "profiling": "profiling", "declaration": "declaration",
+    "opponent": "opponent", "target": "opponent", "grab": "grab", "scope": "scope", "profiling": "profiling", "declaration": "declaration",
     "mouse": "hafen.ui():mouse()",
     # The session the pages read one character through. Its verbs are a closedIndex vocabulary (LuaSession),
     # so a bare `session:verb()` resolves; a chain rooted at it walks only the hops RETURNS names, as before.

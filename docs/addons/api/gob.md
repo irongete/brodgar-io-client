@@ -59,7 +59,7 @@ end
 | `session:world():gob():list(filter)`, `:within(radius, filter)` | An array of Gobs. | Unprotected |
 | `session:world():gob():nearest(filter)` | The nearest Gob to that character, or `nil`. | Unprotected |
 | A `GobAdded` or `GobRemoved` handler | The Gob that spawned or despawned ([events](event/bus/world.md#world)). | Unprotected |
-| `member:gob()` on a [party](party.md) member, `target:gob()` on the [combat](fight.md) target | That creature's Gob. | Unprotected |
+| `member:gob()` on a [party](party.md) member, `opponent:gob()` on a [combat](fight.md#an-opponent) opponent | That creature's Gob. | Unprotected |
 
 ## Read
 

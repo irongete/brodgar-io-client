@@ -1033,7 +1033,7 @@ public final class Addon {
 
     /**
      * This addon's <b>party and combat interning caches</b> (spec {@code 039-uniform-api} §4.3/§4.6):
-     * {@code s:party()} and {@code s:fight():target()} keyed by the <b>account plus the gob id</b> — the id is
+     * {@code s:party()} and {@code s:fight():opponent()} keyed by the <b>account plus the gob id</b> — the id is
      * the only thing the server publishes about a member or an opponent, and what makes a stashed handle
      * self-heal when they come back, while the account is what makes it mean one creature, since an id counts
      * inside one session's object cache (077) — {@code s:fight():maneuver()} by the window's own record alone

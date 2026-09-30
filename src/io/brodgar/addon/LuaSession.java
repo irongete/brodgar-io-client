@@ -397,7 +397,7 @@ public final class LuaSession {
         });
         // fight() — THIS character's combat schools, and the fight it is in. A school is configured on one
         // character and a fight is fought by one body: the deck read here is that character's own layout, and
-        // :target() is who IT is fighting, resolved in its own object cache.
+        // :opponent() is who IT is fighting, resolved in its own object cache.
         m.set("fight", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaSession h = handle(self, "fight");

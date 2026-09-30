@@ -60,4 +60,4 @@ end
 - [Gob](gob.md) — what `member:gob()` hands back, and every read on it.
 - [`PartyMember`](types/world.md#partymember) — the snapshot shape `member:info()` returns.
 - [`session:kin`](kin.md) — the other roster, the one that carries names.
-- [`session:fight`](fight.md) — combat, whose target resolves its gob the same way.
+- [`session:fight`](fight.md) — combat, whose opponents resolve their gob the same way.
