@@ -237,6 +237,12 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   has keeps its data, and only a segment the import made itself is ever merged — with `merge`'s `keep`,
   which leaves a coord the destination holds alone. The database's own segments stay unmerged by an import;
   `update` still joins them as the character walks from one into another.
+  ⚠️ **`gridinfo` can name a segment the database does not have.** A merged-away segment is never stored
+  (the importer stores its current segment only on `chseg`, and a merge replaces it without one), and there is
+  no way to delete a record: `BackCache.remove` hands the store a null, which `gridinfo`'s store function does
+  not take. So a grid `keep` leaves out keeps the record the import wrote when it filled the segment it merged
+  away. `update` reads a record whose `segments.get` is null as no record; the fork's `importgrid` does the
+  same (`// addon:`), where upstream's throws a `NullPointerException` and aborts the import.
 - **An import relaunches every live zoom grid over each grid it takes in.** `Segment.include` invalidates the
   stored zoom grids above the coord and relaunches every live `ByZCoord` over it, each relaunch a `Defer` task
   that recomputes and stores a column of zoom grids under the read lock. The minimap holds a few; the view

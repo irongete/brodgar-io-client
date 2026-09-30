@@ -1651,7 +1651,8 @@ public class MapFile {
     }
 
     /* addon: `keep` -- a coord dst already holds keeps its grid (the importer's add-only merge, see
-     * Importer.fresh); update() merges with it false, as upstream does. */
+     * Importer.fresh); update() merges with it false, as upstream does. A grid left out keeps the record naming
+     * src, which the importer does not store: a record naming no segment is read as no record (importgrid). */
     private void merge(Segment dst, Segment src, Coord soff, boolean keep) {
 	checklock();
 	for(Map.Entry<Coord, Long> gi : src.map.entrySet()) {
@@ -2033,6 +2034,11 @@ public class MapFile {
 	    lock.readLock().lock();
 	    try {
 		info = gridinfo.get(grid.gid);
+		/* addon: a grid recorded in a segment the database does not have is a grid it does not know, as update()
+		 * takes it: the add-only merge leaves a grid it keeps out naming the segment an import made and merged
+		 * away, which is never stored (see `fresh`). The segment this import is filling is not stored yet either. */
+		if((info != null) && ((curseg == null) || (info.seg != curseg.id)) && (segments.get(info.seg) == null))
+		    info = null;
 	    } finally {
 		lock.readLock().unlock();
 	    }
