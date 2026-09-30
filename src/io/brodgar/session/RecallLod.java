@@ -35,6 +35,7 @@ import haven.Resource;
 import haven.TexRender;
 import haven.GOut;
 import haven.Utils;
+import haven.Waitable;
 import haven.Warning;
 import haven.render.DataBuffer;
 import haven.render.Environment;
@@ -116,8 +117,18 @@ public class RecallLod implements RenderTree.Node {
     public static final int MAXLVL = 7;
     /** How many built cells are kept besides the ones the tick draws and wants, for the view coming back. */
     private static final int CACHECAP = 384;
-    /** How many cells may be loading or building at once: the Defer pool is shared with everything else. */
-    private static final int MAXBUSY = 3;
+    /**
+     * How many cells may be loading or building at once. A cell is a read of the map database and some half a
+     * millisecond of building, so this is how many the view waits on at once rather than a share of the CPU, and
+     * the view's own go first (LEAFORDER, SEENPRIO): the Defer pool is shared with everything else.
+     */
+    private static final int MAXBUSY = 16;
+    /**
+     * The Defer priority a cell the view draws or wants is fetched and built at, as the terrain's own cuts are
+     * (MapRaster.Grid.tick). A cell kept for a turn of the camera and not on screen asks for none, and waits for
+     * everything that does.
+     */
+    private static final int SEENPRIO = 5;
     /**
      * How many pixels one sample of a far cell may cover on screen before the cell splits, and how many one
      * tile of a level-one cell may cover before its grids are drawn whole, at a LOD distance of one: the tick
@@ -395,7 +406,21 @@ public class RecallLod implements RenderTree.Node {
 	 * recorded again and the same Indir then answers the new object, so the identity is the version. */
 	MapFile.DataGrid from = null;
 	boolean fetched = false;
-	Defer.Future<Built> building = null;
+	/* The build in flight: the first one started by whichever gets there first, the tick or the thread that finished
+	 * the fetch of the cell's zoom grid (begin, `begun` under the cell's monitor), so a cell's way to the screen is
+	 * not a step a frame; a rebuild (refresh) by the tick. `arrived` is the zoom grid it is built from, written
+	 * before it. */
+	volatile Defer.Future<Built> building = null;
+	volatile MapFile.DataGrid arrived = null;
+	boolean begun = false;
+	/* What the fetch answered instead of a zoom grid: nothing recorded there, or a failure. */
+	volatile boolean nogrid = false;
+	volatile RuntimeException fetchfail = null;
+	/* The wait on the fetch, once there is one (fetch): the tick's, as `waited` is. */
+	Waitable.Waiting waiting = null;
+	boolean waited = false;
+	/* Whether the view drew or wanted it at a walk: what its fetch and its build are hurried for (SEENPRIO). */
+	volatile boolean seen = false;
 	Built built = null;
 	boolean empty = false;
 	/* Its zoom grid failed to load, which it goes on answering: asked no more. */
@@ -480,6 +505,9 @@ public class RecallLod implements RenderTree.Node {
     public Set<Coord> detail = Collections.emptySet();
     /** Of {@link #detail}, the grids drawn whole this tick; the rest are built and not drawn. */
     public Set<Coord> shown = Collections.emptySet();
+    /** Of {@link #detail}, the grids the view wants whole this tick, drawn yet or not: the ones the raster builds
+     * first, before the ones kept for a turn of the camera or for the live ground to walk into. */
+    public Set<Coord> onscreen = Collections.emptySet();
     /** Cells this tick had in the scene, and cells loading or building, for {@code :recall}. */
     public int ndrawn = 0, nbusy = 0;
     /** Grids drawn whole this tick and wanted whole, for {@code :recall}. */
@@ -805,10 +833,17 @@ public class RecallLod implements RenderTree.Node {
 	 * the keep walk left to start, in its order. */
 	List<Leaf> order = null;
 	for(Leaf l : wants) {
-	    if(cells.get(l.key) == null) {   // the touch
+	    Cell wc = cells.get(l.key);   // the touch
+	    if(wc == null) {
 		if(order == null)
 		    order = new ArrayList<Leaf>();
 		order.add(l);
+	    } else if(!wc.seen) {
+		/* Kept for a turn of the camera and on screen now: hurried from here on (SEENPRIO). */
+		wc.seen = true;
+		Defer.Future<Built> b = wc.building;
+		if(b != null)
+		    b.boostprio(SEENPRIO);
 	    }
 	}
 	boolean left = false;
@@ -819,7 +854,7 @@ public class RecallLod implements RenderTree.Node {
 		    left = true;
 		    break;
 		}
-		if(start(base, l.key))
+		if(start(base, l.key, true))
 		    busy++;
 	    }
 	}
@@ -834,7 +869,7 @@ public class RecallLod implements RenderTree.Node {
 		break;
 	    }
 	    kstartat++;
-	    if(start(base, k))
+	    if(start(base, k, false))
 		busy++;
 	}
 	unfinished = left;
@@ -879,16 +914,21 @@ public class RecallLod implements RenderTree.Node {
 	}
 	/* The raster's share, in session coords: every grid of a cell wanted whole, every grid drawn whole, and
 	 * which are drawn. */
-	Set<Coord> det = new HashSet<Coord>(), shw = new HashSet<Coord>();
+	Set<Coord> det = new HashSet<Coord>(), shw = new HashSet<Coord>(), ons = new HashSet<Coord>();
 	for(Coord sc : wantwhole) {
 	    for(int y = 0; y < 2; y++) {
-		for(int x = 0; x < 2; x++)
-		    det.add(sc.add(x, y).sub(base.off));
+		for(int x = 0; x < 2; x++) {
+		    Coord g = sc.add(x, y).sub(base.off);
+		    det.add(g);
+		    ons.add(g);
+		}
 	    }
 	}
 	for(Coord g : dfulls) {
-	    det.add(g.sub(base.off));
-	    shw.add(g.sub(base.off));
+	    Coord sg = g.sub(base.off);
+	    det.add(sg);
+	    shw.add(sg);
+	    ons.add(sg);
 	}
 	/* And every level-one cell the keep walk holds whole, on screen or not: a turn of the camera brings it on
 	 * screen whole already, with nothing to build or merge. */
@@ -909,6 +949,7 @@ public class RecallLod implements RenderTree.Node {
 	}
 	this.detail = det;
 	this.shown = shw;
+	this.onscreen = ons;
 	ndrawn = inscene.size();
 	nbusy = busy;
 	nwhole = shw.size();
@@ -939,16 +980,94 @@ public class RecallLod implements RenderTree.Node {
 	}
     }
 
-    /** Start a cell: cached, and asked for its zoom grid. Whether it is in flight after that first step. */
-    private boolean start(Recall.Base base, Key key) {
+    /**
+     * Start a cell: cached, and on its way (fetch) -- hurried when the view draws or wants it ({@code seen}). Whether
+     * it is in flight after that first step.
+     */
+    private boolean start(Recall.Base base, Key key, boolean seen) {
 	Cell c = new Cell();
 	c.src = base.seg.grid(key.lvl, key.sc);
+	c.seen = seen;
 	cells.put(key, c);
 	cellidx.put(key, c);
 	if(!advance(key, c))
 	    return(false);
 	flight.put(key, c);
 	return(true);
+    }
+
+    /**
+     * Set a cell on its way: its build started now if its zoom grid is there, and otherwise the moment the fetch of it
+     * finishes, on the thread that finished it ({@link #arrived}), rather than at the next tick -- a cell whose every
+     * step waited for a tick came in at the frame rate's pace, which is at its lowest while the ground is loading. What
+     * the fetch answers instead of a zoom grid is left for the tick (advance).
+     */
+    private void fetch(Key key, Cell c) {
+	MapFile.DataGrid g;
+	try {
+	    g = c.src.get();
+	} catch(Loading l) {
+	    if(c.seen)
+		l.boostprio(SEENPRIO);
+	    if(!c.waited && (l instanceof Defer.NotDoneException)) {
+		c.waited = true;
+		final Defer.Future<?> zf = ((Defer.NotDoneException)l).future;
+		final Cell fc = c;
+		final int lvl = key.lvl;
+		final boolean flat = key.flat;
+		try {
+		    l.waitfor(() -> arrived(fc, zf, lvl, flat), w -> fc.waiting = w);
+		} catch(Loading.UnwaitableEvent e) {
+		    /* Nothing to wait on: the tick asks every tick, as it does anyway (advance). */
+		}
+	    }
+	    return;
+	} catch(RuntimeException e) {
+	    c.fetchfail = e;
+	    return;
+	}
+	if(g == null) {
+	    c.nogrid = true;
+	    return;
+	}
+	begin(c, key.lvl, key.flat, g);
+    }
+
+    /**
+     * The fetch of a cell's zoom grid has finished, and this is the thread that finished it: the cell's build starts
+     * here, or what the fetch answered instead is left for the tick. It may be a cell the tick has let go of since,
+     * whose build nobody collects.
+     */
+    private static void arrived(Cell c, Defer.Future<?> zf, int lvl, boolean flat) {
+	MapFile.DataGrid g;
+	try {
+	    g = (MapFile.DataGrid)zf.get(-1);
+	} catch(Loading l) {
+	    return;   // not done after all: the tick asks again (advance)
+	} catch(RuntimeException e) {
+	    c.fetchfail = e;
+	    return;
+	}
+	if(g == null) {
+	    c.nogrid = true;
+	    return;
+	}
+	begin(c, lvl, flat, g);
+    }
+
+    /**
+     * Start a cell's first build, over the zoom grid its fetch answered, unless it has been started: the tick and the
+     * thread that finished the fetch may both get there. Under the cell's own monitor, taken with nothing else held but
+     * the fetch's future, which the tick never holds around it.
+     */
+    private static void begin(Cell c, int lvl, boolean flat, MapFile.DataGrid g) {
+	synchronized(c) {
+	    if(c.begun)
+		return;
+	    c.begun = true;
+	    c.arrived = g;
+	    c.building = start(lvl, flat, g, c.seen);
+	}
     }
 
     /** Which wanted cell is started first: one the view draws before one kept for a turn, and the larger first. */
@@ -983,15 +1102,16 @@ public class RecallLod implements RenderTree.Node {
 	}
     }
 
-    /** One step of a cell in flight: collect its zoom grid and start its mesh, or collect its mesh. Whether it
-     * is still in flight after it. */
+    /** One step of a cell in flight: collect its mesh, or see to its zoom grid. Whether it is still in flight after
+     * it. */
     private boolean advance(Key key, Cell c) {
-	if(c.building != null) {
-	    if(!c.building.done())
+	Defer.Future<Built> b = c.building;
+	if(b != null) {
+	    if(!b.done(c.seen ? SEENPRIO : -1))
 		return(true);
 	    Built prev = c.built;
 	    try {
-		c.built = c.building.get();
+		c.built = b.get();
 		learn(key, c.built);
 		/* A rebuild (refresh): the build it replaces stays in the scene until the tick swaps them. */
 		if(prev != null)
@@ -1002,6 +1122,8 @@ public class RecallLod implements RenderTree.Node {
 		    c.empty = true;
 	    }
 	    c.building = null;
+	    c.fetched = true;
+	    c.from = c.arrived;
 	    cellchange = true;
 	    if(c.built != prev)
 		upload(key, c.built);
@@ -1009,27 +1131,24 @@ public class RecallLod implements RenderTree.Node {
 	}
 	if(c.fetched)
 	    return(false);
-	MapFile.DataGrid g;
-	try {
-	    g = c.src.get();
-	} catch(Loading e) {
-	    return(true);
-	} catch(RuntimeException e) {
+	RuntimeException fail = c.fetchfail;
+	if(fail != null) {
 	    /* The zoom grid's fetch failed -- ZoomGrid.from saving what it built into a store that would not
 	     * take it -- and its future answers every later ask with the same failure. The cell is empty, as
 	     * unrecorded ground is: out of MapView.tick, this ends the UI thread. */
-	    new Warning(e, String.format("far cell %s at level %d: its zoom grid failed: %s", key.sc, key.lvl, e)).issue();
-	    g = null;
+	    new Warning(fail, String.format("far cell %s at level %d: its zoom grid failed: %s", key.sc, key.lvl, fail)).issue();
 	    c.failed = true;
 	}
-	c.fetched = true;
-	c.from = g;
-	if(g == null) {
+	if((fail != null) || c.nogrid) {
+	    c.fetched = true;
+	    c.from = null;
 	    c.empty = true;
 	    cellchange = true;
 	    return(false);
 	}
-	c.building = start(key, g);
+	/* Still fetching, or fetched with its build not started yet by the thread that fetched it: asked again, and
+	 * started here if so. */
+	fetch(key, c);
 	return(true);
     }
 
@@ -1069,14 +1188,18 @@ public class RecallLod implements RenderTree.Node {
 	if((c.built != null) && (prev != null) && samedraw(prev, g))
 	    return(false);
 	c.empty = false;
-	c.building = start(key, g);
+	c.arrived = g;
+	c.building = start(key.lvl, key.flat, g, c.seen);
 	return(true);
     }
 
-    private static Defer.Future<Built> start(Key key, MapFile.DataGrid g) {
-	final int lvl = key.lvl;
-	final boolean flat = key.flat;
-	return(Defer.later(() -> build(g, lvl, flat)));
+    /** A cell's build over zoom grid {@code g}, on a Defer thread: at {@link #SEENPRIO} for a cell the view draws or
+     * wants, and otherwise after everything that asks for more. */
+    private static Defer.Future<Built> start(int lvl, boolean flat, MapFile.DataGrid g, boolean seen) {
+	Defer.Future<Built> f = Defer.later(() -> build(g, lvl, flat));
+	if(seen)
+	    f.boostprio(SEENPRIO);
+	return(f);
     }
 
     /**
@@ -1515,6 +1638,12 @@ public class RecallLod implements RenderTree.Node {
 	    s.slot.remove();
 	inclick.clear();
 	for(Cell c : cells.values()) {
+	    /* A fetch still in flight starts no build now (begin), and the wait on it goes. */
+	    synchronized(c) {
+		c.begun = true;
+	    }
+	    if(c.waiting != null)
+		c.waiting.cancel();
 	    if(c.building != null)
 		c.building.cancel();
 	    if(c.built != null)

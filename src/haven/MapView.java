@@ -1519,6 +1519,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(area.contains(cc));
 	}
 
+	// addon: the Defer priority a cut of this raster is asked for at while it loads: upstream's 5 by default. A
+	//        raster holding ground ahead of the view asks less for what the view does not show (RecallTerrain).
+	int loadprio(Coord cc) {
+	    return(5);
+	}
+
 	abstract class Grid<T> extends RenderTree.Node.Track1 {
 	    final Map<Coord, Pair<T, RenderTree.Slot>> cuts = new HashMap<>();
 	    /* addon: moves whenever `cuts` does -- a cut in or out, a mesh swapped -- so what is derived from it can be
@@ -1578,7 +1584,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 				io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- a cut's ground entered the scene
 			}
 		    } catch(Loading l) {
-			l.boostprio(5);
+			l.boostprio(MapRaster.this.loadprio(cc));   // addon: 5, unless the raster says otherwise
 			curload = l;
 		    }
 		}
@@ -2148,14 +2154,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * within a frame rather than within a fifth of a second, and the throughput of the whole feature is
      * this number over the build's own latency rather than this number over a period.
      *
-     * So the number to state is a share of the pool that does the building. Defer.maxthreads is
-     * max(2, cores - 1) and every loading thing in the client shares it -- the live terrain's own cuts,
-     * every resource, and this feature's own disk reads, which park a worker on the map file's lock for
-     * as long as a segment save holds it (Recall.maxread). The reserve is what is left standing for all
-     * of that: queueing more recall meshes than the pool can run does not build them any sooner, it only
-     * puts them ahead of the frame's own work in one shared queue. */
-    private static final int recallbuildreserve = 1;
-    private static final int recallmaxbuild = Math.max(2, Defer.maxthreads - recallbuildreserve);
+     * So the number to state is a share of the machine. addon: a quarter of its logical cores (Defer.maxthreads
+     * is max(2, cores - 1)), at least one. A cut is a few milliseconds of arithmetic over arrays that do not
+     * fit a core's cache, and cuts built side by side slow one another down as much as they add: the cut the
+     * screen waits for at login cost 47 ms built alone and 300-400 built beside thirteen others on sixteen
+     * logical cores (Defer.take). The pool's other users -- the live terrain's own cuts, every resource, the
+     * far ground's cells, this feature's own disk reads (Recall.maxread) -- and the frame's own threads are
+     * what the rest of the machine is left for; the ground the view is not showing waits behind all of them
+     * (RecallTerrain.loadprio). */
+    private static final int recallmaxbuild = Math.max(1, (Defer.maxthreads + 1) / 4);
 
     private class RecallTerrain extends MapRaster {
 	/* Which cuts this raster is to hold, computed once per tick: read back from the record, buildable,
@@ -2174,6 +2181,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * all the same, out of the scene, while the far ground stands in for it: what lets it be swapped in
 	 * with nothing missing once it is whole (ready). */
 	Set<Coord> shown = Collections.emptySet();
+	/* addon: and the grids the view wants whole this tick, drawn yet or not (RecallLod.onscreen): built and merged
+	 * first, and the rest -- held for a turn of the camera or for the live ground to walk into -- after
+	 * everything else that is loading (loadprio). */
+	Set<Coord> onscreen = Collections.emptySet();
 	/* addon: moves whenever what ready() answers may have. */
 	int mergegen = 0;
 	/* addon: how many cuts each held grid has that can be built, which a grid is whole with; and the grids
@@ -2373,7 +2384,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    double now = Utils.rtime();
 	    int budget = MERGES;
 	    boolean all = true;
-	    for(Map.Entry<Coord, Map<Coord, MapMesh>> e : mine.entrySet()) {
+	    /* addon: the grids the view wants whole first, so the budget of MERGES goes to the ground on screen. */
+	    final Set<Coord> vis = this.onscreen;
+	    List<Map.Entry<Coord, Map<Coord, MapMesh>>> order = new ArrayList<>(mine.entrySet());
+	    order.sort((a, b) -> Boolean.compare(!vis.contains(a.getKey()), !vis.contains(b.getKey())));
+	    for(Map.Entry<Coord, Map<Coord, MapMesh>> e : order) {
 		Coord g = e.getKey();
 		Map<Coord, MapMesh> cur = e.getValue();
 		int nheld = have.get(g).size();
@@ -2630,11 +2645,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	    if(candnew || (draw.size() < cand.size())) {
 		final Coord cen = c.floor(tilesz).div(MCache.cutsz);
-		Collections.sort(cand, new Comparator<Coord>() {
-			public int compare(Coord a, Coord b) {
-			    return(Long.compare(dist2(a, cen), dist2(b, cen)));
-			}
-		    });
+		/* addon: sorted again only when the candidates, the grids the view wants or the camera's cut have
+		 * moved (sortcand). */
+		Set<Coord> vis = this.onscreen;
+		if(candnew || !cen.equals(sortcen) || !vis.equals(sortvis)) {
+		    sortcand(cen, vis);
+		    sortcen = cen;
+		    sortvis = vis;
+		}
 		Set<Coord> nd = new LinkedHashSet<>();
 		int building = 0;
 		for(Coord cc : cand) {
@@ -2732,6 +2750,52 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	private long dist2(Coord a, Coord b) {
 	    long dx = a.x - b.x, dy = a.y - b.y;
 	    return((dx * dx) + (dy * dy));
+	}
+
+	/* addon: the order the candidates are built in: the grids the view wants whole first, then the rest, each nearest
+	 * the camera's cut first and a grid's cuts together, nearest first -- so the ground on screen comes before what is
+	 * held for a turn of the camera, and each grid comes whole, to be merged and drawn, before the next one starts
+	 * (a cut-by-cut order had every grid half built at once). */
+	private Coord sortcen = null;
+	private Set<Coord> sortvis = null;
+	private void sortcand(Coord cen, Set<Coord> vis) {
+	    final class Ord {
+		final Coord cc;
+		final int vis, gx, gy;
+		final long gd, cd;
+
+		Ord(Coord cc, int vis, int gx, int gy, long gd, long cd) {
+		    this.cc = cc; this.vis = vis; this.gx = gx; this.gy = gy; this.gd = gd; this.cd = cd;
+		}
+	    }
+	    Coord half = MCache.cutn.div(2);
+	    List<Ord> ord = new ArrayList<>(cand.size());
+	    for(Coord cc : cand) {
+		Coord g = cc.div(MCache.cutn);
+		ord.add(new Ord(cc, vis.contains(g) ? 0 : 1, g.x, g.y, dist2(g.mul(MCache.cutn).add(half), cen), dist2(cc, cen)));
+	    }
+	    ord.sort((a, b) -> {
+		    if(a.vis != b.vis)
+			return(Integer.compare(a.vis, b.vis));
+		    if(a.gd != b.gd)
+			return(Long.compare(a.gd, b.gd));
+		    if(a.gx != b.gx)
+			return(Integer.compare(a.gx, b.gx));
+		    if(a.gy != b.gy)
+			return(Integer.compare(a.gy, b.gy));
+		    return(Long.compare(a.cd, b.cd));
+		});
+	    List<Coord> nc = new ArrayList<>(ord.size());
+	    for(Ord o : ord)
+		nc.add(o.cc);
+	    cand = nc;
+	}
+
+	/* addon: a cut of a grid the view wants whole is asked for as the live terrain's are; one held ahead of the view --
+	 * for a turn of the camera, for the live ground to walk into -- asks for nothing, and is built when nothing that
+	 * asks is waiting. A grid coming on screen raises its cuts at their next tick. */
+	int loadprio(Coord cc) {
+	    return(onscreen.contains(cc.div(MCache.cutn)) ? 5 : -1);
 	}
 
 	/* Everything the budget left out leaves the scene here, and so does everything that left the
@@ -2956,6 +3020,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	recallterrain.grids = recalllod.detail;
 	recallterrain.shown = recalllod.shown;
+	recallterrain.onscreen = recalllod.onscreen;   // addon: built first
 	/* 120.3: every ctick, and no clock of its own. What the raster decides is what it is holding in
 	 * flight, so the rate it is asked at IS the rate a finished build is replaced at: at a fifth of a
 	 * second a mesh that took five milliseconds leaves its slot in the budget idle for the other

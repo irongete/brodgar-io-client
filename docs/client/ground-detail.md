@@ -29,7 +29,7 @@ at the maximum the field is used untouched, so the draw sequence is upstream's b
 | What | Where |
 |---|---|
 | The tiler | `TerrainTile`, made by `TerrainTile.Factory` (`@ResName("trn")`) once per tileset resource: `base` (the tileset's own material), `var[]` (`TerrainTile.Var`: a material, a noise band `thrl`..`thrh` and a noise offset `nz`), `transset` and `draw`. `TerrainTile.RidgeTile` (its factory `trn-r`) extends it and shares all of this |
-| The weights, once per mesh | `TerrainTile.Blend`, built through `MapMesh.DataID<Blend> blend` and `m.data(blend)`, so `faces` and `_faces` of one cut read the same instance. Its constructor: a noise table `lwc` per layer over the cut plus a margin of `sr` (`12`) vertices, `setbase(buf1)` choosing one layer per vertex from the variants' noise bands (the base where no band matches), then `sr` blur passes weighted by `lwc` that end in `buf1 = buf2`. `bv` is the result, post-processed (`v × 1.2 − 0.1`, clamped, `0.25 + 0.75 v` between) |
+| The weights, once per mesh | `TerrainTile.Blend`, built through `MapMesh.DataID<Blend> blend` and `m.data(blend)`, so `faces` and `_faces` of one cut read the same instance. Upstream's constructor: a noise table `lwc` per layer over the cut plus a margin of `sr` (`12`) vertices, `setbase(buf1)` choosing one layer per tile from the variants' noise bands (the base where no band matches) and setting it at the tile's four corners, then `sr` blur passes weighted by `lwc` that end in `buf1 = buf2`. `bv` is the result, post-processed (`v × 1.2 − 0.1`, clamped, `0.25 + 0.75 v` between). Neither the noise table nor the layers read the map: both are the tileset's `noise` at the tile's world coordinates |
 | Which layers a tile emits | `Blend.en[layer][tile]`, decided per tile from the top layer down: a layer whose four corner weights are all below `0.001` is off, one whose four are all above `0.99` is on and marks `fall`, so everything under it is off |
 | The vertices | `Blend.lvfac[layer]`, a `VertFactory` per layer: the vertex colour's alpha is that layer's weight interpolated over the tile (`bv(lc, tcx, tcy)`), tangent and bitangent for the bump map, the texture coordinate on a `25/4` grid |
 | Emitting the ground | `TerrainTile.faces(MapMesh, MPart)`: for every enabled layer of the tile, one `SModel` keyed on the layer's material and the tile's `draw` (`MapMesh.MLOrder(0, z)` for `var`, `VertexColor`), so a tile with `n` layers enabled is `n` models and `n` slots |
@@ -39,11 +39,23 @@ at the maximum the field is used untouched, so the draw sequence is upstream's b
 blur passes, and the margin they read beyond the cut. A pass spreads a weight one vertex, so a margin of
 `sr` keeps neighbouring cuts seamless at any count. Fewer passes build faster and leave harder edges,
 where more tiles reach one opaque layer and the `en` loop enables fewer. At `0` the three steps that
-compute the weights — the noise table, `setbase` and the blur — are skipped: `buf1[0]` is filled with
+compute the weights — the noise table, the layers and the blur — are skipped: `buf1[0]` is filled with
 `1` and the variants stay at `0`; the post-processing and the `en` loop are untouched and then enable
 the base alone, opaque, on every tile, so `faces` and `_faces` emit one model where they emitted up to
 `var.length + 1`. The blur would leave 1/0 arrays as they are; skipping it and the noise is the
 build-time half of the saving.
+
+**Fork: the weights, bit for bit, at a fraction of the cost.** Upstream's `Blend` is some 80 % of a cut's build
+(some 14 ms of 17 at `12` passes, one thread), and most of it is worked out several times over: a cut's region is its
+25 × 25 tiles and the margin, so upstream computes each noise value and each tile's layer once for each of the four
+or so cuts around it. `TerrainTile.nblock` holds both a block of 25 × 25 world tiles at a time (`mkblock`: the same `noise.getr` and
+`noise.get` calls on the same coordinates), keyed by the tile's `noise` and `var` (a `RidgeTile` shares its base's),
+least recently used dropped past `NBLOCKS` (1024, some 10 MB); `Blend.fromblocks` copies them in. The blur then works
+only where the cut's own vertices read it: pass `i` needs the vertices within `sr − 1 − i` of the cut and no others,
+each of which has all four neighbours in the region, so its sum is upstream's term for term. A cut builds in some 3
+to 8 ms, as its neighbours' blocks are cached or not. ⚠️ `bv` outside the cut's own vertices (`0..sz`) is not
+upstream's: nothing reads it (`en`, `lvfac`), and nothing may. ⚠️ The blocks never go stale only because the
+weights read nothing but the tileset and the coordinates: a weight that read the map would need the cache keyed on it.
 
 ## The transition pass: where it lives
 

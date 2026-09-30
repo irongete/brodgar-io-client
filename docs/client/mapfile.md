@@ -103,6 +103,10 @@
   levels — so a sample is a crisp square; linear magnification smears a few-pixel sample into its
   neighbours. A leaf keeps the zoom grid's `Indir` and is built again when it answers another grid that
   draws differently (the record moved, in the gotchas below), the old mesh drawn until the new one is built.
+  A leaf's build starts the moment its zoom grid has been fetched, on the thread that fetched it (the fetch's
+  `Loading` waited on, `RecallLod.fetch`), with up to `MAXBUSY` (16) leaves in flight: a leaf moved on a step a
+  tick would come in at the frame rate, which is lowest exactly while the ground loads. The view's own are fetched
+  and built at the terrain's own priority (`SEENPRIO`), those kept for a turn of the camera after everything else.
   A leaf is put on the GPU as soon as it is built, drawn or not (its slot added and removed at once, which is
   what prepares it), and keeps **no copy**: its buffers' and texture's fillers take the arrays the build made
   the first time the environment asks — some 280 KB of the 310 a built leaf is — and make them again from the

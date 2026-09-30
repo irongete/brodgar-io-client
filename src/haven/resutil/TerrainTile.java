@@ -65,55 +65,62 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	     * of blur passes, and the margin they read beyond the cut (a pass spreads a weight one vertex, so
 	     * the margin keeps neighbouring cuts seamless at any count). Fewer passes build faster and leave
 	     * harder edges, where more tiles take one opaque layer and the `en` loop draws fewer. At 0 the
-	     * noise, setbase and the blur are skipped: the base layer takes the whole tile (weight 1), every
+	     * noise, the layers and the blur are skipped: the base layer takes the whole tile (weight 1), every
 	     * variant stays at its fresh 0, and the post-processing and `en` loop below enable the base
 	     * alone, opaque, on every tile. */
 	    final int sr = io.brodgar.perf.Performance.groundBlend;
 	    vs = new Scan(Coord.z.sub(sr, sr), m.sz.add(sr * 2 + 1, sr * 2 + 1));
 	    float[][] buf1 = new float[var.length + 1][vs.l];
 	    if(sr > 0) {
-	    float[][] lwc = new float[var.length + 1][vs.l];
-	    for(int i = 0; i < var.length + 1; i++) {
-		for(int y = vs.ul.y; y < vs.br.y; y++) {
-		    for(int x = vs.ul.x; x < vs.br.x; x++) {
-			lwc[i][vs.o(x, y)] = (float)noise.getr(0.5, 1.5, 32, x + m.ul.x, y + m.ul.y, i * 23);
-		    }
+	    int ln = var.length + 1, stride = vs.sz.x;
+	    float[][] lwc = new float[ln][vs.l];
+	    /* addon: the noise both halves read -- each vertex's blur weight, and each tile's layer (upstream's setbase)
+	     * -- out of the block cache (nblock), where each value is worked out once for every cut whose region reaches
+	     * it: a region is the cut and the blur's margin around it, so every value was worked out some four times,
+	     * once by each cut around it. The same calls on the same coordinates: the same values. */
+	    fromblocks(lwc, buf1);
+	    /* addon: and the blur only where the cut's own vertices read it. The values at 0..sz after the last pass
+	     * depend on the region only within a vertex a pass, so pass i needs the vertices within sr-1-i of the cut
+	     * and no others -- and each of those has all four neighbours in the region, so its sum is upstream's, term
+	     * for term in the same order: the same floats. The weight a vertex spreads is the same every pass and is
+	     * worked out once; two buffers change places instead of one being made a pass, and what either holds
+	     * outside the pass's vertices is never read. */
+	    for(int o = 0; o < ln; o++) {
+		float[] lo = lwc[o];
+		for(int p = 0; p < vs.l; p++) {
+		    float lw = lo[p];
+		    if(lw < 0)
+			lw = lw * lw * lw;
+		    else
+			lw = lw * lw;
+		    lo[p] = lw;
 		}
 	    }
-	    setbase(buf1);
+	    float[][] buf2 = new float[ln][vs.l];
 	    for(int i = 0; i < sr; i++) {
-		float[][] buf2 = new float[var.length + 1][vs.l];
-		for(int y = vs.ul.y; y < vs.br.y; y++) {
-		    for(int x = vs.ul.x; x < vs.br.x; x++) {
-			for(int o = 0; o < var.length + 1; o++) {
-			    float s = buf1[o][vs.o(x, y)] * 4;
+		int c = sr - 1 - i;
+		for(int y = -c; y <= m.sz.y + c; y++) {
+		    for(int x = -c, p = vs.o(-c, y); x <= m.sz.x + c; x++, p++) {
+			for(int o = 0; o < ln; o++) {
+			    float[] b = buf1[o];
+			    float lw = lwc[o][p];
+			    float s = b[p] * 4;
 			    float w = 4;
-			    float lw = lwc[o][vs.o(x, y)];
-			    if(lw < 0)
-				lw = lw * lw * lw;
-			    else
-				lw = lw * lw;
-			    if(x > vs.ul.x) {
-				s += buf1[o][vs.o(x - 1, y)] * lw;
-				w += lw;
-			    }
-			    if(y > vs.ul.y) {
-				s += buf1[o][vs.o(x, y - 1)] * lw;
-				w += lw;
-			    }
-			    if(x < vs.br.x - 1) {
-				s += buf1[o][vs.o(x + 1, y)] * lw;
-				w += lw;
-			    }
-			    if(y < vs.br.y - 1) {
-				s += buf1[o][vs.o(x, y + 1)] * lw;
-				w += lw;
-			    }
-			    buf2[o][vs.o(x, y)] = s / w;
+			    s += b[p - 1] * lw;
+			    w += lw;
+			    s += b[p - stride] * lw;
+			    w += lw;
+			    s += b[p + 1] * lw;
+			    w += lw;
+			    s += b[p + stride] * lw;
+			    w += lw;
+			    buf2[o][p] = s / w;
 			}
 		    }
 		}
+		float[][] t = buf1;
 		buf1 = buf2;
+		buf2 = t;
 	    }
 	    } else {
 		java.util.Arrays.fill(buf1[0], 1f);
@@ -157,27 +164,31 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	    }
 	}
 
-	private void setbase(float[][] bv) {
-	    for(int y = vs.ul.y; y < vs.br.y - 1; y++) {
-		for(int x = vs.ul.x; x < vs.br.x - 1; x++) {
-		    fall: {
-			for(int i = var.length - 1; i >= 0; i--) {
-			    Var v = var[i];
-			    double n = 0;
-			    for(double s = 64; s >= 8; s /= 2)
-				n += noise.get(s, x + m.ul.x, y + m.ul.y, v.nz);
-			    if(((n / 2) >= v.thrl) && ((n / 2) <= v.thrh)) {
-				bv[i + 1][vs.o(x, y)] = 1;
-				bv[i + 1][vs.o(x + 1, y)] = 1;
-				bv[i + 1][vs.o(x, y + 1)] = 1;
-				bv[i + 1][vs.o(x + 1, y + 1)] = 1;
-				break fall;
+	/* addon: each vertex's blur weight noise (lwc) and, for each tile the region has -- its last row and column of
+	 * vertices have none -- its four corners set in its layer (bv), what upstream's setbase did, the layer read from
+	 * the block cache (mkblock). */
+	private void fromblocks(float[][] lwc, float[][] bv) {
+	    int ln = var.length + 1, stride = vs.sz.x;
+	    int wx0 = m.ul.x + vs.ul.x, wy0 = m.ul.y + vs.ul.y, wx1 = m.ul.x + vs.br.x, wy1 = m.ul.y + vs.br.y;
+	    for(int by = Math.floorDiv(wy0, NBLK); by * NBLK < wy1; by++) {
+		for(int bx = Math.floorDiv(wx0, NBLK); bx * NBLK < wx1; bx++) {
+		    NBlock nb = nblock(bx, by);
+		    int ylo = Math.max(wy0, by * NBLK), yhi = Math.min(wy1, (by + 1) * NBLK);
+		    int xlo = Math.max(wx0, bx * NBLK), xhi = Math.min(wx1, (bx + 1) * NBLK);
+		    for(int wy = ylo; wy < yhi; wy++) {
+			for(int wx = xlo; wx < xhi; wx++) {
+			    int bo = ((wy - (by * NBLK)) * NBLK) + (wx - (bx * NBLK));
+			    int ro = vs.o(wx - m.ul.x, wy - m.ul.y);
+			    for(int i = 0; i < ln; i++)
+				lwc[i][ro] = nb.lw[i][bo];
+			    if((wx < wx1 - 1) && (wy < wy1 - 1)) {
+				float[] l = bv[nb.layer[bo]];
+				l[ro] = 1;
+				l[ro + 1] = 1;
+				l[ro + stride] = 1;
+				l[ro + stride + 1] = 1;
 			    }
 			}
-			bv[0][vs.o(x, y)] = 1;
-			bv[0][vs.o(x + 1, y)] = 1;
-			bv[0][vs.o(x, y + 1)] = 1;
-			bv[0][vs.o(x + 1, y + 1)] = 1;
 		    }
 		}
 	    }
@@ -216,6 +227,100 @@ public class TerrainTile extends Tiler implements Tiler.MCons, Tiler.CTrans {
 	    return(new Blend(m));
 	}
     };
+
+    /* addon: the noise a blend reads, NBLK x NBLK world tiles at a time -- a cut's size, so a cut's own tiles are
+     * whole blocks: each vertex's blur weight noise and each tile's layer. Both are this tileset's noise at the
+     * tile's world coordinates and nothing else -- not the map, not the number of blur passes -- so a block holds
+     * for as long as the tileset, whichever cuts, maps and rebuilds read it. Keyed by the noise and the variants,
+     * which a ridge tileset shares with its base; the least recently read dropped past NBLOCKS. A block is some
+     * 10 KB, and a grid built whole reads 36 of them. */
+    private static final int NBLK = 25, NBLOCKS = 1024;
+
+    private static final class NBlock {
+	final float[][] lw;
+	final byte[] layer;
+
+	NBlock(float[][] lw, byte[] layer) {
+	    this.lw = lw;
+	    this.layer = layer;
+	}
+    }
+
+    private static final class NKey {
+	final SNoise3 noise;
+	final Var[] var;
+	final int bx, by;
+
+	NKey(SNoise3 noise, Var[] var, int bx, int by) {
+	    this.noise = noise;
+	    this.var = var;
+	    this.bx = bx;
+	    this.by = by;
+	}
+
+	public int hashCode() {
+	    return((((((System.identityHashCode(noise) * 31) + System.identityHashCode(var)) * 31) + bx) * 31) + by);
+	}
+
+	public boolean equals(Object o) {
+	    if(!(o instanceof NKey))
+		return(false);
+	    NKey k = (NKey)o;
+	    return((k.noise == noise) && (k.var == var) && (k.bx == bx) && (k.by == by));
+	}
+    }
+
+    private static final Map<NKey, NBlock> nblocks = new LinkedHashMap<NKey, NBlock>(256, 0.75f, true) {
+	    protected boolean removeEldestEntry(Map.Entry<NKey, NBlock> e) {
+		return(size() > NBLOCKS);
+	    }
+	};
+
+    /* addon: block (bx, by) of this tileset's blend noise. Made outside the cache's lock, which cuts building on
+     * several threads at once hold only for a lookup: two threads making one block make the same, and either stands. */
+    private NBlock nblock(int bx, int by) {
+	NKey k = new NKey(noise, var, bx, by);
+	NBlock b;
+	synchronized(nblocks) {
+	    b = nblocks.get(k);
+	}
+	if(b == null) {
+	    b = mkblock(bx, by);
+	    synchronized(nblocks) {
+		nblocks.put(k, b);
+	    }
+	}
+	return(b);
+    }
+
+    /* addon: upstream's two noise reads, as the blend made them for every vertex and tile of its region: the blur
+     * weight of each layer, and the tile's layer -- the last variant whose thresholds its noise falls within, or the
+     * base. */
+    private NBlock mkblock(int bx, int by) {
+	int ln = var.length + 1;
+	float[][] lw = new float[ln][NBLK * NBLK];
+	byte[] layer = new byte[NBLK * NBLK];
+	for(int ty = 0; ty < NBLK; ty++) {
+	    for(int tx = 0; tx < NBLK; tx++) {
+		int wx = (bx * NBLK) + tx, wy = (by * NBLK) + ty, o = (ty * NBLK) + tx;
+		for(int i = 0; i < ln; i++)
+		    lw[i][o] = (float)noise.getr(0.5, 1.5, 32, wx, wy, i * 23);
+		int l = 0;
+		for(int i = var.length - 1; i >= 0; i--) {
+		    Var v = var[i];
+		    double n = 0;
+		    for(double s = 64; s >= 8; s /= 2)
+			n += noise.get(s, wx, wy, v.nz);
+		    if(((n / 2) >= v.thrl) && ((n / 2) <= v.thrh)) {
+			l = i + 1;
+			break;
+		    }
+		}
+		layer[o] = (byte)l;
+	    }
+	}
+	return(new NBlock(lw, layer));
+    }
 
     @ResName("trn")
     public static class Factory implements Tiler.Factory {
