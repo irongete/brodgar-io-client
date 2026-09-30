@@ -42,12 +42,27 @@ public class FrustumList implements RenderList<Rendered> {
      * no member is drawn coarser than its own size asks -- as a share of the screen's height, the "screen
      * size" engines pick levels by. Below each of LODAT the next coarser level (haven.FastMesh.lod) is drawn,
      * and below TINY nothing is: a member of a batch that small is a pixel or two. A level boundary is crossed
-     * only ten per cent past it, so a batch on the edge does not flip every frame. `:lod on|off` and
-     * `:lodbias <x>` (more than 1 keeps detail further out) set them live. */
+     * only ten per cent past it, so a batch on the edge does not flip every frame. Every size is weighed times
+     * `lodbias` (more than 1 keeps detail further out), the Performance page's Objects > LOD distance, which is
+     * persisted and which `:lodbias <x>` sets too; `:lod on|off` sets the levels on or off live. Levels are picked
+     * only while frustum culling is on, since this pass is what picks them. */
     private static final double[] LODAT = {0.10, 0.05, 0.025};
     private static final double TINY = 0.0015, HYST = 0.1;
     public static volatile boolean lodon = true;
-    public static volatile double lodbias = 1.0;
+    public static volatile double lodbias = bias(haven.Utils.getprefd("lodbias", 1.0));
+    /* The ends of the Performance page's slider, in per cent: `:lodbias` may set any positive bias, and one past
+     * either end has the knob at that end. */
+    public static final int LODPCTMIN = 25, LODPCTMAX = 200;
+
+    /* A stored bias that is no positive number reads as the default. */
+    private static double bias(double b) {
+	return(((b > 0) && !Double.isInfinite(b)) ? b : 1.0);
+    }
+
+    /** Set the bias and store it, as the Performance page's slider and {@code :lodbias} both do. */
+    public static void lodbias(double b) {
+	haven.Utils.setprefd("lodbias", lodbias = b);
+    }
     /* The last pass's batches of a mesh by the level they draw, full first, and those left out as tiny. */
     private static volatile int[] lodcounts = new int[LODAT.length + 2];
 
@@ -61,9 +76,9 @@ public class FrustumList implements RenderList<Rendered> {
 	    });
 	haven.Console.setscmd("lodbias", (cons, args) -> {
 		double b = Double.parseDouble(args[1]);
-		if(!(b > 0))
+		if(!(b > 0) || Double.isInfinite(b))
 		    throw(new Exception("lodbias: a positive number"));
-		lodbias = b;
+		lodbias(b);
 	    });
     }
 

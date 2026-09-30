@@ -13,6 +13,7 @@ import haven.UI;
 import haven.Utils;
 import haven.Widget;
 
+import io.brodgar.perf.FrustumList;
 import io.brodgar.perf.Performance;
 
 /**
@@ -125,8 +126,41 @@ public class PerformancePanel extends OptWnd.Panel {
                       + " short one.", true);
         }
 
+        /* How far each level of that ground's detail reaches: MapView's third recall static, written
+         * live-and-persisted in one statement as the range is. */
+        Label lodLbl = body.add(new Label("LOD distance"),
+                                Coord.of(rangeLbl.c.x, Math.max(rangeLbl.pos("bl").y, rangeEnd.y) + UI.scale(8)));
+        Coord lodEnd;
+        {
+            Label dpy = new Label("");
+            HSlider sl = new HSlider(UI.scale(140), MapView.loddistmin, MapView.loddistmax, MapView.loddist) {
+                    protected void added() {
+                        dpy();
+                    }
+                    void dpy() {
+                        dpy.settext(this.val + " %");
+                    }
+                    public void changed() {
+                        Utils.setprefi("loddist", MapView.loddist = this.val);
+                        dpy();
+                    }
+                    public void tick(double dt) {
+                        super.tick(dt);
+                        if(this.val != MapView.loddist) {
+                            this.val = MapView.loddist;
+                            dpy();
+                        }
+                    }
+                };
+            lodEnd = body.addhlp(Coord.of(lodLbl.pos("ur").x + UI.scale(5), lodLbl.c.y), UI.scale(5), sl, dpy);
+            sl.settip("How far from the camera explored ground keeps each level of detail: first the grids drawn in"
+                      + " full, then each coarser level of the map's zoomed-out record. Lower brings every step"
+                      + " closer, for more frames per second; higher pushes them further out, as far as memory"
+                      + " allows. The ground right around your character is always drawn in full. Applies live.", true);
+        }
+
         prev = body.add(new Label("Ground"),
-                        Coord.of(0, Math.max(rangeLbl.pos("bl").y, rangeEnd.y) + UI.scale(15)));
+                        Coord.of(0, Math.max(lodLbl.pos("bl").y, lodEnd.y) + UI.scale(15)));
 
         Label flavorLbl = body.add(new Label("Flavor objects"), prev.pos("bl").adds(5, 10));
         Coord flavorEnd;
@@ -278,6 +312,42 @@ public class PerformancePanel extends OptWnd.Panel {
         prev = body.add(new Label("Objects"),
                    Coord.of(0, Math.max(forageLbl.pos("bl").y, forageEnd.y) + UI.scale(15)));
 
+        /* The objects' levels of detail: FrustumList's bias, in per cent. For a bias :lodbias set past either end
+         * the knob stands at that end, and the label says the bias. */
+        Label objLodLbl = body.add(new Label("LOD distance"), prev.pos("bl").adds(5, 10));
+        Coord objLodEnd;
+        {
+            Label dpy = new Label("");
+            HSlider sl = new HSlider(UI.scale(140), FrustumList.LODPCTMIN, FrustumList.LODPCTMAX, lodknob()) {
+                    protected void added() {
+                        dpy();
+                    }
+                    int said = -1;
+                    void dpy() {
+                        int p = lodpct();
+                        if(p != said)
+                            dpy.settext(p + " %");
+                        said = p;
+                    }
+                    public void changed() {
+                        FrustumList.lodbias(this.val / 100.0);
+                        dpy();
+                    }
+                    public void tick(double dt) {
+                        super.tick(dt);
+                        int shown = lodknob();
+                        if(this.val != shown)
+                            this.val = shown;
+                        dpy();
+                    }
+                };
+            objLodEnd = body.addhlp(Coord.of(objLodLbl.pos("ur").x + UI.scale(5), objLodLbl.c.y), UI.scale(5), sl, dpy);
+            sl.settip("How far from the camera objects keep their full detail. Past it an object is drawn from a"
+                      + " simpler copy of its mesh, and one too small on screen to make out is left out. Lower brings"
+                      + " both closer, for more frames per second; higher pushes them further out. Leaves, grass and"
+                      + " other loose little pieces are never simplified. Needs Frustum culling on. Applies live.", true);
+        }
+
         prev = body.add(new CheckBox("Tree effects") {
                 {a = Performance.treeEffects;}
                 public void set(boolean val) {Performance.treeEffects(val); a = val;}
@@ -285,7 +355,7 @@ public class PerformancePanel extends OptWnd.Panel {
                     super.tick(dt);
                     a = Performance.treeEffects;
                 }
-            }, prev.pos("bl").adds(0, 10));
+            }, Coord.of(0, Math.max(objLodLbl.pos("bl").y, objLodEnd.y) + UI.scale(8)));
         prev.settip("Whether trees and bushes sway in the wind. Off, they stand still; their random tilt"
                     + " stays. Takes effect the next tick.", true);
 
@@ -309,6 +379,15 @@ public class PerformancePanel extends OptWnd.Panel {
             add(body, 0, 0);
         }
         pack();
+    }
+
+    /* The objects' LOD bias in per cent, as the label says it, and where the knob stands for it. */
+    private static int lodpct() {
+        return((int)Math.round(FrustumList.lodbias * 100));
+    }
+
+    private static int lodknob() {
+        return(Utils.clip(lodpct(), FrustumList.LODPCTMIN, FrustumList.LODPCTMAX));
     }
 
     /* A setting the environment refused, said where the client says such things. */

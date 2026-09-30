@@ -68,7 +68,9 @@ import io.brodgar.perf.Performance;
  * one of whose tiles would cover more than {@link #fullpx} pixels there is not a far cell at all but
  * <b>whole</b>: its four grids are handed to the recorded ground's own raster ({@link #detail}), which draws
  * them as real cut meshes -- as many of them as the heap affords ({@link #wholecap}), the ones whose tiles are
- * largest on screen first. That is what is DRAWN, for what is on screen. What is BUILT and kept is decided the
+ * largest on screen first. Both limits are divided by the LOD distance the view hands the tick (the Performance
+ * page's setting, {@code MapView.loddist}), so that every boundary of the chain stands nearer to the camera or
+ * further from it. That is what is DRAWN, for what is on screen. What is BUILT and kept is decided the
  * same way over every view a turn of the camera about the centre gives ({@link #keep}), on screen now or not:
  * a turn of the camera only swaps in what is built already, and builds nothing and merges nothing, while the
  * ground is drawn no finer than the view itself calls for. What is drawn is decided every tick; what is kept,
@@ -118,8 +120,8 @@ public class RecallLod implements RenderTree.Node {
     private static final int MAXBUSY = 3;
     /**
      * How many pixels one sample of a far cell may cover on screen before the cell splits, and how many one
-     * tile of a level-one cell may cover before its grids are drawn whole. {@code :terrainlod} sets them
-     * live.
+     * tile of a level-one cell may cover before its grids are drawn whole, at a LOD distance of one: the tick
+     * divides both by the one it is handed. {@code :terrainlod} sets them live.
      */
     public static volatile double texelpx = 6, fullpx = 5;
     /** How far past a boundary it is crossed, as a share of it, either way. */
@@ -160,8 +162,10 @@ public class RecallLod implements RenderTree.Node {
 		    texelpx = px;
 		    fullpx = full;
 		}
-		cons.out.println(String.format("terrainlod: a far cell splits past %s pixels a sample; its grids are drawn whole past %s pixels a tile",
-					       texelpx, fullpx));
+		double dist = MapView.loddist / 100.0;
+		cons.out.println(String.format("terrainlod: a far cell splits past %s pixels a sample; its grids are drawn whole past %s pixels a tile"
+					       + " -- at the LOD distance of %d %%, %.2f and %.2f",
+					       texelpx, fullpx, MapView.loddist, texelpx / dist, fullpx / dist));
 	    });
     }
 
@@ -511,6 +515,8 @@ public class RecallLod implements RenderTree.Node {
     private Coord wcg;
     private int wrange;
     private boolean wflat;
+    /* The two limits the walk judges by: texelpx and fullpx over the tick's LOD distance. */
+    private double wtpx, wfpx;
     /* What the walk draws, in the order it found them: cells, and grids drawn whole in SEGMENT coords; and what
      * it wants built. The two drawn lists change places with lastcells and lastfulls at the end of a walk, so
      * neither is made anew every tick. */
@@ -598,8 +604,8 @@ public class RecallLod implements RenderTree.Node {
     private Set<Coord> kwhole = new HashSet<Coord>();
     private View lastkeep = null;
     /* The level-one cells the keep walk finds fine enough to be whole, which the budget takes kwhole from (admit); and
-     * how many pixels a tile has to cover for the draw to draw a level-one cell whole: fullpx, or past it the largest
-     * tile the budget left out, so the draw never draws whole a cell the budget did not hold whole. */
+     * how many pixels a tile has to cover for the draw to draw a level-one cell whole: fullpx over the LOD distance, or
+     * past it the largest tile the budget left out, so the draw never draws whole a cell the budget did not hold whole. */
     private final List<Whole> kcand = new ArrayList<Whole>();
     private double fulleff = fullpx;
 
@@ -610,6 +616,8 @@ public class RecallLod implements RenderTree.Node {
      * @param base     the recorded ground's proved base
      * @param center   where the view is centred, in map coords (world units): what the view distance is around
      * @param range    the view distance, in grids
+     * @param dist     the LOD distance, a factor of one at the default: both limits ({@link #texelpx}, {@link #fullpx})
+     *                 are divided by it, so every boundary stands that much nearer or further
      * @param live     the grids the live terrain is drawing, in session grid coords -- kept to compare the next
      *                 tick's with, not copied, so a set the caller goes on changing may not be handed over
      * @param near     the grids the live terrain can reach before one could be built, in session grid coords:
@@ -620,7 +628,7 @@ public class RecallLod implements RenderTree.Node {
      *                 it has it merged with every cut it can build, or has nothing of it to show
      * @param readygen moves whenever what {@code ready} answers may have
      */
-    public void tick(Recall.Base base, Coord2d center, int range, Set<Coord> live, Set<Coord> near, View view,
+    public void tick(Recall.Base base, Coord2d center, int range, double dist, Set<Coord> live, Set<Coord> near, View view,
 		     Predicate<Coord> ready, int readygen) {
 	if(base != placed) {
 	    for(Shown s : inscene.values())
@@ -676,7 +684,7 @@ public class RecallLod implements RenderTree.Node {
 	}
 	nbusy = busy;
 	Coord cg = center.floor(MCache.tilesz).div(MCache.cmaps).add(base.off);
-	double tpx = texelpx, fpx = fullpx;
+	double tpx = texelpx / dist, fpx = fullpx / dist;
 	/* What is kept is decided over every turn of the camera about the centre, so nothing a turn changes moves
 	 * it; what is drawn, by the view itself. A cell changed since the keep walk last ran leaves it to run again
 	 * (keepdirty), whether or not this tick is the one it runs on (KEEPWAIT). */
@@ -703,6 +711,8 @@ public class RecallLod implements RenderTree.Node {
 	wready = ready;
 	wflat = flat;
 	wrange = range;
+	wtpx = tpx;
+	wfpx = fpx;
 	wcg = cg;
 	slive.clear();
 	for(Coord g : live)
@@ -1186,7 +1196,7 @@ public class RecallLod implements RenderTree.Node {
 	    }
 	    return(false);
 	}
-	double lim = texelpx * (splitlast.contains(key) ? (1 - HYST) : (1 + HYST));
+	double lim = wtpx * (splitlast.contains(key) ? (1 - HYST) : (1 + HYST));
 	/* And drawn split, it stays split while the camera comes closer, whatever it would ask at rest: the finer
 	 * ground it was drawn as is where the camera is heading, and this cell, built only now, would be swapped
 	 * in for the frames until the camera reached that ground again. Its coarser detail waits for the camera to
@@ -1260,9 +1270,10 @@ public class RecallLod implements RenderTree.Node {
 	/* What the draw weighs against its limit: one sample of the cell, and at level one one tile (visit). And a
 	 * level-one cell is whole only over its own heights, as the draw has it: until they are known it is kept as
 	 * a far cell, which shows them. */
-	double edge = MCache.tilesz.x * ((lvl == 1) ? 1 : n), lim = (lvl == 1) ? fullpx : texelpx;
-	/* Found fine enough to be whole against fullpx, which the budget then takes its cells from (admit); drawn as a far
-	 * cell, and so kept as one, below what the draw holds whole at, which the budget may have raised (fulleff). */
+	double edge = MCache.tilesz.x * ((lvl == 1) ? 1 : n), lim = (lvl == 1) ? wfpx : wtpx;
+	/* Found fine enough to be whole against the tick's fullpx, which the budget then takes its cells from (admit);
+	 * drawn as a far cell, and so kept as one, below what the draw holds whole at, which the budget may have raised
+	 * (fulleff). */
 	double slim = (lvl == 1) ? Math.max(lim, fulleff) : lim;
 	boolean own = (lvl > 1) || ((known != null) && (known.built != null)) || zknown.containsKey(key);
 	boolean seen = false, self = false, finer = false;

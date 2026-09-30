@@ -111,7 +111,7 @@ How much world is drawn, and whether its relief is drawn: flavor objects, crop a
 | Flat terrain changes the picture only | The server's heights, the recorded map and [`session:world():height`](../world.md#terrain-and-coordinates) stay real; the minimap and the map window draw their cliff lines as before. A click lands on the tile under the cursor. It applies live, cut by cut: objects reach the plane a moment before their hill does. |
 | `smoke` is symmetric | Turning it back on shows a plume already burning without the server re-sending anything. A scent trail's smoke is never withheld: it is information, not decoration. |
 | Answers before the world is up | Its backing is the client's own statics, built with the class — like `interface()`, `camera()` and `client()`. |
-| The view distance is `client()`'s | The page's **View distance** section is [`client():exploredGround()` and `client():viewDistance()`](#client). |
+| The view distance is `client()`'s | The page's **View distance** box and **Range** slider are [`client():exploredGround()` and `client():viewDistance()`](#client). |
 
 ```lua
 local performance = hafen.client():options():performance()
@@ -187,7 +187,7 @@ if camera:mode() ~= "rts" then camera:mode("rts") end
 
 ## `client()`
 
-Client-wide toggles: the Options ▸ Game ▸ Client panel, and the **View distance** section of the Performance panel.
+Client-wide toggles: the Options ▸ Game ▸ Client panel, and the **View distance** box and **Range** slider of the Performance panel.
 
 | Method | Type | Permission | Description |
 |---|---|---|---|
@@ -198,7 +198,7 @@ Client-wide toggles: the Options ▸ Game ▸ Client panel, and the **View dista
 | Rule | Detail |
 |---|---|
 | Profiling is the client's own profiler | Arming it is what `:profile on` does: the client builds its per-frame CPU and GPU trees, which every [profiling read](profiling/README.md) is built on. The checkbox, `:profile` and this option agree. The state persists. Default off. Off it costs nothing, on it is live instrumentation of every frame. A write moves an open panel's checkbox at once. Arming takes effect on the next frame. |
-| View distance | Every tile the character has walked, drawn back into the world in the colours it was recorded in, under every [camera](#camera): around where the `"rts"` camera looks, around the character under the others. Nothing is asked of the server for it and nothing alive stands on it. The default camera's view reaches as far as the range while it is on. The Performance panel's **View distance** section is these two settings. |
+| View distance | Every tile the character has walked, drawn back into the world in the colours it was recorded in, under every [camera](#camera): around where the `"rts"` camera looks, around the character under the others. Nothing is asked of the server for it and nothing alive stands on it. The default camera's view reaches as far as the range while it is on. The Performance panel's **View distance** box and **Range** slider are these two settings. |
 | `viewDistance` is a maximum | In grids of 100 tiles. Ground close enough to the camera for its tiles to show is drawn in full detail, nearest first and as much of it as the memory the client is given holds; the rest the client draws from the map's zoomed-out record, coarser with distance, with no objects on it. What is drawn is bounded by the view. Outside `1`..`512`, or not a whole number, is refused naming the bounds and leaves the range as it was. The panel's slider runs `2`..`512`; a `1` you write stands, and the slider shows it at its lowest end. |
 | The client's, not a character's | Each applies live, moves an open panel, persists, and moves every session up. The cost is the `recall` keys on [`render()`](profiling/counters.md#render). |
 

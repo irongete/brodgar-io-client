@@ -70,7 +70,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static boolean dcamobj = Utils.getprefb("dcamobj", false);     // collide with objects
     public static boolean dcamfp = Utils.getprefb("dcamfp", true);       // first person past the closest zoom
     public static boolean dcamup = Utils.getprefb("dcamup", true);       // tilt below the horizon
-    /* addon: (120.1) the view distance's two settings -- the remembered ground, drawn past the streamed
+    /* addon: (120.1) the view distance's settings -- the remembered ground, drawn past the streamed
      * ring out of the client's own record. They are the CLIENT's and not one view's: every session up
      * draws its own recalled ground out of its own record, and a switch the user flips once must move all
      * of them -- so these are statics with like-named prefs, written in one statement the way invcamx
@@ -85,10 +85,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * How much of that is drawn at full detail, as real cut meshes, is the far ground's to say
      * (io.brodgar.session.RecallLod): the grids close enough to the camera's eye that anything coarser
      * would show, and past them the map database's zoom grids, each at the detail its size on screen calls
-     * for. */
+     * for.
+     *
+     * loddist is how far each step of that chain stands from the camera -- the grids drawn whole, then each
+     * coarser zoom level -- as a percentage of where the far ground puts it: at 50 every step stands at half
+     * the distance, at 200 at twice it. The ring held whole around the character stays whole whatever it
+     * says. The Performance page's slider and this field's own clamp read its bounds; it has no Lua option. */
     public static final int recallrangemin = 1, recallrangemax = 512, recallrangepanel = 2, recallrangedef = 8;
+    public static final int loddistmin = 25, loddistmax = 200, loddistdef = 100;
     public static boolean recallon = Utils.getprefb("recallon", true);
     public static int recallrange = Utils.clip(Utils.getprefi("recallrange", recallrangedef), recallrangemin, recallrangemax);
+    public static int loddist = Utils.clip(Utils.getprefi("loddist", loddistdef), loddistmin, loddistmax);
     /* How far from its centre the recalled ground can stand, in world units: the range and the grid the
      * centre is in, corner-on. What a camera's far plane has to reach for the view distance to be seen. */
     public static float recallreach() {
@@ -2945,7 +2952,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	io.brodgar.session.RecallLod.View lview = recallview();
 	if(lview != null) {
 	    final RecallTerrain rt = recallterrain;
-	    recalllod.tick(proved, c, recallrange, livegrids(), neargrids(), lview, rt::ready, rt.mergegen);
+	    recalllod.tick(proved, c, recallrange, loddist / 100.0, livegrids(), neargrids(), lview, rt::ready, rt.mergegen);
 	}
 	recallterrain.grids = recalllod.detail;
 	recallterrain.shown = recalllod.shown;
