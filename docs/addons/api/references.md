@@ -31,6 +31,10 @@ if tree then tree:overlay():add("mark"):text("here") end         -- and a Gob is
 
 `session:fight():action()` is the ten places of a character's combat row as a 1-based array of `CombatAction`, `:get(n)` the one "Combat action n" presses (`:list()[n] == :get(n)`, what `action:index()` answers). `action:wire()` is the server's 0-based number. The row is the fight's own: every place is `:empty()` out of a fight ([`session:fight`](fight.md#a-combat-action)).
 
+## Opponent: who a character is fighting
+
+`session:fight():opponent()` is every creature a character is fighting as `Opponent` objects: `:get(gobId)` one by its gob id, `:current()` the target. The writes that act on one take the `Opponent` (`session:fight():pursue(opponent)`, `session:fight():give(opponent, button)`), and `:set(opponent)` takes its gob id too, as `session:speed():set` takes what its `:get` takes. One of another character's fight is refused ([`session:fight`](fight.md#an-opponent)).
+
 ## Named, and nameless: Menugrid, Sound, Buff, Meter
 
 | Kind | Addressed by |

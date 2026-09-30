@@ -71,7 +71,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [`session:craft`](craft.md) | The open recipe window, and its Craft button. |
 | [`session:quest`](quest.md) | The quest log, current and completed, and a quest's objectives. |
 | [`session:wound`](wound.md) | The wounds on the Health and Wounds tab, as a tree. |
-| [`session:fight`](fight.md) | The manoeuvre-deck builder, and the fight in progress: every opponent, the numbers between you, the buffs drawn beside each side, the combat row and using it. |
+| [`session:fight`](fight.md) | The manoeuvre-deck builder, and the fight in progress: every opponent, the numbers between you, the buffs drawn beside each side, the combat row, and the writes that act in the fight. |
 | [`session:actionbar`](actionbar.md) | The hotbar: read a slot, use it, assign one, hold one for an entry of your own. |
 | [`session:menugrid`](menugrid.md) | The action menu: every action the character knows, invoking one, entries of your own. |
 | [`session:flowermenu`](flowermenu.md) | The radial menu one character has open: its petals, picking one, a petal of your own, whether it is painted. |

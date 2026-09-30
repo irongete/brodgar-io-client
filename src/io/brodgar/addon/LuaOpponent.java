@@ -38,6 +38,11 @@ import java.util.Map;
  * creature id 4711 names in the other. Two levels of intern map, on {@code (account, id)}: the {@link LuaGob}
  * shape, and what makes {@code opponent:gob()} resolve in the same cache {@code s:world():gob():get(id)} reads.
  *
+ * <p><b>The writes take it</b> (170.5): {@code :set(opponent)} on the collection switches the target, and
+ * {@code s:fight():pursue(opponent)} and {@code s:fight():give(opponent, button)} press the two controls of
+ * its relation box. {@link #target} turns what they were handed into a gob id and refuses an opponent of
+ * another character's fight or one no longer fought; {@link #send} sends from THAT character's view.
+ *
  * <p><b>Once the fight with them ends</b> the relation's reads go {@code nil}, {@code :opening()} is empty and
  * {@code :exists()} is false, while {@code :id()} and {@code :gob()} go on answering. A later fight with the
  * same creature hands back the same object.
@@ -368,6 +373,47 @@ public final class LuaOpponent {
         return live ? of(owner, user, rel.gobid) : LuaValue.NIL;
     }
 
+    /**
+     * 170.5: the gob id a write addresses, out of what the caller handed it: an Opponent of THIS character's
+     * fight that it is still fighting or, where {@code idToo}, the gob id {@code :get} takes. Refused naming what
+     * went wrong, before anything is sent.
+     */
+    static long target(LuaValue v, String user, String verb, boolean idToo) {
+        LuaOpponent h = resolve(v);
+        long id;
+        if(h != null) {
+            if(!h.user.equals(user))
+                throw new LuaError(verb + "(opponent): that Opponent is in another character's fight — take it from"
+                    + " this session's " + CharApi.FO + ". Nothing was sent.");
+            id = h.gobid;
+        } else if(idToo && (v.type() == LuaValue.TNUMBER)) {
+            id = Args.integer(v, verb, "opponent", "an Opponent, or the gob id " + CharApi.FO + ":get(gobId) takes",
+                              -Args.EXACT, Args.EXACT);
+        } else {
+            String got = (LuaGob.resolve(v) != null)
+                ? ("a Gob: the fight names its relation to that creature as an Opponent, " + CharApi.FO
+                   + ":get(gob:id())")
+                : (v.type() == LuaValue.TNUMBER)
+                ? ("a number: pass the Opponent itself, which " + CharApi.FO + ":get(gobId) hands you")
+                : v.typename();
+            throw new LuaError(verb + "(opponent): expected an Opponent, one " + CharApi.FO + " handed you — got "
+                + got + ". Nothing was sent.");
+        }
+        if(!fighting(user, id))
+            throw new LuaError(verb + "(opponent): that character is no longer fighting them (opponent:exists() is"
+                + " false). Nothing was sent.");
+        return id;
+    }
+
+    /** 170.5: send {@code msg} from THAT character's combat view, through the one door every write takes. */
+    static void send(String user, String verb, String msg, Object... args) {
+        Fightview fv = view(user);
+        if(fv == null)
+            throw new LuaError(verb + ": that character has no combat view (it is not in the world yet)."
+                + " Nothing was sent.");
+        Wire.send(user, verb, fv, msg, args);
+    }
+
     // ---- the collection -----------------------------------------------------------------------------
 
     /**
@@ -385,8 +431,25 @@ public final class LuaOpponent {
                 LuaCollection.receiver(a.arg1(), CharApi.FO, "current");
                 if(Args.passed(a, 2))
                     throw new LuaError(CharApi.FO + ":current() takes no argument — it reads the opponent that"
-                        + " character's fight has picked");
+                        + " character's fight has picked; switching the target is " + CharApi.FO + ":set(opponent),"
+                        + " under the \"fight.set\" permission");
                 return current(owner, user);
+            }
+        });
+        // set(opponent) — 170.5, protected ("fight.set"), gated FIRST (D-213): switch the target, as the client's
+        // "Switch targets" key does: the view's "bump" with that gob id, which the server answers with "cur", so
+        // :current() follows a frame or more later. Takes an Opponent of this character's fight or the gob id :get
+        // takes, as speed's set takes what its :get takes. Returns the collection, so writes chain.
+        extra.set("set", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_SET);
+                LuaCollection.receiver(me, CharApi.FO, "set");
+                Args.only(a, 1, CharApi.FO + ":set");
+                long id = target(Args.required(a, 2, CharApi.FO + ":set", "opponent"), user, CharApi.FO + ":set",
+                                 true);
+                send(user, CharApi.FO + ":set", "bump", Integer.valueOf((int)id));
+                return me;
             }
         });
         return LuaCollection.create(CharApi.FO, new LuaCollection.Source() {

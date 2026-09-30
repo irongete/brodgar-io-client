@@ -207,6 +207,12 @@ final class Wire {
                 mods(verb, a, 2);
             }
         });
+        // Fightview "give" {gob, button} (170.5) — the give button beside a portrait, clicked with a mouse button.
+        SHAPES.put("give", new Shape() {
+            public void check(String verb, Object[] a) {
+                button(verb, a, 1);
+            }
+        });
         // ChatUI.EntryChannel "msg" {text} — what the entry line composes is ONE line of typed characters,
         // so a control character is a shape no keyboard puts there and a novel is not a chat line.
         SHAPES.put("msg", new Shape() {

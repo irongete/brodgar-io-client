@@ -93,6 +93,14 @@ public enum Permission {
                                                                               + " action-bar buttons"),
     FIGHT_USE        ("fight.use",          "action:use",                     "use combat actions, in the fights of"
                                                                               + " any of your characters"),
+    FIGHT_SET        ("fight.set",          "session:fight():opponent():set", "switch the target, in the fights of any"
+                                                                              + " of your characters"),
+    FIGHT_PURSUE     ("fight.pursue",       "session:fight():pursue",         "press Pursue beside an opponent's"
+                                                                              + " portrait, in the fights of any of"
+                                                                              + " your characters"),
+    FIGHT_GIVE       ("fight.give",         "session:fight():give",           "click the give button beside an"
+                                                                              + " opponent's portrait, in the fights"
+                                                                              + " of any of your characters"),
     KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
     KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),

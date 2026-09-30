@@ -78,7 +78,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | No read from Lua | A current addon has everything it declared against. An optional newer section is a feature probe, `if hafen.something then`. An addon needing it outright declares the edition that added it. |
 | What needs `1.1` | [`hafen.ui():keybinding()`](api/ui/controls/interactive.md#key-button), the key button. |
 | What needs `1.2` | [`gob:outline(color, width)`](api/look.md#outline-unprotected), the ring round an object. |
-| What needs `1.3` | The fight in progress on [`session:fight()`](api/fight.md#the-fight-in-progress) and its [`Opening` events](api/event/bus/character.md#character-and-status): its opponents and their numbers, its combat row and cooldowns, the manoeuvres used, its buffs and [`buff:opponent()`](api/buff.md), [`action:use`](api/fight.md#write-protected), and [the fight events](api/event/bus/fight.md). Everything else these pages describe is in `1.0`. |
+| What needs `1.3` | The fight in progress on [`session:fight()`](api/fight.md#the-fight-in-progress) and its [`Opening` events](api/event/bus/character.md#character-and-status): its opponents and their numbers, its combat row and cooldowns, the manoeuvres used, its buffs and [`buff:opponent()`](api/buff.md), [the writes](api/fight.md#write-protected) that use an action, switch the target, pursue and give, and [the fight events](api/event/bus/fight.md). Everything else these pages describe is in `1.0`. |
 
 | You declare | On this client | Your addon |
 |---|---|---|

@@ -5255,7 +5255,7 @@ hafen.console():on("t170", function() after(0, run) end)
 
 ---
 
-- [ ] **170.5 — An addon switches the target, pursues and clicks give, under the fight keys.**
+- [x] **170.5 — An addon switches the target, pursues and clicks give, under the fight keys.**
 
 Three protected writes, each gated first by its own key: `session:fight():opponent():set(opponent)` (`fight.set`,
 the view's `bump`, the client's "Switch targets"), `session:fight():pursue(opponent)` (`fight.pursue`, `prs`,

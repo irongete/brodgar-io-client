@@ -1,0 +1,10 @@
+{
+  "name": "170.5 — switching the target, pursuing, the give button",
+  "id": "170-live-fight.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 170.5: session:fight():opponent():set, session:fight():pursue and session:fight():give send what the client's own controls send, take what they should, and refuse what they should before anything is sent.",
+  "api_version": "1.3",
+  "permissions": ["fight.set", "fight.pursue", "fight.give"],
+  "files": ["main.lua"]
+}

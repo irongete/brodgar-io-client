@@ -1767,7 +1767,8 @@ final class CharApi {
      * scalars around it. And the fight in progress, off its live combat view (170): {@code :opponent()} every
      * opponent with the target as {@code :current()}, {@code :opening()} the buffs drawn beside that character,
      * {@code :action()} the combat row, {@code :cooldown()} the global cooldown and {@code :last()} the
-     * manoeuvre that character used last.
+     * manoeuvre that character used last. Two protected actions press a relation box's controls (170.5):
+     * {@code :pursue(opponent)} and {@code :give(opponent, button)}.
      *
      * <p><b>A school is configured on one character and a fight is fought by one body.</b> Both halves read
      * the named session's own widgets — its {@link FightWnd} through {@link #fightwnd(String)} and its
@@ -1866,6 +1867,35 @@ final class CharApi {
                     throw new LuaError(FT + ":last() takes no arguments — it reads the manoeuvre that character"
                         + " used last; opponent:last() is theirs");
                 return LuaCombatAction.lastOwn(user);
+            }
+        });
+        // pursue(opponent) — 170.5, protected ("fight.pursue"), gated FIRST (D-213): the Pursue button beside that
+        // opponent's portrait, the view's "prs" with its gob id. Takes the Opponent only, as world():click takes
+        // the Gob. Returns the section.
+        fight.set("pursue", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_PURSUE);
+                Section.self(a.arg1(), "fight", "pursue", FT);
+                Args.only(a, 1, FT + ":pursue");
+                long id = LuaOpponent.target(Args.required(a, 2, FT + ":pursue", "opponent"), user, FT + ":pursue",
+                                             false);
+                LuaOpponent.send(user, FT + ":pursue", "prs", Integer.valueOf((int)id));
+                return a.arg1();
+            }
+        });
+        // give(opponent, button) — 170.5, protected ("fight.give"), gated FIRST (D-213): the give button beside
+        // that opponent's portrait, the view's "give" with its gob id and the mouse button, as GiveButton's own
+        // press sends it (1 left, the default; 3 right). What either does is the server's. Returns the section.
+        fight.set("give", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_GIVE);
+                Section.self(a.arg1(), "fight", "give", FT);
+                Args.only(a, 2, FT + ":give");
+                long id = LuaOpponent.target(Args.required(a, 2, FT + ":give", "opponent"), user, FT + ":give",
+                                             false);
+                int button = Args.optint(a, 3, FT + ":give", "button", "1 the left button, 3 the right", 1);
+                LuaOpponent.send(user, FT + ":give", "give", Integer.valueOf((int)id), Integer.valueOf(button));
+                return a.arg1();
             }
         });
         return Section.object("fight", fight, FT);

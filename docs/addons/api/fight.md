@@ -97,7 +97,7 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 | `:last()` | A resource name rather than a [Maneuver](#a-manoeuvre): an opponent's need not be one the character knows, and [`ManeuverUsed`](event/bus/fight.md) hands the same string. |
 | `:get(gobId)` | Takes a gob id, the one thing the server publishes about an opponent. A miss is `nil`. A string [filter](conventions.md#the-filter-argument) is refused naming the function form: an opponent has no name of its own, and the creature's is `opponent:gob():name()`. |
 | The order | The fight's own: a new opponent joins at the front and the target is moved to the front, so `:list()[1]` is usually the target but not always. The client's "Switch targets" key reorders the list without a message, and no event says so. |
-| `:current()` | The distinguished member, compared with `==`: `session:fight():opponent():current() == opponent`. `:current(x)` raises: it reads. |
+| `:current()` | The distinguished member, compared with `==`: `session:fight():opponent():current() == opponent`. `:current(x)` raises: switching the target is [`:set(opponent)`](#write-protected). |
 | Only while the client draws them | The icon rows exist while the fight lasts. A debuff of yours that outlasts the fight is no longer drawn once it is over: it is not listed, `buff:exists()` is `false`, and `OpeningRemoved` fires for it when the fight ends. If it is still there when the next fight starts, it is drawn again and fires `OpeningAdded` again. |
 | The same objects as the events | A buff of a fight fires [`OpeningAdded`, `OpeningChanged` and `OpeningRemoved`](event/bus/character.md#character-and-status), and the doors here hand the same interned `Buff`. When the fight with an opponent ends, each of its buffs fires `OpeningRemoved` once. |
 | Whose it is | Each opening event hands the buff, then the opponent it is drawn beside, then the session: `nil` where the buff is yours. `OpeningRemoved` still names the opponent after the fight with them has ended, when [`buff:opponent()`](buff.md) answers `nil`. |
@@ -163,6 +163,9 @@ The client sends only shapes a player could compose.
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `action:use(mods, position)` | the `CombatAction` | `fight.use` | Use that action, as tapping its combat key does. |
+| `session:fight():opponent():set(opponent)` | the collection | `fight.set` | Make that opponent the target, as the client's "Switch targets" key does. |
+| `session:fight():pursue(opponent)` | `session:fight()` | `fight.pursue` | Press Pursue beside that opponent's portrait. |
+| `session:fight():give(opponent, button)` | `session:fight()` | `fight.give` | Click the give button beside that opponent's portrait. |
 
 | Rule | Detail |
 |---|---|
@@ -170,9 +173,11 @@ The client sends only shapes a player could compose.
 | A tap | The row's `use` and then its release, sent back to back from that character's combat row: the key pressed and let go. There is no verb for holding one down. |
 | `mods` | Optional and first: Shift = 1, Ctrl = 2, Alt = 4, as for [`slot:use(mods)`](actionbar.md#write-protected). The client's own keys for actions 6 to 10 are Shift+`1` to Shift+`5`, so pressing one of them carries Shift. |
 | `position` | Optional and second: a [Position](position.md) in that character's world, the ground the client adds when a key is pressed with the pointer over the map. `action:use(0, position)` passes one without modifiers. |
-| Raises before anything is sent | An addon that did not declare `fight.use`, naming the key. A surplus argument. A `mods` that is not a whole number `0..7`, and a `position` that is not a Position. Out of a fight. An empty action (`action:empty()`), and one past the server's row. |
-| Asynchronous | The server answers the use: the cooldowns start, [`ManeuverUsed`](event/bus/fight.md) fires and `session:fight():last()` names it, or nothing moves when the server refused it. Read them on the next frames. |
-| The outbound stream sees it | Both messages pass [`hafen.event():action()`](event/streams.md#intercepting-an-outbound-action) like the client's own, so a handler can stop or rewrite them. |
+| The opponent | `:set` takes an `Opponent` or its gob id, the key `:get` takes, as [`session:speed():set`](speed.md#write-protected) takes what its `:get` takes. `:pursue` and `:give` take the `Opponent`. |
+| `button` | Optional: `1`, the default, is the left button and `3` the right, as a click on the give button sends. What each does is the server's. |
+| Raises before anything is sent | An addon that did not declare the verb's key, naming it. A surplus argument. For `action:use`: a `mods` that is not a whole number `0..7`, a `position` that is not a Position, no fight, an empty action (`action:empty()`) and one past the server's row. For the three that take an opponent: anything but an `Opponent` (or, for `:set`, its gob id), one of another character's fight, one that character no longer fights (`opponent:exists()` is `false`), and a `button` outside `1..3`. |
+| Asynchronous | The server answers every write. A use: the cooldowns start, [`ManeuverUsed`](event/bus/fight.md) fires and `session:fight():last()` names it. A switch: `:current()` answers the old target until then, and [`OpponentSelected`](event/bus/fight.md) fires when it moves. Nothing moves when the server refused one. |
+| The outbound stream sees them | Every message passes [`hafen.event():action()`](event/streams.md#intercepting-an-outbound-action) like the client's own, so a handler can stop or rewrite it. |
 
 ---
 
