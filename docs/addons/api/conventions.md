@@ -61,14 +61,14 @@ A set you can address into is reached by the singular kind name and hands back a
 | A miss gives you | Collections |
 |---|---|
 | `nil` | Every collection not named below. |
-| An object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `session:world():gob()`, `session:actionbar()`, `keybindings():binding()`, `hafen.client():addons()`. |
+| An object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `session:world():gob()`, `session:actionbar()`, `session:fight():action()`, `keybindings():binding()`, `hafen.client():addons()`. |
 | An error naming the keys there are | `hafen.asset()`, `hafen.font()`, `session:char():attr()`, `hafen.map():display()`. |
 
 A collection whose members have no key has no `:get` and says what to reach for. Two buffs can share a resource. A marker's only id is one this client mints. A timer is only the one you were handed. `hafen.timer():get(1)` raises: `hafen.timer() has no verb 'get' — a timer has no key: hafen.timer():after(s, fn) and hafen.timer():every(s, fn) hand you the timer they make, and hafen.timer():list() is every one of yours`.
 
 ### Every index is 1-based
 
-`:list()` hands back a 1-based array, and the position a member reports is its position in that array: `session:actionbar():get(1) == session:actionbar():list()[1]`, `session:speed():get(1)` is crawl. Where the wire's number differs it is a verb of its own: `slot:index()` is the position and `slot:wire()` the number the server's `setbelt` carries. `card:index()`/`card:wire()` and `speed:index()`/`speed:wire()` are the same pair. Nothing in this API takes a wire number.
+`:list()` hands back a 1-based array, and the position a member reports is its position in that array: `session:actionbar():get(1) == session:actionbar():list()[1]`, `session:speed():get(1)` is crawl. Where the wire's number differs it is a verb of its own: `slot:index()` is the position and `slot:wire()` the number the server's `setbelt` carries. `card:index()`/`card:wire()`, `speed:index()`/`speed:wire()` and `action:index()`/`action:wire()` are the same pair. Nothing in this API takes a wire number.
 
 ### Endings: the receiver's kind picks the word
 
@@ -94,7 +94,7 @@ Nothing has to be ended: what your addon takes is given back on reload or disabl
 
 ### Events: a subject and an edge
 
-An event key is a subject and an edge. A new key takes the first edge below true of the moment it names. Where none is (`Load`, `Disable`) the word is the moment.
+An event key is a subject and an edge. A new key takes the first edge below true of the moment it names. Where none is (`Load`, `Disable`, `ManeuverUsed`) the word is the moment.
 
 | Edge | Word | Examples |
 |---|---|---|

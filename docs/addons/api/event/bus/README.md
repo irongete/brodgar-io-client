@@ -18,7 +18,7 @@ end)
 | [The world](world.md) | A game object coming and going, what is attached to one, a click on an entity of your own. |
 | [The character and the rosters](character.md) | Meters, buffs, the buffs a fight draws, food, study, equipment, action bar, wounds, the kin roster, quests, the map's pins, the radial menu. |
 | [The chat](chat.md) | A channel appearing, going away or taking the tab, and a line landing in one. |
-| [The fight](fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing. |
+| [The fight](fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing, a manoeuvre used, the combat row changing. |
 
 ## Whose character it was
 

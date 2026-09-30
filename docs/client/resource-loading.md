@@ -31,9 +31,11 @@ The server refers to resources by a per-session integer. `Session.rescache` maps
 the name and version arrive in their own message (`RMessage.RMSG_RESID` → `CachedRes.set`, which also
 starts the fetch at a low priority), and `CachedRes.Ref.get()` — the `Indir<Resource>` every `OCache`
 delta and `uimsg` carries — throws `Session.LoadingIndir` until the name is known and then
-`Resource.remote().load(resnm, resver, prio).get()`. `Session` implements `Resource.Resolver`, the
-interface (`getres(id)`) a widget or a message decoder asks; `Resolver.ResourceMap` re-bases one over
-a message's own id table.
+`Resource.remote().load(resnm, resver, prio).get()`. One id is one `Indir` while anything holds it:
+`CachedRes` keeps its `Ref` by `WeakReference`, `getres(id)` hands that same `Ref` back, and `set`
+resets it in place, so a message re-sending an id can be diffed by identity. `Session` implements
+`Resource.Resolver`, the interface (`getres(id)`) a widget or a message decoder asks;
+`Resolver.ResourceMap` re-bases one over a message's own id table.
 
 ## The two version rules
 

@@ -1,6 +1,6 @@
 # Data Types: The Fight
 
-The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the deck's totals, and an opponent. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
+The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the deck's totals, an opponent, and a combat action. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
 
 ```lua
 local summary = hafen.session():current():fight():summary()
@@ -20,7 +20,11 @@ if snapshot then hafen.log():write(snapshot.used .. "/" .. snapshot.maxact .. " 
 
 ## Opponent
 
-From [`opponent:info()`](../fight.md#an-opponent). `{ id = number, ip = { mine = number, theirs = number }?, give = { mine = boolean, theirs = boolean }? }`. `ip` and `give` are absent once the fight with that opponent has ended, and the snapshot is then `{ id }`. Everything about the creature itself is read off its [Gob](../gob.md).
+From [`opponent:info()`](../fight.md#an-opponent). `{ id = number, ip = { mine = number, theirs = number }?, give = { mine = boolean, theirs = boolean }?, last = string? }`. `ip`, `give` and `last` are absent once the fight with that opponent has ended, and the snapshot is then `{ id }`; `last` is absent before their first manoeuvre too. Everything about the creature itself is read off its [Gob](../gob.md).
+
+## CombatAction
+
+From [`action:info()`](../fight.md#a-combat-action), `nil` for an empty place. `{ res = string?, name = string?, cooldown = number }`: `cooldown` is the `0..1` fraction of its own cooldown still to run, not seconds, `0` when the action can be used.
 
 ---
 

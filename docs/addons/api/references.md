@@ -27,6 +27,10 @@ if tree then tree:overlay():add("mark"):text("here") end         -- and a Gob is
 
 `session:actionbar():list()` is all 144 slots as a 1-based array of `Slot`, `:get(n)` the one at that position (`:list()[n] == :get(n)`, what `slot:index()` answers). `slot:wire()` is the server's 0-based number. A stashed `Slot` goes `:empty()` when cleared. A slot never names a place your addon owns: an entry of yours goes on the bar as a [hold](actionbar.md#hold-a-slot-unprotected) over the server's content ([`session:actionbar`](actionbar.md)).
 
+## CombatAction: a place of the combat row
+
+`session:fight():action()` is the ten places of a character's combat row as a 1-based array of `CombatAction`, `:get(n)` the one "Combat action n" presses (`:list()[n] == :get(n)`, what `action:index()` answers). `action:wire()` is the server's 0-based number. The row is the fight's own: every place is `:empty()` out of a fight ([`session:fight`](fight.md#a-combat-action)).
+
 ## Named, and nameless: Menugrid, Sound, Buff, Meter
 
 | Kind | Addressed by |

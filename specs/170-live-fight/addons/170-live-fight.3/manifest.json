@@ -1,0 +1,9 @@
+{
+  "name": "170.3 — the combat row and the manoeuvres used",
+  "id": "170-live-fight.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 170.3: session:fight():action() is the ten-place combat row with its reads and cooldowns, CombatActionChanged fires on set and clear only, ManeuverUsed fires once per use for both sides, and both last() reads name the manoeuvre.",
+  "api_version": "1.3",
+  "files": ["main.lua"]
+}

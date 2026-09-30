@@ -2,6 +2,8 @@ package io.brodgar.addon;
 
 import haven.Fightview;
 import haven.GameUI;
+import haven.Indir;
+import haven.Resource;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -26,8 +28,8 @@ import java.util.Map;
  * <p><b>The creature is its gob, the relation is this object.</b> Everything about the creature (name, health,
  * position) is read off {@code opponent:gob()}, which is never {@code nil}: an id the object cache does not hold
  * answers a Gob whose {@code :exists()} is false. What the view holds about the RELATION is read here: the IP
- * pair it paints ({@code :ip()}), the two halves of the give button ({@code :give()}) and the openings drawn
- * beside the creature ({@code :opening()}).
+ * pair it paints ({@code :ip()}), the two halves of the give button ({@code :give()}), the manoeuvre they
+ * used last ({@code :last()}) and the openings drawn beside the creature ({@code :opening()}).
  *
  * <p><b>The intern key is the gob id</b> (§2.4). The combat view mints a fresh record whenever a fight starts, so
  * keying on the record would call the same creature two opponents across two fights. <b>And a gob id counts
@@ -205,6 +207,17 @@ public final class LuaOpponent {
                 return (n == null) ? LuaValue.NIL : give(n);
             }
         });
+        // last() — 170.3: the resource name of the manoeuvre they used last (Relation.lastact, from the "ruse"
+        // uimsg). A string rather than a Maneuver: theirs need not be one this character knows. nil before their
+        // first, and once the fight with them has ended.
+        m.set("last", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaOpponent h = handle(Args.only(a, 0, "opponent:last"), "last");
+                Indir<Resource> res = lastact(h.user, h.gobid);
+                String r = (res == null) ? null : AddonManager.resIdent(res);
+                return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
+            }
+        });
         // opening() — 170.1: that opponent's openings, the list the combat view paints beside them. A view minted
         // per call; empty once the fight with them has ended.
         m.set("opening", new VarArgFunction() {
@@ -213,7 +226,7 @@ public final class LuaOpponent {
                 return LuaBuff.opponentCollection(owner, h.user, h.gobid);
             }
         });
-        // info() — the one SNAPSHOT escape hatch: {id, ip, give} while the fight lasts, {id} after it.
+        // info() — the one SNAPSHOT escape hatch: {id, ip, give, last} while the fight lasts, {id} after it.
         m.set("info", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaOpponent h = handle(Args.only(a, 0, "opponent:info"), "info");
@@ -223,6 +236,10 @@ public final class LuaOpponent {
                 if(n != null) {
                     t.set("ip", ip(n));
                     t.set("give", give(n));
+                    Indir<Resource> res = lastact(h.user, h.gobid);
+                    String r = (res == null) ? null : AddonManager.resIdent(res);
+                    if(r != null)
+                        t.set("last", LuaValue.valueOf(r));
                 }
                 return t;
             }
@@ -294,6 +311,23 @@ public final class LuaOpponent {
             for(Fightview.Relation rel : fv.lsrel) {
                 if((rel.gobid == gobid) && !rel.invalid)
                     return new int[] {rel.ip, rel.oip, rel.gst};
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The manoeuvre the relation with {@code gobid} used last, copied under the view's monitor; {@code null}
+     * before their first and once the fight with them has ended.
+     */
+    static Indir<Resource> lastact(String user, long gobid) {
+        Fightview fv = view(user);
+        if(fv == null)
+            return null;
+        synchronized(LuaWidget.monitor(fv)) {
+            for(Fightview.Relation rel : fv.lsrel) {
+                if((rel.gobid == gobid) && !rel.invalid)
+                    return rel.lastact;
             }
         }
         return null;

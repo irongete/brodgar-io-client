@@ -2487,6 +2487,7 @@ public final class AddonManager {
         "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
         "FlowerMenuAdded", "FlowerMenuRemoved",
         "OpponentAdded", "OpponentRemoved", "OpponentChanged", "OpponentSelected",
+        "ManeuverUsed", "CombatActionChanged",
         "ChannelAdded", "ChannelRemoved", "ChannelSelected", "MessageAdded",
         "GhostClicked", "SpriteClicked", "ObjectClicked", "PatchClicked",
         "AchievementUnlocked", "SteamStatsLoaded",
@@ -2518,6 +2519,10 @@ public final class AddonManager {
         else if(key.toLowerCase().startsWith("opponent"))
             hint = " — the fight's opponent keys are OpponentAdded, OpponentRemoved, OpponentChanged and"
                 + " OpponentSelected";
+        else if(key.toLowerCase().contains("manoeuv") || key.toLowerCase().contains("maneuv"))
+            hint = " — the key is ManeuverUsed";
+        else if(key.toLowerCase().startsWith("combat"))
+            hint = " — the key is CombatActionChanged";
         else
             hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
@@ -4373,6 +4378,38 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
             fireTo(c, event, LuaOpponent.of(c, user, gobid), sessionArg(c, user));
+    }
+
+    /**
+     * Fire {@code ManeuverUsed} (170.3): the resource name of the manoeuvre used, then the interned Opponent who
+     * used it, or {@code nil} when {@code user}'s own character did ({@code gobid < 0}), then the session.
+     * Detection is {@code CharApi}'s fight adapter, one fire per use.
+     */
+    static void fireManeuverUsed(String user, String res, long gobid) {
+        for(Addon a : addons) {
+            if(hasSub(a, "ManeuverUsed"))
+                fireTo(a, "ManeuverUsed", LuaValue.valueOf(res),
+                       (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(a, user, gobid), sessionArg(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "ManeuverUsed"))
+            fireTo(c, "ManeuverUsed", LuaValue.valueOf(res),
+                   (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(c, user, gobid), sessionArg(c, user));
+    }
+
+    /**
+     * Fire {@code CombatActionChanged} (170.3) whose payload is the interned <b>CombatAction</b> for place
+     * {@code slot} of {@code user}'s combat row. Same shape as {@link #fireSlot}. Detection is {@code CharApi}'s
+     * combat-row adapter.
+     */
+    static void fireCombatAction(String user, int slot) {
+        for(Addon a : addons) {
+            if(hasSub(a, "CombatActionChanged"))
+                fireTo(a, "CombatActionChanged", LuaCombatAction.of(a, user, slot), sessionArg(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "CombatActionChanged"))
+            fireTo(c, "CombatActionChanged", LuaCombatAction.of(c, user, slot), sessionArg(c, user));
     }
 
     /**

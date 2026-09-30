@@ -9,6 +9,7 @@ import haven.Coord;
 import haven.Coord2d;
 import haven.Equipory;
 import haven.FightWnd;
+import haven.Fightsess;
 import haven.Fightview;
 import haven.GameUI;
 import haven.GItem;
@@ -129,6 +130,8 @@ final class CharApi {
     static final String FT = "session:fight()";
     /** {@code s:fight():opponent()} — every opponent of the fight in progress (170.2). */
     static final String FO = "session:fight():opponent()";
+    /** {@code s:fight():action()} — the combat row of the fight in progress (170.3). */
+    static final String FA = "session:fight():action()";
 
     /**
      * <b>The change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -141,7 +144,7 @@ final class CharApi {
      * happens.
      */
     static List<TreeAdapter> newAdapters(SessionState st) {
-        List<TreeAdapter> l = new ArrayList<TreeAdapter>(10);
+        List<TreeAdapter> l = new ArrayList<TreeAdapter>(11);
         l.add(new MeterAdapter());
         l.add(new BuffsAdapter());
         l.add(new FepAdapter(st));
@@ -152,6 +155,7 @@ final class CharApi {
         l.add(new QuestAdapter(st));
         l.add(new WoundAdapter(st));
         l.add(new FightAdapter(st));
+        l.add(new CombatActionAdapter(st));
         return Collections.unmodifiableList(l);
     }
 
@@ -631,23 +635,46 @@ final class CharApi {
      * contract of {@link TreeAdapter}. "Switch targets" reorders {@code lsrel} with no message, so an order change
      * is not an edge. The server also sends {@code used} to the {@code Fightsess}, so the class is tested.
      *
-     * <p>Within one refresh the order is Added, Removed, Changed, Selected: for any one opponent its {@code new}
-     * comes before its {@code del}, and a lost target is announced gone before the next one is announced picked.
+     * <p><b>{@code ManeuverUsed}</b> (170.3) comes off the {@code used} and {@code ruse} messages: that
+     * character's {@code Fightview.lastuse} and each relation's {@code Relation.lastuse} are {@code Utils.rtime()}
+     * stamps a use writes afresh, and a side cannot use twice inside one frame (its cooldown), so a per-frame
+     * diff of the stamp sees every use, the same manoeuvre twice included. A name still loading holds the stamp
+     * back and marks the adapter dirty, so the next frame looks again; a use clearing the last manoeuvre
+     * (a {@code null} resource) is taken silently.
+     *
+     * <p>Within one refresh the order is Added, ManeuverUsed, Removed, Changed, Selected: for any one opponent its
+     * {@code new} comes before its uses and its uses before its {@code del}, and a lost target is announced gone
+     * before the next one is announced picked.
      */
     private static final class FightAdapter extends SessionAdapter {
         FightAdapter(SessionState st) {
             super(st);
         }
 
+        /** One side's last use, as the view holds it: the manoeuvre and the {@code Utils.rtime()} stamp. */
+        private static final class Use {
+            final Indir<Resource> act;
+            final double stamp;
+
+            Use(Indir<Resource> act, double stamp) {
+                this.act = act;
+                this.stamp = stamp;
+            }
+        }
+
         // gob id -> {ip, oip, gst} as last ANNOUNCED, in announcement order. UI-thread-only; built with its
         // session's state (073.3). Keyed by the gob id, never by a widget: the view outlives every relation.
         private final LinkedHashMap<Long, int[]> announced = new LinkedHashMap<Long, int[]>();
+        // gob id -> the stamp of the opponent's last use announced (170.3); ownUse is that character's own.
+        private final HashMap<Long, Double> theirUse = new HashMap<Long, Double>();
+        private double ownUse;
         private long selected = -1;       // the gob id OpponentSelected last named, -1 for none
         private Fightview view;           // the view last read, which is how the removal seam knows it
 
         public boolean interested(Widget w, String msg) {
             return (w instanceof Fightview)
-                && ("new".equals(msg) || "del".equals(msg) || "upd".equals(msg) || "cur".equals(msg));
+                && ("new".equals(msg) || "del".equals(msg) || "upd".equals(msg) || "cur".equals(msg)
+                    || "used".equals(msg) || "ruse".equals(msg));
         }
 
         public void refresh() {
@@ -659,22 +686,28 @@ final class CharApi {
                 sync();
         }
 
-        /** Re-read the view and fire the difference, Added, Removed, Changed, Selected. */
+        /** Re-read the view and fire the difference: Added, ManeuverUsed, Removed, Changed, Selected. */
         private void sync() {
             String user = user();
             Fightview fv = LuaOpponent.view(user);   // null once it has left the tree
             view = fv;
             LinkedHashMap<Long, int[]> now = new LinkedHashMap<Long, int[]>();
+            HashMap<Long, Use> uses = new HashMap<Long, Use>();
+            Use own = null;
             long current = -1;
             if(fv != null) {
                 synchronized(LuaWidget.monitor(fv)) {
                     for(Fightview.Relation rel : fv.lsrel) {
-                        if(!rel.invalid)
-                            now.put(Long.valueOf(rel.gobid), new int[] {rel.ip, rel.oip, rel.gst});
+                        if(!rel.invalid) {
+                            Long id = Long.valueOf(rel.gobid);
+                            now.put(id, new int[] {rel.ip, rel.oip, rel.gst});
+                            uses.put(id, new Use(rel.lastact, rel.lastuse));
+                        }
                     }
                     Fightview.Relation cur = fv.current;
                     if((cur != null) && !cur.invalid)
                         current = cur.gobid;
+                    own = new Use(fv.lastact, fv.lastuse);
                 }
             }
             for(Map.Entry<Long, int[]> e : now.entrySet()) {
@@ -683,6 +716,34 @@ final class CharApi {
                     fireOpponent("OpponentAdded", user, e.getKey().longValue());
                 }
             }
+            boolean again = false;
+            if((own != null) && (own.stamp != ownUse)) {
+                String name = usedName(own.act);
+                if(name == null) {
+                    again = true;
+                } else {
+                    ownUse = own.stamp;
+                    if(!name.isEmpty())
+                        fireManeuverUsed(user, name, -1);
+                }
+            }
+            for(Map.Entry<Long, Use> e : uses.entrySet()) {
+                Double was = theirUse.get(e.getKey());
+                Use u = e.getValue();
+                if((was != null) && (was.doubleValue() == u.stamp))
+                    continue;
+                String name = usedName(u.act);
+                if(name == null) {
+                    again = true;
+                } else {
+                    theirUse.put(e.getKey(), Double.valueOf(u.stamp));
+                    if(!name.isEmpty())
+                        fireManeuverUsed(user, name, e.getKey().longValue());
+                }
+            }
+            theirUse.keySet().retainAll(uses.keySet());
+            if(again)
+                st.treeDirty.add(this);   // a name still loading: look again next frame (EquipAdapter's shape)
             for(Iterator<Map.Entry<Long, int[]>> i = announced.entrySet().iterator(); i.hasNext();) {
                 Map.Entry<Long, int[]> e = i.next();
                 if(!now.containsKey(e.getKey())) {
@@ -702,6 +763,82 @@ final class CharApi {
                 if(current >= 0)
                     fireOpponent("OpponentSelected", user, current);
             }
+        }
+
+        /** The name a use names: its resource's, "" for none or one that will never load, null while it loads. */
+        private static String usedName(Indir<Resource> act) {
+            if(act == null)
+                return "";
+            try {
+                Resource r = act.get();
+                return (r == null) ? "" : r.name;
+            } catch(Loading l) {
+                return null;
+            } catch(RuntimeException e) {
+                return "";
+            }
+        }
+    }
+
+    /**
+     * The combat row (170.3) — the ten places of THAT character's {@code Fightsess}, announced as
+     * {@code CombatActionChanged} when one is set, cleared or its name resolves, and for every filled place as the
+     * row comes and goes with the fight. Not on a cooldown starting ({@code acool}): the moment a manoeuvre is used
+     * is {@code ManeuverUsed}, and a cooldown is read live, as the action bar's is.
+     *
+     * <p>uimsg-driven on {@code act}. The row's arrival is the widget-entry seam ({@link #placed}) and its death the
+     * removal seam ({@link #removed}). The diff key is the place's {@code Indir<Resource>}, which the session hands
+     * back one per resource id, plus whether its name has resolved; a name still loading marks the adapter dirty
+     * again, so the next frame looks again.
+     */
+    private static final class CombatActionAdapter extends SessionAdapter {
+        CombatActionAdapter(SessionState st) {
+            super(st);
+        }
+
+        // place -> the manoeuvre last ANNOUNCED there, and whether its name had resolved then. UI-thread-only;
+        // built with its session's state (073.3). Indexed by place, never keyed by a widget.
+        private final List<Indir<Resource>> held = LuaCombatAction.contents(null);
+        private final boolean[] named = new boolean[LuaCombatAction.SLOTS];
+        private Fightsess row;            // the row last read, which is how the removal seam knows it
+
+        public boolean interested(Widget w, String msg) {
+            return (w instanceof Fightsess) && "act".equals(msg);
+        }
+
+        public void refresh() {
+            sync(LuaCombatAction.row(user()));
+        }
+
+        public void placed(Widget w) {
+            if(w instanceof Fightsess)
+                sync(LuaCombatAction.row(user()));
+        }
+
+        public void removed(Widget w) {
+            if((w != null) && (w == row))
+                sync(null);
+        }
+
+        /** Diff the ten places against what was last announced, and fire each that moved. */
+        private void sync(Fightsess fs) {
+            row = fs;
+            List<Indir<Resource>> now = LuaCombatAction.contents(fs);
+            String user = user();
+            boolean again = false;
+            for(int n = 0; n < LuaCombatAction.SLOTS; n++) {
+                Indir<Resource> is = now.get(n);
+                boolean resolved = (is != null) && (AddonManager.resIdent(is) != null);
+                if((is != held.get(n)) || (resolved != named[n])) {
+                    held.set(n, is);
+                    named[n] = resolved;
+                    fireCombatAction(user, n);
+                }
+                if((is != null) && !resolved)
+                    again = true;
+            }
+            if(again)
+                st.treeDirty.add(this);   // a name still loading: look again next frame
         }
     }
 
@@ -1628,7 +1765,9 @@ final class CharApi {
      * combat-schools tab: {@code :maneuver()} is the collection of what it knows, {@code :deck()} the loaded
      * school's layout as a plain array (§2.3 — a layout is addressed by its own order), {@code :summary()} the
      * scalars around it. And the fight in progress, off its live combat view (170): {@code :opponent()} every
-     * opponent with the target as {@code :current()}, {@code :opening()} the buffs drawn beside that character.
+     * opponent with the target as {@code :current()}, {@code :opening()} the buffs drawn beside that character,
+     * {@code :action()} the combat row, {@code :cooldown()} the global cooldown and {@code :last()} the
+     * manoeuvre that character used last.
      *
      * <p><b>A school is configured on one character and a fight is fought by one body.</b> Both halves read
      * the named session's own widgets — its {@link FightWnd} through {@link #fightwnd(String)} and its
@@ -1644,6 +1783,7 @@ final class CharApi {
         final LuaValue maneuvers = LuaManeuver.collection(owner, user);
         final LuaValue fightBuffs = LuaBuff.fightCollection(owner, user);
         final LuaValue opponents = LuaOpponent.collection(owner, user);
+        final LuaValue actions = LuaCombatAction.collection(owner, user);
         LuaTable fight = new LuaTable();
         // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
@@ -1696,6 +1836,36 @@ final class CharApi {
                     throw new LuaError(FT + ":opponent() takes no arguments — it IS the collection of the"
                         + " opponents: :get(gobId) addresses one and :current() is the target");
                 return opponents;
+            }
+        });
+        // action() — 170.3: the combat row, ten places one per combat key, minted once and handed back by identity.
+        fight.set("action", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "action", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":action() takes no arguments — it IS the combat row: :get(n) is the"
+                        + " place Combat action n presses");
+                return actions;
+            }
+        });
+        // cooldown() — 170.3: how much of the global cooldown is left, a 0..1 fraction; nil out of a fight.
+        fight.set("cooldown", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "cooldown", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":cooldown() takes no arguments — it reads how much of the global"
+                        + " cooldown is left; action:cooldown() is one action's own");
+                return LuaCombatAction.globalCooldown(user);
+            }
+        });
+        // last() — 170.3: the resource name of the manoeuvre THAT character used last; nil out of a fight.
+        fight.set("last", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "last", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":last() takes no arguments — it reads the manoeuvre that character"
+                        + " used last; opponent:last() is theirs");
+                return LuaCombatAction.lastOwn(user);
             }
         });
         return Section.object("fight", fight, FT);
@@ -2311,8 +2481,8 @@ final class CharApi {
     // The combat-school / maneuver-deck builder is a FightWnd (@RName("fmg")) — the character sheet's
     // "Martial Arts & Combat Schools" tab, held by the public CharWnd.fight field (created hidden at login
     // but live, so it reads without opening the window, exactly like A9's quests/wounds). This is the
-    // OUT-OF-COMBAT configuration surface, distinct from the in-combat Fightview/Fightsess deck, whose
-    // live rtime cooldowns this API does not publish. It keeps three data structures:
+    // OUT-OF-COMBAT configuration surface, distinct from the in-combat row (Fightsess.actions), which
+    // s:fight():action() reads with its cooldowns (LuaCombatAction, 170.3). It keeps three data structures:
     //   • acts   — public List<Action>: every maneuver/attack you know. Each Action {res (public Indir<
     //              Resource>), a (public int = how many you can slot), u (public int = how many slotted)}.
     //   • order  — public final Action[]: the current school's card LAYOUT, index i → the maneuver bound to

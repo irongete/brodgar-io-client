@@ -2934,7 +2934,7 @@ hafen.console():on("t170", function() after(0, run) end)
 
 ---
 
-- [ ] **170.3 — The combat row, the cooldowns and the manoeuvres used are read and announced.**
+- [x] **170.3 — The combat row, the cooldowns and the manoeuvres used are read and announced.**
 
 New `LuaCombatAction`: `session:fight():action()` is the ten places of the fight's row, one per combat key
 (`Fightsess.actions`, found as the HUD's `Fightsess` child), each a `CombatAction` with `:index()`, `:wire()`,
@@ -4039,14 +4039,14 @@ import haven.Fightview;
    Replace:
 
 ```python
-    ("opponent", "buff"): "@collection",
+    ("opponent", "opening"): "@collection",
 
 ```
 
    with:
 
 ```python
-    ("opponent", "buff"): "@collection",
+    ("opponent", "opening"): "@collection",
     ("action", "maneuver"): "maneuver",
 
 ```

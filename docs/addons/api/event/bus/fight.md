@@ -1,6 +1,6 @@
 # hafen.event: The Fight
 
-What one character's fight in progress reports: an opponent joining it and leaving it, the numbers between you moving, and the target changing. Every key hands the thing it is about and that character's [`Session`](../../session.md) last. Part of [the catalogue](README.md).
+What one character's fight in progress reports: an opponent joining it and leaving it, the numbers between you moving, the target changing, a manoeuvre being used and the combat row changing. Every key hands the thing it is about and that character's [`Session`](../../session.md) last. Part of [the catalogue](README.md).
 
 ```lua
 hafen.event():on("OpponentSelected", function(opponent, fight_session)
@@ -18,11 +18,15 @@ end)
 | `OpponentRemoved` | [`Opponent`](../../fight.md#an-opponent) | The fight with it ends. The object still answers `:id()` and `:gob()`, and `:exists()` is false. |
 | `OpponentChanged` | [`Opponent`](../../fight.md#an-opponent) | Its IP pair or its give state changes. |
 | `OpponentSelected` | [`Opponent`](../../fight.md#an-opponent) | It becomes the target, `session:fight():opponent():current()`. |
+| `ManeuverUsed` | `string`, then [`Opponent`](../../fight.md#an-opponent) `\| nil` | A manoeuvre is used: its resource name, and the opponent who used it, `nil` when that character did. |
+| `CombatActionChanged` | [`CombatAction`](../../fight.md#a-combat-action) | A place of the combat row is set, cleared or its name resolves, and every filled place as the row comes and goes with the fight. |
 
 | Rule | Detail |
 |---|---|
 | Diff, one frame | The client re-reads the fight once per frame after the server's message, as on [the character page](character.md), so a value that changes and comes back inside one frame fires nothing. |
-| The order in one frame | Added, then Removed, then Changed, then Selected. A lost target is announced gone before the next one is announced picked. |
+| The order in one frame | `OpponentAdded`, then `ManeuverUsed`, then `OpponentRemoved`, `OpponentChanged` and `OpponentSelected`. A lost target is announced gone before the next one is announced picked. |
+| `ManeuverUsed`, once per use | Every use is announced, the same manoeuvre used twice included. It fires once the name has loaded, so it can trail the use by a frame. `session:fight():last()` and `opponent:last()` read the same name afterwards. |
+| `CombatActionChanged` payload | The interned `CombatAction`, so `payload == session:fight():action():get(payload:index())`. Not on a cooldown starting or running: read `action:cooldown()` live, as the action bar's. |
 | Losing the target | Fires nothing. `OpponentSelected` fires when another opponent becomes the target, and `OpponentRemoved` says the fight with the last one ended. |
 | Not an event | The list's order: the client's "Switch targets" key reorders it without a message. |
 | The fight's buffs | Fire the [opening keys](character.md#character-and-status), whose second argument names whose. |
@@ -32,6 +36,6 @@ end)
 
 ## See Also
 
-- [`session:fight`](../../fight.md) — the opponents, their numbers, and the buffs of a fight.
+- [`session:fight`](../../fight.md) — the opponents, their numbers, the combat row, and the buffs of a fight.
 - [The character and the rosters](character.md) — the opening events a fight's buffs fire.
 - [`hafen.event()`](../README.md) — subscribing, and why the key set is closed.

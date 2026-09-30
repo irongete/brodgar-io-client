@@ -1049,6 +1049,8 @@ public final class Addon {
     final LuaDeckCard.Cache deckCards = new LuaDeckCard.Cache(this);
     final LuaFightSummary.Cache fightSummaries = new LuaFightSummary.Cache(this);
     final LuaOpponent.Cache opponents = new LuaOpponent.Cache(this);
+    // 170.3: the combat row, keyed like deckCards by the account plus the place.
+    final LuaCombatAction.Cache combatActions = new LuaCombatAction.Cache(this);
 
     /**
      * This addon's <b>study-totals cache</b> ({@code s:study():summary()}), keyed by the study-report

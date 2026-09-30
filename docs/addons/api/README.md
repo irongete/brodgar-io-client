@@ -22,7 +22,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The session and the world](types/world.md) | One login, an object in it, the people beside you, the ground, a place, your own things standing there. |
 | [The item and what holds it](types/items.md) | One item, and what a container states about its inside. |
 | [The character sheet](types/character.md) | Attributes, food, learning, movement speed, quests, wounds, buffs. |
-| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent. |
+| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, a combat action. |
 | [The map](types/map.md) | A pin on the recorded map, a minimap icon category. |
 | [The widget layer](types/ui.md) | A widget, a HUD meter, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
 
@@ -34,7 +34,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The world](event/bus/world.md) | A game object coming and going, what is attached to one, a click on an entity of your own. |
 | [The character and the rosters](event/bus/character.md) | Meters, buffs, food, study, equipment, action bar, wounds, kin, quests, map pins, the radial menu, Steam. |
 | [The chat](event/bus/chat.md) | A channel appearing, going away or taking the tab, and a line landing in one. |
-| [The fight](event/bus/fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing. |
+| [The fight](event/bus/fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing, a manoeuvre used, the combat row changing. |
 
 ## Reading the world
 
