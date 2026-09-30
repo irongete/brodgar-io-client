@@ -2490,8 +2490,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		m.node.dispose();
 	    pending.clear();
 	    unsettled.clear();
-	    /* addon: and nothing is whole any more: what the far ground asks before this raster ticks again. */
+	    /* addon: and nothing is whole any more, nor drawn: what the far ground asks before this raster ticks again
+	     * (ready), which would otherwise stop standing in for grids this raster no longer has a mesh of. */
 	    whole = Collections.emptySet();
+	    shown = Collections.emptySet();
 	    lastlive = Collections.emptySet();
 	    mergegen++;
 	    settled = false;   // addon: and its next tick is a whole one
@@ -2773,6 +2775,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void added(RenderTree.Slot slot) {
 	    slot.add(main);
 	    super.added(slot);
+	    /* addon: and it has taken nothing up in the scene yet, whatever its last tick out of it settled on: that one
+	     * (droprecall) emptied it over the grids it was handed then, which the far ground hands over again. */
+	    settled = false;
 	}
     }
 
@@ -2929,6 +2934,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    recalllod = new io.brodgar.session.RecallLod();
 	if(s_lod == null)
 	    s_lod = basic.add(recalllod, ShadowMap.maskshadow);
+	/* addon: its click pass too, before it ticks: the tick is what puts a cell into it, and a tick finding nothing
+	 * moved puts nothing in, so a cell put in the scene with the click pass not there yet stayed unclickable. */
+	if(s_lodclick == null)
+	    s_lodclick = clmaptree.add(recalllod.clicks);
 	/* addon: the far ground first, because it decides which grids are drawn whole: the ones close enough
 	 * to the camera's eye that anything coarser would show, the ones over live ground, and the ones still
 	 * drawn whole while what replaces them is built -- so the two never draw the same ground, and neither
@@ -2958,8 +2967,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    recallclick = new RecallClick(recall.map);
 	if(s_recallclick == null)
 	    s_recallclick = clmaptree.add(recallclick);
-	if(s_lodclick == null)
-	    s_lodclick = clmaptree.add(recalllod.clicks);
 	recallclick.tick();
 	/* 120.2: what the raster just decided it wants is what the source reads, and it is handed over
 	 * here rather than taken, so there is one place the wiring is stated. 120.4: and what it is holding
