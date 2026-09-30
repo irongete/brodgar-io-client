@@ -2127,7 +2127,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
     /* 068.4: the cut cap. The grids held whole are the ones the far ground (RecallLod) hands over -- the
      * few close enough to the camera's eye that anything coarser would show, the ones within reach of the
      * live ground, and the ones still drawn whole while what replaces them is built -- so what is wanted is
-     * bounded by the screen and by the live area, and the far ground draws the rest. A grid is drawn whole only with every cut it can build, so
+     * bounded by the screen, by the live area and by the heap (RecallLod.wholecap), and the far ground draws the
+     * rest. A grid is drawn whole only with every cut it can build, so
      * the cap is all of them: what bounds the cost is how many grids that is, and the build budget below
      * bounds how fast they fill. */
     private static int recallcutcap(int ngrids) {

@@ -67,7 +67,8 @@ import io.brodgar.perf.Performance;
  * tiles) would cover more than {@link #texelpx} pixels at the cell's nearest depth, and a level-one cell
  * one of whose tiles would cover more than {@link #fullpx} pixels there is not a far cell at all but
  * <b>whole</b>: its four grids are handed to the recorded ground's own raster ({@link #detail}), which draws
- * them as real cut meshes. That is what is DRAWN, for what is on screen. What is BUILT and kept is decided the
+ * them as real cut meshes -- as many of them as the heap affords ({@link #wholecap}), the ones whose tiles are
+ * largest on screen first. That is what is DRAWN, for what is on screen. What is BUILT and kept is decided the
  * same way over every view a turn of the camera about the centre gives ({@link #keep}), on screen now or not:
  * a turn of the camera only swaps in what is built already, and builds nothing and merges nothing, while the
  * ground is drawn no finer than the view itself calls for. What is drawn is decided every tick; what is kept,
@@ -129,6 +130,25 @@ public class RecallLod implements RenderTree.Node {
     /** Texels a side of a cell's texture: the zoom grid's samples in its corner, and the rest of a power of
      * two, which only a mipmapped texture must be. */
     private static final int TEXSZ = 128;
+    /** What one grid drawn whole holds in the heap -- its cuts' meshes, some five megabytes under the default ground
+     * settings and two and a half under the lightest -- and the share of the heap the grids drawn whole may take
+     * (wholecap). */
+    private static final long GRIDBYTES = (long)(5.5 * (1 << 20));
+    private static final double WHOLESHARE = 0.3;
+
+    /**
+     * How many grids may be drawn whole at once: as many as {@link #WHOLESHARE} of the heap the client is given holds,
+     * and never fewer than a few around the character. A camera down at the ground looking out over it would draw whole
+     * every grid out to where a tile shrinks to {@link #fullpx}, which at a tall screen and a narrow field of view is
+     * hundreds of them; past this, the grids whose tiles are largest on screen are the ones whole and the rest are far
+     * cells ({@link #keep}). A client given more memory draws more of it whole.
+     */
+    public static int wholecap() {
+	long max = Runtime.getRuntime().maxMemory();
+	if(max == Long.MAX_VALUE)
+	    return(Integer.MAX_VALUE);
+	return((int)Math.min(Integer.MAX_VALUE, Math.max(64, (long)(max * WHOLESHARE) / GRIDBYTES)));
+    }
 
     static {
 	Console.setscmd("terrainlod", (cons, args) -> {
@@ -408,6 +428,20 @@ public class RecallLod implements RenderTree.Node {
 	}
     }
 
+    /** A level-one cell the keep walk finds fine enough to be whole: the most pixels a world unit of it covers in any
+     * turn, and whether it is kept as a far cell as well. Whole or not is the budget's to say ({@link #wholecap}). */
+    private static final class Whole {
+	final Key key;
+	final double px;
+	final boolean kept;
+
+	Whole(Key key, double px, boolean kept) {
+	    this.key = key;
+	    this.px = px;
+	    this.kept = kept;
+	}
+    }
+
     /** Built and pending cells, least recently wanted first. */
     private final Map<Key, Cell> cells = new LinkedHashMap<Key, Cell>(64, 0.75f, true);
     /** The same cells, looked up without making them recent: {@link #cells} is in access order, so each get()
@@ -563,6 +597,11 @@ public class RecallLod implements RenderTree.Node {
     private final List<Key> kempty = new ArrayList<Key>();
     private Set<Coord> kwhole = new HashSet<Coord>();
     private View lastkeep = null;
+    /* The level-one cells the keep walk finds fine enough to be whole, which the budget takes kwhole from (admit); and
+     * how many pixels a tile has to cover for the draw to draw a level-one cell whole: fullpx, or past it the largest
+     * tile the budget left out, so the draw never draws whole a cell the budget did not hold whole. */
+    private final List<Whole> kcand = new ArrayList<Whole>();
+    private double fulleff = fullpx;
 
     /**
      * Walk the far ground for this tick: decide which grids are drawn whole, bring the cells to draw into the
@@ -682,15 +721,18 @@ public class RecallLod implements RenderTree.Node {
 	    top++;
 	int tn = 1 << top;
 	Coord lo = wcg.sub(range, range), hi = wcg.add(range, range);
+	Set<Coord> ncells = nearcells(base, near, cg, range);
 	boolean keepran = !keepsame && ((lastkeep == null) || ((now - keptat) >= KEEPWAIT));
 	if(keepran) {
 	    kwants.clear();
 	    kempty.clear();
 	    kwhole = new HashSet<Coord>();
+	    kcand.clear();
 	    for(int y = Math.floorDiv(lo.y, tn) * tn; y <= hi.y; y += tn) {
 		for(int x = Math.floorDiv(lo.x, tn) * tn; x <= hi.x; x += tn)
 		    keep(top, Coord.of(x, y));
 	    }
+	    admit(ncells, fpx);
 	    /* What the ticks until the next run use of it (kset, kstart): every cell kept is touched here, once a
 	     * run, which makes it recent -- and not by every tick in between. */
 	    kset.clear();
@@ -848,12 +890,8 @@ public class RecallLod implements RenderTree.Node {
 	}
 	/* And every level-one cell within reach of the live terrain, on screen or not: what the live ground walks
 	 * into next, or a camera turns to, is whole already -- a cell over the live ground is drawn whole at once
-	 * (visit), with nothing that may stand in for it meanwhile. Within the view distance, as everything the
-	 * walk draws is: an RTS camera looking far away holds nothing around the character. */
-	for(Coord g : near) {
-	    Coord sc = align(g.add(base.off), 1);
-	    if((sc.x > cg.x + range) || (sc.x + 1 < cg.x - range) || (sc.y > cg.y + range) || (sc.y + 1 < cg.y - range))
-		continue;
+	 * (visit), with nothing that may stand in for it meanwhile. */
+	for(Coord sc : ncells) {
 	    for(int y = 0; y < 2; y++) {
 		for(int x = 0; x < 2; x++)
 		    det.add(sc.add(x, y).sub(base.off));
@@ -1108,7 +1146,7 @@ public class RecallLod implements RenderTree.Node {
 	     * drawn whole for good, since a cell drawn whole is never built and so never shows its heights. Until
 	     * it has, it is a far cell, which is built in a moment. */
 	    boolean own = ((known != null) && (known.built != null)) || zknown.containsKey(key);
-	    double lim = fullpx * (fulllast.contains(sc) ? (1 - HYST) : (1 + HYST));
+	    double lim = fulleff * (fulllast.contains(sc) ? (1 - HYST) : (1 + HYST));
 	    /* And drawn whole, it stays whole while the camera comes closer: the far cell, built only now, would be
 	     * swapped in for the frames until the camera reached the ground it had just left (see receding). */
 	    boolean keep = fulllast.contains(sc) && approaching(key, px);
@@ -1223,6 +1261,9 @@ public class RecallLod implements RenderTree.Node {
 	 * level-one cell is whole only over its own heights, as the draw has it: until they are known it is kept as
 	 * a far cell, which shows them. */
 	double edge = MCache.tilesz.x * ((lvl == 1) ? 1 : n), lim = (lvl == 1) ? fullpx : texelpx;
+	/* Found fine enough to be whole against fullpx, which the budget then takes its cells from (admit); drawn as a far
+	 * cell, and so kept as one, below what the draw holds whole at, which the budget may have raised (fulleff). */
+	double slim = (lvl == 1) ? Math.max(lim, fulleff) : lim;
 	boolean own = (lvl > 1) || ((known != null) && (known.built != null)) || zknown.containsKey(key);
 	boolean seen = false, self = false, finer = false;
 	double most = 0;
@@ -1232,7 +1273,7 @@ public class RecallLod implements RenderTree.Node {
 	    seen = true;
 	    most = Math.max(most, p);
 	    double s = edge * p;
-	    if(!own || (s <= lim * (1 + HYST) * TURNSLACK))
+	    if(!own || (s <= slim * (1 + HYST) * TURNSLACK))
 		self = true;
 	    if(own && (s > lim * (1 - HYST) / TURNSLACK))
 		finer = true;
@@ -1254,7 +1295,7 @@ public class RecallLod implements RenderTree.Node {
 	    kwants.add(new Leaf(key, false, most));
 	if(finer) {
 	    if(lvl == 1) {
-		kwhole.add(sc);
+		kcand.add(new Whole(key, most, self));   // whole as the budget has room (admit)
 	    } else {
 		int h = n / 2;
 		for(int y = 0; y < 2; y++) {
@@ -1264,6 +1305,55 @@ public class RecallLod implements RenderTree.Node {
 	    }
 	}
     }
+
+    /**
+     * The level-one cells within reach of the live terrain ({@code near}, session grid coords), in segment coords: held
+     * whole whatever the camera does. Within the view distance, as everything the walk draws is: an RTS camera looking
+     * far away holds nothing around the character.
+     */
+    private static Set<Coord> nearcells(Recall.Base base, Set<Coord> near, Coord cg, int range) {
+	Set<Coord> ret = new HashSet<Coord>();
+	for(Coord g : near) {
+	    Coord sc = align(g.add(base.off), 1);
+	    if((sc.x > cg.x + range) || (sc.x + 1 < cg.x - range) || (sc.y > cg.y + range) || (sc.y + 1 < cg.y - range))
+		continue;
+	    ret.add(sc);
+	}
+	return(ret);
+    }
+
+    /**
+     * What the keep walk holds whole, within the budget ({@link #wholecap}): every cell within reach of the live terrain,
+     * whatever it says, and of the rest the ones whose tiles are largest on screen, as many as it leaves room for. The
+     * others are far cells and kept as such, and the draw holds a cell whole only past a tile as large as the largest of
+     * them ({@link #fulleff}), so it draws whole nothing the budget did not hold whole.
+     */
+    private void admit(Set<Coord> ncells, double fpx) {
+	int room = Math.max(0, (wholecap() / 4) - ncells.size());
+	Collections.sort(kcand, WHOLEORDER);
+	double cut = 0;
+	for(Whole w : kcand) {
+	    boolean nearby = ncells.contains(w.key.sc);
+	    if(nearby || (room > 0)) {
+		if(!nearby)
+		    room--;
+		kwhole.add(w.key.sc);
+		continue;
+	    }
+	    cut = Math.max(cut, MCache.tilesz.x * w.px);
+	    if(!w.kept)
+		kwants.add(new Leaf(w.key, false, w.px));
+	}
+	kcand.clear();
+	fulleff = Math.max(fpx, cut);
+    }
+
+    /** The largest on screen first: the order the budget holds cells whole in. */
+    private static final Comparator<Whole> WHOLEORDER = new Comparator<Whole>() {
+	    public int compare(Whole a, Whole b) {
+		return(Double.compare(b.px, a.px));
+	    }
+	};
 
     /* Where a segment grid coord's corner stands in map coords (world units), placed through the walk's base. */
     private double wx(int sx) {
