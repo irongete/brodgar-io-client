@@ -134,6 +134,8 @@ final class CharApi {
     static final String FA = "session:fight():action()";
     /** {@code s:fight():school()} — the saved schools of the combat-schools tab (172.1). */
     static final String FS = "session:fight():school()";
+    /** {@code s:fight():deck()} — the hotkey places of the loaded school's layout (172.2). */
+    static final String FD = "session:fight():deck()";
 
     /**
      * <b>The change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -1773,9 +1775,8 @@ final class CharApi {
      * Build the fight section object for {@code (owner, user)} — <b>one character's combat schools, and the
      * fight it is in</b>, reached as {@code s:fight()} (077.4). Four projections of that character's
      * combat-schools tab: {@code :maneuver()} is the collection of what it knows, {@code :deck()} the loaded
-     * school's layout as a plain array (§2.3 — a layout is addressed by its own order), {@code :summary()} the
-     * scalars around it and {@code :school()} the saved schools with the loaded one as {@code :current()}
-     * (172.1). And the fight in progress, off its live combat view (170): {@code :opponent()} every
+     * school's layout, every hotkey place addressed by its number (172.2), {@code :summary()} the action-point
+     * budget and {@code :school()} the saved schools with the loaded one as {@code :current()} (172.1). And the fight in progress, off its live combat view (170): {@code :opponent()} every
      * opponent with the target as {@code :current()}, {@code :opening()} the openings drawn beside that character,
      * {@code :action()} the combat row, {@code :cooldown()} the global cooldown and {@code :last()} the
      * manoeuvre that character used last. Two protected actions press a relation box's controls (170.5):
@@ -1797,6 +1798,7 @@ final class CharApi {
         final LuaValue opponents = LuaOpponent.collection(owner, user);
         final LuaValue actions = LuaCombatAction.collection(owner, user);
         final LuaValue schools = LuaSchool.collection(owner, user);
+        final LuaValue deck = LuaDeckCard.deck(owner, user);
         LuaTable fight = new LuaTable();
         // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
@@ -1808,15 +1810,15 @@ final class CharApi {
                 return maneuvers;
             }
         });
-        // deck() — the filled hotkey slots of the school THAT character has loaded, in key order. A plain
-        // array, never nil, and empty before its schools tab has built.
+        // deck() — 172.2: every hotkey place of the school THAT character has loaded, minted once and handed back
+        // by identity; :get(n) is hotkey n. Empty before its schools tab has built.
         fight.set("deck", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "fight", "deck", FT);
                 if(Args.passed(a, 2))
-                    throw new LuaError(FT + ":deck() takes no arguments — it is a layout, ordered by hotkey,"
-                        + " and every card carries its own :index() and :key()");
-                return LuaDeckCard.deck(owner, user);
+                    throw new LuaError(FT + ":deck() takes no arguments — it IS the collection of the hotkey"
+                        + " places: :get(n) is hotkey n");
+                return deck;
             }
         });
         // summary() — that character's action-point budget, nil before the tab is built.

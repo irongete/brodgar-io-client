@@ -26,7 +26,7 @@
 
   `[manual]`: open Character sheet → Martial Arts & Combat Schools. The expected result is the printed names in the tab's save list, in that order, with the check mark on the printed current one.
 
-- [ ] **172.2 — The deck is every hotkey place, read like the combat row.**
+- [x] **172.2 — The deck is every hotkey place, read like the combat row.**
   - **`LuaDeckCard`:**
     - `deck()` lists every place, is addressable by `:get(n)`, and is minted once;
     - `card:index()` is the hotkey number;

@@ -22,7 +22,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The session and the world](types/world.md) | One login, an object in it, the people beside you, the ground, a place, your own things standing there. |
 | [The item and what holds it](types/items.md) | One item, and what a container states about its inside. |
 | [The character sheet](types/character.md) | Attributes, food, learning, movement speed, quests, wounds, buffs. |
-| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, an opening, a combat action. |
+| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the action-point budget, a saved school, an opponent, an opening, a combat action. |
 | [The map](types/map.md) | A pin on the recorded map, a minimap icon category. |
 | [The widget layer](types/ui.md) | A widget, a HUD meter, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
 

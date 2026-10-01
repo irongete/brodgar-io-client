@@ -30,16 +30,15 @@ end)
 | `session:fight():maneuver():list(filter)` | `Maneuver[]` | Unprotected | Every manoeuvre and attack that character knows. |
 | `session:fight():maneuver():count(filter)` | `number` | Unprotected | How many match. |
 | `session:fight():maneuver():find(filter)` | `Maneuver \| nil` | Unprotected | The first that matches. |
-| `session:fight():deck()` | collection | Unprotected | The loaded school's layout, the filled hotkey slots: `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
-| `session:fight():summary()` | `FightSummary \| nil` | Unprotected | The action-point budget and the deck's size. |
+| `session:fight():deck()` | collection | Unprotected | The loaded school's layout: one [card](#a-deck-card) per hotkey place, `:list(filter)`, `:count(filter)`, `:find(filter)`, `:get(n)`. |
+| `session:fight():summary()` | `FightSummary \| nil` | Unprotected | The action-point budget and what the loaded school spends of it. |
 | `session:fight():school()` | collection | Unprotected | The tab's save list: [School](#schools) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`, `:get(n)`. |
 | `session:fight():school():current()` | `School \| nil` | Unprotected | The school the tab marks as loaded. `nil` before the tab has built. |
 
 | Rule | Detail |
 |---|---|
-| `filter` | A string [filter](conventions.md#the-filter-argument) matches the resource name and the display name. On the deck it matches the manoeuvre in the slot, so one needle finds the same manoeuvre through either door. |
-| No `:get` | A manoeuvre is addressed by nothing you hold: a string is a search, a position is `:list()[n]`. `#deck()`, `deck()[n]` and `ipairs(deck())` are [refused](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many). `deck():list()` is the array. |
-| Empty slots are left out | `card:index()` is the position in that list (`deck():list()[n]:index()` is `n` whatever the gaps). `card:wire()` is the hotkey's place in the school, gaps counted. |
+| `filter` | A string [filter](conventions.md#the-filter-argument) matches the resource name and the display name. On the deck it matches the manoeuvre in the place, so one needle finds the same manoeuvre through either door, and an empty place matches none. |
+| No `:get` on `:maneuver()` | A manoeuvre is addressed by nothing you hold: a string is a search, a position is `:list()[n]`. |
 
 ## A manoeuvre
 
@@ -54,19 +53,33 @@ end)
 
 ## A deck card
 
-A card is a place in the layout, not the manoeuvre in it. It keeps answering `:wire()` and `:key()` when the hotkey is emptied, while the manoeuvre half goes `nil` and `:exists()` goes `false`.
+One hotkey place of the loaded school's layout, not the manoeuvre in it: `session:fight():deck():get(n)` is hotkey `n`, filled or not.
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `card:index()` | `number \| nil` | Unprotected | Its 1-based position in `:deck():list()`. `nil` for an emptied slot, which that list leaves out. |
-| `card:wire()` | `number` | Unprotected | The raw 0-based deck index the write path takes. Always answers. |
-| `card:key()` | `string \| nil` | Unprotected | The hotkey label the window paints. `nil` for a slot past the labels the window has, since the window paints a fixed set. |
-| `card:maneuver()` | `Maneuver \| nil` | Unprotected | The manoeuvre dealt here. |
+| `card:index()` | `number` | Unprotected | Its 1-based position, the hotkey number and the `n` of `:get(n)`. Always answers. |
+| `card:wire()` | `number` | Unprotected | The server's 0-based place number. Always answers. |
+| `card:key()` | `string \| nil` | Unprotected | The hotkey label the tab paints under it, `"1"` to `"5"` and `"⇧1"` to `"⇧5"`. `nil` past the labels the tab paints. |
+| `card:empty()` | `boolean` | Unprotected | Whether the place holds nothing. Always answers. |
+| `card:maneuver()` | [`Maneuver`](#a-manoeuvre) `\| nil` | Unprotected | The manoeuvre dealt here. |
 | `card:res()` | `string \| nil` | Unprotected | That manoeuvre's resource name. |
 | `card:name()` | `string \| nil` | Unprotected | That manoeuvre's display name. |
 | `card:used()` | `number \| nil` | Unprotected | How many copies the deck holds. |
-| `card:exists()` | `boolean` | Unprotected | Whether the slot is filled. Always answers. |
-| `card:info()` | [`DeckCard`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. |
+| `card:info()` | [`DeckCard`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. `nil` for an empty place. |
+
+| Rule | Detail |
+|---|---|
+| Every place | `:list()` holds one card per place of the layout, in hotkey order, whether it holds a manoeuvre or not. The server sets how many places there are. |
+| `:get(n)` | Takes the hotkey number. Any other number answers `nil`, `0` included, and so does every `n` before the tab has built. A string raises, naming `:find(filter)`. |
+| An empty place | Every reader but `:index()`, `:wire()`, `:key()` and `:empty()` answers `nil`. |
+| Identity | Interned on character and place: `session:fight():deck():get(1) == session:fight():deck():list()[1]`, and `session:fight():deck()` is the same object every call. A stashed card follows its hotkey when another school is loaded. |
+
+```lua
+local deck = hafen.session():current():fight():deck()
+for _, card in ipairs(deck:list()) do
+  hafen.log():write(card:index() .. ": " .. (card:empty() and "(empty)" or (card:name() or card:res() or "?")))
+end
+```
 
 ## The summary
 
@@ -74,7 +87,6 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 |---|---|---|---|
 | `summary:used()` | `number \| nil` | Unprotected | Action points the loaded school spends: the total the window paints beside the cap, the sum of `maneuver:used()` over every known manoeuvre. |
 | `summary:maxActions()` | `number \| nil` | Unprotected | The action-point budget. |
-| `summary:deckSize()` | `number \| nil` | Unprotected | How many hotkey slots the deck has. |
 | `summary:exists()` | `boolean` | Unprotected | Whether that character's tab is still up. |
 | `summary:info()` | [`FightSummary`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. |
 

@@ -1,6 +1,6 @@
 # Data Types: The Fight
 
-The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the deck's totals, a saved school, an opponent, an opening, and a combat action. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
+The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the action-point budget, a saved school, an opponent, an opening, and a combat action. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
 
 ```lua
 local summary = hafen.session():current():fight():summary()
@@ -15,8 +15,8 @@ if snapshot then hafen.log():write(snapshot.used .. "/" .. snapshot.maxact .. " 
 | Shape | Fields |
 |---|---|
 | `Maneuver` | `{ res?, name?, avail = number, used = number }`: `avail` dealable (`maneuver:dealable()`) against `used` dealt. |
-| `DeckCard` | `{ slot = number, key = string?, res?, name?, used? }`. `slot` is the raw 0-based deck index, `card:wire()`. `card:index()` is the 1-based position. `key` is the hotkey label such as `"1"` or `"⇧1"`, absent past the labels the window paints. The manoeuvre half is absent for an empty slot, where the place itself still reads. |
-| `FightSummary` | `{ maxact, used, nact }` in the window's spelling. The live reads are `summary:maxActions()`, `:used()`, `:deckSize()`. |
+| `DeckCard` | `{ key = string?, res = string?, name = string?, used = number }`, and `nil` for an empty place. `key` is the hotkey label such as `"1"` or `"⇧1"`, absent past the labels the tab paints. `res` and `name` are absent while the resource resolves. The place itself is read live, by `card:index()` and `card:wire()`. |
+| `FightSummary` | `{ maxact, used }` in the window's spelling. The live reads are `summary:maxActions()` and `:used()`. |
 
 ## School
 

@@ -6,7 +6,9 @@ import haven.UI;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -131,43 +133,43 @@ public final class LuaManeuver {
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
         // res() — the maneuver's resource name, its stable identity, or nil while it resolves.
-        m.set("res", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                String r = AddonManager.resIdent(handle(self, "res").act.res);
+        m.set("res", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String r = AddonManager.resIdent(handle(Args.only(a, 0, "maneuver:res"), "res").act.res);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
         // name() — the display name off the resource tooltip, or nil until it lands.
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaManeuver h = handle(self, "name");
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaManeuver h = handle(Args.only(a, 0, "maneuver:name"), "name");
                 String n = AddonManager.resTipName(h.act.res, null);
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
-        // available() — how many copies of this maneuver you may put in a deck.
-        m.set("dealable", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "dealable").act.a);
+        // dealable() — how many copies of this maneuver you may put in a deck.
+        m.set("dealable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:dealable"), "dealable").act.a);
             }
         });
         // used() — how many you have put in the current deck.
-        m.set("used", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "used").act.u);
+        m.set("used", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:used"), "used").act.u);
             }
         });
         // exists() — does that character still know this maneuver?
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaManeuver h = handle(self, "exists");
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaManeuver h = handle(Args.only(a, 0, "maneuver:exists"), "exists");
                 return LuaValue.valueOf(known(h.user, h.act));
             }
         });
         // info() — the one SNAPSHOT escape hatch.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").act);
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return snapshot(handle(Args.only(a, 0, "maneuver:info"), "info").act);
             }
         });
         return m;
@@ -176,7 +178,7 @@ public final class LuaManeuver {
     private static LuaManeuver handle(LuaValue self, String method) {
         LuaManeuver h = resolve(self);
         if(h == null)
-            throw new LuaError("man:" + method + "() — use a COLON call on a Maneuver object"
+            throw new LuaError("maneuver:" + method + "() — use a COLON call on a Maneuver object"
                 + " (" + CharApi.FT + ":maneuver():list()[i])");
         return h;
     }

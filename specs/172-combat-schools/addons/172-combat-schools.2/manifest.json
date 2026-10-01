@@ -1,0 +1,9 @@
+{
+  "name": "172.2 — the deck is every hotkey place",
+  "id": "172-combat-schools.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 172.2: session:fight():deck() lists every hotkey place, addressed by :get(n) with :index() as the hotkey number, an empty card reads nil, card:exists() and summary:deckSize() are gone, every card and manoeuvre verb counts its arguments, and the summary's snapshot is { maxact, used }.",
+  "api_version": "1.4",
+  "files": ["main.lua"]
+}

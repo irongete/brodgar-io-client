@@ -16,8 +16,9 @@ import java.util.WeakHashMap;
 
 /**
  * A <b>FightSummary object</b> — the scalars around one character's deck ({@code s:fight():summary()}): the
- * action-point budget and what the loaded school spends of it, and how many hotkey slots the deck has. The saved
- * schools are a collection of their own, {@code s:fight():school()} ({@link LuaSchool}, 172.1).
+ * action-point budget and what the loaded school spends of it. The saved schools are a collection of their own,
+ * {@code s:fight():school()} ({@link LuaSchool}, 172.1), and so are the deck's places, {@code s:fight():deck()}
+ * ({@link LuaDeckCard}, 172.2), whose {@code :count()} is the layout's size.
  *
  * <p><b>Why an object where the study window's totals are a plain read.</b> Study's summary is <i>derived</i> —
  * it is the sum over the slots, and there is nothing behind it to exist or not exist. These numbers are
@@ -130,7 +131,6 @@ public final class LuaFightSummary {
         LuaTable m = new LuaTable();
         m.set("maxActions", number("maxActions", 0));
         m.set("used", number("used", 1));
-        m.set("deckSize", number("deckSize", 2));
         // exists() — is that character's combat-schools tab still standing in its own tree?
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -146,7 +146,6 @@ public final class LuaFightSummary {
                 LuaTable t = new LuaTable();
                 t.set("maxact", LuaValue.valueOf(v[0]));
                 t.set("used", LuaValue.valueOf(v[1]));
-                t.set("nact", LuaValue.valueOf(v[2]));
                 return t;
             }
         });
@@ -174,21 +173,20 @@ public final class LuaFightSummary {
     // ---- the reads ----------------------------------------------------------------------------------
 
     /**
-     * The counts in one pass — {@code maxActions, used, deckSize} — or {@code null} once the window is gone.
+     * The counts in one pass — {@code maxActions, used} — or {@code null} once the window is gone.
      * {@code used} is the total spend across every maneuver, which is the same number the window paints beside
      * the cap.
      */
     private static int[] read(FightWnd fw) {
         if(live(fw) == null)
             return null;
-        int[] out = new int[3];
+        int[] out = new int[2];
         synchronized(LuaWidget.monitor(fw)) {
             out[0] = fw.maxact;
             int used = 0;
             for(FightWnd.Action a : fw.acts)
                 used += a.u;
             out[1] = used;
-            out[2] = fw.order.length;
         }
         return out;
     }

@@ -5,42 +5,41 @@ import haven.FightWnd;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A <b>DeckCard object</b> — one hotkey slot of the combat school a character has loaded
- * ({@code s:fight():deck()}). A card is a <i>place in the layout</i>: the slot index the write path uses and
- * the hotkey label the window paints under it, plus whichever maneuver is sitting there right now.
+ * A <b>DeckCard object</b> — one hotkey place of the combat school a character has loaded
+ * ({@code s:fight():deck()}, reshaped 172.2): a place in the tab's layout, {@code FightWnd.order}, with the
+ * hotkey label the tab paints under it, plus whichever maneuver is sitting there right now. The deck is read
+ * as the combat row is ({@link LuaCombatAction}): every place, filled or not, addressed by its hotkey number.
  *
- * <p><b>The intern key is the slot</b> (§2.4), not the maneuver in it. The slot is what the layout is made of
- * and what the server addresses — loading another school rewrites every slot's contents while the slots
- * themselves stay put — so a stashed card follows the hotkey rather than following a maneuver that has been
- * dealt somewhere else.
+ * <p><b>The intern key is the place</b> (§2.4), not the maneuver in it. The place is what the layout is made of
+ * and what the server addresses — loading another school rewrites every place's contents while the places
+ * themselves stay put — so a stashed card follows the hotkey rather than a maneuver that has been dealt
+ * somewhere else.
  *
  * <p><b>A deck index counts inside one character's school</b> (077.4), which is why the account is half the
  * handle. The layout is an array of one {@link FightWnd}, and every character configures its own — so hotkey
  * 3 on two characters is two different places, and a handle that carried the index alone would call them
  * one. Two levels of intern map, on {@code (account, slot)}: the {@link LuaGob} shape.
  *
- * <p><b>{@code :exists()} means the slot is filled.</b> An emptied hotkey keeps answering {@code :wire()} and
- * {@code :key()} — they are properties of the place — while {@code :res()}, {@code :name()} and
- * {@code :maneuver()} go {@code nil}. {@code s:fight():deck()} lists only the filled slots, so an empty one
- * is reachable solely through a card you were already holding — and {@code :index()}, which is a position in
- * that list, goes {@code nil} with it.
+ * <p><b>{@code :empty()} means the place holds nothing.</b> An empty card keeps answering {@code :index()},
+ * {@code :wire()} and {@code :key()} — they are properties of the place — while every reader of the maneuver
+ * half and {@code :info()} answer {@code nil}, the {@code Slot} shape. {@code :index()} is the hotkey number,
+ * {@code :wire()} that minus one, and {@code :get(n)} takes the same number.
  *
- * <p>The deck is a <b>collection</b> like every other set here — {@code :list}, {@code :count} and a
- * {@code :find} over the maneuver's own name — with <b>no {@code :get}</b>, because a layout slot has no key
- * to address it by. So {@code #deck()}, {@code deck()[n]} and {@code ipairs(deck())} are refused in the
- * collection's own words, and {@code deck():list()} is the array to index.
+ * <p><b>The length is the server's</b>: {@code order} is as long as the tab the server built, so {@code :get(n)}
+ * answers {@code nil} past it, {@code 0} included, as the saved schools' {@code :get(n)} does.
  */
 public final class LuaDeckCard {
     /** The account whose school this place is in — half the address, and what makes the index mean one hotkey. */
@@ -143,7 +142,7 @@ public final class LuaDeckCard {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Refusal.closedIndex("deckcard", methods(owner),
-            "a fight deck card"));
+            "a deck card is one hotkey place of the loaded school's layout"));
         mt.set("__name", LuaValue.valueOf("DeckCard"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -156,75 +155,70 @@ public final class LuaDeckCard {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // index() — its 1-based position in s:fight():deck():list(), so deck():list()[n]:index() == n
-        // (090, A-071). It is the position in the LIST and not the raw slot: :list() omits an empty hotkey,
-        // so one gap before a card made the two disagree silently. An emptied hotkey is in no list and has
-        // no position, so this answers nil there; the place itself is still :wire() and :key().
-        m.set("index", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "index");
-                int n = position(h.user, h.slot);
-                return (n < 1) ? LuaValue.NIL : LuaValue.valueOf(n);
+        // index() — the 1-based position, the hotkey number and the n :get(n) takes. Always answers.
+        m.set("index", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(handle(Args.only(a, 0, "card:index"), "index").slot + 1);
             }
         });
-        // wire() — the raw 0-based deck index, the same one the write path takes.
-        m.set("wire", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "wire").slot);
+        // wire() — the raw 0-based deck index, the same one the tab's messages carry. Always answers.
+        m.set("wire", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(handle(Args.only(a, 0, "card:wire"), "wire").slot);
             }
         });
-        // key() — the hotkey label the window paints under this slot, or nil for a slot it paints none for.
-        m.set("key", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                String k = keyLabel(handle(self, "key").slot);
+        // key() — the hotkey label the tab paints under this place, or nil for a place it paints none for.
+        m.set("key", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String k = keyLabel(handle(Args.only(a, 0, "card:key"), "key").slot);
                 return (k == null) ? LuaValue.NIL : LuaValue.valueOf(k);
             }
         });
-        // maneuver() — the maneuver dealt into this slot, or nil while the slot is empty.
-        m.set("maneuver", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "maneuver");
-                FightWnd.Action a = action(h.user, h.slot);
-                return (a == null) ? LuaValue.NIL : LuaManeuver.of(owner, h.user, a);
+        // empty() — does the place hold nothing? True too before the tab has built and past its layout.
+        m.set("empty", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:empty"), "empty");
+                return LuaValue.valueOf(action(h.user, h.slot) == null);
             }
         });
-        // res() — the dealt maneuver's resource name, or nil (empty slot, or the resource is still resolving).
-        m.set("res", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "res");
-                FightWnd.Action a = action(h.user, h.slot);
-                String r = (a == null) ? null : AddonManager.resIdent(a.res);
+        // maneuver() — the maneuver dealt into this place, or nil while the place is empty.
+        m.set("maneuver", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:maneuver"), "maneuver");
+                FightWnd.Action act = action(h.user, h.slot);
+                return (act == null) ? LuaValue.NIL : LuaManeuver.of(owner, h.user, act);
+            }
+        });
+        // res() — the dealt maneuver's resource name, or nil (empty place, or the resource is still resolving).
+        m.set("res", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:res"), "res");
+                FightWnd.Action act = action(h.user, h.slot);
+                String r = (act == null) ? null : AddonManager.resIdent(act.res);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
         // name() — the dealt maneuver's display name, or nil.
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "name");
-                FightWnd.Action a = action(h.user, h.slot);
-                String n = (a == null) ? null : AddonManager.resTipName(a.res, null);
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:name"), "name");
+                FightWnd.Action act = action(h.user, h.slot);
+                String n = (act == null) ? null : AddonManager.resTipName(act.res, null);
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
-        // used() — how many copies of the dealt maneuver that character's deck holds, or nil for an empty slot.
-        m.set("used", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "used");
-                FightWnd.Action a = action(h.user, h.slot);
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.u);
+        // used() — how many copies of the dealt maneuver that character's deck holds, or nil for an empty place.
+        m.set("used", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:used"), "used");
+                FightWnd.Action act = action(h.user, h.slot);
+                return (act == null) ? LuaValue.NIL : LuaValue.valueOf(act.u);
             }
         });
-        // exists() — is this hotkey still holding a maneuver?
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "exists");
-                return LuaValue.valueOf(action(h.user, h.slot) != null);
-            }
-        });
-        // info() — the one SNAPSHOT escape hatch.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaDeckCard h = handle(self, "info");
+        // info() — the one SNAPSHOT escape hatch: {key?, res?, name?, used}, nil for an empty place (the Slot shape).
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaDeckCard h = handle(Args.only(a, 0, "card:info"), "info");
                 return snapshot(h.user, h.slot);
             }
         });
@@ -234,26 +228,22 @@ public final class LuaDeckCard {
     private static LuaDeckCard handle(LuaValue self, String method) {
         LuaDeckCard h = resolve(self);
         if(h == null)
-            throw new LuaError("card:" + method + "() — use a COLON call on a DeckCard object"
-                + " (" + CharApi.FT + ":deck():list()[i])");
+            throw new LuaError("card:" + method + "() — use a COLON call on a DeckCard object ("
+                + CharApi.FD + ":get(n), " + CharApi.FD + ":list()[n])");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** <b>That character's</b> loaded school's layout, copied under the UI monitor (its entries are reassigned there). */
-    static FightWnd.Action[] order(String user) {
+    /** How many places that character's layout has: {@code order} is final and fixed-length, {@code 0} with no tab. */
+    private static int places(String user) {
         FightWnd fw = CharApi.fightwnd(user);
-        if(fw == null)
-            return new FightWnd.Action[0];
-        synchronized(LuaWidget.monitor(fw)) {
-            return Arrays.copyOf(fw.order, fw.order.length);
-        }
+        return (fw == null) ? 0 : fw.order.length;
     }
 
     /**
      * The maneuver dealt into {@code slot} of {@code user}'s deck, or {@code null} for an empty or vanished
-     * slot — one element read under the monitor, never a copy of the whole layout per verb.
+     * place — one element read under the monitor, never a copy of the whole layout per verb.
      */
     private static FightWnd.Action action(String user, int slot) {
         FightWnd fw = CharApi.fightwnd(user);
@@ -263,26 +253,6 @@ public final class LuaDeckCard {
             FightWnd.Action[] order = fw.order;
             return ((slot < 0) || (slot >= order.length)) ? null : order[slot];
         }
-    }
-
-    /**
-     * The 1-based position of {@code slot} in {@code s:fight():deck():list()} — how many filled slots there
-     * are up to and including it — or {@code 0} for a slot that is empty and therefore in no list.
-     *
-     * <p>The two counts of the layout meet here and nowhere else: {@link #deck}'s {@code members()} adds a
-     * card only for a filled slot, so counting the filled ones is what makes
-     * {@code deck():list()[n]:index() == n} true rather than true only for a deck with no gaps in it.
-     */
-    private static int position(String user, int slot) {
-        FightWnd.Action[] order = order(user);
-        if((slot < 0) || (slot >= order.length) || (order[slot] == null))
-            return 0;
-        int n = 0;
-        for(int i = 0; i <= slot; i++) {
-            if(order[i] != null)
-                n++;
-        }
-        return n;
     }
 
     /**
@@ -296,44 +266,44 @@ public final class LuaDeckCard {
         return ((keys != null) && (slot >= 0) && (slot < keys.length)) ? keys[slot] : null;
     }
 
-    /** The documented {@code DeckCard} snapshot; the maneuver half is absent while the slot is empty. */
+    /**
+     * The documented {@code DeckCard} snapshot, content only: {@code nil} for an empty place, whose place is read
+     * live by {@code :index()} and {@code :wire()}.
+     */
     private static LuaValue snapshot(String user, int slot) {
+        FightWnd.Action a = action(user, slot);
+        if(a == null)
+            return LuaValue.NIL;
         LuaTable t = new LuaTable();
-        t.set("slot", LuaValue.valueOf(slot));
-        String k = keyLabel(slot);             // absent for a slot the window paints no label under, as :key() is
+        String k = keyLabel(slot);             // absent for a place the window paints no label under, as :key() is
         if(k != null)
             t.set("key", LuaValue.valueOf(k));
-        FightWnd.Action a = action(user, slot);
-        if(a != null) {
-            String res = AddonManager.resIdent(a.res);
-            if(res != null)
-                t.set("res", LuaValue.valueOf(res));
-            String nm = AddonManager.resTipName(a.res, null);
-            if(nm != null)
-                t.set("name", LuaValue.valueOf(nm));
-            t.set("used", LuaValue.valueOf(a.u));
-        }
+        String res = AddonManager.resIdent(a.res);
+        if(res != null)
+            t.set("res", LuaValue.valueOf(res));
+        String nm = AddonManager.resTipName(a.res, null);
+        if(nm != null)
+            t.set("name", LuaValue.valueOf(nm));
+        t.set("used", LuaValue.valueOf(a.u));
         return t;
     }
 
     // ---- the layout ---------------------------------------------------------------------------------
 
     /**
-     * {@code s:fight():deck()} — the filled hotkey slots of the school <b>that character</b> has loaded, in
-     * key order. A collection with no {@code :get} (§2.3: a layout is ordered by hotkey and carries no
-     * key to address a slot by), searched by the maneuver's own name. An empty slot is omitted; the card's own
-     * {@code :wire()} and {@code :key()} carry the position, so the gap is never ambiguous. Empty before that
-     * character's schools tab has built.
+     * {@code s:fight():deck()} — every hotkey place of the school <b>that character</b> has loaded, in hotkey
+     * order, every one of them a DeckCard whatever it holds; none before that character's schools tab has
+     * built. {@code :get(n)} takes the hotkey number and answers {@code nil} outside the layout, {@code 0}
+     * included. A string filter matches the dealt maneuver's own needle, the one {@code s:fight():maneuver()}
+     * matches, and an empty place matches none. Minted once per (addon, session) by {@code CharApi.fight}.
      */
     static LuaValue deck(final Addon owner, final String user) {
-        return LuaCollection.create(CharApi.FT + ":deck()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.FD, new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<LuaValue> out = new ArrayList<LuaValue>();
-                FightWnd.Action[] order = order(user);
-                for(int slot = 0; slot < order.length; slot++) {
-                    if(order[slot] != null)
-                        out.add(of(owner, user, slot));
-                }
+                int n = places(user);
+                List<LuaValue> out = new ArrayList<LuaValue>(n);
+                for(int slot = 0; slot < n; slot++)
+                    out.add(of(owner, user, slot));
                 return out;
             }
 
@@ -347,17 +317,28 @@ public final class LuaDeckCard {
                 // METHOD, so a filter written that way would silently match nothing.
                 //   audit2 B16 (fg-09): and it is the MANEUVER'S own needle, res-plus-name, which is what
                 // s:fight():maneuver():find takes. A card names the maneuver in it, so one filter string had
-                // better find the same maneuver through both doors -- this one matched the display name
-                // alone, so deck():find("paginae/atk/...") found nothing the maneuvers found.
+                // better find the same maneuver through both doors. An EMPTY place has no maneuver: it matches
+                // no string filter rather than refusing the filter.
                 LuaDeckCard h = resolve(member);
                 FightWnd.Action a = (h == null) ? null : action(h.user, h.slot);
                 return (a == null) ? null : LuaManeuver.needleOf(a);
             }
 
-            public String noGet() {
-                return "a deck card has no key: it is a layout ordered by hotkey, so"
-                    + " session:fight():deck():find(filter) is the search and :list()[n] takes a position"
-                    + " — card:index() is that same position back";
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                int n = Args.integer(key, CharApi.FD + ":get", "n", "the hotkey number card:index() answers;"
+                                     + " a manoeuvre is a search, " + CharApi.FD + ":find(filter)");
+                if((n < 1) || (n > places(user)))
+                    return LuaValue.NIL;
+                return of(owner, user, n - 1);
+            }
+
+            /** The key is the hotkey number {@code card:index()} answers. */
+            public String keyName() {
+                return "n";
             }
         }, null);
     }
