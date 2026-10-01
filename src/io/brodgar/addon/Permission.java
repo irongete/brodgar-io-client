@@ -101,6 +101,10 @@ public enum Permission {
     FIGHT_GIVE       ("fight.give",         "session:fight():give",           "click the give button beside an"
                                                                               + " opponent's portrait, in the fights"
                                                                               + " of any of your characters"),
+    FIGHT_LOAD       ("fight.load",         "school:load",                    "load a saved combat school, on any of"
+                                                                              + " your characters"),
+    FIGHT_SAVE       ("fight.save",         "school:save",                    "save the combat-school layout into a"
+                                                                              + " slot, on any of your characters"),
     KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
     KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),

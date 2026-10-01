@@ -108,10 +108,11 @@ The tab's save list: one School per slot the server gives that character, in the
 |---|---|
 | `:get(n)` | Takes the 1-based position. Any other number answers `nil`, `0` included, and so does every `n` before the tab has built. A string raises, naming `:find(filter)`. |
 | `filter` | A string [filter](conventions.md#the-filter-argument) matches the name, and an unused slot matches none. A name is a search, never a key: names are the player's and need not be unique. |
-| `:current()` | The school the tab marks with a check, compared with `==`: `session:fight():school():current() == school`. It can be an unused slot, since the tab marks the first until the server names one. `:current(x)` raises. |
+| `:current()` | The school the tab marks with a check, compared with `==`: `session:fight():school():current() == school`. It can be an unused slot, since the tab marks the first until the server names one. `:current(x)` raises: loading one is [`school:load()`](#write-protected). |
 | The name | A used slot the server sent no name for reads `"Saved school n"`, as the tab paints it. A rename typed into the tab reads at once, before a save carries it. |
 | An unused slot | `:empty()` is `true`, and `:name()` and `:info()` are `nil`. |
 | Identity | Interned on character and position: `session:fight():school():get(1) == session:fight():school():list()[1]`, and `session:fight():school()` is the same object every call. |
+| Loading and saving | [`school:load()` and `school:save()`](#write-protected), under `fight.load` and `fight.save`. |
 
 ```lua
 local schools = hafen.session():current():fight():school()
@@ -213,7 +214,7 @@ The place a combat key presses: `session:fight():action():get(n)` is the one "Co
 | Rule | Detail |
 |---|---|
 | Ten places, always | `:list()` is ten actions and `:get(n)` takes `1` to `10`: the client's ten combat keys. `:get(0)` raises naming `action:wire()`, and a position past ten names the range. A place past the server's row is `:empty()`. |
-| The fight's row, not the deck | What the server put up for this fight. `session:fight():deck()` is the schools tab's layout, which the tab keeps to itself until it is saved. |
+| The fight's row, not the deck | What the server put up for this fight. `session:fight():deck()` is the schools tab's layout, which the tab keeps to itself until it is saved ([`school:save()`](#write-protected)). |
 | An empty place | Every reader but `:index()`, `:wire()` and `:empty()` answers `nil`. |
 | `filter` | A string matches the manoeuvre's resource and display name, as on `:maneuver()`, so one needle finds the same manoeuvre through either door. |
 | Identity | Interned on character and place: `session:fight():action():get(1) == session:fight():action():list()[1]`. A stashed action follows its key from fight to fight. |
@@ -230,17 +231,20 @@ The client sends only shapes a player could compose.
 | `session:fight():opponent():set(opponent)` | the collection | `fight.set` | Make that opponent the target, as the client's "Switch targets" key does. |
 | `session:fight():pursue(opponent)` | `session:fight()` | `fight.pursue` | Press Pursue beside that opponent's portrait. |
 | `session:fight():give(opponent, button)` | `session:fight()` | `fight.give` | Click the give button beside that opponent's portrait. |
+| `school:load()` | the `School` | `fight.load` | Load that school, as selecting it in the tab and pressing Load does. |
+| `school:save()` | the `School` | `fight.save` | Save the tab's layout into that slot, as selecting it and pressing Save does. |
 
 | Rule | Detail |
 |---|---|
 | Permission | Each key [declared](../guides/permissions.md) in your manifest, or the group `fight.*`. An undeclared key raises naming it. One key covers every character ([a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target)). |
 | A tap | The row's `use` and then its release, sent back to back from that character's combat row: the key pressed and let go. There is no verb for holding one down. |
+| A load or a save | The tab's `load` or `save` and then its `use`, sent back to back from that character's tab with the school's `school:wire()`: the button pressed with that slot selected. A save carries the slot, the school's name when it has one, and the layout the tab holds, which `session:fight():deck()` reads. An unused slot is saved into, and takes the name the server gives it. |
 | `mods` | Optional and first: Shift = 1, Ctrl = 2, Alt = 4, as for [`slot:use(mods)`](actionbar.md#write-protected). The client's own keys for actions 6 to 10 are Shift+`1` to Shift+`5`, so pressing one of them carries Shift. |
 | `position` | Optional and second: a [Position](position.md) in that character's world, the ground the client adds when a key is pressed with the pointer over the map. `action:use(0, position)` passes one without modifiers. |
 | The opponent | `:set` takes an `Opponent` or its gob id, the key `:get` takes, as [`session:speed():set`](speed.md#write-protected) takes what its `:get` takes. `:pursue` and `:give` take the `Opponent`. |
 | `button` | Optional: `1`, the default, is the left button and `3` the right, as a click on the give button sends. What each does is the server's. |
-| Raises before anything is sent | An addon that did not declare the verb's key, naming it. A surplus argument. For `action:use`: a `mods` that is not a whole number `0..7`, a `position` that is not a Position, no fight, an empty action (`action:empty()`) and one past the server's row. For the three that take an opponent: anything but an `Opponent` (or, for `:set`, its gob id), one of another character's fight, one that character no longer fights (`opponent:exists()` is `false`), and a `button` outside `1..3`. |
-| Asynchronous | The server answers every write. A use: the cooldowns start, [`ManeuverUsed`](event/bus/fight.md) fires and `session:fight():last()` names it. A switch: `:current()` answers the old target until then, and [`OpponentSelected`](event/bus/fight.md) fires when it moves. Nothing moves when the server refused one. |
+| Raises before anything is sent | An addon that did not declare the verb's key, naming it. A surplus argument. For `action:use`: a `mods` that is not a whole number `0..7`, a `position` that is not a Position, no fight, an empty action (`action:empty()`) and one past the server's row. For the three that take an opponent: anything but an `Opponent` (or, for `:set`, its gob id), one of another character's fight, one that character no longer fights (`opponent:exists()` is `false`), and a `button` outside `1..3`. For `school:load()` and `school:save()`: no tab yet (`session:fight():school():current()` is `nil`), a school past that character's save list, and, for `:load()`, an unused school (`school:empty()`). |
+| Asynchronous | The server answers every write. A use: the cooldowns start, [`ManeuverUsed`](event/bus/fight.md) fires and `session:fight():last()` names it. A switch: `:current()` answers the old target until then, and [`OpponentSelected`](event/bus/fight.md) fires when it moves. A load or a save: `session:fight():school():current()`, the names and `session:fight():deck()` read what they did until its answer arrives. Nothing moves when the server refused one. |
 | The outbound stream sees them | Every message passes [`hafen.event():action()`](event/streams.md#intercepting-an-outbound-action) like the client's own, so a handler can stop or rewrite it. |
 
 ---

@@ -79,7 +79,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | What needs `1.1` | [`hafen.ui():keybinding()`](api/ui/controls/interactive.md#key-button), the key button. |
 | What needs `1.2` | [`gob:outline(color, width)`](api/look.md#outline-unprotected), the ring round an object. |
 | What needs `1.3` | The fight in progress on [`session:fight()`](api/fight.md#the-fight-in-progress): its opponents and their numbers, its combat row and cooldowns, the manoeuvres used, its [openings](api/fight.md#an-opening), [the writes](api/fight.md#write-protected) that use an action, switch the target, pursue and give, and [the fight events](api/event/bus/fight.md). |
-| What needs `1.4` | The [saved schools](api/fight.md#schools) on `session:fight()`: `:school()`, its `:current()` and every School verb. The deck's [`:get(n)`](api/fight.md#a-deck-card) and `card:empty()`. Everything else these pages describe is in `1.0`. |
+| What needs `1.4` | The [saved schools](api/fight.md#schools) on `session:fight()`: `:school()`, its `:current()` and every School verb, among them [the writes](api/fight.md#write-protected) `school:load()` and `school:save()`. The deck's [`:get(n)`](api/fight.md#a-deck-card) and `card:empty()`. Everything else these pages describe is in `1.0`. |
 
 | You declare | On this client | Your addon |
 |---|---|---|

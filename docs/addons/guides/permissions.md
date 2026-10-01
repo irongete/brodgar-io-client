@@ -35,6 +35,8 @@ One key per protected action, named `<section>.<verb>` after the section the ver
 | `fight.set` | [`session:fight():opponent():set`](../api/fight.md#write-protected) | switch the target, in the fights of any of your characters |
 | `fight.pursue` | [`session:fight():pursue`](../api/fight.md#write-protected) | press Pursue beside an opponent's portrait, in the fights of any of your characters |
 | `fight.give` | [`session:fight():give`](../api/fight.md#write-protected) | click the give button beside an opponent's portrait, in the fights of any of your characters |
+| `fight.load` | [`school:load`](../api/fight.md#write-protected) | load a saved combat school, on any of your characters |
+| `fight.save` | [`school:save`](../api/fight.md#write-protected) | save the combat-school layout into a slot, on any of your characters |
 | `kin.add` | [`session:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
 | `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on any of your characters' kin lists |
 | `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group, on any of your characters |
@@ -78,7 +80,7 @@ A `<prefix>.*` entry stands for every key under that prefix.
 | `world.*` | `world.place`, `world.select` |
 | `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
 | `actionbar.*` | `actionbar.use`, `actionbar.res`, `actionbar.clear` |
-| `fight.*` | `fight.use`, `fight.set`, `fight.pursue`, `fight.give` |
+| `fight.*` | `fight.use`, `fight.set`, `fight.pursue`, `fight.give`, `fight.load`, `fight.save` |
 | `player.*` | `player.move`, `player.hand.use` |
 | `player.hand.*` | `player.hand.use` |
 | `widget.*` | `widget.send`, `widget.value` |
@@ -160,7 +162,7 @@ end)
 | Rule | Detail |
 |---|---|
 | The server is the authority | An addon sends what a click could have sent and finds out what happened by watching the world. A refused action is refused server-side with nothing to catch. |
-| Some of it outlives the addon | `slot:res(name)` and `slot:clear()` write the character's bar on the server: disabling, `:reload` and logout put nothing back. The user undoes it in the game. [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) is unprotected beside them because the server's content comes back untouched. |
+| Some of it outlives the addon | `slot:res(name)` and `slot:clear()` write the character's bar on the server, and `school:save()` the school saved in that slot: disabling, `:reload` and logout put nothing back. The user undoes it in the game. [`slot:hold(pagina)`](../api/actionbar.md#hold-a-slot-unprotected) is unprotected beside them because the server's content comes back untouched. |
 
 ## Network: one key, and the hosts are its argument
 

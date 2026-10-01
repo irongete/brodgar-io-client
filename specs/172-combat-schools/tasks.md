@@ -50,7 +50,7 @@
 
   `[manual]`: open the same tab. The expected result is the printed manoeuvre under each hotkey, and the empty ones empty.
 
-- [ ] **172.3 — An addon loads and saves a combat school as the tab's buttons do, under fight.load and fight.save.**
+- [x] **172.3 — An addon loads and saves a combat school as the tab's buttons do, under fight.load and fight.save.**
   - **`LuaSchool`:** `school:load()` and `school:save()`, gated first, sent through `Wire.send` with `FightWnd`'s own `load`/`save` then `use`, and refused as `plan.md` lists. `:current(x)`'s refusal names `school:load()` from here on.
   - **`Permission`:** `FIGHT_LOAD` and `FIGHT_SAVE`.
   - **Pages:**

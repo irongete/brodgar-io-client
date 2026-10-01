@@ -33,6 +33,12 @@ import java.util.Map;
  * <p><b>The name is the one the tab paints</b>, read through {@code FightWnd.savename}, the {@code addon:}
  * reader of its private {@code saves[]}: {@code null} for an unused slot, and the server's name or the tab's
  * "Saved school n" for a used one. A rename typed into the tab reads at once, before any save carries it.
+ *
+ * <p><b>The two writes are the tab's own buttons</b> (172.3): {@code school:load()} ({@code fight.load}) and
+ * {@code school:save()} ({@code fight.save}) call {@code FightWnd.load} or {@code FightWnd.save} and then
+ * {@code FightWnd.use} with this slot, back to back inside one {@link Wire#send}, which is what Load and Save
+ * send with the slot selected. {@code save} composes the slot, the name of a used one and the layout the tab
+ * holds itself, so it is wrapped and never re-encoded.
  */
 public final class LuaSchool {
     /** The account whose save list this slot is in. */
@@ -181,7 +187,67 @@ public final class LuaSchool {
                 return t;
             }
         });
+        // load() — 172.3, protected ("fight.load"), gated FIRST (D-213): the tab's Load button with this slot
+        // selected, FightWnd's own load(n) and then use(n), back to back inside one Wire.send. An unused slot holds
+        // nothing to load, so it is refused rather than sent, as the tab's double-click never sends one. Returns
+        // the school.
+        m.set("load", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_LOAD);
+                LuaValue self = Args.only(a, 0, "school:load");
+                LuaSchool h = handle(self, "load");
+                final FightWnd fw = tab(h.user, "school:load");
+                final int n = h.slot;
+                // The dispatch re-reads the slot under the monitor Wire holds: "saved" rewrites the names
+                // off-thread, and the slot may have been emptied since the caller looked.
+                Wire.send(h.user, "school:load", fw, "load", new Object[] {Integer.valueOf(n)}, () -> {
+                    within(fw, n, "school:load");
+                    if(fw.savename(n) == null)
+                        throw new LuaError("school:load(): school " + (n + 1) + " is unused, so there is nothing"
+                            + " saved in it to load (check school:empty() first). Nothing was sent.");
+                    fw.load(n);
+                    fw.use(n);
+                });
+                return self;
+            }
+        });
+        // save() — 172.3, protected ("fight.save"), gated FIRST (D-213): the tab's Save button with this slot
+        // selected, FightWnd's own save(n) and then use(n), back to back inside one Wire.send. save(n) composes the
+        // slot, the name of a used one and the layout the tab holds, so nothing is composed here and Wire gets no
+        // arguments to check. An unused slot is saved into, taking the name the server gives it. Returns the
+        // school.
+        m.set("save", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.FIGHT_SAVE);
+                LuaValue self = Args.only(a, 0, "school:save");
+                LuaSchool h = handle(self, "save");
+                final FightWnd fw = tab(h.user, "school:save");
+                final int n = h.slot;
+                Wire.send(h.user, "school:save", fw, "save", null, () -> {
+                    within(fw, n, "school:save");
+                    fw.save(n);
+                    fw.use(n);
+                });
+                return self;
+            }
+        });
         return m;
+    }
+
+    /** That character's tab, or the refusal of {@code verb}: there is nothing to send through before it builds. */
+    private static FightWnd tab(String user, String verb) {
+        FightWnd fw = CharApi.fightwnd(user);
+        if(fw == null)
+            throw new LuaError(verb + "(): that character's combat-schools tab has not built (" + CharApi.FS
+                + ":current() is nil). Nothing was sent.");
+        return fw;
+    }
+
+    /** Refuse {@code verb} on a slot past this tab's save list: a school stashed from a tab that had more. */
+    private static void within(FightWnd fw, int slot, String verb) {
+        if(slot >= fw.nsave)
+            throw new LuaError(verb + "(): school " + (slot + 1) + " is past that character's save list of "
+                + fw.nsave + " (" + CharApi.FS + ":count()). Nothing was sent.");
     }
 
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */
@@ -226,9 +292,10 @@ public final class LuaSchool {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), CharApi.FS, "current");
                 if(Args.passed(a, 2))
-                    throw new LuaError(CharApi.FS + ":current() takes no argument — it ADDRESSES the school the"
-                        + " tab marks as loaded, and a member address is not a property to write: loading one is"
-                        + " the tab's Load button");
+                    throw new LuaError(CharApi.FS + ":current() takes no argument — loading a school is"
+                        + " school:load(), under the \"fight.load\" permission. :current() ADDRESSES the school the"
+                        + " tab marks as loaded, and a member address is not a property to write: "
+                        + CharApi.FS + ":get(n):load()");
                 FightWnd fw = CharApi.fightwnd(user);
                 if(fw == null)
                     return LuaValue.NIL;

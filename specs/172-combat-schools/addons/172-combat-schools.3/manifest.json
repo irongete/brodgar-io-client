@@ -1,0 +1,10 @@
+{
+  "name": "172.3 — loading and saving a combat school",
+  "id": "172-combat-schools.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 172.3: school:load() and school:save() send what the tab's Load and Save buttons send (load or save, then use, with the school's wire), take no argument, refuse an unused school's load naming school:empty(), and :current(x) names school:load(). Every send is cancelled before it reaches the server.",
+  "api_version": "1.4",
+  "permissions": ["fight.load", "fight.save"],
+  "files": ["main.lua"]
+}
