@@ -1,0 +1,9 @@
+{
+  "name": "172.1 — the saved combat schools",
+  "id": "172-combat-schools.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 172.1: the combat-schools tab's save list is read as a collection of School objects with the loaded one as :current(), a school is empty exactly when it has no name, the summary keeps only the budget, and API 1.4 loads.",
+  "api_version": "1.4",
+  "files": ["main.lua"]
+}

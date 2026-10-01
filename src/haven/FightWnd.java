@@ -599,6 +599,10 @@ public class FightWnd extends Widget {
 	wdgmsg("use", n);
     }
 
+    // addon: 172 -- the saved schools' names live in the private saves[], so this is the one reader of
+    // them (session:fight():school()): null for an unused slot, by the tab's own test.
+    public String savename(int n) {return((saves[n] == unused) ? null : saves[n].text);}
+
     private Text unused = new Text.Foundry(attrf.font.deriveFont(java.awt.Font.ITALIC)).aa(true).render("Unused save");
     public FightWnd(int nsave, int nact, int max) {
 	super(Coord.z);

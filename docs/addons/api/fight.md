@@ -1,6 +1,6 @@
 # session:fight: Combat Schools and the Fight in Progress
 
-One character's manoeuvre-deck builder (its Martial Arts and Combat Schools tab) and the fight it is in, reached through its [session](session.md). It answers what the character knows, what its loaded school has dealt to each hotkey and what that costs, and, while it fights, every opponent, the numbers the fight paints between you, the openings drawn beside each side, the combat row with its cooldowns and the manoeuvre each side used last.
+One character's manoeuvre-deck builder (its Martial Arts and Combat Schools tab) and the fight it is in, reached through its [session](session.md). It answers what the character knows, its saved schools, what the loaded one has dealt to each hotkey and what that costs, and, while it fights, every opponent, the numbers the fight paints between you, the openings drawn beside each side, the combat row with its cooldowns and the manoeuvre each side used last.
 
 ```lua
 local session = hafen.session():current()                      -- the character on screen
@@ -18,9 +18,9 @@ end)
 
 | Rule | Detail |
 |---|---|
-| One character's | Every character configures its own deck against its own budget and fights its own fight: `hafen.session():get("alt"):fight():opponent():current()` answers about the alt. A hotkey slot and an opponent's gob id count inside one character, so a `DeckCard` and an `Opponent` carry their character beside their key. |
+| One character's | Every character configures its own deck against its own budget and fights its own fight: `hafen.session():get("alt"):fight():opponent():current()` answers about the alt. A hotkey slot, a school's slot and an opponent's gob id count inside one character, so a `DeckCard`, a `School` and an `Opponent` carry their character beside their key. |
 | `opponent:gob()` answers in the login asked through | That character's own world, where the id came from: `opponent:gob():exists()` is that character's line of sight, not the screen's. |
-| Before the tab has built, and out of a fight | `:maneuver():list()` and `:deck():list()` are empty and `:summary()` is `nil` until the tab has built. Out of a fight, `:opponent()` and `:opening()` are empty, every `:action()` is `:empty()`, and `:opponent():current()`, `:cooldown()` and `:last()` are `nil`. |
+| Before the tab has built, and out of a fight | `:maneuver():list()`, `:deck():list()` and `:school():list()` are empty, and `:summary()` and `:school():current()` are `nil`, until the tab has built. Out of a fight, `:opponent()` and `:opening()` are empty, every `:action()` is `:empty()`, and `:opponent():current()`, `:cooldown()` and `:last()` are `nil`. |
 | Reads are unprotected | Nothing throws, and the verbs that act are under [Write (protected)](#write-protected). The opponents, the manoeuvres used, the openings and the combat row fire [the fight events](event/bus/fight.md), and the schools are read on demand. |
 
 ## Read
@@ -31,7 +31,9 @@ end)
 | `session:fight():maneuver():count(filter)` | `number` | Unprotected | How many match. |
 | `session:fight():maneuver():find(filter)` | `Maneuver \| nil` | Unprotected | The first that matches. |
 | `session:fight():deck()` | collection | Unprotected | The loaded school's layout, the filled hotkey slots: `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
-| `session:fight():summary()` | `FightSummary \| nil` | Unprotected | The action-point budget and the saved-school slots. |
+| `session:fight():summary()` | `FightSummary \| nil` | Unprotected | The action-point budget and the deck's size. |
+| `session:fight():school()` | collection | Unprotected | The tab's save list: [School](#schools) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`, `:get(n)`. |
+| `session:fight():school():current()` | `School \| nil` | Unprotected | The school the tab marks as loaded. `nil` before the tab has built. |
 
 | Rule | Detail |
 |---|---|
@@ -73,12 +75,39 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 | `summary:used()` | `number \| nil` | Unprotected | Action points the loaded school spends: the total the window paints beside the cap, the sum of `maneuver:used()` over every known manoeuvre. |
 | `summary:maxActions()` | `number \| nil` | Unprotected | The action-point budget. |
 | `summary:deckSize()` | `number \| nil` | Unprotected | How many hotkey slots the deck has. |
-| `summary:saveCount()` | `number \| nil` | Unprotected | How many saved-school slots that character keeps. |
-| `summary:activeSave()` | `number \| nil` | Unprotected | Which of them is loaded, 0-based. |
 | `summary:exists()` | `boolean` | Unprotected | Whether that character's tab is still up. |
 | `summary:info()` | [`FightSummary`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. |
 
 [`session:study():summary()`](study.md#the-summary) is a summary of the same kind. It is a live object with its own `:exists()` and `:info()`, interned on its window, `nil` while the window is not up.
+
+## Schools
+
+The tab's save list: one School per slot the server gives that character, in the list's order, whether the slot holds a school or not.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `school:index()` | `number` | Unprotected | Its 1-based position in the save list, the `n` of `:get(n)`. Always answers. |
+| `school:wire()` | `number` | Unprotected | The server's 0-based slot number. Always answers. |
+| `school:empty()` | `boolean` | Unprotected | Whether the slot is unused. Always answers. |
+| `school:name()` | `string \| nil` | Unprotected | The name the tab paints. `nil` when empty. |
+| `school:info()` | [`School`](types/fight.md#school) `\| nil` | Unprotected | A plain-table snapshot. `nil` when empty. |
+
+| Rule | Detail |
+|---|---|
+| `:get(n)` | Takes the 1-based position. Any other number answers `nil`, `0` included, and so does every `n` before the tab has built. A string raises, naming `:find(filter)`. |
+| `filter` | A string [filter](conventions.md#the-filter-argument) matches the name, and an unused slot matches none. A name is a search, never a key: names are the player's and need not be unique. |
+| `:current()` | The school the tab marks with a check, compared with `==`: `session:fight():school():current() == school`. It can be an unused slot, since the tab marks the first until the server names one. `:current(x)` raises. |
+| The name | A used slot the server sent no name for reads `"Saved school n"`, as the tab paints it. A rename typed into the tab reads at once, before a save carries it. |
+| An unused slot | `:empty()` is `true`, and `:name()` and `:info()` are `nil`. |
+| Identity | Interned on character and position: `session:fight():school():get(1) == session:fight():school():list()[1]`, and `session:fight():school()` is the same object every call. |
+
+```lua
+local schools = hafen.session():current():fight():school()
+for _, school in ipairs(schools:list()) do
+  local mark = (school == schools:current()) and " (loaded)" or ""
+  hafen.log():write(school:index() .. ": " .. (school:name() or "unused") .. mark)
+end
+```
 
 ## The fight in progress
 

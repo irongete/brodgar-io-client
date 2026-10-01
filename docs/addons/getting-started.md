@@ -22,12 +22,12 @@ The folder name is the addon's id, and `manifest.json` repeats it:
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
-  "api_version": "1.3",
+  "api_version": "1.4",
   "files": ["main.lua"]
 }
 ```
 
-The current API version is `1.3`.
+The current API version is `1.4`.
 
 `id` and `files` are required. `api_version` names the API you wrote against, the one these pages describe. Without it the client leaves your addon out as out of date. The rest is what the [AddOns manager](panel.md) shows. Every field is in [the manifest](manifest.md).
 
@@ -142,7 +142,7 @@ The client fills the table from disk when you name it and writes it back for you
   "version": "0.1.0",
   "author": "you",
   "description": "My first addon.",
-  "api_version": "1.3",
+  "api_version": "1.4",
   "files": ["main.lua"]
 }
 ```

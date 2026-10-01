@@ -132,6 +132,8 @@ final class CharApi {
     static final String FO = "session:fight():opponent()";
     /** {@code s:fight():action()} — the combat row of the fight in progress (170.3). */
     static final String FA = "session:fight():action()";
+    /** {@code s:fight():school()} — the saved schools of the combat-schools tab (172.1). */
+    static final String FS = "session:fight():school()";
 
     /**
      * <b>The change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -1769,10 +1771,11 @@ final class CharApi {
 
     /**
      * Build the fight section object for {@code (owner, user)} — <b>one character's combat schools, and the
-     * fight it is in</b>, reached as {@code s:fight()} (077.4). Three projections of that character's
+     * fight it is in</b>, reached as {@code s:fight()} (077.4). Four projections of that character's
      * combat-schools tab: {@code :maneuver()} is the collection of what it knows, {@code :deck()} the loaded
      * school's layout as a plain array (§2.3 — a layout is addressed by its own order), {@code :summary()} the
-     * scalars around it. And the fight in progress, off its live combat view (170): {@code :opponent()} every
+     * scalars around it and {@code :school()} the saved schools with the loaded one as {@code :current()}
+     * (172.1). And the fight in progress, off its live combat view (170): {@code :opponent()} every
      * opponent with the target as {@code :current()}, {@code :opening()} the openings drawn beside that character,
      * {@code :action()} the combat row, {@code :cooldown()} the global cooldown and {@code :last()} the
      * manoeuvre that character used last. Two protected actions press a relation box's controls (170.5):
@@ -1785,14 +1788,15 @@ final class CharApi {
      * entering the world.
      *
      * <p><b>077.4: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
-     * shape {@link WorldApi#world} established — so {@code s:fight() == s:fight()} and the maneuver
-     * collection under it is minted once for that pair.
+     * shape {@link WorldApi#world} established — so {@code s:fight() == s:fight()} and every collection under
+     * it is minted once for that pair.
      */
     static LuaValue fight(final Addon owner, final String user) {
         final LuaValue maneuvers = LuaManeuver.collection(owner, user);
         final LuaValue openings = LuaOpening.fightCollection(owner, user);
         final LuaValue opponents = LuaOpponent.collection(owner, user);
         final LuaValue actions = LuaCombatAction.collection(owner, user);
+        final LuaValue schools = LuaSchool.collection(owner, user);
         LuaTable fight = new LuaTable();
         // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
@@ -1815,14 +1819,25 @@ final class CharApi {
                 return LuaDeckCard.deck(owner, user);
             }
         });
-        // summary() — that character's action-point budget and saved-school slots, nil before the tab is built.
+        // summary() — that character's action-point budget, nil before the tab is built.
         fight.set("summary", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "fight", "summary", FT);
                 if(Args.passed(a, 2))
-                    throw new LuaError(FT + ":summary() takes no arguments — the five counts are its own"
-                        + " verbs, and sum:info() is the whole table at once");
+                    throw new LuaError(FT + ":summary() takes no arguments — each count is a verb of its own,"
+                        + " and summary:info() is the whole table at once");
                 return LuaFightSummary.of(owner, fightwnd(user));
+            }
+        });
+        // school() — 172.1: every saved-school slot of THAT character's tab, minted once and handed back by
+        // identity; :current() is the one the tab marks as loaded.
+        fight.set("school", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "fight", "school", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":school() takes no arguments — it IS the collection of the saved"
+                        + " schools: :get(n) addresses one and :current() is the loaded one");
+                return schools;
             }
         });
         // opening() — 170.1: yours in the fight, the list the combat view paints beside THAT character, minted
@@ -2525,10 +2540,10 @@ final class CharApi {
     //              Resource>), a (public int = how many you can slot), u (public int = how many slotted)}.
     //   • order  — public final Action[]: the current school's card LAYOUT, index i → the maneuver bound to
     //              key FightWnd.keys[i] ("1".."5","⇧1".."⇧5"); a null entry is an empty slot.
-    //   • saves[] + usesave/nsave/maxact — the saved schools (names in the PRIVATE saves[], so deferred) plus
-    //              the active slot (usesave), slot count (nsave) and the action-point budget cap (maxact).
-    // All the fields we read are public → zero haven edit (like A9/A8/A7/A6/A4/A2). Read-only; editing/
-    // switching schools (wdgmsg load/save/use, drag, set counts) is the protected Phase-4 tier.
+    //   • saves[] + usesave/nsave/maxact — the saved schools (names in the PRIVATE saves[], read through the
+    //              one addon: reader FightWnd.savename, 172.1) plus the active slot (usesave), slot count
+    //              (nsave) and the action-point budget cap (maxact).
+    // Every other field we read is public. Editing the layout (drag, set counts) is the tab's alone.
     //
     // Threading: the FightWnd.uimsg handlers run on a Loader thread under synchronized(ui): "avail" REPLACES
     // acts wholesale, "used"/"max" mutate act.u / maxact / order[] entries, and Actions.tick re-sorts acts on
@@ -2538,8 +2553,8 @@ final class CharApi {
 
     /** <b>That character's</b> Combat Schools window (its own sheet's "Martial Arts &amp; Combat Schools"
      *  tab — created hidden at login but live), or {@code null} before it exists. Via the public
-     *  {@code CharWnd.fight} field. It is the one funnel {@link LuaManeuver}, {@link LuaDeckCard} and
-     *  {@link LuaFightSummary} resolve through, every call (D-012).
+     *  {@code CharWnd.fight} field. It is the one funnel {@link LuaManeuver}, {@link LuaDeckCard},
+     *  {@link LuaFightSummary} and {@link LuaSchool} resolve through, every call (D-012).
      *
      *  <p>077.4: off {@link #charwnd(String)}, the named session's own sheet, and never off the drawn one.
      *  Two characters configure two schools, and a deck read through {@code s:fight()} is that character's
