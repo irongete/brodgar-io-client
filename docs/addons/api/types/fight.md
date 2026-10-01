@@ -1,6 +1,6 @@
 # Data Types: The Fight
 
-The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the deck's totals, an opponent, and a combat action. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
+The snapshot shapes off the manoeuvre-deck builder and the fight in progress: one manoeuvre, one card in the deck, the deck's totals, an opponent, an opening, and a combat action. Each is what `:info()` copies out of a live object on [`session:fight`](../fight.md). The model is on [the catalogue](README.md).
 
 ```lua
 local summary = hafen.session():current():fight():summary()
@@ -21,6 +21,17 @@ if snapshot then hafen.log():write(snapshot.used .. "/" .. snapshot.maxact .. " 
 ## Opponent
 
 From [`opponent:info()`](../fight.md#an-opponent). `{ id = number, ip = { mine = number, theirs = number }?, give = { mine = boolean, theirs = boolean }?, last = string? }`. `ip`, `give` and `last` are absent once the fight with that opponent has ended, and the snapshot is then `{ id }`; `last` is absent before their first manoeuvre too. Everything about the creature itself is read off its [Gob](../gob.md).
+
+## Opening
+
+From [`opening:info()`](../fight.md#an-opening). `session:fight():opening():list()`, `opponent:opening():list()` and the opening events hand live [`Opening` objects](../fight.md#an-opening), not this table.
+
+| Field | Type | Notes |
+|---|---|---|
+| `res`, `name` | `string` | Resource plus display name. Optional. |
+| `amount` | `number` | `0..1` fraction, the live `opening:amount()`. Content-defined, often absent. |
+| `remaining` | `number` | `0..1` fraction of the run left, the live `opening:remaining()`. Content-defined, often absent, not seconds. |
+| `number` | `number` | Integer overlay. Content-defined, often absent. |
 
 ## CombatAction
 

@@ -1,0 +1,9 @@
+{
+  "name": "171.1 — the opening is its own type",
+  "id": "171-opening-type.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 171.1: a fight's doors and opening events hand Opening objects, the bar hands Buff objects, neither hands the other's, an opening says whose it is and refuses what it does not answer, and buff:opponent() is no verb.",
+  "api_version": "1.3",
+  "files": ["main.lua"]
+}

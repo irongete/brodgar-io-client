@@ -1,6 +1,6 @@
 # session:fight: Combat Schools and the Fight in Progress
 
-One character's manoeuvre-deck builder (its Martial Arts and Combat Schools tab) and the fight it is in, reached through its [session](session.md). It answers what the character knows, what its loaded school has dealt to each hotkey and what that costs, and, while it fights, every opponent, the numbers the fight paints between you, the buffs drawn beside each side, the combat row with its cooldowns and the manoeuvre each side used last.
+One character's manoeuvre-deck builder (its Martial Arts and Combat Schools tab) and the fight it is in, reached through its [session](session.md). It answers what the character knows, what its loaded school has dealt to each hotkey and what that costs, and, while it fights, every opponent, the numbers the fight paints between you, the openings drawn beside each side, the combat row with its cooldowns and the manoeuvre each side used last.
 
 ```lua
 local session = hafen.session():current()                      -- the character on screen
@@ -21,7 +21,7 @@ end)
 | One character's | Every character configures its own deck against its own budget and fights its own fight: `hafen.session():get("alt"):fight():opponent():current()` answers about the alt. A hotkey slot and an opponent's gob id count inside one character, so a `DeckCard` and an `Opponent` carry their character beside their key. |
 | `opponent:gob()` answers in the login asked through | That character's own world, where the id came from: `opponent:gob():exists()` is that character's line of sight, not the screen's. |
 | Before the tab has built, and out of a fight | `:maneuver():list()` and `:deck():list()` are empty and `:summary()` is `nil` until the tab has built. Out of a fight, `:opponent()` and `:opening()` are empty, every `:action()` is `:empty()`, and `:opponent():current()`, `:cooldown()` and `:last()` are `nil`. |
-| Reads are unprotected | Nothing throws, and the verbs that act are under [Write (protected)](#write-protected). The opponents, the manoeuvres used and the combat row fire [the fight events](event/bus/fight.md), a fight's buffs the [opening events](event/bus/character.md#character-and-status), and the schools are read on demand. |
+| Reads are unprotected | Nothing throws, and the verbs that act are under [Write (protected)](#write-protected). The opponents, the manoeuvres used, the openings and the combat row fire [the fight events](event/bus/fight.md), and the schools are read on demand. |
 
 ## Read
 
@@ -89,7 +89,7 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 | `session:fight():action()` | collection | Unprotected | The combat row: ten [actions](#a-combat-action), one per combat key, `:list(filter)`, `:count(filter)`, `:find(filter)`, `:get(n)`. |
 | `session:fight():cooldown()` | `number \| nil` | Unprotected | How much of the global cooldown is left, a [`0..1` fraction](shapes.md#units): `0` when the character can act. `nil` out of a fight. |
 | `session:fight():last()` | `string \| nil` | Unprotected | The resource name of the manoeuvre that character used last. `nil` before its first and out of a fight. |
-| `session:fight():opening()` | collection | Unprotected | Your buffs in the fight: the row of icons the client paints over the map, to the left of that character. Not the buff bar. [Buff](buff.md) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
+| `session:fight():opening()` | collection | Unprotected | Your openings: the row of icons the client paints over the map, to the left of that character. [Opening](#an-opening) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
 
 | Rule | Detail |
 |---|---|
@@ -98,17 +98,7 @@ A card is a place in the layout, not the manoeuvre in it. It keeps answering `:w
 | `:get(gobId)` | Takes a gob id, the one thing the server publishes about an opponent. A miss is `nil`. A string [filter](conventions.md#the-filter-argument) is refused naming the function form: an opponent has no name of its own, and the creature's is `opponent:gob():name()`. |
 | The order | The fight's own: a new opponent joins at the front and the target is moved to the front, so `:list()[1]` is usually the target but not always. The client's "Switch targets" key reorders the list without a message, and no event says so. |
 | `:current()` | The distinguished member, compared with `==`: `session:fight():opponent():current() == opponent`. `:current(x)` raises: switching the target is [`:set(opponent)`](#write-protected). |
-| Only while the client draws them | The icon rows exist while the fight lasts. A debuff of yours that outlasts the fight is no longer drawn once it is over: it is not listed, `buff:exists()` is `false`, and `OpeningRemoved` fires for it when the fight ends. If it is still there when the next fight starts, it is drawn again and fires `OpeningAdded` again. |
-| The same objects as the events | A buff of a fight fires [`OpeningAdded`, `OpeningChanged` and `OpeningRemoved`](event/bus/character.md#character-and-status), and the doors here hand the same interned `Buff`. When the fight with an opponent ends, each of its buffs fires `OpeningRemoved` once. |
-| Whose it is | Each opening event hands the buff, then the opponent it is drawn beside, then the session: `nil` where the buff is yours. `OpeningRemoved` still names the opponent after the fight with them has ended, when [`buff:opponent()`](buff.md) answers `nil`. |
-| Not on the bar | [`session:buff()`](buff.md) is the buff bar alone, and `BuffAdded`, `BuffChanged` and `BuffRemoved` are its events. A buff of a fight never fires them. |
-
-```lua
-hafen.event():on("OpeningAdded", function(buff, opponent, session)
-  local whose = opponent and ("on opponent " .. opponent:id()) or "on you"
-  hafen.log():write((buff:name() or buff:res()) .. " " .. whose)
-end)
-```
+| Openings | Each icon is an [Opening](#an-opening). The target's row is painted to the right of that character, and `opponent:opening()` lists any opponent's while you fight them. |
 
 ## An opponent
 
@@ -120,7 +110,7 @@ end)
 | `opponent:ip()` | [`{mine=, theirs=}`](shapes.md#the-anonymous-shapes) `\| nil` | Unprotected | The initiative the fight paints between you, as whole numbers: `mine` beside your character, `theirs` beside them. |
 | `opponent:give()` | [`{mine=, theirs=}`](shapes.md#the-anonymous-shapes) `\| nil` | Unprotected | The give button beside their portrait, as its two halves: `mine` the left, `theirs` the right. Booleans. |
 | `opponent:last()` | `string \| nil` | Unprotected | The resource name of the manoeuvre they used last. `nil` before their first. |
-| `opponent:opening()` | collection | Unprotected | Their openings: the row of icons the client paints over the map, to the right of your character while they are the target. [Buff](buff.md) objects, a view minted per call. |
+| `opponent:opening()` | collection | Unprotected | Their openings: the row of icons the client paints over the map, to the right of your character while they are the target. [Opening](#an-opening) objects, a view minted per call. |
 | `opponent:info()` | [`Opponent`](types/fight.md#opponent) | Unprotected | A plain-table snapshot. |
 
 | Rule | Detail |
@@ -130,6 +120,39 @@ end)
 | `opponent:gob()` is never `nil` | Like [`session:world():gob():get(id)`](gob.md): ask `opponent:gob():exists()`. |
 | Identity | Interned on character and gob id: `session:fight():opponent():get(id) == session:fight():opponent():get(id)` and `seen[opponent] = true` work. A later fight with the same creature hands back the same object. |
 | Events | [`OpponentAdded`, `OpponentRemoved`, `OpponentChanged` and `OpponentSelected`](event/bus/fight.md) hand this object, and [`ManeuverUsed`](event/bus/fight.md) hands it beside a manoeuvre they used. |
+
+## An opening
+
+One icon the fight draws over the map: beside your character, listed by `session:fight():opening()`, or beside an opponent, listed by `opponent:opening()`.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `opening:res()` | `string \| nil` | Unprotected | The resource name. |
+| `opening:name()` | `string \| nil` | Unprotected | The display name, once the resource has resolved. |
+| `opening:amount()` | `number \| nil` | Unprotected | Its own meter, a [`0..1` fraction](shapes.md#units). |
+| `opening:remaining()` | `number \| nil` | Unprotected | The radial overlay, a [`0..1` fraction](shapes.md#units): how much of its run is left. |
+| `opening:number()` | `number \| nil` | Unprotected | The integer badge drawn on the icon. |
+| `opening:opponent()` | [`Opponent`](#an-opponent) `\| nil` | Unprotected | The opponent it is drawn beside. `nil` for one of yours, and once the fight no longer draws it. |
+| `opening:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that holds it: the crossing back into the tree. The fight keeps that list hidden and paints the icon elsewhere, so the widget does not mark where the icon is drawn. |
+| `opening:exists()` | `boolean` | Unprotected | Whether the fight still draws it. Always answers. |
+| `opening:info()` | [`Opening`](types/fight.md#opening) `\| nil` | Unprotected | A plain-table snapshot. |
+
+| Rule | Detail |
+|---|---|
+| `filter` | A string [filter](conventions.md#the-filter-argument) on either door matches the resource name and the display name. A miss is `nil`. |
+| No `:get` | An opening has no key: two can share a resource, and the server can replace a live opening's resource under it. `session:fight():opening():get(1)` raises: `session:fight():opening() has no verb 'get' — an opening has no key, since two can share a resource and the server can replace one under a live opening: session:fight():opening():find(needle) is the search and session:fight():opening():list()[n] takes a position`. |
+| Identity | Interned per addon: both doors and the events hand the same object, so `seen[opening] = true` works. It re-reads its icon on every call, so a stashed one tracks its meters. |
+| Res-only at first | The display name and the meters arrive in a second server message, so every reader may answer `nil` just after an opening appears. Content-defined: `amount`, `remaining` and `number` are often absent. |
+| Only while the fight draws them | The rows exist while the fight lasts. One of yours that outlasts the fight is no longer drawn once it is over: it is not listed, `opening:exists()` is `false`, and `OpeningRemoved` fires for it when the fight ends. If it is still there when the next fight starts, it is drawn again and fires `OpeningAdded` again. |
+| Once it is gone | `:exists()` is `false` while `:res()`, `:name()` and the meters read the values it had, so an `OpeningRemoved` payload still reads. |
+| Events | [`OpeningAdded`, `OpeningChanged` and `OpeningRemoved`](event/bus/fight.md) hand this object, then the opponent it is drawn beside (`nil` for yours), then the session. `OpeningRemoved` still names the opponent after the fight with them has ended, when `opening:opponent()` answers `nil`. When the fight with an opponent ends, each of its openings fires `OpeningRemoved` once. |
+
+```lua
+hafen.event():on("OpeningAdded", function(opening, opponent, session)
+  local whose = opponent and ("on opponent " .. opponent:id()) or "on you"
+  hafen.log():write((opening:name() or opening:res() or "an opening") .. " " .. whose)
+end)
+```
 
 ## A combat action
 
@@ -187,7 +210,6 @@ The client sends only shapes a player could compose.
 - [Gob](gob.md) — what `opponent:gob()` hands back, and every read on it.
 - [The fight](types/fight.md) — the snapshot shapes `:info()` returns.
 - [The fight events](event/bus/fight.md) — an opponent coming and going, its numbers moving, the target changing, a manoeuvre used, the combat row changing.
-- [`session:buff`](buff.md) — the buff bar, and the `Buff` a fight's buffs are too.
 - [`session:actionbar`](actionbar.md) — the other hotkey surface.
 - [Permissions](../guides/permissions.md) — the `fight.*` keys.
 - [`session:char`](char.md) — the skills that unlock manoeuvres.

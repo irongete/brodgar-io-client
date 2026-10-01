@@ -3,8 +3,6 @@ package io.brodgar.addon;
 import haven.AddonWidgets;
 import haven.Buff;
 import haven.Bufflist;
-import haven.Fightsess;
-import haven.Fightview;
 import haven.GameUI;
 import haven.GItem;
 import haven.ItemInfo;
@@ -26,10 +24,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Buff object</b> — one buff the client draws for a character (spec {@code 025-buffs-oop}): on its buff
- * bar, and (170.1) in a fight, where the combat view paints the buffs beside the character and beside each
- * opponent from lists of its own. The OOP successor of the flat {@code hafen.buffs.list()}/{@code has()}
- * snapshot reader. Built on exactly the
+ * A <b>Buff object</b> — one buff on a character's buff bar (spec {@code 025-buffs-oop}), the OOP
+ * successor of the flat {@code hafen.buffs.list()}/{@code has()} snapshot reader. Built on exactly the
  * mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023) and
  * {@link LuaSound} (024) established; <b>the section object IS the buff bar</b> (uniform grammar §2.1):
  * {@code s:buff()} is the collection of the active buffs and {@code s:buff():find(needle)} is one of
@@ -53,9 +49,14 @@ import java.util.Map;
  * {@code res} or its {@code info}. So a Buff whose widget is gone keeps answering {@code :res()}/{@code
  * :name()}/… and reports {@code :exists()} <b>false</b> — the staleness question {@link LuaSound}
  * deliberately has no answer for (D-060), and which a buff, having a lifetime, does. {@code :exists()} is
- * exactly the predicate every door's {@code :list()} filters on: a child of a list the client draws, the list
- * standing in the tree, and the buff not fading out after a server removal ({@code Buff.dest}, via
- * {@link AddonWidgets#buffDest}) — see {@link #active}.
+ * exactly the predicate {@code :list()} filters on: a child of the bar, the bar standing in the tree, and the
+ * buff not fading out after a server removal ({@code Buff.dest}, via {@link AddonWidgets#buffDest}) — see
+ * {@link #active}.
+ *
+ * <p><b>The bar's alone</b> (171). The combat view draws its icons with the same widget class, in lists of its
+ * own; those are {@link LuaOpening} objects, a type of their own. The widget readers below ({@link #res},
+ * {@link #name}, {@link #amount}, {@link #duration}, {@link #number}) and the list helpers ({@link #barOf},
+ * {@link #holds}, {@link #live}) are shared with it as code: the two types share no verb.
  *
  * <p><b>Every read is {@code Loading}-guarded and may answer {@code nil}.</b> {@code Buff.info()} throws
  * {@code Loading} and is empty until the first {@code "tt"} lands, so a brand-new buff is routinely
@@ -249,27 +250,19 @@ public final class LuaBuff {
         });
         // widget() — 094 (A-104): THE CROSSING BACK. The widget tree and the domain objects are two address
         // spaces, and a badge over the buff about to expire needs the buff's widget. The bridge was already
-        // holding it -- it IS the handle -- so the crossing is one closure. A buff of a fight answers the
-        // widget that HOLDS it, in a list the combat view hides and paints elsewhere.
+        // holding it -- it IS the handle -- so the crossing is one closure.
         m.set("widget", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaBuff h = handle(Args.only(a, 0, "buff:widget"), "widget");
                 return LuaWidget.of(owner, h.wdg);
             }
         });
-        // exists() — is this buff still on the list it was drawn from? False once the server removes it
-        // (including while it fades out), once its list leaves the tree (a fight relation ending), and across
-        // a relog. The reads keep working either way, which is what makes a stashed BuffRemoved payload useful.
+        // exists() — is this buff still on the bar? False once the server removes it (including while it fades
+        // out), and across a relog. The reads keep working either way, which is what makes a stashed
+        // BuffRemoved payload useful.
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return LuaValue.valueOf(active(handle(Args.only(a, 0, "buff:exists"), "exists").wdg));
-            }
-        });
-        // opponent() — 170.1: whose it is. The Opponent beside whom the combat view draws it; nil for one of
-        // your own in a fight and for a buff on the bar. The inverse of opponent:opening().
-        m.set("opponent", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                return opponentOf(owner, handle(Args.only(a, 0, "buff:opponent"), "opponent").wdg);
             }
         });
         // info() — the one SNAPSHOT escape hatch (the documented Buff table shape), for logging/serialising.
@@ -303,7 +296,7 @@ public final class LuaBuff {
      * a Buff handle wraps the icon, and the icon already knows whose HUD it hangs in, so {@code :exists()}
      * answers about that character's bar however many sessions are live.
      */
-    private static Bufflist barOf(Buff b) {
+    static Bufflist barOf(Buff b) {
         return (b == null) ? null : b.getparent(Bufflist.class);
     }
 
@@ -318,21 +311,11 @@ public final class LuaBuff {
     }
 
     /**
-     * Is {@code b} a live buff the client draws? The predicate every door's {@code :list()} filters on, the one
-     * {@code :exists()} answers and the one {@code CharApi.BuffsAdapter} announces on. Past the fade, four
-     * conditions (170.1):
-     * <ul>
-     *   <li><b>its list stands in the tree.</b> A fight relation's lists are destroyed on {@code "del"}, and
-     *       {@code Widget.destroy} unlinks the LIST and leaves every buff linked under it, so a membership scan
-     *       alone went on answering true for a relation that had ended;</li>
-     *   <li><b>the list is one the client draws</b>: the bar, your own list in a fight, an opponent's list, and
-     *       never a relation's {@code relbuffs}, which nothing paints and no door lists;</li>
-     *   <li><b>under the combat view, the combat row stands</b> ({@link #rowUp}): the row paints those lists,
-     *       and the view outlives the fight, keeping your buffs the server has not yet expired;</li>
-     *   <li><b>it is a child of that list.</b></li>
-     * </ul>
-     * A list under the combat view is read under that view's monitor, where the loader thread adds and removes
-     * relations. The bar's is read lock-free, as it always was.
+     * Is {@code b} on that character's buff bar right now? The predicate {@code :list()} filters on, the one
+     * {@code :exists()} answers and the one {@code CharApi.BuffsAdapter} announces a bar buff on. Past the fade
+     * after a server removal: its list stands in the tree, the list is its HUD's bar ({@code GameUI.buffs}), and
+     * it is a child of that list. Read lock-free, as the bar always was. A widget of the same class in any other
+     * list is no buff of the bar: the combat view's are {@link LuaOpening}'s.
      */
     static boolean active(Buff b) {
         if((b == null) || AddonWidgets.buffDest(b))
@@ -340,39 +323,12 @@ public final class LuaBuff {
         Bufflist bl = barOf(b);
         if((bl == null) || (bl.ui == null) || !bl.hasparent(bl.ui.root))
             return false;
-        if(bl.parent instanceof Fightview) {
-            Fightview fv = (Fightview)bl.parent;
-            synchronized(LuaWidget.monitor(fv)) {
-                return rowUp(fv) && drawn(fv, bl) && holds(bl, b);
-            }
-        }
-        return holds(bl, b);
-    }
-
-    /**
-     * Does the combat row stand? {@code Fightsess} is the one widget that paints the combat view's buff lists,
-     * and the server takes it down with the fight, while the {@code Fightview} and the buffs of yours the
-     * server has not yet expired stay in the tree. Unpainted, they are not what the client draws. The row is a
-     * direct child of the {@code GameUI} the view stands in. The caller holds the view's monitor.
-     */
-    private static boolean rowUp(Fightview fv) {
-        GameUI g = fv.getparent(GameUI.class);
-        return (g != null) && (g.getchild(Fightsess.class) != null);
-    }
-
-    /** Is {@code bl} a list the combat view paints, yours or an opponent's? The caller holds the view's monitor. */
-    private static boolean drawn(Fightview fv, Bufflist bl) {
-        if(bl == fv.buffs)
-            return true;
-        for(Fightview.Relation rel : fv.lsrel) {
-            if(rel.buffs == bl)
-                return true;
-        }
-        return false;
+        GameUI g = bl.getparent(GameUI.class);
+        return (g != null) && (g.buffs == bl) && holds(bl, b);
     }
 
     /** Is {@code b} one of {@code bl}'s own buffs? */
-    private static boolean holds(Bufflist bl, Buff b) {
+    static boolean holds(Bufflist bl, Buff b) {
         for(Buff c : bl.children(Buff.class)) {
             if(c == b)
                 return true;
@@ -381,85 +337,13 @@ public final class LuaBuff {
     }
 
     /** {@code bl}'s buffs in child order, which is the order drawn, minus any fading out after a server removal. */
-    private static List<Buff> live(Bufflist bl) {
+    static List<Buff> live(Bufflist bl) {
         List<Buff> out = new ArrayList<Buff>();
         for(Buff b : bl.children(Buff.class)) {
             if(!AddonWidgets.buffDest(b))
                 out.add(b);
         }
         return out;
-    }
-
-    /** {@code bl}'s live buffs of a list under the combat view, or none while the combat row is down. The caller holds the view's monitor. */
-    private static List<Buff> drawnLive(Fightview fv, Bufflist bl) {
-        return rowUp(fv) ? live(bl) : new ArrayList<Buff>();
-    }
-
-    /**
-     * 170.1: every buff the combat view holds in a list it paints, yours and each opponent's, for the adapter to
-     * announce when the combat row comes up after them. Each still has to pass {@link #active}.
-     */
-    static List<Buff> fought(Fightview fv) {
-        List<Buff> out = new ArrayList<Buff>();
-        synchronized(LuaWidget.monitor(fv)) {
-            out.addAll(live(fv.buffs));
-            for(Fightview.Relation rel : fv.lsrel)
-                out.addAll(live(rel.buffs));
-        }
-        return out;
-    }
-
-    /**
-     * 170.1: {@code buff:opponent()} — the opponent beside whom the combat view draws {@code b}, as the interned
-     * Opponent of the character whose fight it is; {@code NIL} for a buff on the bar, for one of your own in a
-     * fight, and for one whose relation has ended. The relation is found under the view's monitor and the
-     * handle minted outside it.
-     */
-    static LuaValue opponentOf(Addon owner, Buff b) {
-        Place p = placeOf(b);
-        return ((p == null) || (p.opponent < 0)) ? LuaValue.NIL : LuaOpponent.of(owner, AddonManager.userOf(b), p.opponent);
-    }
-
-    /**
-     * 170.1: where the client draws a buff — the bar, your own row in a fight, or beside one opponent. What the
-     * buff adapter records when it announces a buff, because an opponent's list is destroyed with its relation
-     * and by the time {@code OpeningRemoved} fires the buff no longer says whose it was.
-     */
-    static final class Place {
-        /** {@link #opponent} for a buff on the bar and for one of yours in a fight. */
-        static final long NONE = -1;
-        /** Drawn by the combat view, so announced as an opening. */
-        final boolean fight;
-        /** The gob id of the opponent it is drawn beside, or {@link #NONE}. */
-        final long opponent;
-
-        Place(boolean fight, long opponent) {
-            this.fight = fight;
-            this.opponent = opponent;
-        }
-    }
-
-    /**
-     * 170.1: the {@link Place} of {@code b}, or {@code null} when it has none — no list, or a list whose
-     * relation has just ended. The relation is found under the view's monitor, in one look, so a buff is never
-     * taken for one of yours because its relation went between two reads.
-     */
-    static Place placeOf(Buff b) {
-        Bufflist bl = barOf(b);
-        if(bl == null)
-            return null;
-        if(!(bl.parent instanceof Fightview))
-            return new Place(false, Place.NONE);
-        Fightview fv = (Fightview)bl.parent;
-        synchronized(LuaWidget.monitor(fv)) {
-            if(bl == fv.buffs)
-                return new Place(true, Place.NONE);
-            for(Fightview.Relation rel : fv.lsrel) {
-                if((rel.buffs == bl) && !rel.invalid)
-                    return new Place(true, rel.gobid);
-            }
-        }
-        return null;
     }
 
     /** Resource name (stable identity) of a buff, or {@code null} (Loading-guarded). */
@@ -570,102 +454,34 @@ public final class LuaBuff {
      * have. A string filter matches the res <b>or</b> the display name, which is what the old lookup did.
      */
     static LuaValue collection(final Addon owner, final String user) {
-        return LuaCollection.create(CharApi.B, new Door(owner, noKey(CharApi.B)) {
-            List<Buff> buffs() {
-                return actives(user);
+        return LuaCollection.create(CharApi.B, new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<Buff> active = actives(user);
+                List<LuaValue> out = new ArrayList<LuaValue>(active.size());
+                for(int i = 0; i < active.size(); i++)
+                    out.add(of(owner, active.get(i)));
+                return out;
+            }
+
+            // res OR name, as one string the substring test runs over once. The separator is a newline, which no
+            // resource name and no display name contains, so a match can never span the two halves.
+            public String needle(LuaValue member) {
+                LuaBuff h = resolve(member);
+                Buff b = (h == null) ? null : h.wdg;
+                String res = res(b), nm = LuaBuff.name(b);    // see the note in methods()
+                return ((res == null) ? "" : res) + "\n" + ((nm == null) ? "" : nm);
+            }
+
+            /** These have a name, so a string filter is a substring test over {@link #needle}. */
+            public boolean named() {
+                return true;
+            }
+
+            public String noGet() {
+                return "a buff has no key, since two can share a resource and the server can replace one under a"
+                    + " live buff: " + CharApi.B + ":find(needle) is the search and " + CharApi.B
+                    + ":list()[n] takes a position";
             }
         }, null);
-    }
-
-    /**
-     * 170.1: {@code s:fight():opening()} — yours in the fight, the list the combat view paints beside that character
-     * ({@code Fightview.buffs}). Minted once per (addon, session) by {@code CharApi.fight}. Empty out of a fight
-     * and before the HUD is up.
-     */
-    static LuaValue fightCollection(final Addon owner, final String user) {
-        return LuaCollection.create(CharApi.FT + ":opening()", new Door(owner, noKey(CharApi.FT + ":opening()")) {
-            List<Buff> buffs() {
-                Fightview fv = LuaOpponent.view(user);
-                if(fv == null)
-                    return new ArrayList<Buff>();
-                synchronized(LuaWidget.monitor(fv)) {
-                    return drawnLive(fv, fv.buffs);
-                }
-            }
-        }, null);
-    }
-
-    /**
-     * 170.1: {@code opponent:opening()} — that opponent's openings, the list the combat view paints beside them
-     * ({@code Relation.buffs}; the relation's {@code relbuffs} are painted by nothing and are not here). A view
-     * minted per call, empty once the fight with them has ended.
-     */
-    static LuaValue opponentCollection(final Addon owner, final String user, final long gobid) {
-        return LuaCollection.create("opponent:opening()", new Door(owner, noKey("opponent:opening()")) {
-            List<Buff> buffs() {
-                Fightview fv = LuaOpponent.view(user);
-                if(fv != null) {
-                    synchronized(LuaWidget.monitor(fv)) {
-                        for(Fightview.Relation rel : fv.lsrel) {
-                            if((rel.gobid == gobid) && !rel.invalid)
-                                return drawnLive(fv, rel.buffs);
-                        }
-                    }
-                }
-                return new ArrayList<Buff>();
-            }
-        }, null);
-    }
-
-    /**
-     * One buff door: the live buffs of one list, in the order drawn. There is no {@code :get}, and that is the
-     * point of the shape: a buff has no key. Two buffs can share a resource and a {@code "ch"} uimsg replaces
-     * {@code Buff.res} under a live one, so a needle is a <i>search</i>, never an address. A string filter
-     * matches the res <b>or</b> the display name. Each door passes its own spelling to
-     * {@link LuaCollection#create} as a constant, which is what lets {@code tools/refusalverbs.py} see it.
-     */
-    private abstract static class Door extends LuaCollection.Source {
-        private final Addon owner;
-        private final String noKey;
-
-        Door(Addon owner, String noKey) {
-            this.owner = owner;
-            this.noKey = noKey;
-        }
-
-        /** The buffs this door lists, in the order drawn. */
-        abstract List<Buff> buffs();
-
-        public List<LuaValue> members() {
-            List<Buff> active = buffs();
-            List<LuaValue> out = new ArrayList<LuaValue>(active.size());
-            for(int i = 0; i < active.size(); i++)
-                out.add(of(owner, active.get(i)));
-            return out;
-        }
-
-        // res OR name, as one string the substring test runs over once. The separator is a newline, which no
-        // resource name and no display name contains, so a match can never span the two halves.
-        public String needle(LuaValue member) {
-            LuaBuff h = resolve(member);
-            Buff b = (h == null) ? null : h.wdg;
-            String res = res(b), nm = LuaBuff.name(b);    // see the note in methods()
-            return ((res == null) ? "" : res) + "\n" + ((nm == null) ? "" : nm);
-        }
-
-        /** These have a name, so a string filter is a substring test over {@link #needle}. */
-        public boolean named() {
-            return true;
-        }
-
-        public String noGet() {
-            return noKey;
-        }
-    }
-
-    /** The sentence a buff door's missing {@code :get} carries, spelled with the door's own name. */
-    private static String noKey(String door) {
-        return "a buff has no key, since two can share a resource and the server can replace one under a live"
-            + " buff: " + door + ":find(needle) is the search and " + door + ":list()[n] takes a position";
     }
 }

@@ -22,7 +22,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The session and the world](types/world.md) | One login, an object in it, the people beside you, the ground, a place, your own things standing there. |
 | [The item and what holds it](types/items.md) | One item, and what a container states about its inside. |
 | [The character sheet](types/character.md) | Attributes, food, learning, movement speed, quests, wounds, buffs. |
-| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, a combat action. |
+| [The fight](types/fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, an opening, a combat action. |
 | [The map](types/map.md) | A pin on the recorded map, a minimap icon category. |
 | [The widget layer](types/ui.md) | A widget, a HUD meter, the open recipe, a hotbar slot, an action-menu entry, a chat channel and its lines. |
 
@@ -34,7 +34,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [The world](event/bus/world.md) | A game object coming and going, what is attached to one, a click on an entity of your own. |
 | [The character and the rosters](event/bus/character.md) | Meters, buffs, food, study, equipment, action bar, wounds, kin, quests, map pins, the radial menu, Steam. |
 | [The chat](event/bus/chat.md) | A channel appearing, going away or taking the tab, and a line landing in one. |
-| [The fight](event/bus/fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing, a manoeuvre used, the combat row changing. |
+| [The fight](event/bus/fight.md) | An opponent joining a fight or leaving it, the numbers between you moving, the target changing, a manoeuvre used, an opening drawn and taken away, the combat row changing. |
 
 ## Reading the world
 
@@ -71,7 +71,7 @@ Every `hafen.*` namespace, one page each, and a directory where a namespace is l
 | [`session:craft`](craft.md) | The open recipe window, and its Craft button. |
 | [`session:quest`](quest.md) | The quest log, current and completed, and a quest's objectives. |
 | [`session:wound`](wound.md) | The wounds on the Health and Wounds tab, as a tree. |
-| [`session:fight`](fight.md) | The manoeuvre-deck builder, and the fight in progress: every opponent, the numbers between you, the buffs drawn beside each side, the combat row, and the writes that act in the fight. |
+| [`session:fight`](fight.md) | The manoeuvre-deck builder, and the fight in progress: every opponent, the numbers between you, the openings drawn beside each side, the combat row, and the writes that act in the fight. |
 | [`session:actionbar`](actionbar.md) | The hotbar: read a slot, use it, assign one, hold one for an entry of your own. |
 | [`session:menugrid`](menugrid.md) | The action menu: every action the character knows, invoking one, entries of your own. |
 | [`session:flowermenu`](flowermenu.md) | The radial menu one character has open: its petals, picking one, a petal of your own, whether it is painted. |

@@ -65,6 +65,7 @@ A number the client draws as a meter is a `0..1` fraction, never seconds. The se
 |---|---|
 | `hafen.time():dayFraction()`, `:yearFraction()`, `:moon()` | How far through the day, the year, the lunar cycle. |
 | `buff:amount()`, `buff:remaining()` | The buff's own meter, and how much of its run is left. |
+| `opening:amount()`, `opening:remaining()` | An opening's own meter, and how much of its run is left. |
 | `slot:cooldown()` | An ability's cooldown meter. |
 | `action:cooldown()`, `session:fight():cooldown()` | A combat action's own cooldown, and the fight's global one: how much of it is left. |
 | `meter:segment():list()[n]:value()`, `slot:progress()` | A HUD bar's fill, a curiosity's progress. |

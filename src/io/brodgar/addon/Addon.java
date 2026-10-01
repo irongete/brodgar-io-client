@@ -1003,6 +1003,14 @@ public final class Addon {
     final LuaBuff.Cache buffs = new LuaBuff.Cache(this);
 
     /**
+     * This addon's <b>Opening interning cache</b> ({@code s:fight():opening()}, {@code opponent:opening()} and the
+     * opening events, 171): the {@link #buffs} shape over the same widget class, keyed on the widget's identity
+     * with strong keys and weak values. A widget is minted by one of the two and never both: the list it stands
+     * in decides, and a widget never moves between lists. See {@link LuaOpening}.
+     */
+    final LuaOpening.Cache openings = new LuaOpening.Cache(this);
+
+    /**
      * This addon's <b>Meter interning cache</b> ({@code hafen.meter():find(needle)}, spec {@code 027-meters-oop}): the
      * weak-valued {@code IMeter widget → Meter object} map, its {@link java.lang.ref.ReferenceQueue} and the
      * per-addon metatable. Same contract as {@link #gobs}, {@link #kins}, {@link #slots}, {@link #paginae},
@@ -1159,8 +1167,9 @@ public final class Addon {
      * {@code IdentityHashMap}s keyed <b>strongly</b> on the {@link GItem}, holding a weak reference to the
      * handle and swept only on the next {@code of()}. So an addon that interns items and then stops minting
      * them pins every {@code GItem} it ever touched — handle or no handle — and an inventory closing is where
-     * that bites, because the items in it are destroyed rather than removed. {@link #meters} and {@link #buffs}
-     * are the same shape one subsystem along, keyed on the {@code IMeter} and the {@code Buff} widget.
+     * that bites, because the items in it are destroyed rather than removed. {@link #meters}, {@link #buffs} and
+     * {@link #openings} are the same shape one subsystem along, keyed on the {@code IMeter} and the {@code Buff}
+     * widget.
      *
      * <p>Each cache is emptied of the entry <b>through the monitor its own {@code of()} takes</b>, never by
      * reaching the map: the mint runs wherever Lua ran, and this runs on the step.
@@ -1182,7 +1191,8 @@ public final class Addon {
         } else if(w instanceof IMeter) {
             meters.retire((IMeter)w);
         } else if(w instanceof Buff) {
-            buffs.retire((Buff)w);
+            buffs.retire((Buff)w);                           // the bar's,
+            openings.retire((Buff)w);                        //   or a fight's: whichever minted it
         } else {
             items.retire(LuaWidget.itemOf(w));                // the icon of a depiction, and nothing else
         }

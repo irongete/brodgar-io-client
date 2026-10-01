@@ -35,13 +35,13 @@ if tree then tree:overlay():add("mark"):text("here") end         -- and a Gob is
 
 `session:fight():opponent()` is every creature a character is fighting as `Opponent` objects: `:get(gobId)` one by its gob id, `:current()` the target. The writes that act on one take the `Opponent` (`session:fight():pursue(opponent)`, `session:fight():give(opponent, button)`), and `:set(opponent)` takes its gob id too, as `session:speed():set` takes what its `:get` takes. One of another character's fight is refused ([`session:fight`](fight.md#an-opponent)).
 
-## Named, and nameless: Menugrid, Sound, Buff, Meter
+## Named, and nameless: Menugrid, Sound, Buff, Opening, Meter
 
 | Kind | Addressed by |
 |---|---|
 | [`session:menugrid():get(key)`](menugrid.md) | One action: a `/` makes the key a resource name, anything else a display name. Server-published strings: read them off a live client with `:res()`. An entry your addon [adds](menugrid.md#write-unprotected) carries `addon/<your addon's id>/<the id>`, the same in every session. |
 | [`hafen.sound():get(name)`](sound.md) | One clip, by server-published name. |
-| [`session:buff()`](buff.md), [`session:meter()`](meter.md) | No `:get`: members have no key, since several bars can share one resource. A name is a search, `:find(needle)`. `:get` [raises naming that search](conventions.md#get-what-a-key-that-names-nothing-answers). A miss is `nil`. A position is an error. |
+| [`session:buff()`](buff.md), [`session:fight():opening()`](fight.md#an-opening), [`session:meter()`](meter.md) | No `:get`: members have no key, since several can share one resource. A name is a search, `:find(needle)`. `:get` [raises naming that search](conventions.md#get-what-a-key-that-names-nothing-answers). A miss is `nil`. A position is an error. |
 
 ## Resource and Layer: what the client draws, by name
 
@@ -63,7 +63,7 @@ One kind of object. A window from `hafen.ui():window()`. A native one from `sess
 |---|---|
 | Interned per addon | `hafen.ui():hit(x, y) == hafen.ui():hit(x, y)`. It re-reads the tree on every call and answers `nil` or empty, `:exists()` false, once its widget is gone. |
 | What you may write | Depends on whether your addon created it ([owned vs borrowed](ui/writes.md#owned-vs-borrowed)). A server widget id, `:id()`, makes one bound, what the protected [`widget:send`](ui/widget.md#send-a-message-protected) needs. |
-| The domain objects cross back | A [Buff](buff.md), a [Meter](meter.md), a [StudySlot](study.md) and a [Kin](kin.md) answer `:widget()`, the widget that draws them. A buff of a fight answers the widget that holds it: the fight view keeps that list hidden and paints the icon elsewhere. A badge over the buff about to expire is one hop. A selector reaches the window by role. `:widget()` is where the two address spaces meet. `widget:session()` crosses the other way: the character whose tree a widget stands in, `nil` for one in your own layer. |
+| The domain objects cross back | A [Buff](buff.md), an [Opening](fight.md#an-opening), a [Meter](meter.md), a [StudySlot](study.md) and a [Kin](kin.md) answer `:widget()`, the widget that draws them. An opening answers the widget that holds it: the fight keeps that list hidden and paints the icon elsewhere. A badge over the buff about to expire is one hop. A selector reaches the window by role. `:widget()` is where the two address spaces meet. `widget:session()` crosses the other way: the character whose tree a widget stands in, `nil` for one in your own layer. |
 | Writes answer for your addon | What you wrote comes back unchanged. What you drop leaves another addon's alone. [`widget:replace(view)`](ui/replace.md) installs a stand-in and `widget:replace(nil)` undoes it. [`widget:rule()`](ui/style/README.md#restyle-one-widget) is your level of the style cascade and `widget:rule():release()` gives it back. |
 | The whole edit back | [`widget:revert()`](ui/edit.md#taking-the-whole-edit-back) gives back every [edit](ui/edit.md) on a widget and what is inside it, a standing replacement excepted. |
 

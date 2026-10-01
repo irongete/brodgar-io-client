@@ -228,7 +228,7 @@ public final class LuaOpponent {
         m.set("opening", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaOpponent h = handle(Args.only(a, 0, "opponent:opening"), "opening");
-                return LuaBuff.opponentCollection(owner, h.user, h.gobid);
+                return LuaOpening.opponentCollection(owner, h.user, h.gobid);
             }
         });
         // info() — the one SNAPSHOT escape hatch: {id, ip, give, last} while the fight lasts, {id} after it.

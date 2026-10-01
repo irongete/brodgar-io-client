@@ -23,7 +23,7 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 | [The session and the world](world.md) | One login and an object in it. The people beside you, and the ones a voice link relates you to. The ground, a place, your own things standing there. |
 | [The item and what holds it](items.md) | One item, and what a container states about its inside. |
 | [The character sheet](character.md) | Attributes, food with its FEP and hunger halves, learning, movement speed, quests, wounds, buffs. |
-| [The fight](fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, a combat action. |
+| [The fight](fight.md) | A manoeuvre, a card in the deck, the deck's totals, an opponent, an opening, a combat action. |
 | [The map](map.md) | A pin on the recorded map, a minimap icon category. |
 | [The widget layer](ui.md) | A widget in the tree. A HUD meter and one band of its bar. The open recipe. A hotbar slot. An action-menu entry. A chat channel and its lines. |
 
@@ -58,6 +58,7 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 | `Message` | [The widget layer](ui.md#message) |
 | `Meter` | [The widget layer](ui.md#meter) |
 | `MeterSegment` | [The widget layer](ui.md#metersegment) |
+| `Opening` | [The fight](fight.md#opening) |
 | `Opponent` | [The fight](fight.md#opponent) |
 | `Pagina` | [The widget layer](ui.md#pagina) |
 | `PartyMember` | [The session and the world](world.md#partymember) |

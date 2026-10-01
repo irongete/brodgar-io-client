@@ -3642,11 +3642,11 @@ public final class AddonManager {
      * hundred widgets inside it — and the one thing this closes is the gap an addon can see from Lua, which is
      * a widget it built and holds a subscription on.
      *
-     * <p><b>And a {@link Buff}</b> (170.1). A fight relation's buff lists are destroyed on {@code "del"}, which
-     * reaches every buff under them here and nowhere else: a buff under a dying list never runs
+     * <p><b>And a {@link Buff}</b> (170.1). A fight relation's opening lists are destroyed on {@code "del"},
+     * which reaches every opening under them here and nowhere else: a widget under a dying list never runs
      * {@code remove()}. Reported as a removal, it reaches the buff adapter in the removal drain, which runs ahead
-     * of the disposal drain that retires its handle, so {@code BuffRemoved} fires once, with the object
-     * {@code BuffAdded} handed out.
+     * of the disposal drain that retires its handle, so {@code OpeningRemoved} fires once, with the object
+     * {@code OpeningAdded} handed out.
      *
      * <p><b>{@code parent != null} is what keeps it from firing twice.</b> {@code remove()} nulls the parent
      * link, so the widget {@code destroy()} was called on has already been reported by the time its own
@@ -4437,23 +4437,23 @@ public final class AddonManager {
     }
 
     /**
-     * Fire an opening event ({@code OpeningAdded}/{@code OpeningRemoved}/{@code OpeningChanged}, 170.1): a buff
-     * the combat view draws, as the interned <b>Buff object</b>, then the interned Opponent it is drawn beside,
-     * or {@code nil} for one of your own in the fight ({@code gobid < 0}), then the session. The opponent is the
-     * one the buff adapter recorded when it announced the buff, not what the buff answers now: an opponent's
-     * list dies with its relation, and by {@code OpeningRemoved} the buff no longer says whose it was.
-     * Detection is {@code CharApi}'s buff adapter, the same one that fires {@link #fireBuff} for the bar.
+     * Fire an opening event ({@code OpeningAdded}/{@code OpeningRemoved}/{@code OpeningChanged}, 170.1): an icon
+     * the combat view draws, as the interned <b>Opening object</b> (171), then the interned Opponent it is drawn
+     * beside, or {@code nil} for one of your own in the fight ({@code gobid < 0}), then the session. The opponent
+     * is the one the buff adapter recorded when it announced the opening, not what the opening answers now: an
+     * opponent's list dies with its relation, and by {@code OpeningRemoved} the opening no longer says whose it
+     * was. Detection is {@code CharApi}'s buff adapter, the same one that fires {@link #fireBuff} for the bar.
      */
     static void fireOpening(String event, Buff b, long gobid) {
         String user = userOf(b);
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaBuff.of(a, b), (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(a, user, gobid),
+                fireTo(a, event, LuaOpening.of(a, b), (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(a, user, gobid),
                        sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaBuff.of(c, b), (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(c, user, gobid),
+            fireTo(c, event, LuaOpening.of(c, b), (gobid < 0) ? LuaValue.NIL : LuaOpponent.of(c, user, gobid),
                    sessionArg(c, user));
     }
 
