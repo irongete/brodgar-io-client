@@ -1155,8 +1155,10 @@ public class RecallLod implements RenderTree.Node {
     /**
      * Whether a cell at rest has had its zoom grid moved under it, and if so its rebuild started. The record
      * took in again a grid the cell covers ({@code MapFile.Segment.include}), which fetches the zoom grids
-     * over it anew, and the cell's own {@code Indir} answers the new one once it is there -- the previous one
-     * until then, never {@code Loading}. What is drawn stays drawn until the rebuild is built (advance); where
+     * over it anew, and the cell's own {@code Indir} answers the new one once it is there. Until then it answers
+     * the previous one -- or {@code Loading}, where the cell's first zoom grid was taken off its fetch's future
+     * (arrived) and never through the {@code Indir}, which has then nothing to answer yet: the cell is asked
+     * again at the next tick. What is drawn stays drawn until the rebuild is built (advance); where
      * the new zoom grid draws the same cell, nothing is built at all -- the grids around the character are
      * taken in again the first time each is seen, most of them unchanged.
      */
@@ -1166,6 +1168,10 @@ public class RecallLod implements RenderTree.Node {
 	MapFile.DataGrid g;
 	try {
 	    g = c.src.get();
+	} catch(Loading l) {
+	    if(c.seen)
+		l.boostprio(SEENPRIO);
+	    return(false);
 	} catch(RuntimeException e) {
 	    /* Fetched anew and failed, and answering the failure from now on: what is drawn stays. */
 	    new Warning(e, String.format("far cell %s at level %d: its zoom grid failed: %s", key.sc, key.lvl, e)).issue();
