@@ -134,7 +134,7 @@ row_scrollbar:on("Changed", function(value) first_row = value end)
 
 ## Key button
 
-The client's own key button, the one each row of Options ▸ Game ▸ Keybindings ends in, joined to one of your hotkeys, or under `client.settings` to [any binding your code may write](#another-addons-hotkey-or-one-of-the-clients). The user presses it, then the key, and the key is assigned exactly as on that row. It needs `"api_version": "1.1"` in your [manifest](../../../manifest.md#the-api-version).
+The client's own key button, the one each row of Options ▸ Game ▸ Keybindings ends in, joined to one of your hotkeys, or under `client.settings` to [any binding your code may write](#another-addons-hotkey-or-one-of-the-clients). The user presses it, then the key, and the key is assigned exactly as on that row.
 
 ```lua
 local keybindings = hafen.client():options():keybindings()

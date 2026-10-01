@@ -5,7 +5,7 @@ What names an addon: the folder it lives in, the `manifest.json` that makes the 
 ```json
 {
   "id": "myaddon",
-  "api_version": "1.2",
+  "api_version": "1.3",
   "files": ["main.lua"],
   "name": "My Addon",
   "permissions": ["player.move"]

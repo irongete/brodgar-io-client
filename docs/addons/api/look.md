@@ -122,7 +122,6 @@ end)
 | The read | Two values: the colour keyed, then the width. `other:outline(gob:outline())` copies a ring. [`gob:info()`](types/world.md#gobinfo) carries the pair as `outline = {color = …, width = …}`, and no `outline` key for an object nobody outlined. |
 | `gob:outline(nil)` | Takes the ring off and leaves nothing behind. `gob:outline(nil, width)` raises: taking a ring off takes no width. |
 | Refused | A value that is not a colour raises naming both spellings of one. A third argument raises. Each is raised on a gob that is gone too. |
-| API `1.2` | Declare `"api_version": "1.2"` in your [manifest](../manifest.md#the-api-version). |
 
 ## Overlays
 

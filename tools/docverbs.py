@@ -56,8 +56,8 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
     contradicts the method beneath it needs a reader, not a regex.
   * Anything about the API version but its number. `api_version` holds the one sentence the docs state the
     client's version in -- "this client implements API `1.0`", once, on the manifest page -- and every
-    example of the out-of-date label and tooltip that repeats the number, to the literal `ApiVersion.CURRENT`
-    is built from. It holds nothing of the RULE: whether a release that removed a name raised the generation,
+    example of the out-of-date label and tooltip that repeats the number, the tutorial's "The current API
+    version is `1.0`" and every example manifest's `api_version`, to the literal `ApiVersion.CURRENT` is built from. It holds nothing of the RULE: whether a release that removed a name raised the generation,
     or one that added a verb raised the edition, is the maintainer's editorial call and no regex reads a diff
     of two vocabularies.
 """
@@ -605,7 +605,8 @@ def undocumented_keys():
 # "this client implements API `1.0`" -- which is what a reader writes into their manifest. A bump that moved
 # the literal and not the page would have every reader declaring a version the client calls out of date, and
 # nothing in the docs' own grammar can see a number go stale. The examples of the out-of-date label and the
-# tooltip repeat the number in the open, so those are held too, by the two forms they take.
+# tooltip repeat the number in the open, so those are held too, by the two forms they take, and so are the
+# tutorial's statement of it and the `api_version` of every example manifest, which a reader copies.
 def api_version():
     """(the literal, [(page, line, version)] of the one sentence, [(page, line, version)] of every example).
 
@@ -621,13 +622,22 @@ def api_version():
                 continue
             p = os.path.join(dirpath, f)
             rel = os.path.relpath(p, ROOT).replace("\\", "/")
+            fence = None                        # the language of the fenced block a line stands in, or None
             for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
+                if line.startswith("```"):
+                    fence = None if fence is not None else line[3:].strip()
+                    continue
                 for v in re.findall(r'implements API `(\d+\.\d+)`', line):
                     sentence.append((rel, i, v))
                 # `outdated (API 9.0, client 1.0)` and `..., this client implements 1.0` -- the label and the
                 # tooltip as the panel writes them, each with the client's number in the second position.
                 for v in re.findall(r'client (\d+\.\d+)\)', line) + re.findall(r'client implements (\d+\.\d+)\b', line):
                     examples.append((rel, i, v))
+                # The tutorial's "The current API version is `1.0`", and every example manifest: a reader
+                # copies the `api_version` of a ```json block as it stands.
+                examples += [(rel, i, v) for v in re.findall(r'current API version is `(\d+\.\d+)`', line)]
+                if fence == "json":
+                    examples += [(rel, i, v) for v in re.findall(r'"api_version":\s*"(\d+\.\d+)"', line)]
     return current, sentence, examples
 
 
