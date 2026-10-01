@@ -207,10 +207,10 @@ public final class LuaDeckCard {
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
-        // used() — how many copies of the dealt maneuver that character's deck holds, or nil for an empty place.
-        m.set("used", new VarArgFunction() {
+        // copies() — how many copies of the dealt maneuver that character's deck holds, or nil for an empty place.
+        m.set("copies", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaDeckCard h = handle(Args.only(a, 0, "card:used"), "used");
+                LuaDeckCard h = handle(Args.only(a, 0, "card:copies"), "copies");
                 FightWnd.Action act = action(h.user, h.slot);
                 return (act == null) ? LuaValue.NIL : LuaValue.valueOf(act.u);
             }

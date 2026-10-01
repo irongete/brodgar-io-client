@@ -130,7 +130,7 @@ public final class LuaFightSummary {
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
         m.set("maxActions", number("maxActions", 0));
-        m.set("used", number("used", 1));
+        m.set("spent", number("spent", 1));
         // exists() — is that character's combat-schools tab still standing in its own tree?
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -173,8 +173,8 @@ public final class LuaFightSummary {
     // ---- the reads ----------------------------------------------------------------------------------
 
     /**
-     * The counts in one pass — {@code maxActions, used} — or {@code null} once the window is gone.
-     * {@code used} is the total spend across every maneuver, which is the same number the window paints beside
+     * The counts in one pass — {@code maxActions, spent} — or {@code null} once the window is gone.
+     * {@code spent} is the total spend across every maneuver, which is the same number the window paints beside
      * the cap.
      */
     private static int[] read(FightWnd fw) {
@@ -183,10 +183,10 @@ public final class LuaFightSummary {
         int[] out = new int[2];
         synchronized(LuaWidget.monitor(fw)) {
             out[0] = fw.maxact;
-            int used = 0;
+            int spent = 0;
             for(FightWnd.Action a : fw.acts)
-                used += a.u;
-            out[1] = used;
+                spent += a.u;
+            out[1] = spent;
         }
         return out;
     }

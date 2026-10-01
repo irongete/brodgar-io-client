@@ -147,16 +147,16 @@ public final class LuaManeuver {
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
-        // dealable() — how many copies of this maneuver you may put in a deck.
-        m.set("dealable", new VarArgFunction() {
+        // max() — the most copies of this maneuver that character may put in a deck.
+        m.set("max", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:dealable"), "dealable").act.a);
+                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:max"), "max").act.a);
             }
         });
-        // used() — how many you have put in the current deck.
-        m.set("used", new VarArgFunction() {
+        // copies() — how many copies of it the loaded school holds.
+        m.set("copies", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:used"), "used").act.u);
+                return LuaValue.valueOf(handle(Args.only(a, 0, "maneuver:copies"), "copies").act.u);
             }
         });
         // exists() — does that character still know this maneuver?

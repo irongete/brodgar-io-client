@@ -46,8 +46,8 @@ end)
 |---|---|---|---|
 | `maneuver:res()` | `string \| nil` | Unprotected | The resource name, its identity. |
 | `maneuver:name()` | `string \| nil` | Unprotected | The display name. |
-| `maneuver:dealable()` | `number` | Unprotected | How many copies that character may deal into a deck. |
-| `maneuver:used()` | `number` | Unprotected | How many the loaded school has dealt. |
+| `maneuver:max()` | `number` | Unprotected | The most copies that character may deal into a deck. |
+| `maneuver:copies()` | `number` | Unprotected | How many copies the loaded school has dealt. |
 | `maneuver:exists()` | `boolean` | Unprotected | Whether that character still knows it. Always answers. |
 | `maneuver:info()` | [`Maneuver`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. |
 
@@ -64,7 +64,7 @@ One hotkey place of the loaded school's layout, not the manoeuvre in it: `sessio
 | `card:maneuver()` | [`Maneuver`](#a-manoeuvre) `\| nil` | Unprotected | The manoeuvre dealt here. |
 | `card:res()` | `string \| nil` | Unprotected | That manoeuvre's resource name. |
 | `card:name()` | `string \| nil` | Unprotected | That manoeuvre's display name. |
-| `card:used()` | `number \| nil` | Unprotected | How many copies the deck holds. |
+| `card:copies()` | `number \| nil` | Unprotected | How many copies the deck holds. |
 | `card:info()` | [`DeckCard`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. `nil` for an empty place. |
 
 | Rule | Detail |
@@ -85,7 +85,7 @@ end
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `summary:used()` | `number \| nil` | Unprotected | Action points the loaded school spends: the total the window paints beside the cap, the sum of `maneuver:used()` over every known manoeuvre. |
+| `summary:spent()` | `number \| nil` | Unprotected | Action points the loaded school spends: the total the window paints beside the cap, the sum of `maneuver:copies()` over every known manoeuvre. |
 | `summary:maxActions()` | `number \| nil` | Unprotected | The action-point budget. |
 | `summary:exists()` | `boolean` | Unprotected | Whether that character's tab is still up. |
 | `summary:info()` | [`FightSummary`](types/fight.md#maneuver-deckcard-fightsummary) `\| nil` | Unprotected | A plain-table snapshot. |

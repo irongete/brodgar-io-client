@@ -14,9 +14,9 @@ if snapshot then hafen.log():write(snapshot.used .. "/" .. snapshot.maxact .. " 
 
 | Shape | Fields |
 |---|---|
-| `Maneuver` | `{ res?, name?, avail = number, used = number }`: `avail` dealable (`maneuver:dealable()`) against `used` dealt. |
-| `DeckCard` | `{ key = string?, res = string?, name = string?, used = number }`, and `nil` for an empty place. `key` is the hotkey label such as `"1"` or `"⇧1"`, absent past the labels the tab paints. `res` and `name` are absent while the resource resolves. The place itself is read live, by `card:index()` and `card:wire()`. |
-| `FightSummary` | `{ maxact, used }` in the window's spelling. The live reads are `summary:maxActions()` and `:used()`. |
+| `Maneuver` | `{ res?, name?, avail = number, used = number }`, the counts in the window's spelling: `avail` is `maneuver:max()` and `used` is `maneuver:copies()`. |
+| `DeckCard` | `{ key = string?, res = string?, name = string?, used = number }`, and `nil` for an empty place. `key` is the hotkey label such as `"1"` or `"⇧1"`, absent past the labels the tab paints. `res` and `name` are absent while the resource resolves. `used` is `card:copies()`, in the window's spelling. The place itself is read live, by `card:index()` and `card:wire()`. |
+| `FightSummary` | `{ maxact, used }` in the window's spelling. The live reads are `summary:maxActions()` and `:spent()`. |
 
 ## School
 

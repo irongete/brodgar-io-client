@@ -324,7 +324,7 @@ public final class LuaSkill {
         //
         // It was :available(filter) and it handed back a plain array, which cost twice. The word first: a
         // Speed's :available() is a BOOLEAN and a Maneuver's was a COUNT, so one spelling meant three things
-        // and `if man:available() then` fired with none dealable (0 is truthy in Lua). And the shape: a
+        // and `if man:available() then` fired with no copies allowed (0 is truthy in Lua). And the shape: a
         // partition of a collection that is not itself a collection stops at its first verb —
         // :available():count() threw while :skill():count() worked.
         //
