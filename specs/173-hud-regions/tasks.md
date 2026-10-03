@@ -138,7 +138,7 @@ Every task ends with `rm -rf build/classes && ant hafen-client`, `ant bin`, `too
 
   <!-- extra context: docs/addons/api/menugrid.md (`pagina:addon()`; read only) -->
 
-- [ ] **173.5 — The chat lands where it is placed, shown or hidden, and a widget covering the screen keeps its pixels.**
+- [x] **173.5 — The chat lands where it is placed, shown or hidden, and a widget covering the screen keeps its pixels.**
   - `ChatUI.show()` re-derives `c` from `base` (`// addon:`), and `ChatUI.base()` reads it (`// addon:`).
   - `LuaWidget.place(w, c)` and `LuaWidget.at(w)`:
     - writes through `place`: `Layout.applyHalf`, `UiApi.restoreMoved`, `WidgetSurface.reparent` after its add (a `ChatUI` only), `Column`;

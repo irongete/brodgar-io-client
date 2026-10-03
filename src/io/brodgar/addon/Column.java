@@ -145,8 +145,8 @@ final class Column {
                 Coord mtl = (m == null) ? Coord.z : m.tlIn();
                 Coord mbr = (m == null) ? Coord.z : m.brIn();
                 Coord want = down ? Coord.of(tl.x + mtl.x, at + mtl.y) : Coord.of(at + mtl.x, tl.y + mtl.y);
-                if(!want.equals(ch.c))
-                    ch.move(want);
+                if(!want.equals(LuaWidget.at(ch)))
+                    LuaWidget.place(ch, want);
                 at += down ? (mtl.y + ch.sz.y + mbr.y) : (mtl.x + ch.sz.x + mbr.x);
                 across = Math.max(across, down ? (mtl.x + ch.sz.x + mbr.x) : (mtl.y + ch.sz.y + mbr.y));
             }

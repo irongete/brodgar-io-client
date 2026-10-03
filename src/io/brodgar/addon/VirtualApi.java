@@ -1948,7 +1948,7 @@ final class VirtualApi {
         // A COPY, deliberately: haven.Coord is mutable and the client hands the SAME shared Coord.z object to
         // many widgets at once (GameUI.maininv's own c is literally that object), so a record that kept the
         // reference would be a record something else could move. What is being remembered here is two numbers.
-        we.prevPos = new Coord(content.c);
+        we.prevPos = new Coord(LuaWidget.at(content));   // 173: a hidden chat's top-left, not its raw c
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
         entityRegister(mv.ui, we, place);              // 044.2/044.9/045.1: dies with its gob, or holds its own place

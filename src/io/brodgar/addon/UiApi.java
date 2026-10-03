@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Button;
+import haven.ChatUI;
 import haven.Coord;
 import haven.Coord3f;
 import haven.GameUI;
@@ -2309,8 +2310,10 @@ final class UiApi {
             }
             if(size && (m.size != null))
                 m.wdg.resize(m.size);
-            if(pos && (m.pos != null))
-                m.wdg.move(m.pos);
+            if(pos && (m.pos != null)) {
+                Coord chat = hudChat(m.wdg);      // 173: the HUD's chat goes where the client places it NOW
+                LuaWidget.place(m.wdg, (chat != null) ? chat : m.pos);
+            }
         } catch(RuntimeException e) { /* best-effort: never abort a teardown or a live undo */ }
     }
 
@@ -2467,7 +2470,8 @@ final class UiApi {
      * <p>A window {@code io.brodgar.ui.WndPos} places (166) answers with the user's place <b>at the current
      * size</b>: where its centre stands as a fraction of the screen, which the rule never takes from a place an addon holds. So a
      * window laid out across a screen resize comes back where the user's relative place now is, not at the pixels
-     * it left. Anything else answers with the stock value recorded at first touch, and the widget's own {@code c}
+     * it left. The HUD's chat answers where the client places it now ({@link #hudChat}, 173). Anything else
+     * answers with the stock value recorded at first touch, and where the widget stands ({@link LuaWidget#at})
      * where no addon is standing on it.
      *
      * <p>First live owner wins, which is the same order the moves themselves happened in. One volatile read for
@@ -2482,6 +2486,9 @@ final class UiApi {
         Coord rel = io.brodgar.ui.WndPos.stock(w);
         if(rel != null)
             return rel;
+        Coord chat = hudChat(w);
+        if(chat != null)
+            return chat;
         LuaWidget.Moved m = movedOwner(w, true);
         if(m != null)
             return m.pos;
@@ -2500,7 +2507,20 @@ final class UiApi {
         LuaWidget.Rehomed r = rehomedOwner(w);
         if(r != null)
             return r.at;
-        return w.c;
+        return LuaWidget.at(w);
+    }
+
+    /**
+     * <b>The stock place of a chat standing directly on its HUD</b> (173), or {@code null} for any other widget:
+     * where {@code GameUI.resize} puts it at the screen's size and the chat's height now, its base
+     * ({@code GameUI.chatbase()}) less that height. A number recorded at the first touch is a place on the
+     * screen's old size, and while the chat is hidden it is its bottom; this one lands the chat whole on the
+     * screen, shown or hidden, after any resize.
+     */
+    static Coord hudChat(Widget w) {
+        if(!(w instanceof ChatUI) || !(w.parent instanceof GameUI) || (w.sz == null))
+            return null;
+        return ((GameUI)w.parent).chatbase().add(0, -w.sz.y);
     }
 
     /** The size argument the client persists ({@code wndsz-map}): the stock box recorded at first touch, else the widget's own. */

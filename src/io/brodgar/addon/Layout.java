@@ -520,8 +520,8 @@ final class Layout {
             if(pos) {
                 if(rec.pos == null)                   // the stock value, at the LAYER's first touch and only then:
                     rec.pos = UiApi.stockPos(w);      //   what the user had, whoever asks about it later
-                if(!want.equals(w.c))
-                    w.move(want);
+                if(!want.equals(LuaWidget.at(w)))
+                    LuaWidget.place(w, want);
             } else {
                 if(rec.size == null)
                     rec.size = UiApi.stockSizeArg(w);
@@ -534,8 +534,8 @@ final class Layout {
         if(!LuaWidget.dropStock(w, pos))              // nothing of ours was standing here: not our business
             return;
         if(pos) {
-            if(!stock.equals(w.c))
-                w.move(stock);
+            if(!stock.equals(LuaWidget.at(w)))
+                LuaWidget.place(w, stock);
         } else if(!stock.equals(LuaWidget.sizeArg(w))) {
             resize(w, stock);
         }

@@ -1794,7 +1794,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	 * is this widget still a child of this HUD -- and it costs one reference comparison per line. */
 	if(mine(chat)) {
 	    chat.resize(sz.x - blpw - brpw);
-	    chat.move(new Coord(blpw, sz.y));
+	    chat.move(chatbase());	// addon: was new Coord(blpw, sz.y)
 	}
 	if(mine(map))
 	    map.resize(sz);
@@ -1811,6 +1811,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private boolean mine(Widget w) {	// addon:
 	return((w != null) && (w.parent == this));
     }
+
+    public Coord chatbase() {return(Coord.of(blpw, sz.y));}	// addon: (173) the chat's bottom-left, as resize() gives it
     
     public void presize() {
 	resize(parent.sz);

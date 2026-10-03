@@ -1,0 +1,9 @@
+{
+  "name": "173.5 — the chat's place and a widget covering the screen",
+  "id": "173-hud-regions.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 173.5: the chat reads and stands where it is placed, shown or hidden, across Ctrl+C, a drag and :position(nil), and a surface as large as the HUD keeps its place in pixels through :remember and a window resize.",
+  "api_version": "1.5",
+  "files": ["main.lua"]
+}

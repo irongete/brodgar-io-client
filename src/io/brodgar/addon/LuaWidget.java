@@ -621,7 +621,7 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "position"));
                 if(a.narg() < 2)
-                    return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(Px.out(w.c));
+                    return ((w == null) || (at(w) == null)) ? LuaValue.NIL : xyTable(Px.out(at(w)));
                 if(Column.stacked(w))                     // 139.1: its place is its order -- both writes refuse
                     throw Column.placed((a.narg() < 3) ? "widget:position(nil)" : "widget:position(x, y)");
                 if(a.narg() < 3) {                        // w:position(nil) — undo OUR move, back to the stock value
@@ -2457,8 +2457,8 @@ public final class LuaWidget {
      *
      * <p>Not in the record: the widget's place and size <i>as the user had them</i>. Those are
      * {@link Moved}'s, which restores later in the same teardown and therefore has the last word; {@link #at} is
-     * only what the widget's own {@code c} was at the moment we took it, which is what an untouched widget goes
-     * back to. And not the visibility either: taking a widget in hides nothing, so what the user was seeing is
+     * only where the widget stood at the moment we took it ({@link LuaWidget#at(Widget)}, a hidden chat's top-left
+     * and not its raw {@code c}), which is what an untouched widget goes back to. And not the visibility either: taking a widget in hides nothing, so what the user was seeing is
      * what they go on seeing.
      */
     static final class Rehomed {
@@ -2578,7 +2578,7 @@ public final class LuaWidget {
             // below makes GameUI.cdestroy forget it. Read here and nowhere else: after the move there is
             // nothing left to read it from.
             GameUI gui = AddonManager.gui(w.ui);
-            UiApi.rehomedAdd(new Rehomed(owner, w, w.parent, w.prev, new Coord(w.c), w.ui,   // keeps it
+            UiApi.rehomedAdd(new Rehomed(owner, w, w.parent, w.prev, new Coord(at(w)), w.ui,   // keeps it
                                          (gui == null) ? null : gui.wndid(w)));
         }
         // ONE tree, so one monitor, and reparent takes it: the same-session check above is what makes that
@@ -2862,7 +2862,7 @@ public final class LuaWidget {
     static double[] handOf(Widget w, double[] was) {
         if(!onScreen(w))
             return null;
-        return io.brodgar.ui.WndPos.frac(w.c, w.parent.sz, w.sz, was);
+        return io.brodgar.ui.WndPos.frac(at(w), w.parent.sz, w.sz, was);
     }
 
     /**
@@ -2893,11 +2893,43 @@ public final class LuaWidget {
         }
     }
 
-    /** Is {@code w} directly on the screen -- a {@link GameUI} or the root of the tree it stands in? (166) */
+    /**
+     * Is {@code w} directly on the screen -- a {@link GameUI} or the root of the tree it stands in? (166) A
+     * widget covering its parent is not (173): it has no free room on either axis, so a fraction would keep
+     * nothing of its place -- {@code WndPos.frac} keeps the old one, or {@code 0}, on an axis with none -- and
+     * its offset stays pixels. One device pixel absorbs the design round trip, which lands a pixel short at
+     * some scales.
+     */
     static boolean onScreen(Widget w) {
         Widget p = (w == null) ? null : w.parent;
         UI u = (w == null) ? null : w.ui;
-        return (p != null) && ((p instanceof GameUI) || ((u != null) && (p == u.root)));
+        if((p == null) || !((p instanceof GameUI) || ((u != null) && (p == u.root))))
+            return false;
+        return (w.sz == null) || (p.sz == null) || (w.sz.x < p.sz.x - 1) || (w.sz.y < p.sz.y - 1);
+    }
+
+    /**
+     * <b>Where a level stands {@code w}</b> (173): its top-left in its parent, the one place a level writes. A
+     * {@link ChatUI} is placed by its bottom ({@code ChatUI.move} takes the base, and {@code c} follows it only
+     * while the chat is shown), so its place goes through the base whatever its visibility: written hidden, it
+     * shows there. Every other widget takes {@code move}, its own override included.
+     */
+    static void place(Widget w, Coord c) {
+        if(w instanceof ChatUI)
+            w.move(c.add(0, w.sz.y));
+        else
+            w.move(c);
+    }
+
+    /**
+     * <b>Where {@code w} stands, as {@link #place} writes it</b> (173): {@code c}, or for a {@link ChatUI} its base
+     * less its height, which is its top-left shown or hidden. A hidden chat's {@code c} is its bottom. The one
+     * read of a level's place and of every record of where a widget stood; {@code null} where {@code c} is.
+     */
+    static Coord at(Widget w) {
+        if((w instanceof ChatUI) && (w.sz != null))
+            return ((ChatUI)w).base().add(0, -w.sz.y);
+        return w.c;
     }
 
     /**
@@ -3224,11 +3256,11 @@ public final class LuaWidget {
      * from a place inside a window).
      */
     private static StoreApi.Placement placeNow(Addon owner, Widget w) {
-        if((w.c == null) || (w.parent == null))
+        if((at(w) == null) || (w.parent == null))
             return null;
         StoreApi.Placement at = new StoreApi.Placement();
         if(!onScreen(w)) {
-            at.pos = Px.out(w.c);
+            at.pos = Px.out(at(w));
             return at;
         }
         Moved rec = findMoved(owner, w);
@@ -3380,7 +3412,7 @@ public final class LuaWidget {
         Owned own = ownedContent(a, w);
         Layout.Anchor lvl = rec.wantPos;
         boolean placed = (lvl != null) && ((rec.posSeq != b.posSeq)
-            || (lvl.plain && (w.c != null) && !w.c.equals(Px.in(lvl.offset))));
+            || (lvl.plain && (at(w) != null) && !at(w).equals(Px.in(lvl.offset))));
         boolean sized = (rec.wantSize != null) && (rec.sizeSeq != b.sizeSeq) && (w.sz != null)
             && !((own instanceof AddonWidget) && ((AddonWidget)own).packed);
         StoreApi.Placement at = placed ? placeNow(a, w) : null;
@@ -4433,8 +4465,8 @@ public final class LuaWidget {
         int id = w.wdgid();
         if(id >= 0)
             t.set("id", LuaValue.valueOf(id));
-        if(w.c != null)
-            t.set("pos", xyTable(Px.out(w.c)));      // the same design pixels :position()/:size() answer (058.1)
+        if(at(w) != null)
+            t.set("pos", xyTable(Px.out(at(w))));      // the same design pixels :position()/:size() answer (058.1)
         if(w.sz != null)
             t.set("size", whTable(Px.out(sizeArg(w))));                  // 153.1: the box widget:size() reads
         t.set("visible", LuaValue.valueOf(w.visible()));

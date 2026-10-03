@@ -9,7 +9,7 @@ client builds the System log itself.
 
 | Thing | Where |
 |---|---|
-| The window | `GameUI.chat`, a `ChatUI`. Docked rather than a `Window`: `ChatUI.base` is where the foot sits and `move(Coord)` sets it, `resize(Coord)` re-derives `c` from `base` — so `c` is an **output**, and the height is persisted as the `chatsize` pref (`minh` is the floor) |
+| The window | `GameUI.chat`, a `ChatUI`. Docked rather than a `Window`: `ChatUI.base` is where the foot sits — its bottom-left, read through `base()` (`// addon:`) — and `move(Coord)` sets it, `resize(Coord)` and `show()` (`// addon:`) re-derive `c` from `base` — so `c` is an **output**, and the height is persisted as the `chatsize` pref (`minh` is the floor). `GameUI.resize` moves it to `GameUI.chatbase()` (`// addon:`), `(blpw, sz.y)` |
 | Collapse and expand | `ChatUI.sshow(boolean)`/`expand()`/`targetshow`, animated by the private `Spring` (a `NormAnim`). `Channel.display()` — the `"dsp"` uimsg — is select-then-expand-then-focus |
 | The channels | children of `ChatUI` that are `instanceof ChatUI.Channel`. `ChatUI.add(T)` intercepts a `Channel` (position, resize, `chansel.add`, `select(chan, false)`) and `addchild` funnels the server's placement into it |
 | The one on screen | `ChatUI.sel`. Written **only** by `select(Channel, boolean)` — the selector's click, the `"sel"` uimsg on a `Channel`, `Channel.select()` and `add` above all go through it — and cleared by `cdestroy` when the selected channel is the one leaving |
@@ -107,6 +107,16 @@ of the tree by the time `ChatUI.cdestroy` sees it.
   selection change, in that order.
 - **`ChatUI.c` does not round-trip.** `resize` recomputes it from `base` whenever the window is visible, so
   writing `c` moves the chat until the next resize and then does not. `move(Coord)` is the setter.
+- **`c` is the top-left only while the chat is shown.** `move(base)` writes `c = base - sz.y` while
+  `visible`, `c = base` while hidden. The `Spring` of a collapse ends at `c = base` and then `hide()`s, and
+  `Widget.hide` leaves `c` where it was, so a hidden chat's `c` is its bottom or its top-left depending on
+  how it was hidden. `base` is the one place: `base() - (0, sz.y)` is the top-left either way. Upstream's
+  `show()` re-derives nothing, so a `move` made while hidden by `Widget.hide` showed the chat its own height
+  low until the next resize; the `// addon:` line in `show()` writes `c = base - sz.y`. `show()` is also
+  called by the `Spring` constructor, whose `oy` is a field initializer read before it, and `ntick`
+  rewrites `c` on every tick.
+- **`added()` takes `c` as `base`.** `Widget.add(w, c)` sets `c` and then `added()` makes it the foot, so a
+  chat added at a top-left lands its own height high. Add it, then `move(topleft + (0, sz.y))`.
 - **`Selector` is private**, and so is `DarkChannel`. The tab order is not reachable from outside the class;
   the child list is, and `ChatUI.add`/`cdestroy` keep the two in step.
 

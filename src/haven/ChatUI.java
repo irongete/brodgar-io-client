@@ -1863,6 +1863,8 @@ public class ChatUI extends Widget {
 	this.c = (this.base = base).add(0, visible ? -sz.y : 0);
     }
 
+    public Coord base() {return(base);}   // addon: (173) the chat's one place, its bottom: c follows it while shown
+
     public void expand() {
 	if(!visible)
 	    sshow(true);
@@ -1870,6 +1872,7 @@ public class ChatUI extends Widget {
 
     public void show() {
 	super.show();
+	c = base.add(0, -sz.y);   // addon: (173) a place written while hidden shows there, not at the hidden c
 	targetshow = true;
     }
 

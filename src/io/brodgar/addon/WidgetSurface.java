@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Area;
+import haven.ChatUI;
 import haven.Coord;
 import haven.FColor;
 import haven.GOut;
@@ -599,6 +600,11 @@ final class WidgetSurface extends Widget {
                 w.parent = null;
             }
             np.add(w, (at == null) ? Coord.z : at);
+            // 173: ChatUI.added() takes c as the chat's base, its bottom, so the top-left given lands its own
+            // height high; a chat is placed by its top-left again. Every other widget keeps the plain add:
+            // place() is move(), which a Scrollbar overrides to shift by sflarp.
+            if(w instanceof ChatUI)
+                LuaWidget.place(w, (at == null) ? Coord.z : at);
             UI dest = (np != null) ? np.ui : u;
             if((dest != null) && (w.ui != dest))
                 w.reattach(dest);
