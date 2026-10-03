@@ -118,7 +118,7 @@ Every task ends with `rm -rf build/classes && ant hafen-client`, `ant bin`, `too
 
   <!-- extra context: docs/client/widgets.md (the raise/lower row; read only) -->
 
-- [ ] **173.4 — A widget names the addon that built it, and the addon layer has a root.**
+- [x] **173.4 — A widget names the addon that built it, and the addon layer has a root.**
   - `widget:addon()` and `:info().addon` (plan.md): the builder's id, `"(console)"`, or `nil`. An argument refuses.
   - `hafen.ui():root()`, refusing an argument. The `UiApi.java` comment denying a layer twin is corrected.
   - Docs:

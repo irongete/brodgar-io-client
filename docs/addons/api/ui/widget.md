@@ -21,6 +21,7 @@ end
 | `session:ui():matchAll(selector)` | Every match, in tree order. An empty array, never `nil`. | Unprotected |
 | `widget:match(selector)`, `widget:matchAll(selector)` | The same two, scoped to one widget's subtree — [searching inside one widget](#searching-inside-one-widget). | Unprotected |
 | `session:ui():root()` | The top of that character's tree. | Unprotected |
+| `hafen.ui():root()` | The top of [the addon layer](custom.md#your-windows-live-in-the-layer): the parent of every surface built without `:parent(w)`, every addon's. | Unprotected |
 | `session:ui():node(id)` | The widget for a server widget id in that character's tree, or `nil`. | Unprotected |
 | `session:ui():inventory()` | That character's main backpack grid. | Unprotected |
 | `session:ui():equipment()` | That character's worn-equipment grid. | Unprotected |
@@ -29,7 +30,7 @@ end
 | `hafen.ui():tipAt(x, y)` | The widget whose tooltip the client shows at that point, or `nil` — [tooltips](#tooltips-and-focus). | Unprotected |
 | `hafen.ui():mouse()` | The pointer, which is not a Widget — [mouse](mouse.md). | Unprotected |
 
-`session` is a [Session](../session.md): `hafen.session():current()` for the character on screen, `hafen.session():get(user)` for any other. A widget the client put up belongs to one character. A session nobody is looking at keeps its whole tree, so its windows stay findable from another character, and a [mirror](mirror.md) shows any widget of it. What you built is in no character's tree: hold the handle the builder gave you.
+`session` is a [Session](../session.md): `hafen.session():current()` for the character on screen, `hafen.session():get(user)` for any other. A widget the client put up belongs to one character. A session nobody is looking at keeps its whole tree, so its windows stay findable from another character, and a [mirror](mirror.md) shows any widget of it. What you built is in no character's tree. It stands in the addon layer, whose top is `hafen.ui():root()`.
 
 ### Identity
 
@@ -72,6 +73,7 @@ Every method answers on every widget, owned or borrowed, and none throws.
 | `:name()` | `string \| nil` | Unprotected | The name the addon that built it gave it, as `<addon>/<name>` — [naming your own](custom.md#naming-and-dressing-your-own-surfaces). |
 | `:stock()` | `table \| nil` | Unprotected | What a widget you built declared its own look to be — [the same page](custom.md#naming-and-dressing-your-own-surfaces). |
 | `:owned()` | `boolean` | Unprotected | Whether your addon built it — [owned vs borrowed](writes.md#owned-vs-borrowed). |
+| `:addon()` | `string \| nil` | Unprotected | The id of the addon that built it, `"(console)"` for the `:lua` console's. `nil` for one no addon built. An argument raises. |
 | `:is(selector)` | `boolean` | Unprotected | Whether this widget matches the [selector](selectors.md). |
 | `:children()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) | Unprotected | Child Widgets in tree order, back to front: the last is painted over the rest. Empty for a leaf. `:list()` is the array. A child has no key, so there is no `:get`. |
 | `:parent()` | `Widget \| nil` | Unprotected | The enclosing widget. `nil` at the root, and `nil` inside the [Kin window](../kin.md#the-row-is-one-way). |
@@ -101,7 +103,7 @@ Every method answers on every widget, owned or borrowed, and none throws.
 | `:search()` | `string \| nil` | Unprotected | What one of the client's search lists is filtered by. `nil` while no search runs, and on every other widget. [`:search(text)` filters it](lists.md#searching-one). |
 | `:items()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [`Item`](items.md#the-item-object) | Unprotected | The items inside it — [items](items.md). |
 | `:exists()` | `boolean` | Unprotected | Whether it is still in the tree. |
-| `:info()` | `table \| nil` | Unprotected | Snapshot `{type, role, res, id, pos, size, visible, enabled, text, owned}`. Absent values are unset keys. `nil` once stale. |
+| `:info()` | `table \| nil` | Unprotected | Snapshot `{type, role, res, id, pos, size, visible, enabled, text, owned, addon}`. Absent values are unset keys. `nil` once stale. |
 | `:walk(fn)` | `self` | Unprotected | Depth-first visit, `fn(widget, depth)`. Return `false` to prune that subtree. |
 | `:hit(coord)` | `Widget \| nil` | Unprotected | The deepest widget under a `{x=, y=}` root-coordinate point within this subtree. |
 | `:rootPos()` | `{x=, y=} \| nil` | Unprotected | Its top-left in root coordinates. With `:size()` (a window: `:chrome().frame`) it gives the rectangle outlining it. |

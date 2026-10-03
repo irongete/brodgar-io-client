@@ -388,6 +388,19 @@ public final class LuaWidget {
                 return LuaValue.valueOf((w != null) && (ownedContent(owner, w) != null));
             }
         });
+        // addon() — 173.4: the id of the addon that BUILT this widget, whoever is asking — the string
+        // pagina:addon() answers for a menu entry, "(console)" for the :lua console's, a library's own id for a
+        // widget built inside its call — or nil for one no addon built. :owned() asks "is it mine?"; this asks
+        // "whose is it?", which is what a HUD editor walking the layer needs. No argument: nothing writes it.
+        m.set("addon", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:addon() → narg 1, and there is no other arity
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:addon() takes no arguments — it NAMES the addon that built a"
+                        + " widget, and nothing writes it");
+                String id = builder(live(handle(a.arg1(), "addon")));
+                return (id == null) ? LuaValue.NIL : LuaValue.valueOf(id);
+            }
+        });
         // is(sel) — W6: does THIS widget match that selector? The predicate the selector language never had,
         // so `widgetstack` built candidate selectors and ran each one over the whole live tree to see which
         // hit, reporting "what the answer cost, in tree walks" because there was no cheaper way to ask.
@@ -1901,7 +1914,7 @@ public final class LuaWidget {
                 return LuaValue.valueOf(live(handle(self, "exists")) != null);
             }
         });
-        // info() — the one SNAPSHOT escape hatch ({type,role,res,id,pos,size,visible,enabled,text,owned}), for logging.
+        // info() — the one SNAPSHOT escape hatch ({type,role,res,id,pos,size,visible,enabled,text,owned,addon}), for logging.
         // An absent value is simply an unset key; nil for a stale widget (there is nothing to snapshot). `owned`
         // is the provenance 029.2 introduced — true iff THIS addon created the widget, i.e. iff the write verbs
         // answer on it — and it is how you ask instead of provoking the error.
@@ -4401,7 +4414,7 @@ public final class LuaWidget {
 
     /**
      * A Widget snapshot — {@code widget:info()}, the escape hatch for logging/serialising:
-     * {@code {type,role,res,id,pos,size,visible,text,owned}}. Expressed over the same accessors the methods use, so there is
+     * {@code {type,role,res,id,pos,size,visible,enabled,text,owned,addon}}. Expressed over the same accessors the methods use, so there is
      * one source of truth per field; an absent value is simply an unset key. {@code owned} is per-addon (029.2):
      * the same widget is {@code owned=true} for the addon that created it and {@code false} for every other one.
      */
@@ -4430,7 +4443,24 @@ public final class LuaWidget {
         String tx = text(w);
         if(tx != null)
             t.set("text", LuaValue.valueOf(tx));
+        String by = builder(w);                    // 173.4: widget:addon(), absent where it is nil
+        if(by != null)
+            t.set("addon", LuaValue.valueOf(by));
         return t;
+    }
+
+    /**
+     * <b>Whose widget this is</b> ({@code widget:addon()}, 173.4) — the manifest id of the addon that built it, as
+     * {@link Owned#of} resolves it: the widget itself, or the content a window's chrome directly holds. {@code null}
+     * for a widget no addon built, a piece the client builds inside an addon's control included, and for a stale
+     * one. A library's call runs under the library, so a widget built there names the library.
+     */
+    static String builder(Widget w) {
+        Owned o = Owned.of(w);
+        if(o == null)
+            return null;
+        Addon a = o.profOwner();
+        return ((a == null) || (a.manifest == null)) ? null : a.manifest.id;
     }
 
     /**

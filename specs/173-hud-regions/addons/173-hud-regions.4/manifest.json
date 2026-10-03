@@ -1,0 +1,9 @@
+{
+  "name": "173.4 — a widget names its builder, and the addon layer has a root",
+  "id": "173-hud-regions.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 173.4: widget:addon() and :info().addon name the addon that built a widget and answer nil on the client's own, hafen.ui():root() is the parent of a surface built without :parent(w) and its :match finds one by name, and both verbs refuse an argument.",
+  "api_version": "1.5",
+  "files": ["main.lua"]
+}

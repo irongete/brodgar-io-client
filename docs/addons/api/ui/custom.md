@@ -23,7 +23,14 @@ To put the client's own controls in a surface instead of painting them, see [con
 
 ## Your windows live in the layer
 
-A surface you build stands in the **addon layer**. That is a widget tree of its own, above every character the client holds, drawn over whichever is on screen and over the login screen. It is in no character's tree, so `session:ui():match`, `:matchAll`, `:root` and an [`Added` subscription](replace.md#watching-for-a-widget) never reach it. Hold the handle the builder gave you. `==` is its identity and `widget:match(selector)` searches inside it. A logout leaves it where it was.
+A surface you build stands in the **addon layer**. That is a widget tree of its own, above every character the client holds, drawn over whichever is on screen and over the login screen. It is in no character's tree, so `session:ui():match`, `:matchAll`, `:root` and an [`Added` subscription](replace.md#watching-for-a-widget) never reach it. `==` is its identity and `widget:match(selector)` searches inside it. A logout leaves it where it was.
+
+| Fact | Rule |
+|---|---|
+| The top | `hafen.ui():root()`. Every surface built without [`:parent(w)`](#builders) stands directly under it, every addon's. Its `:parent()` and `:addon()` are `nil`. |
+| Whose | [`widget:addon()`](widget.md#read-methods) names the addon that built a surface. `:owned()` asks whether it is yours. |
+| Finding one | `hafen.ui():root():match("[name=myaddon/bar]")`, or walk `:children()`. No event fires for another addon's new surface: walk the layer when you need it. |
+| What else stands there | While a [pointer grab](mouse.md#the-grab) or a drag runs, the client's own pieces carrying it stand among the root's children, `:addon()` `nil`. |
 
 ---
 

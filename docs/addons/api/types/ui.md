@@ -18,6 +18,7 @@ From [`widget:info()`](../ui/widget.md#read-methods). `nil` once the widget is s
 |---|---|---|
 | `type` | `string` | The client's class name for it (`widget:type()`). Always present. |
 | `owned` | `boolean` | Whether your addon made it, so the write verbs answer. Always present. |
+| `addon` | `string` | The id of the addon that built it ([`widget:addon()`](../ui/widget.md#read-methods)). Optional (absent on a widget no addon built). |
 | `role` | `string` | The [selector role](../ui/selectors.md) it classifies as. Optional. |
 | `res` | `string` | The resource behind it. Optional. |
 | `id` | `number` | The number the server knows it by. Optional (absent on a client-side widget). |

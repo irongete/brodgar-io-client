@@ -482,6 +482,20 @@ final class UiApi {
                 return LuaMouse.of(owner);
             }
         });
+        // :root() — 173.4: the top of the ADDON LAYER, session:ui():root()'s twin. Every surface built without
+        // :parent(w) stands directly under it, every addon's, so a HUD editor walks the layer from here and
+        // asks each child :addon(). The root is the client's own widget, borrowed like any other: its
+        // :parent() is nil and its :addon() nil. While a pointer grab or a drag runs, the client's bridges
+        // stand among its children too, answering :addon() with nil.
+        m.set("root", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "root");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.ui():root() takes no arguments — it IS the top of the addon layer,"
+                        + " and a surface under it is :match(selector) or :children()");
+                return nodeRoot(owner, layer());
+            }
+        });
         m.set("hit", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "hit");
@@ -916,8 +930,8 @@ final class UiApi {
     static LuaValue ui(final Addon owner, final String user) {
         LuaTable m = new LuaTable();
         // :root() — the top of THAT session's whole widget tree, or nil before it has one. From here an addon
-        // walks DOWN to any open window; a selector names one directly. There is no layer twin: an addon that
-        // wants its own window holds the handle the builder gave it.
+        // walks DOWN to any open window; a selector names one directly. Its twin on the addon layer is
+        // hafen.ui():root() (173.4), the parent of every surface built without :parent(w), every addon's.
         m.set("root", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "root", UIS);
@@ -2636,7 +2650,9 @@ final class UiApi {
     /**
      * {@code session:ui():root()} — the {@link LuaWidget} entity for that session's {@code ui.root}, the top of
      * one character's whole widget tree (spec 20, W1). {@code nil} while that session has no tree. From here an
-     * addon walks DOWN to any window that character has open — or names one directly with a selector.
+     * addon walks DOWN to any window that character has open — or names one directly with a selector. Given the
+     * {@link AddonManager#layer() addon layer} it is {@code hafen.ui():root()} (173.4), the top of every addon's
+     * surfaces.
      */
     private static LuaValue nodeRoot(Addon owner, UI u) {
         if((u == null) || (u.root == null))

@@ -13,7 +13,7 @@ session:ui():matchAll("*[res*=gfx/hud/meter]")               -- by resource name
 session:ui():root()                                          -- no selector: the whole tree
 ```
 
-A lookup searches one character's tree, so it is addressed at that character's [session](../session.md). `hafen.session():current()` is the one on screen, `hafen.session():get(user)` any other. A tree answers the same searches whether or not it is drawn. Windows your addon builds stand in the addon layer and match no selector. Hold [the builder's](custom.md) handle.
+A lookup searches one character's tree, so it is addressed at that character's [session](../session.md). `hafen.session():current()` is the one on screen, `hafen.session():get(user)` any other. A tree answers the same searches whether or not it is drawn. Windows your addon builds stand in [the addon layer](custom.md#your-windows-live-in-the-layer), out of every character's tree. `hafen.ui():root():match(selector)` searches the layer.
 
 ---
 
@@ -24,6 +24,7 @@ A lookup searches one character's tree, so it is addressed at that character's [
 | `session:ui():match(selector)` | [`Widget`](widget.md) `\| nil` | Unprotected | The one match in that character's tree. No match is `nil`. Two or more raise, saying how many matched and naming `matchAll(selector)[i]`. |
 | `session:ui():matchAll(selector)` | `Widget[]` | Unprotected | Every match, in tree order. Empty, never `nil`. |
 | `session:ui():root()` | `Widget \| nil` | Unprotected | The top of that character's tree. |
+| `hafen.ui():root()` | `Widget` | Unprotected | The top of the addon layer, every addon's surfaces under it. Its `:match` and `:matchAll` search the layer. An argument raises. |
 | `widget:match(selector)`, `widget:matchAll(selector)` | as above | Unprotected | The same search over `widget`'s own subtree, `widget` included — [below](#inside-one-widget). |
 
 ### One, or all of them

@@ -20,7 +20,7 @@ Every widget is the same [Widget](widget.md) object. One you build, one the clie
 
 | Tree | Reached through | Holds |
 |---|---|---|
-| The addon layer | `hafen.ui():window()`, `:widget()`, `:column()`, the controls | What you build. Drawn above every session and above the login screen. Stays when the player tabs between characters. |
+| The addon layer | `hafen.ui():window()`, `:widget()`, `:column()`, the controls, `hafen.ui():root()` | What every addon builds, each widget answering [`:addon()`](widget.md#read-methods). Drawn above every session and above the login screen. Stays when the player tabs between characters. |
 | A character's tree | `session:ui():match(selector)`, `:matchAll(selector)`, `:root()`, `:node(id)`, `:inventory()`, `:equipment()` | What the client put up for that character. Nothing you built is under it. Nothing the client built is reachable without it. |
 
 Both trees take the same [selector](selectors.md), which is also the key of a [stylesheet](style/README.md) rule. The pointer, hit tests and the [scale](pixels.md) are `hafen.ui()`'s alone: one screen, however many characters are logged in.
