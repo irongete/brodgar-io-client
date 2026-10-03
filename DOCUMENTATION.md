@@ -3,7 +3,7 @@
 > Read it **before** writing a page, not after. **§1–§11 are the standard for `docs/addons/**`**,
 > the reader-facing contract: what a page looks like, where it lives, and what a task checks before
 > it hands over. **§12 is the standard for `docs/client/**`**, the engine map — a different
-> audience, and a much shorter set of rules.
+> audience, and a much shorter set of rules. **§13** points to the standard for `docs/changelog/**`.
 
 ## 1. Scope and audience
 
@@ -160,3 +160,11 @@ Audience: Developers working on the Java client internals in `src/`.
 - **Maps, not narrative:** Tables mapping Java subsystems, classes, and packages to their responsibilities.
 - Cite Java classes and methods (`MapView.click`, `Widget.resize`), never transient line numbers.
 - Documents upstream `haven.*` architectural gotchas and threading boundaries.
+
+---
+
+## 13. `docs/changelog/` — What Each Version Changed
+
+One page a version and its index, written only by `/changelog`, whose *The page* section is their
+standard. It is the one place under `docs/` that states history: §8 does not apply there, and
+nowhere else states it.

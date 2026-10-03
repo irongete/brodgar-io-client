@@ -33,6 +33,7 @@ The documentation is organized into two distinct sections:
 
 - **[AddOns](addons/README.md)**: Developer documentation for creating client addons in Lua. Covers the `hafen.*` API, manifest configuration, UI creation, event handling, and examples.
 - **[Client Internals](client/README.md)**: Technical reference for the underlying Java client engine, subsystems, rendering pipeline, and architecture.
+- **[Changelog](changelog/README.md)**: What each version changed, for players and for addon authors.
 
 ### Creating Addons
 - **[Getting Started](addons/getting-started.md)**: Build your first addon in 5 minutes.

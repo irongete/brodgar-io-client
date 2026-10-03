@@ -10,6 +10,7 @@ and a feature is built on a branch of its own (see *Branches and releases*).
 |---|---|
 | `docs/addons/**` | **The contract.** What the API *is*, always current. The only model `/plan` and `/implement` need |
 | `docs/client/**` | **The map of the upstream `haven` engine**: where each subsystem lives, what owns what, and the gotchas that cost time. Written only by the task that had to read that source anyway |
+| `docs/changelog/**` | **What each version changed**, one page a version and an index, for players and addon authors. Written only by `/changelog`, and never read by `/plan` or `/implement`: it is history, not what is in force |
 | `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
 | `addons/` | The task suite in flight, and nothing else. The maintainer's own addons live in the sibling repository `brodgar-io-client-addons` (`../brodgar-io-client-addons`, `build.xml`'s `addons.repo`); `etc/release-addons` names the ones a release ships |
 | `bin/addons/` | What the running client actually scans, beside the jar. `ant bin` fills it from the sibling repository and from `addons/`; a suite is copied here to be run, and gitignored |
@@ -182,5 +183,8 @@ the whole block back. Nothing needs interpreting — that round trip is the form
 **`/plan <feature>`** (the branch off `master`, design, review, no commit) → **`/implement`** (one
 task, on the feature's branch; iterate with the maintainer until it passes) → **`/end`** (verify,
 close, commit everything — and when the last task closes, fast-forward the branch into `master`).
+
+**`/changelog <version>`** writes the version's page under `docs/changelog/` from the commits since
+the previous one, and commits nothing; the maintainer commits it before the release tags it.
 
 Each command states exactly what to read. Read nothing else.
