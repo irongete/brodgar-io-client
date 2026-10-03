@@ -12,6 +12,7 @@ import haven.render.Environment;
 import haven.render.InstanceList;
 import haven.render.State;
 import haven.render.gl.GLEnvironment;
+import haven.render.gl.GLProxy;
 import io.brodgar.prof.Overhead;
 import io.brodgar.prof.Prof;
 import io.brodgar.session.Sessions;
@@ -501,6 +502,9 @@ public final class ProfHandle {
         return t;
     }
 
+    /** The pools {@code vram} is keyed by: the environment counts more ({@code shaders}, {@code programs}). */
+    private static final List<String> VRAM_POOLS = java.util.Arrays.asList("indices", "vertices", "textures", "vaos", "fbos");
+
     /**
      * {@code p:render()} — the graphics counters as numbers. {@code stateSlots} and {@code gobsHeld} are
      * process-wide; {@code programs} and {@code vram} come from the GL environment; everything else describes
@@ -543,12 +547,17 @@ public final class ProfHandle {
             return t;
         t.set("stateSlots", LuaValue.valueOf(State.Slot.numslots()));
         Environment env = u.getenv();
+        // A window that shares its GL environment with others (GLX, Cocoa) is a GLProxy over it.
+        if(env instanceof GLProxy)
+            env = ((GLProxy)env).back();
         if(env instanceof GLEnvironment) {
             GLEnvironment gl = (GLEnvironment)env;
             t.set("programs", LuaValue.valueOf(gl.numprogs()));
             LuaTable vram = new LuaTable();
             String[] pools = GLEnvironment.mempools();
             for(int i = 0; i < pools.length; i++) {
+                if(!VRAM_POOLS.contains(pools[i]))
+                    continue;
                 LuaTable p = new LuaTable();
                 p.set("objects", LuaValue.valueOf(gl.memobjects(i)));
                 p.set("bytes", LuaValue.valueOf((double)gl.membytes(i)));

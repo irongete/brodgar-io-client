@@ -8,6 +8,7 @@ import haven.render.*;
 import haven.render.gl.BGL;
 import haven.render.gl.GL;
 import haven.render.gl.GLEnvironment;
+import haven.render.gl.GLProxy;
 import haven.render.gl.GLRender;
 import haven.render.gl.UniformApplier;
 import haven.render.sl.*;
@@ -361,11 +362,14 @@ public class SkyPass implements RenderTree.Node {
 	    Probe p = probes.get(env);
 	    if((p == null) || (p.state == 3)) {
 		p = new Probe(new String[][] {sources(cshader), sources(shader)});
+		/* A GLProxy is one window over a GL environment it shares with others (GLX, Cocoa): the render
+		 * has to come from it, naming that window, because the shared GLEnvironment refuses a raw one. */
 		Environment b = env;
-		while(b instanceof Environment.Proxy)
+		while((b instanceof Environment.Proxy) && !(b instanceof GLProxy))
 		    b = ((Environment.Proxy)b).back();
-		if(b instanceof GLEnvironment) {
-		    GLRender r = ((GLEnvironment)b).render();
+		GLRender r = (b instanceof GLProxy) ? ((GLProxy)b).render()
+		    : (b instanceof GLEnvironment) ? ((GLEnvironment)b).render() : null;
+		if(r != null) {
 		    r.submit(p);
 		    b.submit(r);
 		} else {

@@ -232,10 +232,12 @@ public class GLProgram implements Disposable {
 		}
 		throw(new ShaderException("Failed to compile shader", this, info));
 	    }
+	    setmem(GLEnvironment.MemStats.SHADERS, 0);
 	}
 
 	protected void delete(GL gl) {
 	    gl.glDeleteShader(id);
+	    setmem(null, 0);
 	}
 
 	public int glid() {
@@ -362,6 +364,7 @@ public class GLProgram implements Disposable {
 		gl.glGetProgramiv(this.id, GL.GL_LINK_STATUS, buf);
 		if(buf[0] == 1) {
 		    ProgramCache.hits++;
+		    setmem(GLEnvironment.MemStats.PROGRAMS, 0);   // addon: a loaded program is counted as a linked one is
 		    return;
 		}
 		ProgramCache.rejects++;
@@ -389,6 +392,7 @@ public class GLProgram implements Disposable {
 		}
 		throw(new LinkException("Failed to link GL program", GLProgram.this, info));
 	    }
+	    setmem(GLEnvironment.MemStats.PROGRAMS, 0);
 	    if(keep) {   // addon: ProgramCache -- the binary the driver just made, a memcpy here and a file later
 		ProgramCache.misses++;
 		gl.glGetProgramiv(this.id, GL.GL_PROGRAM_BINARY_LENGTH, buf);
@@ -404,6 +408,7 @@ public class GLProgram implements Disposable {
 
 	protected void delete(GL gl) {
 	    gl.glDeleteProgram(id);
+	    setmem(null, 0);
 	}
 
 	public void dispose() {

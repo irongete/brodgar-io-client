@@ -15,12 +15,14 @@
 | **Levels of detail (fork)** | Upstream has none: a mesh is drawn with every triangle at any distance. A `Model` is a vertex array plus an index buffer, so a coarser level of a `FastMesh` is **one more `Indices` over the same vertices** — and, instanced, over the same instance buffer. Fork: `FastMesh.lod(level)` makes the levels once, on a `Defer` thread, the first time they are asked for (quadric edge collapse over the mesh with its vertices welded at each point, each corner handed back the original vertex whose normal is nearest, `io.brodgar.perf.MeshLod`; a mesh of loose little pieces gets none), and `FastMesh.Instanced.lod(level)` rebuilds its `Model` over them, which `instupdate` carries to every client of the batch — the shadow list too. `PView.frustum` picks the level per batch by screen size and leaves out a batch too small to see, and only while frustum culling is on, since that pass is what picks them. Each size is weighed times `FrustumList.lodbias`, the Performance page's *Objects* ▸ *LOD distance* (persisted as `lodbias`), which `:lodbias <x>` sets too; `:lod on|off` switches the levels, and `:lod` prints the counts. A slot drawn on its own — the ground among them — is always drawn whole |
 | Batching effectiveness | `InstanceList.stats` over `nuinst`+`nbatches`(`ninst`) `ninvalid` `nbypass`; fork getters at. Written on the render side ⇒ a read may be **one frame stale** |
 | Draw slots ("draw calls") | `DrawList.stats` is an interface default; the real count is `GLDrawList.btsubsize(root)`. Fork: `DrawList.drawslots()` defaults **`-1`** = "does not count", overridden in `GLDrawList` |
-| VRAM pools + shader programs | `GLEnvironment.memstats` over `stats_obj`/`stats_mem` indexed by the **package-private** `MemStats` enum, and `numprogs()`; fork exposes the pool **names** as `String[] mempools()` + `memobjects(i)`/`membytes(i)` at |
+| VRAM pools + shader programs | `stats_obj`/`stats_mem`, indexed by the **package-private** `MemStats` enum and kept by `GLObject.setmem` — `SHADERS` and `PROGRAMS` among the pools, counted by `ShaderOb.create`/`ProgOb.create`. The HUD reads them as text through `Environment.stats(Collection)` (`GLEnvironment`'s `V-Obj`/`V-Mem` lines; `Environment.Proxy` forwards it). Fork: the pool **names** as `String[] mempools()` + `memobjects(i)`/`membytes(i)`, and `numprogs()`, the programs `ptab` holds (`// addon:`) |
 | Render-state slots (process-wide) | `State.Slot.numslots()` |
 
 **Gotcha.** Everything above except `State.Slot.numslots()` needs a live scene: `ui.root.findchild(MapView.class)`
 is null before the world loads, `instancer`/`back` are null before the first draw, and a non-`GLEnvironment`
-backend has no VRAM or program counts at all. Report an **absent** value, never a `0`.
+backend has no VRAM or program counts at all. Report an **absent** value, never a `0`. ⚠️ On GLX and Cocoa
+`ui.getenv()` is a `GLProxy`, not the `GLEnvironment`: an `instanceof GLEnvironment` test on it fails there and
+nowhere else, so take `GLProxy.back()` first.
 
 ## GL submission: where a frame's draw calls actually happen
 
@@ -93,13 +95,24 @@ queue and are neither run nor aborted, so their fences never fire; `JOGLPanel.re
 no `try`, so the busy bit in `pstate` is never cleared and no display is scheduled again; and the UI thread's
 next `Frame.syncwait` waits on the lost fence with no timeout. The window shows its last frame and takes no
 input; the stack trace goes to stderr only. Nothing on the UI thread sees it either — `GLProgram.glid()` only
-queues the objects. The only protection is to ask the driver first: a `BGL.Request` submitted through
-`GLEnvironment.render()` that compiles and links the two sources itself and reads `GL_COMPILE_STATUS` /
+queues the objects. The only protection is to ask the driver first: a `BGL.Request` submitted through a
+render of its own (`GLRender.submit(BGL.Request)`, the render from the window's environment as the next gotcha
+says) that compiles and links the two sources itself and reads `GL_COMPILE_STATUS` /
 `GL_LINK_STATUS` instead of throwing. The budget that binds is the fragment stage's uniform **registers**, not
 the component count `GL_MAX_FRAGMENT_UNIFORM_COMPONENTS` reports: measured on a GTX 1660 SUPER (NVIDIA
 591.86), a program with 2,977 uniform components took about 750 of its 1,024 vec4 registers, and one more
 past 1,018 was refused at link (`C6020: Constant register limit exceeded`). GL 3.x only guarantees 1,024
 components (256 vec4).
+
+**Gotcha — on GLX and Cocoa every window shares one GL environment, and a render must name its window.**
+`GLXContext`'s `GLXEnvironment` and `CocoaContext`'s `CGLEnvironment` are one context for all of a toolkit's
+windows; a window's `env()` is that environment's `ProxyEnv`, a `GLProxy` holding the drawable (or `NSView`).
+`GLEnvironment.process` runs every GL call through `process(gl, ctx, cmd)`, which those two override to make the
+render's window current, reading it off `((ProxyEnv)ctx.env())` — so a render has to come from the proxy:
+`GLProxy.render()` hands out a `ProxiedRender`, whose `env()` is the proxy (hence `GLRender.env()` returns an
+`Environment`). The shared environment's own `render()` throws (`raw render-buffers not available in shared
+environments`). Unwrapping an environment to reach GL stops at the first `GLProxy`; WGL, JOGL, NEWT and LWJGL hand
+out their `GLEnvironment` itself.
 
 ## The shadow map
 
