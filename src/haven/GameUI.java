@@ -69,6 +69,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private boolean afk = false;
     public BeltSlot[] belt = new BeltSlot[144];
     public Belt beltwdg;
+    /* addon: (173) the regions an addon moves or hides the bottom-left line and the hidden chat's lines by */
+    public static final String[] rgroles = {"hud.cmdline", "hud.message", "hud.chat"};   // addon:
+    private io.brodgar.ui.Region[] rgns = null;   // addon:
     public final Map<Integer, String> polowners = new HashMap<Integer, String>();
     public Bufflist buffs;
 
@@ -397,6 +400,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     protected void attached() {
 	iconconf = loadiconconf();
 	super.attached();
+	if(rgns == null)   // addon: (173) once, in a tree: a rule naming a region resolves against the screen
+	    rgns = io.brodgar.ui.Region.stand(this, this, rgroles);   // addon:
     }
 
     public static final KeyBinding kb_srch = KeyBinding.get("scm-srch", KeyMatch.forchar('Z', KeyMatch.C));
@@ -1284,28 +1289,53 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
+    /* addon: (173) the offset the element of region `i` is painted by, its box handed over first; null while hidden */
+    private Coord rgoff(int i, Coord ul, Coord sz) {
+	return((rgns == null) ? Coord.z : rgns[i].off(ul, sz));
+    }
+
     public void draw(GOut g) {
-	beltwdg.c = new Coord(chat.c.x, Math.min(chat.c.y - beltwdg.sz.y, sz.y - beltwdg.sz.y));
+	/* addon: (173) the belt is placed here only while it is this HUD's own and no addon holds it, and the
+	 * chat's place counts only while the chat is this HUD's own: elsewhere its `c` is in another space */
+	boolean beltdef = mine(beltwdg) && !AddonWidgets.held(beltwdg);   // addon:
+	if(beltdef) {   // addon:
+	    if(mine(chat))   // addon:
+		beltwdg.c = new Coord(chat.c.x, Math.min(chat.c.y - beltwdg.sz.y, sz.y - beltwdg.sz.y));
+	    else   // addon: the place GameUI.resize gives it
+		beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));   // addon:
+	}
 	super.draw(g);
 	int by = sz.y;
-	if(chat.visible())
+	if(mine(chat) && chat.visible())   // addon: (173) mine(chat)
 	    by = Math.min(by, chat.c.y);
-	if(beltwdg.visible())
+	if(beltdef && beltwdg.visible())   // addon: (173) beltdef
 	    by = Math.min(by, beltwdg.c.y);
+	/* addon: (173) the line's slot, for the command line and the notice alike; each element painted at its
+	 * region, and the line's 20 off `by` only while the line painted stands at its default */
+	Coord lul = new Coord(blpw + UI.scale(10), by - UI.scale(20)), lsz = Coord.of(chat.sz.x - UI.scale(10), UI.scale(20));   // addon:
+	Coord lro = rgoff(0, lul, lsz), mro = rgoff(1, lul, lsz);   // addon:
 	if(cmdline != null) {
-	    drawcmd(g, new Coord(blpw + UI.scale(10), by -= UI.scale(20)));
+	    if(lro != null)   // addon:
+		drawcmd(g, lul.add(lro));   // addon: was at (blpw + 10, by - 20)
+	    if(lro == Coord.z)   // addon: unheld
+		by -= UI.scale(20);   // addon:
 	} else if(lastmsg != null) {
 	    if((Utils.rtime() - msgtime) > 3.0) {
 		lastmsg = null;
 	    } else {
-		g.chcolor(0, 0, 0, 192);
-		g.frect(new Coord(blpw + UI.scale(8), by - UI.scale(22)), lastmsg.sz().add(UI.scale(4), UI.scale(4)));
-		g.chcolor();
-		g.image(lastmsg.tex(), new Coord(blpw + UI.scale(10), by -= UI.scale(20)));
+		if(mro != null) {   // addon:
+		    g.chcolor(0, 0, 0, 192);
+		    g.frect(new Coord(blpw + UI.scale(8), by - UI.scale(22)).add(mro), lastmsg.sz().add(UI.scale(4), UI.scale(4)));   // addon: .add(mro)
+		    g.chcolor();
+		    g.image(lastmsg.tex(), lul.add(mro));   // addon: was at (blpw + 10, by - 20)
+		}
+		if(mro == Coord.z)   // addon: unheld
+		    by -= UI.scale(20);   // addon:
 	    }
 	}
-	if(!chat.visible()) {
-	    chat.drawsmall(g, new Coord(blpw + UI.scale(10), by), UI.scale(100));
+	Coord cro = rgoff(2, new Coord(blpw + UI.scale(10), by - UI.scale(100)), Coord.of(lsz.x, UI.scale(100)));   // addon: (173)
+	if(!chat.visible() && (cro != null)) {   // addon: (173) cro
+	    chat.drawsmall(g, new Coord(blpw + UI.scale(10), by).add(cro), UI.scale(100));   // addon: .add(cro)
 	}
     }
     

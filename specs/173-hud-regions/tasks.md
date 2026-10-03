@@ -55,7 +55,7 @@ Every task ends with `rm -rf build/classes && ant hafen-client`, `ant bin`, `too
 
   <!-- extra context: src/haven/Buff.java (`cframe`, `move`); specs/170-live-fight/addons/170-live-fight.2/main.lua (the Done/Skip prompt; read only) -->
 
-- [ ] **173.2 — The HUD's bottom-left line stands its three regions, and a belt an addon placed stays there.**
+- [x] **173.2 — The HUD's bottom-left line stands its three regions, and a belt an addon placed stays there.**
   - `GameUI` stands `hud.cmdline`, `hud.message` and `hud.chat` in `attached()`, after `super.attached()`, while `rgns == null`.
   - `draw` paints the line, the notice and the hidden chat at their regions.
   - `beltwdg.c` is written, and the belt lowers `by`, only while `mine(beltwdg) && !AddonWidgets.held(beltwdg)`.

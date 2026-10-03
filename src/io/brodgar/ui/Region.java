@@ -74,8 +74,9 @@ public class Region extends Widget {
 
     /**
      * The painter's one call per element per frame. {@code ul} and {@code sz} are the element's box in the
-     * painter's coordinates. Answers the offset to paint the element by: {@code Coord.z} unheld, the region's
-     * place less {@code ul} held, and {@code null} while the region is not visible.
+     * painter's coordinates. Answers the offset to paint the element by: {@code Coord.z} itself unheld, so a
+     * painter tells "at its default" by identity, the region's place less {@code ul} held, and {@code null}
+     * while the region is not visible.
      */
     public Coord off(Coord ul, Coord sz) {
     if(parent == null)
@@ -84,7 +85,10 @@ public class Region extends Widget {
     boolean held = held();
     if(!held) {
         int x, y;
-        if(painter.parent == parent) {
+        if(painter == parent) {
+        x = ul.x;
+        y = ul.y;
+        } else if(painter.parent == parent) {
         x = painter.c.x + ul.x;
         y = painter.c.y + ul.y;
         } else {
@@ -101,6 +105,8 @@ public class Region extends Widget {
         return(null);
     if(!held)
         return(Coord.z);
+    if(parent == painter)
+        return(Coord.of(c.x - ul.x, c.y - ul.y));
     if(parent == painter.parent)
         return(Coord.of(c.x - painter.c.x - ul.x, c.y - painter.c.y - ul.y));
     return(rootpos().sub(painter.rootpos()).sub(ul));

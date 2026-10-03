@@ -559,4 +559,14 @@ public final class AddonWidgets {
     public static boolean enabled(Widget wdg) {
         return io.brodgar.addon.AddonManager.enabled(wdg);
     }
+
+    /**
+     * The <b>held seam</b> (spec {@code 173-hud-regions}, task 173.2) — does an addon hold {@code wdg}'s place: a
+     * position level on it, a verb's, a rule's, a remembered place's or a drag's? Asked by {@code GameUI.draw}
+     * before it writes the belt's place, which it otherwise does every frame, so a belt an addon placed stays
+     * there. One {@code volatile} read with nothing laid out.
+     */
+    public static boolean held(Widget wdg) {
+        return io.brodgar.addon.AddonManager.posHeld(wdg);
+    }
 }

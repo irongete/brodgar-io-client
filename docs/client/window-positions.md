@@ -62,9 +62,17 @@ layout holds is never written (`AddonManager.posHeld`).
 the client. `Window` moves `c` from `mousemove` while its own grab (`dm`) stands, with no clamp; `mouseup`
 drops the grab and is the one place the end of a drag is known.
 
+## The belt is placed on every frame
+
+| What | Where |
+|---|---|
+| ⚠️ **`GameUI.draw` writes `beltwdg.c` before `super.draw`, every frame** | `c = (chat.c.x, min(chat.c.y - beltwdg.sz.y, sz.y - beltwdg.sz.y))`: the belt sits on the chat's top, or on the screen's bottom while the chat is hidden (`ChatUI.c` is then its base). So a place written to the belt between frames is never drawn, and the `beltwdg.c` `resize` writes is overwritten at the next frame |
+| It assumes the chat is the HUD's | `chat.c` is read in `GameUI` coordinates; a chat moved into another parent gives the belt, and `by` below, a place in another space |
+| The fork's guards (`// addon:`) | The write runs only while `mine(beltwdg)` and `!AddonWidgets.held(beltwdg)`, and reads `chat.c` only while `mine(chat)`; otherwise it writes `resize`'s place, `(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5))`. The belt and the chat lower `by`, the bottom of the `:` line's slot, under the same two conditions |
+
 ## The fork's seams
 
-Every read and write in the tables above is an `// addon:` line that routes the place through the fork's
+Every read and write of a window's key above is an `// addon:` line that routes the place through the fork's
 window-position rule, which keeps a place as **where the window's centre stands, as a fraction of the
 screen** per axis; a window touching an edge, or dropped partly past it, is stored glued to that edge
 (`0` or `1`, values a centre can never take), and a window that fits is always placed whole:

@@ -1,0 +1,10 @@
+{
+  "name": "173.2 — the HUD's bottom-left line and the belt",
+  "id": "173-hud-regions.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 173.2: hud.cmdline, hud.message and hud.chat stand on the HUD at the line's slot, a held belt and a held notice keep their places, and a rule naming hud.cmdline reaches the HUD of a new login.",
+  "api_version": "1.5",
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}

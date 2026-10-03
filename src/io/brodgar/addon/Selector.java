@@ -68,7 +68,7 @@ final class Selector {
         "window", "inventory", "button", "label", "textentry", "chat", "menu", "item", "column", "row",
         // 173: a region, one hand-painted element of the HUD standing as a widget (io.brodgar.ui.Region)
         "fight.opening.mine", "fight.opening.theirs", "fight.ip.mine", "fight.ip.theirs", "fight.cooldown",
-        "fight.last.mine", "fight.last.theirs", "fight.action",
+        "fight.last.mine", "fight.last.theirs", "fight.action", "hud.cmdline", "hud.message", "hud.chat",
     };
     /**
      * The remaining promoted {@link haven.Fonts#SCOPES} names: valid roles that name a <b>render site</b> rather

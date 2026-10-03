@@ -12,6 +12,8 @@ greet_command:off()
 
 Registering is the client's (a name is routed once, so a command answers from every character). Saying a line is one character's. The console a line runs in belongs to the character whose widget tree holds it, so that verb takes an address.
 
+In the world the line you type and the last notice paint bottom left, at the [regions](ui/regions.md) `hud.cmdline` and `hud.message`: hold one with `:position(x, y)` or a sheet rule and the line or the notice paints there. Typing stays the client's. On the login screen the line has no region.
+
 ---
 
 ## Subscribe

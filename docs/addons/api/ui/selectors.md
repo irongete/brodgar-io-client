@@ -113,6 +113,7 @@ local bar = hafen.ui():widget():name("bar")                  -- in the addon, on
 | `item` | The icon one item is drawn as, wherever it is. A container's cell, an equipment slot, the cursor's item, a recipe's input or output slot, an icon a resource ships its own widget for. Exactly the widgets [`widget:item()`](widget.md#read-methods) answers on. |
 | `column`, `row` | A [column or row](column.md) an addon built. |
 | `fight.opening.mine`, `fight.opening.theirs`, `fight.ip.mine`, `fight.ip.theirs`, `fight.cooldown`, `fight.last.mine`, `fight.last.theirs`, `fight.action` | The [region](regions.md) standing for that element of the combat display, while a fight is drawn. |
+| `hud.cmdline`, `hud.message`, `hud.chat` | The [region](regions.md) standing for the command line, the last notice or the hidden chat's lines, bottom left, while the HUD stands. |
 
 | Rule | Detail |
 |---|---|

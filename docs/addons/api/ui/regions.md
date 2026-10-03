@@ -29,8 +29,11 @@ Each region is named by its role, a [selector](selectors.md#roles) and a sheet [
 | `fight.last.mine` | The manoeuvre you used last, left of the cooldown. | Its frame, with or without a manoeuvre to show. |
 | `fight.last.theirs` | The manoeuvre the target used last, right of the cooldown. | Its frame, with or without a manoeuvre to show. |
 | `fight.action` | The [combat row](../fight.md#the-fight-in-progress), under the cooldown. | Five actions wide, one row of five per five actions. |
+| `hud.cmdline` | The [command line](../console.md) while you type at `:`, bottom left. | The line's slot: as wide as the chat less 10, 20 tall, its bottom on the top of the belt, of the chat while it is shown, or of the screen, whichever is highest. |
+| `hud.message` | The last notice, for three seconds, while no command line is open. | The same slot. |
+| `hud.chat` | The newest chat lines while the chat is hidden. | As wide as the slot, 100 tall, its bottom on the line's top while the line is painted at its default, else on the slot's bottom. |
 
-The `fight.*` regions stand on the HUD while a fight is drawn. They appear with the combat display and fire `Removed` when it goes, new widgets every fight.
+The `fight.*` regions stand on the HUD while a fight is drawn. They appear with the combat display and fire `Removed` when it goes, new widgets every fight. The `hud.*` regions stand from the HUD's arrival until it goes, one set per login.
 
 ---
 
@@ -44,7 +47,9 @@ The `fight.*` regions stand on the HUD while a fight is drawn. They appear with 
 | `:visible(false)` | The element is not painted. The region stays where the element would be, and `:visible()` reads `false`. |
 | Rules reach it as it appears | A sheet rule naming a role places each new region the moment it stands, so a rule installed before a fight places that fight's. An anchor needs a live target: anchor to a combat region from its `Added`. |
 | The client's size | The element is painted at its own size. `:size(w, h)`, `:size(w)` and `:resizable(h)` raise, naming that the client paints it at its own size. A rule's `size` is inert. `:size()` reads the element's box. |
-| The painter's order | The element is painted when the combat display is, so what covers a held element is decided by the combat display's place among the HUD's children, not the region's. |
+| The painter's order | The element is painted when its painter is, so what covers a held element is decided by the painter, not the region. A combat element is painted at the combat display's place among the HUD's children. A `hud.*` element is painted by the HUD after all of its children, over every one of them. |
+| The line and the notice share a slot | `hud.cmdline` and `hud.message` stand on one place while unheld: the client paints the command line or the notice there, never both. Hold each apart to paint them apart. |
+| The line leaves its gap only at home | While the command line or the notice is painted at its default, the hidden chat's lines stand above it. Held elsewhere or hidden, it leaves no gap and `hud.chat` drops onto the slot. |
 | Hit and click pass through | A point over a region is over whatever is behind it. [`hafen.ui():hit(x, y)`](selectors.md#hit-testing) and [`mouse:over()`](mouse.md) never answer a region, and a click there reaches the map or the widget behind, as it does on a stock client. |
 | An armed handle takes the press | A region armed as a [`:draggable`](native.md#letting-the-user-drag-it-unprotected) handle takes every press over its box while the binding stands: a click on the world under `fight.action` starts the drag. Disarm it with `:draggable(nil)` when editing ends. |
 | Hidden and left | A hidden region is a widget with [no toggle](native.md#hiding-a-native-widget-carries-a-restore): teardown leaves it hidden. A combat region is new every fight, but `hud.cmdline` hidden and left keeps the `:` line typing unseen until a relog. Put it back from [`Disable`](../event/bus/lifecycle.md#lifecycle). |

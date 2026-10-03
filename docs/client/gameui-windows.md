@@ -52,8 +52,14 @@ unbound) slides them all off setting `tvis` and writing nothing — so one fold 
 off records *all seven hidden*, the next start comes up bare, and cycling `toggleui` back does not undo it.
 
 ⚠️ **`beltwdg` is not in a panel, and there are two of it.** It is `add`ed to `GameUI` itself and placed by
-hand in `resize`/`updfold`; `NKeyBelt` (`super(nkeybg.sz())`) blits that plate, `FKeyBelt` — the Options
-belt setting's other half — draws **no background**, and both blit `Inventory.invsq` for their squares.
+hand, in `resize` and on **every frame** in `GameUI.draw` ([window-positions.md](window-positions.md#the-belt-is-placed-on-every-frame));
+`NKeyBelt` (`super(nkeybg.sz())`) blits that plate, `FKeyBelt` — the Options belt setting's other half —
+draws **no background**, and both blit `Inventory.invsq` for their squares. The `:belt` command destroys
+one and adds the other, so a reference to the belt outlives the swap pointing at a dead widget.
+
+**`GameUI.draw` paints three things no widget stands for, after its children**: the `:` line or the last
+notice, and the hidden chat's newest lines, bottom left — see [console.md](console.md). Being painted
+after `super.draw`, they cover every child of the HUD.
 
 ## Where a server-placed HUD widget actually HANGS
 
