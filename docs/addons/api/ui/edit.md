@@ -204,7 +204,7 @@ The window stays the client's, still fills itself, and everything above comes of
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `widget:revert()` | `self` | Unprotected | Gives back everything your addon holds on the widget and on everything under it, as the tree stands. That is the text, the place, the size, the hide, your [`widget:rule()`](style/README.md#restyle-one-widget) level, and every subscription you hold in that subtree. Every control you adopted into it is destroyed (its `Removed` fires). A widget you hold nothing on is a no-op. |
+| `widget:revert()` | `self` | Unprotected | Gives back everything your addon holds on the widget and on everything under it, as the tree stands. That is the text, the place, the size, the [band](native.md#front-and-back-unprotected), the hide, your [`widget:rule()`](style/README.md#restyle-one-widget) level, and every subscription you hold in that subtree. Every control you adopted into it is destroyed (its `Removed` fires). A widget you hold nothing on is a no-op. |
 
 ```lua
 local keybindings = hafen.client():options():keybindings()
@@ -220,7 +220,7 @@ end)
 | Rule | Detail |
 |---|---|
 | Scope | That widget and everything under it, so an addon that edited two windows gives one back. A hidden widget comes back under [the hide's own rule](native.md#hiding-a-native-widget-carries-a-restore). |
-| Left standing | `widget:value(v)`, an act the server has seen. And a [replacement](replace.md), which `widget:replace(nil)` ends. |
+| Left standing | `widget:value(v)`, an act the server has seen. `:raise()` and `:lower()`, acts too. And a [replacement](replace.md), which `widget:replace(nil)` ends. |
 | Not a small `:reload` | Disable and `:reload` run every undo here at teardown. `revert()` gives one window back while the addon keeps running. |
 
 ---

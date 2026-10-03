@@ -1,0 +1,9 @@
+{
+  "name": "173.3 — a widget in front of or behind its siblings",
+  "id": "173-hud-regions.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 173.3: widget:raise() and widget:lower() reorder siblings, widget:z(n) holds a band through later raises and gives back the band and the place behind the sibling it followed, the order writes refuse on a root, the HUD, a column's child and a region, and a dropdown's list opens over a surface at the top band.",
+  "api_version": "1.5",
+  "files": ["main.lua"]
+}

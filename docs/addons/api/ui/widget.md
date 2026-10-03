@@ -73,11 +73,12 @@ Every method answers on every widget, owned or borrowed, and none throws.
 | `:stock()` | `table \| nil` | Unprotected | What a widget you built declared its own look to be — [the same page](custom.md#naming-and-dressing-your-own-surfaces). |
 | `:owned()` | `boolean` | Unprotected | Whether your addon built it — [owned vs borrowed](writes.md#owned-vs-borrowed). |
 | `:is(selector)` | `boolean` | Unprotected | Whether this widget matches the [selector](selectors.md). |
-| `:children()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) | Unprotected | Child Widgets in tree order. Empty for a leaf. `:list()` is the array. A child has no key, so there is no `:get`. |
+| `:children()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) | Unprotected | Child Widgets in tree order, back to front: the last is painted over the rest. Empty for a leaf. `:list()` is the array. A child has no key, so there is no `:get`. |
 | `:parent()` | `Widget \| nil` | Unprotected | The enclosing widget. `nil` at the root, and `nil` inside the [Kin window](../kin.md#the-row-is-one-way). |
 | `:position()` | `{x=, y=}` | Unprotected | Position within the parent, in [design pixels](pixels.md). [`:position(x, y)` moves it](native.md). |
 | `:size()` | `{w=, h=}` | Unprotected | The box `:size(w, h)` writes, in [design pixels](pixels.md): a window's content area, any other widget's whole box. The frame's own box is `:chrome().frame`. `.x` on a size [raises](../shapes.md#the-anonymous-shapes). |
 | `:visible()` | `boolean` | Unprotected | Whether it is drawn. [`:visible(b)` writes it](native.md). |
+| `:z()` | `number \| nil` | Unprotected | The band it stands in among its siblings, `0` unless something put it elsewhere. [`:z(n)` writes it, and `:raise()`/`:lower()` order it within the band](native.md#front-and-back-unprotected). |
 | `:enabled()` | `boolean` | Unprotected | Its own input flag ([`:enabled(b)`](writes.md#enabled-and-disabled)). `true` when built, `true` on every client widget. `true` on a child of a disabled column, where the column reads `false`. |
 | `:draggable()` | `Widget \| nil` | Unprotected | The handle your addon armed for the user to drag it by — [`:draggable(h)`](native.md#letting-the-user-drag-it-unprotected). |
 | `:resizable()` | `boolean \| Widget \| nil` | Unprotected | `true` while the client's grip is on a window of yours, else the handle your addon armed, else `nil` — [`:resizable(h)`](native.md#letting-the-user-resize-it-unprotected). |

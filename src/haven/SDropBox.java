@@ -61,6 +61,7 @@ public abstract class SDropBox<I, W extends Widget> extends SListWidget<I, W> {
 	     * halves hard-wired to the flat root. popuproot()/parentpos() are that same pair for a dropbox on
 	     * the flat UI and the enclosing surface for one standing in the world. See Widget.popuproot(). */
 	    Widget root = SDropBox.this.popuproot();
+	    this.z(AddonWidgets.POPUP_Z);   // addon: (173.3) the popups' band, over every band an addon names
 	    root.add(this, SDropBox.this.parentpos(root).add(0, SDropBox.this.sz.y));
 	}
 

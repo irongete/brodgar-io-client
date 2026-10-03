@@ -561,6 +561,14 @@ public final class AddonWidgets {
     }
 
     /**
+     * <b>The popups' band</b> (spec {@code 173-hud-regions}, task 173.3) — the {@code z} a list menu, a dropdown's
+     * list and the kin window's menu take before they are added to their root. An addon's {@code widget:z(n)}
+     * names a band from {@code -9} to {@code 9}, so a popup opened over a surface an addon raised to the top
+     * still paints over it and takes the click it shows. The item in hand ({@code 100}) stays over them all.
+     */
+    public static final int POPUP_Z = 10;
+
+    /**
      * The <b>held seam</b> (spec {@code 173-hud-regions}, task 173.2) — does an addon hold {@code wdg}'s place: a
      * position level on it, a verb's, a rule's, a remembered place's or a drag's? Asked by {@code GameUI.draw}
      * before it writes the belt's place, which it otherwise does every frame, so a belt an addon placed stays

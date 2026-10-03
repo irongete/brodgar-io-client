@@ -2288,6 +2288,11 @@ final class UiApi {
         try {
             if(m.text != null)                    // 061.5: what it SAYS goes back first — a caption resizes a
                 LuaWidget.writeCap(m.wdg, m.text);   //   Label, and an explicit size level must have the last word
+            if(m.zs != null) {                    // 173.3: the band and the place behind its sibling, unless
+                LuaWidget.Moved top = LuaWidget.topWantZ(m.wdg);   // another addon still names a band
+                if((top == null) || (top.owner == m.owner))
+                    Layout.restoreZ(m.wdg, m.zs, m.zAfter, m.zWrote);
+            }
             if(size && (m.size != null))
                 m.wdg.resize(m.size);
             if(pos && (m.pos != null))
@@ -2355,6 +2360,55 @@ final class UiApi {
             if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
         }
+    }
+
+    /**
+     * The live undo behind {@code widget:z(nil)} (173.3): drop this addon's band and let the fold say what happens
+     * next — another addon's band takes the widget at once, and only when none is left do the stock band and the
+     * place behind its sibling come back ({@link Layout#restoreZ}). A widget this addon never ordered is a silent
+     * no-op.
+     */
+    static void releaseZ(Addon owner, Widget w) {
+        LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
+        if((m == null) || (m.wantZ == null))
+            return;
+        synchronized(LuaWidget.monitor(w)) {
+            m.wantZ = null;
+        }
+        Layout.apply(w);                         // the fold again, one level shorter, below the block (112.6)
+        synchronized(LuaWidget.monitor(w)) {
+            if(m.idle() && owner.movedNative.remove(m))
+                LuaWidget.recountMoved();
+        }
+    }
+
+    /**
+     * <b>The record holding the band the order level must give back</b> (173.3) — the first live owner's that
+     * recorded a stock band for {@code w}, or {@code null} where no addon is standing on its order.
+     * {@link #stockText}'s answer one property along: a second addon's record takes the band and the sibling the
+     * <i>client</i> had, not the ones the first addon's level left.
+     */
+    static LuaWidget.Moved stockZ(Widget w) {
+        if(!LuaWidget.anyMoved || (w == null))
+            return null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++) {
+            LuaWidget.Moved m = stockZIn(as.get(i), w);
+            if(m != null)
+                return m;
+        }
+        Addon c = consoleOwner;
+        return (c == null) ? null : stockZIn(c, w);
+    }
+
+    private static LuaWidget.Moved stockZIn(Addon a, Widget w) {
+        List<LuaWidget.Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            LuaWidget.Moved m = ms.get(i);
+            if((m.wdg == w) && (m.zs != null))
+                return m;
+        }
+        return null;
     }
 
     /**
@@ -2571,7 +2625,8 @@ final class UiApi {
         m.wantPos = null;
         m.hand = null;
         m.wantSize = null;
-        Layout.apply(w);                      // the fold, three levels shorter
+        m.wantZ = null;                       // 173.3: and the band, given back with the place behind its sibling
+        Layout.apply(w);                      // the fold, four levels shorter
         if(m.idle() && owner.movedNative.remove(m))
             LuaWidget.recountMoved();
     }

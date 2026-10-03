@@ -498,6 +498,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 		/* addon: spatial UI (spec 044, task 044.5) -- was ui.root.add(menu, c), with c in root coords.
 		 * See Widget.popuproot(): identical on the flat UI, the enclosing surface on a standing one. */
 		Widget root = popuproot();
+		menu.z(AddonWidgets.POPUP_Z);   // addon: (173.3) the popups' band, over every band an addon names
 		root.add(menu, parentpos(root).add(rootxlate(c)));
 	    }
 	}

@@ -371,6 +371,7 @@ final class Layout {
         List<Widget> deps = null;
         synchronized(LuaWidget.monitor(w)) {
             textHalf(w);                              // 061.5: WHAT it says, before the box it says it in
+            applyZ(w);                                // 173.3: the band it stands in among its siblings
             Sheet.Resolved r = Sheet.styleOf(w);      // ONE fold, read once and used for both halves
             applyHalf(u, w, r, false);
             applyHalf(u, w, r, true);
@@ -615,6 +616,70 @@ final class Layout {
         if(!LuaWidget.dropStockText(w))
             return;                                   // nothing of ours was standing here: not our business
         LuaWidget.writeCap(w, stock);
+    }
+
+    /**
+     * <b>The band a widget stands in among its siblings</b> (173.3) — the order level, resolved as the text level
+     * is: the latest band any addon named wins ({@link LuaWidget#topWantZ}), and when none is left the stock band
+     * and place go back ({@link #restoreZ}) and every owner's record forgets them.
+     *
+     * <p><b>The stock is recorded at the LAYER's first touch</b> through {@link UiApi#stockZ}, so a second addon
+     * records the band and the sibling the client had. The write is {@link Widget#z(int)}, which takes no lock:
+     * the caller holds {@code w}'s own monitor. Idempotent: a widget already in the winning band gets no write,
+     * and the band is recorded as the layer's ({@link LuaWidget#wroteZ}) either way, so an addon naming the band
+     * already in force still has a band to give back.
+     */
+    private static void applyZ(Widget w) {
+        if(!LuaWidget.anyMoved)
+            return;
+        LuaWidget.Moved top = LuaWidget.topWantZ(w);
+        if(top != null) {
+            if(top.zs == null) {                      // the stock, at the LAYER's first touch and only then
+                LuaWidget.Moved st = UiApi.stockZ(w);
+                top.zs = (st != null) ? st.zs : w.z;
+                top.zAfter = (st != null) ? st.zAfter : w.prev;
+            }
+            int band = top.wantZ;
+            if(w.z != band)
+                w.z(band);
+            LuaWidget.wroteZ(w, band);
+            return;
+        }
+        LuaWidget.Moved st = UiApi.stockZ(w);         // READ before the records are dropped
+        if(st == null)
+            return;                                   // nothing of ours was standing here: not our business
+        int zs = st.zs;
+        Widget after = st.zAfter;
+        Integer wrote = st.zWrote;
+        LuaWidget.dropStockZ(w);
+        restoreZ(w, zs, after, wrote);
+    }
+
+    /**
+     * <b>The band goes back, and then the place</b> (173.3) — only while {@code w} still stands in the band the
+     * layer last wrote ({@code wrote}): a band the server ({@code uimsg "z"}) or the client wrote over the level
+     * stands. {@link Widget#z(int)} re-links to the FRONT of the band, which on a widget the client lowered (the
+     * map, under the HUD) would paint it over its siblings, so the place is put back after it:
+     * <ul>
+     * <li>{@code after} still stands in band {@code zs} under the same parent: right behind it ({@link LuaWidget#relink});</li>
+     * <li>{@code after} is {@code null} or of a lower band, so the widget was the first of its band:
+     *     {@link Widget#lower()}, first within its own band — a window's first content child goes back right
+     *     behind the deco;</li>
+     * <li>{@code after} has left that parent, or now stands in a higher band: where {@code link()} put it.</li>
+     * </ul>
+     * Caller holds {@code w}'s own monitor.
+     */
+    static void restoreZ(Widget w, int zs, Widget after, Integer wrote) {
+        if((wrote == null) || (w.z != wrote))
+            return;
+        w.z(zs);
+        Widget p = w.parent;
+        if(p == null)
+            return;
+        if((after == null) || ((after.parent == p) && (after.z < zs)))
+            w.lower();
+        else if((after.parent == p) && (after.z == zs))
+            LuaWidget.relink(w, after);
     }
 
     /**

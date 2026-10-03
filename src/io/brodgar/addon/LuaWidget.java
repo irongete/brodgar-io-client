@@ -1218,6 +1218,64 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // raise() / lower() / z() / z(n) / z(nil) — 173.3: IN FRONT OF OR BEHIND ITS SIBLINGS. raise and lower are
+        // ACTS, the client's own Widget.raise/lower, which keep the widget within its band and give nothing back:
+        // the user pressing a window raises it the same way. z(n) is a LEVEL, the band they move within, folded
+        // like the text level (Layout.applyZ) and restored like a re-home: dropped, the widget goes back to its
+        // band and behind the sibling it followed. The read answers the band it stands in, whoever wrote it.
+        // Refused where order is not the addon's to change: a root, the screen itself, a column's child, a region.
+        m.set("raise", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:raise() → narg 1
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "raise"));
+                Args.only(a, 0, "widget:raise()");
+                if(w == null)                             // a stale widget: the 029.2 chaining no-op
+                    return self;
+                refuseOrder(w, "widget:raise()");
+                synchronized(monitor(w)) { w.raise(); }
+                return self;
+            }
+        });
+        m.set("lower", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:lower() → narg 1
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "lower"));
+                Args.only(a, 0, "widget:lower()");
+                if(w == null)
+                    return self;
+                refuseOrder(w, "widget:lower()");
+                synchronized(monitor(w)) { w.lower(); }
+                return self;
+            }
+        });
+        m.set("z", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:z() → narg 1 · w:z(n)/(nil) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "z"));
+                Args.only(a, 1, "widget:z(n)");
+                if(!Args.passed(a, 2))
+                    return (w == null) ? LuaValue.NIL : LuaValue.valueOf(w.z);
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                           // w:z(nil) — drop OUR band, back to the stock one
+                    if(w != null) {
+                        refuseOrder(w, "widget:z(nil)");
+                        UiApi.releaseZ(owner, w);
+                    }
+                    return self;
+                }
+                int band = (int)Args.integer(v, "widget:z", "n", "a band, 0 being every widget's own", -9, 9);
+                if(w == null)
+                    return self;
+                refuseOrder(w, "widget:z(n)");
+                synchronized(monitor(w)) {
+                    Moved rec = recordMoved(owner, w);   // name the level, then let the fold stand it
+                    rec.wantZ = band;
+                    rec.zSeq = Layout.nextSeq();
+                }
+                Layout.apply(w);                          // 112.6: below the block, as :position does
+                return self;
+            }
+        });
         // destroy() — remove a widget this addon created (its chrome and everything in it) and drop it from the
         // owned registry. OWNED-only: a native widget is the client's, and killing it is not the addon's to do.
         m.set("destroy", new OneArgFunction() {
@@ -2191,6 +2249,29 @@ public final class LuaWidget {
             + " moves it, and widget:visible(false) stops it painting.");
     }
 
+    /**
+     * <b>Where order is not an addon's to change</b> (173.3) — the refusals behind {@code :raise()},
+     * {@code :lower()} and both writes of {@code :z}. A root has no siblings. A widget the client stands directly
+     * on a session's root is the screen itself — the HUD, the login screen, a popup — and beside it stand only
+     * the client's popups and the item in hand, which a raised HUD would bury. A column's child is placed in
+     * its order, and a region is painted in its painter's.
+     */
+    private static void refuseOrder(Widget w, String verb) {
+        if(w.parent == null)
+            throw new LuaError(verb + " on a tree's root: a root has no siblings to stand in front of or behind.");
+        if(w instanceof Region)
+            throw new LuaError(verb + " on a region: the client paints it in its painter's order, so an order of"
+                + " its own would change nothing. widget:position(x, y) moves it, and widget:visible(false) stops"
+                + " it painting.");
+        UI u = w.ui;
+        if((u != null) && (w.parent == u.root) && (u != AddonManager.layer()))
+            throw new LuaError(verb + " on " + typeName(w) + ": the client stands it directly on the screen, where"
+                + " beside it stand only the client's popups and the item in hand, and an order of yours would bury"
+                + " them. Order what stands inside it instead.");
+        if(Column.stacked(w))
+            throw Column.placed(verb);
+    }
+
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */
     private static LuaWidget handle(LuaValue self, String method) {
         LuaWidget h = resolve(self);
@@ -2672,6 +2753,20 @@ public final class LuaWidget {
         String wantText;
         /** When each half was named, so the latest hand-named level wins between two addons ({@link Layout#nextSeq}). */
         long posSeq, sizeSeq, textSeq;
+        /**
+         * <b>The order level</b> (173.3) — the band {@code widget:z(n)} stands a widget in among its siblings.
+         * {@link #zs} is the band it stood in at the layer's first touch and {@link #zAfter} the sibling it
+         * followed then ({@code null}: it was the first child), both recorded by {@link Layout}'s fold through
+         * {@link UiApi#stockZ}, so a second addon records what the client had. {@link #wantZ} is this addon's band
+         * and {@link #zSeq} when it was named. {@link #zWrote} is the band the fold last stood the widget at,
+         * written or already there: the restore runs only while the widget still stands there, so a band the
+         * server or the client wrote over the level stands.
+         */
+        Integer zs;
+        Widget zAfter;
+        Integer wantZ;
+        Integer zWrote;
+        long zSeq;
 
         Moved(Addon owner, Widget wdg, int id) {
             this.owner = owner;
@@ -2682,7 +2777,8 @@ public final class LuaWidget {
         /** Nothing of ours left on this widget ⇒ the record is dropped. */
         boolean idle() {
             return (pos == null) && (size == null) && (text == null)
-                && (wantPos == null) && (wantSize == null) && (wantText == null);
+                && (wantPos == null) && (wantSize == null) && (wantText == null)
+                && (zs == null) && (zAfter == null) && (wantZ == null) && (zWrote == null);
         }
     }
 
@@ -3422,6 +3518,85 @@ public final class LuaWidget {
                 best = m;
         }
         return best;
+    }
+
+    /**
+     * The winning <b>order level</b> on {@code w} (173.3), or {@code null} when no addon names its band —
+     * {@link #topWantText}'s shape, and the same tie-break: the latest band any live owner named wins.
+     */
+    static Moved topWantZ(Widget w) {
+        Moved best = null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            best = topWantZIn(as.get(i), w, best);
+        return topWantZIn(AddonManager.consoleOwner, w, best);
+    }
+
+    private static Moved topWantZIn(Addon a, Widget w, Moved best) {
+        if(a == null)
+            return best;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg != w) || (m.wantZ == null))
+                continue;
+            if((best == null) || (m.zSeq > best.zSeq))
+                best = m;
+        }
+        return best;
+    }
+
+    /**
+     * The fold stood {@code w} at {@code band} (173.3): every owner holding a stock band for it records that, so
+     * whichever record the restore reads knows the band the layer last stood the widget at.
+     */
+    static void wroteZ(Widget w, int band) {
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            wroteZIn(as.get(i), w, band);
+        wroteZIn(AddonManager.consoleOwner, w, band);
+    }
+
+    private static void wroteZIn(Addon a, Widget w, int band) {
+        if(a == null)
+            return;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg == w) && (m.zs != null))
+                m.zWrote = band;
+        }
+    }
+
+    /** {@link #dropStock} for the order level — no level names {@code w}'s band any more (173.3). */
+    static boolean dropStockZ(Widget w) {
+        if(!anyMoved)
+            return false;
+        boolean held = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            held |= dropStockZIn(as.get(i), w);
+        held |= dropStockZIn(AddonManager.consoleOwner, w);
+        if(held)
+            recountMoved();
+        return held;
+    }
+
+    private static boolean dropStockZIn(Addon a, Widget w) {
+        if(a == null)
+            return false;
+        boolean held = false;
+        for(Moved m : a.movedNative) {
+            if((m.wdg != w) || (m.zs == null))
+                continue;
+            m.zs = null;
+            m.zAfter = null;
+            m.zWrote = null;
+            held = true;
+            if(m.idle())
+                a.movedNative.remove(m);
+        }
+        return held;
     }
 
     /** {@link #dropStock} for the text half — no level says what {@code w} says any more (061.5). */

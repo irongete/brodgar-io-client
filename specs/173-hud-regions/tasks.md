@@ -84,7 +84,7 @@ Every task ends with `rm -rf build/classes && ant hafen-client`, `ant bin`, `too
   - Look at the top left -- expect: "no such command" there.
   - With `hud.cmdline` held at (60, 100), press `:` and type -- expect: the line near the top left.
 
-- [ ] **173.3 — A widget goes in front of or behind its siblings, within a band it keeps.**
+- [x] **173.3 — A widget goes in front of or behind its siblings, within a band it keeps.**
   - `LuaWidget` gains `raise`, `lower` and `z`. `raise` and `lower` run under `monitor(w)`.
   - `Moved` gains `zs`, `zAfter`, `wantZ`, `zSeq` and `zWrote`, all known to `idle()`. `Layout.applyZ` folds them inside `Layout.apply`, with `LuaWidget.topWantZ` and `UiApi.stockZ`.
   - The restore is `Widget.z(zs)`, and only while `w.z == zWrote`. Then the widget goes back to its place:

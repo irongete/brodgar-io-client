@@ -155,7 +155,7 @@ close_button:res()                                     -- nil
 | `hafen.ui():hit(x, y)` | `Widget \| nil` | Unprotected | The deepest widget under a root design-pixel point. |
 | [`hafen.ui():mouse():over()`](mouse.md) | `Widget \| nil` | Unprotected | The same, at the pointer. |
 
-Both mirror the client's pointer dispatch, so they return the widget a click would hit. Children are taken topmost-first, invisible widgets skipped, scroll offsets followed, non-rectangular hit areas honoured. A [region](regions.md) is passed over, as a click passes it. A position-plus-size rectangle test is wrong inside scrolled lists. Walk [`:parent()`](widget.md#read-methods) up for the stack. `:rootPos()` and `:size()` give the outline.
+Both mirror the client's pointer dispatch, so they return the widget a click would hit. Children are taken topmost-first, in the order [`:raise()`, `:lower()` and `:z(n)`](native.md#front-and-back-unprotected) leave them, invisible widgets skipped, scroll offsets followed, non-rectangular hit areas honoured. A [region](regions.md) is passed over, as a click passes it. A position-plus-size rectangle test is wrong inside scrolled lists. Walk [`:parent()`](widget.md#read-methods) up for the stack. `:rootPos()` and `:size()` give the outline.
 
 ```lua
 local last                                             -- the leaf the stack was last built for

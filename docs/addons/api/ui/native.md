@@ -1,6 +1,6 @@
 # hafen.ui: Placing, Hiding and Handing Over the Client's Widgets
 
-The unprotected writes that answer on a widget you do not own: `:position(x, y)`, `:size(w, h)`, `:parent(p)`, `:visible(false)`, `:draggable(h)`, `:resizable(h)` and `:remember(name)`. Each records what it found, so everything is given back when your addon goes.
+The unprotected writes that answer on a widget you do not own: `:position(x, y)`, `:size(w, h)`, `:raise()`, `:lower()`, `:z(n)`, `:parent(p)`, `:visible(false)`, `:draggable(h)`, `:resizable(h)` and `:remember(name)`. Each records what it found, so everything is given back when your addon goes.
 
 ```lua
 local session = hafen.session():current()
@@ -37,6 +37,36 @@ inventory:remember("bag")          -- and have it come back there next session
 | A place on the screen follows the screen | On a widget directly on the HUD or in the layer, `:position(x, y)` is kept as where the widget's centre landed, a fraction of the screen, clamp included. Resizing the game window moves it with the screen, by the rule [Re-layout](#letting-the-user-drag-it-unprotected) states, edges included: a widget placed against an edge stays on it. A `:size(w, h)` of yours takes the fraction again where the widget then stands. `:position()` reads where it stands now. Inside a window a place stays in pixels of that window. |
 | Two addons | Each may hold a layer on one widget. The last write wins on screen, each restores what it found. |
 | The cascade | The verb is the top level over a sheet's [`position` and `size` rules](style/geometry.md). `:position(nil)` drops your level and falls back to a rule that still names the widget. It reaches the stock value only when none does. A [surface of yours](custom.md) runs the same cascade, its stock the builder's default place and box. |
+
+---
+
+## Front and back (unprotected)
+
+`widget:raise()` and `widget:lower()` put a widget in front of or behind its siblings. `widget:z(n)` names the band they move it within, and is given back like a place.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `widget:raise()` | `self` | Unprotected | Puts it in front of every sibling of its band. An act: nothing is recorded or given back, as when the user presses a window and it comes to the front. |
+| `widget:lower()` | `self` | Unprotected | Puts it behind every sibling of its band. An act, as `:raise()`. |
+| `widget:z(n)` | `self` | Unprotected | Stands it in band `n`, a whole number from `-9` to `9`: in front of every sibling of a lower band, behind every one of a higher. A level, held through every later raise. |
+| `widget:z()` | `number \| nil` | Unprotected | The band it stands in, whoever put it there. `0` for a widget nothing has put elsewhere. `nil` once stale. |
+| `widget:z(nil)` | `self` | Unprotected | Drops your band. The widget goes back to the band it had and behind the sibling it followed on your first `:z(n)`. |
+
+```lua
+local toolbar = hafen.ui():widget():size(200, 40):position(20, 20)
+toolbar:z(5)          -- over every surface in band 0, however often the user presses them
+toolbar:raise()       -- in front of any other surface in band 5
+toolbar:z(nil)        -- back to band 0, behind the sibling it followed
+```
+
+| Rule | Detail |
+|---|---|
+| The bands | `0` is every widget's own. A window's frame stands at `-100` behind its content, an item's contents shown on hover at `90`, the item in hand at `100`. A band from `-9` to `9` moves a widget among its siblings without crossing any of those. |
+| Popups stay in front | A list menu, a dropdown's list and the kin window's menu open at band `10`, over every band you name, and take the click they show. The item in hand stays over them. |
+| The restore | `:z(nil)`, [`widget:revert()`](edit.md#taking-the-whole-edit-back), `:reload` and disable give back the band and the place behind the sibling it followed. A widget that was the first of its band goes back first within it. A sibling that has left, or now stands in a higher band, leaves the widget at the front of its band. A band the server or the client wrote over yours stands. |
+| Two addons | Each may name a band on one widget. The latest named wins on screen, and each `nil` drops its own. The band given back is the one the client had. |
+| A surface of yours | The same verbs and the same level. `:z(nil)` gives back the band and the place it was built in. A surface directly in the [addon layer](custom.md#your-windows-live-in-the-layer) takes a band over the other addons' surfaces. |
+| Refused | Each raises, naming why. A tree's root has no siblings. A widget the client stands directly on a character's root (the HUD, the login screen, a popup) is the screen itself, beside which stand only the popups and the item in hand. A [column's or row's](column.md) child is placed in its order. A [region](regions.md) is painted in its painter's order. `:z(n)` also raises outside `-9`..`9`, on a number that is not whole or not a number, and with a second argument. |
 
 ---
 
