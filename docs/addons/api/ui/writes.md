@@ -19,7 +19,7 @@ inventory:enabled(false)            -- raises: its state is the client's
 | Method | Owned | Borrowed |
 |---|---|---|
 | `:position(x, y)` | Moves it. Chains. | Works: [a level over the client's place, restored on reload](native.md). |
-| `:size(w, h)` | Resizes the content, the chrome refits. Chains. The box is yours from then on, where a [pack](custom.md#packing-a-surface-around-what-is-inside-it) had it following the content. | Works, same. |
+| `:size(w, h)` | Resizes the content, the chrome refits. Chains. The box is yours from then on, where a [pack](custom.md#packing-a-surface-around-what-is-inside-it) had it following the content. | Works, same. A [region](regions.md) raises: the client paints it at its own size. |
 | `:size(w)` | Sets the width. The height is a [control](controls/README.md#sizing)'s own art or a [column](column.md#the-box-follows-the-content)'s children. | Raises: the client's widget has no art of yours to ask. |
 | `:pack()` | Sizes it to what is inside it and [follows it from then on](custom.md#packing-a-surface-around-what-is-inside-it). Chains. A [column](column.md#the-box-follows-the-content) refuses: it is packed by construction. | Works on a window: [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows). A control refuses. |
 | `:parent(w)` | Chooses what it hangs under while it is being built, [a client window included](edit.md#your-own-controls-inside-one-of-the-clients-windows). | Works: [takes it into a surface of yours, `nil` gives it back](native.md#taking-one-into-a-surface-of-your-own-unprotected). A window keeps the id the client tracks it by. |
@@ -41,7 +41,7 @@ inventory:enabled(false)            -- raises: its state is the client's
 | `:columns(t)` | Names a [table](lists.md#table)'s columns while it is being built. | Raises. |
 | `:visible(b)` | Shows or hides it. Chains. | Works: [hiding carries a restore](native.md#hiding-a-native-widget-carries-a-restore). Refused on a [radial menu](../flowermenu.md#drawn-or-not-unprotected), naming `s:flowermenu():visible(b)`. One window has one owner: `:visible(true)` or `:visible(false)` on a window another addon holds raises, naming that addon. `:visible(true)` on a window you [replaced](replace.md) ends the substitution. |
 | `:draggable(h)` | Hands the move to the user, by a handle they press. | Works: [a drag writes your position level](native.md#letting-the-user-drag-it-unprotected). |
-| `:resizable(h)` | Hands the box to the user, by a handle they press. `true` on a window of yours is the [client's grip](custom.md#letting-the-user-resize-a-window-of-yours). | Works with a handle: [a resize writes your size level](native.md#letting-the-user-resize-it-unprotected). `true` is refused. |
+| `:resizable(h)` | Hands the box to the user, by a handle they press. `true` on a window of yours is the [client's grip](custom.md#letting-the-user-resize-a-window-of-yours). | Works with a handle: [a resize writes your size level](native.md#letting-the-user-resize-it-unprotected). `true` is refused, and so is a handle on a [region](regions.md). |
 | `:remember(name)` | Keeps its place and box under a name of yours, and puts them back on the call. | Works, same — [remember](native.md#remembering-where-the-user-put-it-unprotected). |
 | `:replace(view)` | Raises: a window you created is not one to stand in for. | Works: [puts your own window in its place](replace.md). |
 | `:rule()` | Restyles it and its subtree through your own level. | Works, same. |

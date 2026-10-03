@@ -51,6 +51,7 @@ Both trees take the same [selector](selectors.md), which is also the key of a [s
 | [mouse](mouse.md) | The pointer: position, hover, pick, modifiers, cursor, grab. |
 | [pixels](pixels.md) | Design pixels, the unit of every coordinate, and the scale in force. |
 | [native](native.md) | Moving, hiding and re-homing client widgets. Letting the user drag and size one. `remember`. |
+| [regions](regions.md) | The widgets standing for what the client paints by hand, the combat display's elements among them. |
 | [edit](edit.md) | Changing what a client control says or does, and intercepting it. |
 | [replace](replace.md) | Watching for a widget and standing your own window in its place. |
 | [drawing](drawing.md) | The `g` wrapper: text, shapes, images, measuring, the raster cache. |

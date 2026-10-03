@@ -1143,6 +1143,30 @@ final class UiApi {
         LuaWidget.recountMoved();                // 036.1: ...and no longer being laid out
     }
 
+    /**
+     * <b>A region died, so every owner's hidden and re-home record for it does</b> (173) — from the disposal
+     * drain ({@code AddonManager.drainDisposedWidgets}). The combat regions are new widgets every fight, and an
+     * addon hiding one or taking one on each fight's {@code Added} files a record holding that widget: left to
+     * the tree's death above, they would pile up until a relog, and {@link LuaWidget#anyHidden} would keep the
+     * window-toggle seam walking the list every frame. Limited to regions: a client window that dies hidden
+     * keeps the rule above, and its stand-in view with it.
+     */
+    static void pruneRegion(Widget w) {
+        for(Addon a : AddonManager.profOwners()) {
+            if(a == null)
+                continue;
+            for(LuaWidget.Hidden h : a.hiddenNative) {
+                if(h.wdg == w)
+                    a.hiddenNative.remove(h);
+            }
+            for(LuaWidget.Rehomed r : a.rehomedNative) {
+                if(r.wdg == w)
+                    a.rehomedNative.remove(r);
+            }
+        }
+        LuaWidget.recountHidden();
+    }
+
     private static void prune(Addon co) {
         if(co == null)
             return;

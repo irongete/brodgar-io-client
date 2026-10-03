@@ -100,6 +100,7 @@ The verbs that act are on the pages of what they change, under a **Write (protec
 | [Contents](ui/contents.md) | What one item holds, and how a stack differs from a bucket. |
 | [Container](ui/container.md) | An item entering or leaving a container. |
 | [Native widgets](ui/native.md) | Placing and hiding the client's own widgets, handing one to the user to drag or size, and the restore. |
+| [Regions](ui/regions.md) | The widgets standing for what the client paints by hand: moving and hiding the combat display's elements. |
 | [Edit](ui/edit.md) | Changing one part of one of the client's windows: taking over what a control does. |
 | [Replace](ui/replace.md) | Waiting for a widget to appear, and standing your own window in its place. |
 | [Drawing](ui/drawing.md) | The `graphics` wrapper: shapes, images, text, and the cache text goes through. |

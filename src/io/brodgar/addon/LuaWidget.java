@@ -37,6 +37,7 @@ import haven.UI;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
+import io.brodgar.ui.Region;
 
 import java.awt.Color;
 
@@ -690,6 +691,8 @@ public final class LuaWidget {
                     int width = Args.integer(a, 2, "widget:size", "w", "a width in design pixels");
                     if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                         return self;
+                    if(w instanceof Region)               // 173: the element's box is the client's
+                        throw regionBox("widget:size(w)");
                     Owned content = ownedContent(owner, w);
                     AddonWidget col = column(owner, w);   // 139.1: on a column the CHILDREN answer for the height
                     if(col != null) {
@@ -718,6 +721,8 @@ public final class LuaWidget {
                     return self;
                 }
                 Coord to = pixels(a, "widget:size", "w", "h");              // DESIGN pixels, as written
+                if(w instanceof Region)                   // 173: the element's box is the client's
+                    throw regionBox("widget:size(w, h)");
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
                     AddonWidget col = column(owner, w);   // 139.1: both axes pinned; the content no longer decides
@@ -873,6 +878,8 @@ public final class LuaWidget {
                     synchronized(monitor(w)) { dd.dragsize(v.toboolean()); }
                     return self;
                 }
+                if(w instanceof Region)               // 173: the element's box is the client's
+                    throw regionBox("widget:resizable(h)");
                 LuaWidget hh = resolve(v);
                 if(hh == null)
                     throw new LuaError("widget:resizable(h) expects a Widget — the handle the user presses to"
@@ -2172,6 +2179,16 @@ public final class LuaWidget {
         return new LuaError(verb + " — a " + typeName(w) + " is " + min + " design px " + axis + ", which is its"
             + " own ART's box: " + got + " clips it. A control's height is the one measurement an addon cannot"
             + " make, so widget:size(w) takes the width alone and keeps the height the art gives it.");
+    }
+
+    /**
+     * <b>A region's box is the element's</b> (173) — the refusal behind {@code :size(w, h)}, {@code :size(w)}
+     * and {@code :resizable(h)} on one. The client paints the element at its own size wherever the region
+     * stands, so a box written there would read back and change nothing.
+     */
+    private static LuaError regionBox(String verb) {
+        return new LuaError(verb + " on a region: the client paints it at its own size. widget:position(x, y)"
+            + " moves it, and widget:visible(false) stops it painting.");
     }
 
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */
@@ -3725,6 +3742,8 @@ public final class LuaWidget {
     static String role(Widget w) {
         if(w == null)
             return null;
+        if(w instanceof Region)                       // 173: a region is named by the element it stands for
+            return ((Region)w).role;
         // 139.1: a surface of an addon's with an axis IS a column or a row -- the one role an addon's own
         // widget carries, and the word the selector vocabulary needs per axis (`["column"]` is a tree key).
         AddonWidget col = Column.of(w);

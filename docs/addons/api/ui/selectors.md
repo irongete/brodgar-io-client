@@ -99,7 +99,7 @@ local bar = hafen.ui():widget():name("bar")                  -- in the addon, on
 
 ## Roles
 
-`:role()` answers what a widget is, or `nil`. The names are the stylesheet's [site keys](style/keys.md): every site key is a role, and `item`, `column` and `row` classify a widget and name no site. `hafen.ui():role()` is the collection of every role the client publishes, each answering `:name()` and `:selector()`. The selector is the same string for a role that matches a widget, `nil` for a site role.
+`:role()` answers what a widget is, or `nil`. The names are the stylesheet's [site keys](style/keys.md): every site key is a role, and `item`, `column`, `row` and the [regions'](regions.md) roles classify a widget and name no site. `hafen.ui():role()` is the collection of every role the client publishes, each answering `:name()` and `:selector()`. The selector is the same string for a role that matches a widget, `nil` for a site role.
 
 | Role | Matches |
 |---|---|
@@ -112,6 +112,7 @@ local bar = hafen.ui():widget():name("bar")                  -- in the addon, on
 | `menu` | `MenuGrid`, `FlowerMenu`. |
 | `item` | The icon one item is drawn as, wherever it is. A container's cell, an equipment slot, the cursor's item, a recipe's input or output slot, an icon a resource ships its own widget for. Exactly the widgets [`widget:item()`](widget.md#read-methods) answers on. |
 | `column`, `row` | A [column or row](column.md) an addon built. |
+| `fight.opening.mine`, `fight.opening.theirs`, `fight.ip.mine`, `fight.ip.theirs`, `fight.cooldown`, `fight.last.mine`, `fight.last.theirs`, `fight.action` | The [region](regions.md) standing for that element of the combat display, while a fight is drawn. |
 
 | Rule | Detail |
 |---|---|
@@ -153,7 +154,7 @@ close_button:res()                                     -- nil
 | `hafen.ui():hit(x, y)` | `Widget \| nil` | Unprotected | The deepest widget under a root design-pixel point. |
 | [`hafen.ui():mouse():over()`](mouse.md) | `Widget \| nil` | Unprotected | The same, at the pointer. |
 
-Both mirror the client's pointer dispatch, so they return the widget a click would hit. Children are taken topmost-first, invisible widgets skipped, scroll offsets followed, non-rectangular hit areas honoured. A position-plus-size rectangle test is wrong inside scrolled lists. Walk [`:parent()`](widget.md#read-methods) up for the stack. `:rootPos()` and `:size()` give the outline.
+Both mirror the client's pointer dispatch, so they return the widget a click would hit. Children are taken topmost-first, invisible widgets skipped, scroll offsets followed, non-rectangular hit areas honoured. A [region](regions.md) is passed over, as a click passes it. A position-plus-size rectangle test is wrong inside scrolled lists. Walk [`:parent()`](widget.md#read-methods) up for the stack. `:rootPos()` and `:size()` give the outline.
 
 ```lua
 local last                                             -- the leaf the stack was last built for

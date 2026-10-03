@@ -131,7 +131,7 @@ end
 | `session:fight():action()` | collection | Unprotected | The combat row: ten [actions](#a-combat-action), one per combat key, `:list(filter)`, `:count(filter)`, `:find(filter)`, `:get(n)`. |
 | `session:fight():cooldown()` | `number \| nil` | Unprotected | How much of the global cooldown is left, a [`0..1` fraction](shapes.md#units): `0` when the character can act. `nil` out of a fight. |
 | `session:fight():last()` | `string \| nil` | Unprotected | The resource name of the manoeuvre that character used last. `nil` before its first and out of a fight. |
-| `session:fight():opening()` | collection | Unprotected | Your openings: the row of icons the client paints over the map, to the left of that character. [Opening](#an-opening) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
+| `session:fight():opening()` | collection | Unprotected | Your openings: the row of icons the client paints over the map, to the left of that character, or where an addon holds its [region](ui/regions.md), `fight.opening.mine`. [Opening](#an-opening) objects, `:list(filter)`, `:count(filter)`, `:find(filter)`. No `:get`. |
 
 | Rule | Detail |
 |---|---|
@@ -152,7 +152,7 @@ end
 | `opponent:ip()` | [`{mine=, theirs=}`](shapes.md#the-anonymous-shapes) `\| nil` | Unprotected | The initiative the fight paints between you, as whole numbers: `mine` beside your character, `theirs` beside them. |
 | `opponent:give()` | [`{mine=, theirs=}`](shapes.md#the-anonymous-shapes) `\| nil` | Unprotected | The give button beside their portrait, as its two halves: `mine` the left, `theirs` the right. Booleans. |
 | `opponent:last()` | `string \| nil` | Unprotected | The resource name of the manoeuvre they used last. `nil` before their first. |
-| `opponent:opening()` | collection | Unprotected | Their openings: the row of icons the client paints over the map, to the right of your character while they are the target. [Opening](#an-opening) objects, a view minted per call. |
+| `opponent:opening()` | collection | Unprotected | Their openings: the row of icons the client paints over the map, to the right of your character while they are the target, or where an addon holds the [region](ui/regions.md) `fight.opening.theirs`. [Opening](#an-opening) objects, a view minted per call. |
 | `opponent:info()` | [`Opponent`](types/fight.md#opponent) | Unprotected | A plain-table snapshot. |
 
 | Rule | Detail |
@@ -175,7 +175,7 @@ One icon the fight draws over the map: beside your character, listed by `session
 | `opening:remaining()` | `number \| nil` | Unprotected | The radial overlay, a [`0..1` fraction](shapes.md#units): how much of its run is left. |
 | `opening:number()` | `number \| nil` | Unprotected | The integer badge drawn on the icon. |
 | `opening:opponent()` | [`Opponent`](#an-opponent) `\| nil` | Unprotected | The opponent it is drawn beside. `nil` for one of yours, and once the fight no longer draws it. |
-| `opening:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that holds it: the crossing back into the tree. The fight keeps that list hidden and paints the icon elsewhere, so the widget does not mark where the icon is drawn. |
+| `opening:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that holds it: the crossing back into the tree. The fight keeps that list hidden and paints the icon in a row of its own, so the widget does not mark where the icon is drawn. The row's [region](ui/regions.md), `fight.opening.mine` or `fight.opening.theirs`, does. |
 | `opening:exists()` | `boolean` | Unprotected | Whether the fight still draws it. Always answers. |
 | `opening:info()` | [`Opening`](types/fight.md#opening) `\| nil` | Unprotected | A plain-table snapshot. |
 

@@ -20,7 +20,7 @@ The same declaration a request needs, under its own key. The user reads it as *"
 ```json
 {
   "id": "relay",
-  "api_version": "1.4",
+  "api_version": "1.5",
   "files": ["main.lua"],
   "permissions": ["websocket.connect"],
   "network": {

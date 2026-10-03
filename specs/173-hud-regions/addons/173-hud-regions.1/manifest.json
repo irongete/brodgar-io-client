@@ -1,0 +1,9 @@
+{
+  "name": "173.1 — the combat display's regions",
+  "id": "173-hud-regions.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 173.1: the eight fight.* regions stand on the HUD, follow their painter, take a rule, an anchor, a place and a hide, pass hits through, refuse a size, and go with the fight.",
+  "api_version": "1.5",
+  "files": ["main.lua"]
+}

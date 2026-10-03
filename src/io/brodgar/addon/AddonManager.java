@@ -70,6 +70,7 @@ import haven.render.RenderTree;
 import haven.resutil.Curiosity;
 import io.brodgar.prof.Prof;
 import io.brodgar.session.Sessions;
+import io.brodgar.ui.Region;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -2310,6 +2311,27 @@ public final class AddonManager {
      */
     public static boolean posHeld(Widget w) {           return UiApi.movedOwner(w, true) != null; }
 
+    /**
+     * <b>A region just stood on the HUD</b> (173) — from {@code io.brodgar.ui.Region.stand}, inside the tree's
+     * monitor where its painter is being added. A rule reaches a widget the moment it appears only through the
+     * server's placement seam ({@link #onWidgetPlaced}), and the client mints a region for itself, so this is
+     * that seam's call for it: without it a rule installed before a fight never places that fight's regions.
+     */
+    public static void regionStood(Widget r) {
+        Layout.placed(r, -1);
+    }
+
+    /**
+     * <b>An unheld region's place just changed</b> (173) — from {@code Region.off}, inside the painter's draw.
+     * Where an anchor names the region, the region goes onto the geometry seam's queue, and the step re-derives
+     * its followers holding no monitor: an anchor's drag listener re-derives on pointer moves alone, so a
+     * surface anchored to a combat region would not follow the character while the mouse is still.
+     */
+    public static void regionMoved(Widget r) {
+        if(Layout.followed(r))
+            onWidgetResized(r);
+    }
+
     /** <b>Did an addon build {@code w}?</b> (166) — itself, or the window around the content it built ({@link Owned#of}). */
     public static boolean built(Widget w) {             return Owned.of(w) != null;     }
 
@@ -3952,6 +3974,8 @@ public final class AddonManager {
                 for(int i = 0, m = owners.size(); i < m; i++)  // addon: 128.5 — ...and every handle interned for
                     owners.get(i).dropInternedHandles(w);      //   it, in the strong-keyed caches that pin it
             }
+            if(w instanceof Region)                          // 173: ...and, for a region, what an addon hid or
+                UiApi.pruneRegion(w);                        //   took: a new one stands every fight
             if(dead != null)
                 dead.add(w);
         }

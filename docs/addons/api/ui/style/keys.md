@@ -12,7 +12,7 @@ sheet:install()
 
 | Rule | Detail |
 |---|---|
-| Which kind a key is | A bare role is a site key. A role with a refiner, or a role with no site behind it (`window`, `inventory`, `item`), is a tree key. The key's shape decides. |
+| Which kind a key is | A bare role is a site key. A role with a refiner, or a role with no site behind it (`window`, `inventory`, `item`, `fight.cooldown`), is a tree key. The key's shape decides. |
 | Invalid grammar | Raises, exactly as [`session:ui():match(selector)`](../selectors.md) does. |
 
 ---
@@ -64,7 +64,7 @@ sheet:install()
 
 ## Tree keys
 
-Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain, or a role classifying a widget (`window`, `inventory`, `item`). Every tree rule matching a widget is folded into one style. [`widget:style()`](README.md#restyle-one-widget) reads the result, `nil` when nothing names it.
+Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain, or a role classifying a widget (`window`, `inventory`, `item`, a [region's](../regions.md) such as `fight.cooldown`). Every tree rule matching a widget is folded into one style. [`widget:style()`](README.md#restyle-one-widget) reads the result, `nil` when nothing names it.
 
 ```lua
 hafen.ui():sheet():rule("window[title=Cupboard]"):color{200, 180, 140}:sheet():install()

@@ -52,6 +52,27 @@
 | ⚠️ The view outlives the fight | `Fightsess`, the only painter, is destroyed with the fight, while the `Fightview` stays in the tree with the buffs of yours the server has not yet expired: a debuff can sit in `Fightview.buffs` after the last `del`, drawn by nothing. `fv.buffs` is what is drawn only while a `Fightsess` stands under the `GameUI` |
 | ⚠️ `children(Class)` recurses | On the `Fightview` it reaches every relation's buffs. Read the lists one by one |
 
+## Where `Fightsess` paints
+
+Every element is anchored on `pcc`, the player's point in `Fightsess`'s own coordinates, from constants of the class: nothing is a widget of its own.
+
+| Element | Anchor |
+|---|---|
+| The player point | `pcc`, written by `updatepos()` at the top of every `draw` from `map.screenxf` of the player gob, and `pho`, the offset up to the head. Without a player `pcc` keeps the centre `presize` gave it |
+| Your buffs (`fv.buffs`) | `pcc + (-buff.c.x - Buff.cframe.x - UI.scale(20), buff.c.y + pho - Buff.cframe.y)`: a row growing left from `UI.scale(20)` left of `pcc` |
+| The target's buffs | `pcc + (buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.y)`: growing right |
+| The two IPs | `g.aimage` at `pcc ∓ (UI.scale(75), 0)`, aligned `(1, 0.5)` left and `(0, 0.5)` right. Painted only with a target, so `fv.current.ip`'s text has no box without one |
+| The cooldown | `cdframe` centred on `pcc + cmc`, `cmc = UI.scale(0, 67)`, the ring a `fellipse` of `UI.scale(24)` under it |
+| The last manoeuvres | the icon centred on `pcc + usec1` (yours) and `usec2` (the target's), `UI.scale(∓65, 67)`, its `useframe` at `useul - useframeo`. Nothing is painted before the first |
+| The action row | `actc(i)`: five to a row `actpitch = UI.scale(50)` apart, centred on `pcc.x`, the first row `UI.scale(125)` below `pcc` |
+
+| Gotcha | Detail |
+|---|---|
+| ⚠️ `tooltip` reads the last draw | It recomputes nothing, so it hit-tests against the `pcc` the previous `draw` wrote |
+| ⚠️ A buff's `c` is not its slot | `Bufflist.arrange` lays `Bufflist.num` (five) to a row, `Bufflist.margin` apart, and `Buff.move(Coord, double)` animates `buff.c` towards the slot over half a second; `Buff.reqdestroy` slides it down a frame as it fades. The list's own `sz` is the slots' bounding box, zero when empty |
+| ⚠️ `GOut.aimage` truncates | The offset is `(int)(sz * -a)`, so a box computed for an aligned image takes the same casts |
+| ⚠️ `added()` runs again on a re-home | `Widget.add0` calls it on every add, so `Fightsess.added()` re-reads `fv` and `presize()`s to the new parent. `Fightsess.destroy()` is reached by the server's destroy (`UI.destroy` → `reqdestroy`), not when it dies as a descendant |
+
 ## Threading and gotchas
 
 | What | Detail |

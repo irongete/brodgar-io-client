@@ -48,6 +48,11 @@ public class Fightsess extends Widget {
     public Coord pcc;
     public int pho;
     private Fightview fv;
+    /* addon: (173) the regions an addon moves or hides each element by, and the offset each was painted by */
+    public static final String[] rgroles = {"fight.opening.mine", "fight.opening.theirs", "fight.ip.mine", "fight.ip.theirs",   // addon:
+					    "fight.cooldown", "fight.last.mine", "fight.last.theirs", "fight.action"};   // addon:
+    private io.brodgar.ui.Region[] rgns = null;   // addon:
+    private final Coord[] rgoff = new Coord[rgroles.length];   // addon:
 
     public static class Action {
 	public final Indir<Resource> res;
@@ -75,6 +80,8 @@ public class Fightsess extends Widget {
     protected void added() {
 	fv = parent.getparent(GameUI.class).fv;
 	presize();
+	if(rgns == null)   // addon: (173) once: a re-home runs added() again
+	    rgns = io.brodgar.ui.Region.stand(getparent(GameUI.class), this, rgroles);   // addon:
     }
 
     public void presize() {
@@ -157,6 +164,7 @@ public class Fightsess extends Widget {
 		fx.slot.remove();
 	}
 	curfx.clear();
+	io.brodgar.ui.Region.drop(rgns);   // addon: (173)
 	super.destroy();
     }
 
@@ -176,25 +184,58 @@ public class Fightsess extends Widget {
     private Text lastacttip1 = null, lastacttip2 = null;
     private int lastactgen = -1;   // addon: Fonts.gen() at the last last-action tip render (F3d)
     private Effect curtgtfx;
+    /* addon: (173) each element's box, from the client's own constants, handed to its region every frame */
+    private void regions() {
+	if(rgns == null)
+	    return;
+	Coord cf = Buff.cframe.sz();
+	int ow = (Bufflist.num * cf.x) + ((Bufflist.num - 1) * Bufflist.margin), oy = pcc.y + pho - cf.y;
+	rgoff[0] = rgns[0].off(Coord.of(pcc.x - UI.scale(20) - ow, oy), Coord.of(ow, Math.max(fv.buffs.sz.y, cf.y)));
+	rgoff[1] = rgns[1].off(Coord.of(pcc.x + UI.scale(20), oy),
+			       Coord.of(ow, (fv.current == null) ? cf.y : Math.max(fv.current.buffs.sz.y, cf.y)));
+	Coord isz = (fv.current == null) ? Coord.z : ip.get().tex().sz();
+	Coord osz = (fv.current == null) ? Coord.z : oip.get().tex().sz();
+	rgoff[2] = rgns[2].off(Coord.of(pcc.x - UI.scale(75) - isz.x, pcc.y + (int)(isz.y * -0.5)), isz);
+	rgoff[3] = rgns[3].off(Coord.of(pcc.x + UI.scale(75), pcc.y + (int)(osz.y * -0.5)), osz);
+	rgoff[4] = rgns[4].off(pcc.add(cmc).sub(cdframe.sz().div(2)), cdframe.sz());
+	rgoff[5] = rgns[5].off(pcc.add(usec1).sub(useframe.sz().div(2)), useframe.sz());
+	rgoff[6] = rgns[6].off(pcc.add(usec2).sub(useframe.sz().div(2)), useframe.sz());
+	rgoff[7] = rgns[7].off(pcc.add(actc(0)).sub(actpitch / 2, actpitch / 2),
+			       Coord.of(5 * actpitch, ((actions.length + 4) / 5) * actpitch));
+    }
+
+    /* addon: (173) the offset element `i` is painted by, or null while its region is hidden */
+    private Coord rgoff(int i) {
+	return((rgns == null) ? Coord.z : rgoff[i]);
+    }
+
     public void draw(GOut g) {
 	updatepos();
+	regions();   // addon: (173) right after the place, whatever is shown
 	double now = Utils.rtime();
 
-	for(Buff buff : fv.buffs.children(Buff.class))
-	    buff.draw(g.reclip(pcc.add(-buff.c.x - Buff.cframe.sz().x - UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y), buff.sz));
+	Coord ro;   // addon: (173) the element's offset; null skips its painting
+	if((ro = rgoff(0)) != null) {   // addon:
+	    for(Buff buff : fv.buffs.children(Buff.class))
+		buff.draw(g.reclip(pcc.add(-buff.c.x - Buff.cframe.sz().x - UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y).add(ro), buff.sz));   // addon: .add(ro)
+	}
 	if(fv.current != null) {
-	    for(Buff buff : fv.current.buffs.children(Buff.class))
-		buff.draw(g.reclip(pcc.add(buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y), buff.sz));
+	    if((ro = rgoff(1)) != null) {   // addon:
+		for(Buff buff : fv.current.buffs.children(Buff.class))
+		    buff.draw(g.reclip(pcc.add(buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y).add(ro), buff.sz));   // addon: .add(ro)
+	    }
 
-	    g.aimage(ip.get().tex(), pcc.add(-UI.scale(75), 0), 1, 0.5);
-	    g.aimage(oip.get().tex(), pcc.add(UI.scale(75), 0), 0, 0.5);
+	    if((ro = rgoff(2)) != null)   // addon:
+		g.aimage(ip.get().tex(), pcc.add(-UI.scale(75), 0).add(ro), 1, 0.5);   // addon: .add(ro)
+	    if((ro = rgoff(3)) != null)   // addon:
+		g.aimage(oip.get().tex(), pcc.add(UI.scale(75), 0).add(ro), 0, 0.5);   // addon: .add(ro)
 
 	    if(fv.lsrel.size() > 1)
 		curtgtfx = fxon(fv.current.gobid, tgtfx, curtgtfx);
 	}
 
-	{
-	    Coord cdc = pcc.add(cmc);
+	if((ro = rgoff(4)) != null) {   // addon: (173)
+	    Coord cdc = pcc.add(cmc).add(ro);   // addon: .add(ro)
 	    if(now < fv.atkct) {
 		double a = (now - fv.atkcs) / (fv.atkct - fv.atkcs);
 		g.chcolor(255, 0, 128, 224);
@@ -210,9 +251,9 @@ public class Fightsess extends Widget {
 		this.lastacttip1 = null;
 	    }
 	    double lastuse = fv.lastuse;
-	    if(lastact != null) {
+	    if((lastact != null) && ((ro = rgoff(5)) != null)) {   // addon: (173)
 		Tex ut = lastact.get().flayer(Resource.imgc).tex();
-		Coord useul = pcc.add(usec1).sub(ut.sz().div(2));
+		Coord useul = pcc.add(usec1).sub(ut.sz().div(2)).add(ro);   // addon: .add(ro)
 		g.image(ut, useul);
 		g.image(useframe, useul.sub(useframeo));
 		double a = now - lastuse;
@@ -233,9 +274,9 @@ public class Fightsess extends Widget {
 		    this.lastacttip2 = null;
 		}
 		double lastuse = fv.current.lastuse;
-		if(lastact != null) {
+		if((lastact != null) && ((ro = rgoff(6)) != null)) {   // addon: (173)
 		    Tex ut = lastact.get().flayer(Resource.imgc).tex();
-		    Coord useul = pcc.add(usec2).sub(ut.sz().div(2));
+		    Coord useul = pcc.add(usec2).sub(ut.sz().div(2)).add(ro);   // addon: .add(ro)
 		    g.image(ut, useul);
 		    g.image(useframe, useul.sub(useframeo));
 		    double a = now - lastuse;
@@ -249,8 +290,8 @@ public class Fightsess extends Widget {
 	    } catch(Loading l) {
 	    }
 	}
-	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = pcc.add(actc(i));
+	for(int i = 0; ((ro = rgoff(7)) != null) && (i < actions.length); i++) {   // addon: (173)
+	    Coord ca = pcc.add(actc(i)).add(ro);   // addon: .add(ro)
 	    Action act = actions[i];
 	    try {
 		if(act != null) {
@@ -282,8 +323,9 @@ public class Fightsess extends Widget {
     private int acttipgen = -1;   // addon: Fonts.gen() at the last acttip render (F3d)
     public static final String[] keytips = {"1", "2", "3", "4", "5", "Shift+1", "Shift+2", "Shift+3", "Shift+4", "Shift+5"};
     public Object tooltip(Coord c, Widget prev) {
-	for(Buff buff : fv.buffs.children(Buff.class)) {
-	    Coord dc = pcc.add(-buff.c.x - Buff.cframe.sz().x - UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y);
+	Coord ro;   // addon: (173) the offsets the last draw painted each element by
+	for(Buff buff : ((ro = rgoff(0)) == null) ? Collections.<Buff>emptyList() : fv.buffs.children(Buff.class)) {   // addon:
+	    Coord dc = pcc.add(-buff.c.x - Buff.cframe.sz().x - UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y).add(ro);   // addon: .add(ro)
 	    if(c.isect(dc, buff.sz)) {
 		Object ret = buff.tooltip(c.sub(dc), prevtt);
 		if(ret != null) {
@@ -292,9 +334,9 @@ public class Fightsess extends Widget {
 		}
 	    }
 	}
-	if(fv.current != null) {
+	if((fv.current != null) && ((ro = rgoff(1)) != null)) {   // addon: (173)
 	    for(Buff buff : fv.current.buffs.children(Buff.class)) {
-		Coord dc = pcc.add(buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y);
+		Coord dc = pcc.add(buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y).add(ro);   // addon: .add(ro)
 		if(c.isect(dc, buff.sz)) {
 		    Object ret = buff.tooltip(c.sub(dc), prevtt);
 		    if(ret != null) {
@@ -305,8 +347,8 @@ public class Fightsess extends Widget {
 	    }
 	}
 	final int rl = 5;
-	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = pcc.add(actc(i));
+	for(int i = 0; ((ro = rgoff(7)) != null) && (i < actions.length); i++) {   // addon: (173)
+	    Coord ca = pcc.add(actc(i)).add(ro);   // addon: .add(ro)
 	    Indir<Resource> act = (actions[i] == null) ? null : actions[i].res;
 	    if(act != null) {
 		Tex img = act.get().flayer(Resource.imgc).tex();
@@ -331,9 +373,9 @@ public class Fightsess extends Widget {
 	}
 	{
 	    Indir<Resource> lastact = this.lastact1;
-	    if(lastact != null) {
+	    if((lastact != null) && ((ro = rgoff(5)) != null)) {   // addon: (173)
 		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
-		Coord lac = pcc.add(usec1);
+		Coord lac = pcc.add(usec1).add(ro);   // addon: .add(ro)
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
 		    if((lastacttip1 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
 			lastactgen = Fonts.gen();   // addon:
@@ -346,9 +388,9 @@ public class Fightsess extends Widget {
 	}
 	{
 	    Indir<Resource> lastact = this.lastact2;
-	    if(lastact != null) {
+	    if((lastact != null) && ((ro = rgoff(6)) != null)) {   // addon: (173)
 		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
-		Coord lac = pcc.add(usec2);
+		Coord lac = pcc.add(usec2).add(ro);   // addon: .add(ro)
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
 		    if((lastacttip2 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
 			lastactgen = Fonts.gen();   // addon:

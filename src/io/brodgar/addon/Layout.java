@@ -6,6 +6,7 @@ import haven.GameUI;
 import haven.SIWidget;
 import haven.UI;
 import haven.Widget;
+import io.brodgar.ui.Region;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -545,10 +546,11 @@ final class Layout {
      * {@code :pack()} ran on it ({@link AddonWidget#packed}, read through the chrome for a window), until
      * {@code :size(w, h)} takes it back; a picture's ({@link CImg}) and a mirror's ({@link MirrorWidget}) is the
      * source's, re-read on every {@code :source(h)}, and {@code :size(w, h)} on them is a pin of their own. None
-     * of the four enters the layout record, and the size half of the fold skips them whole.
+     * of the four enters the layout record, and the size half of the fold skips them whole. Nor does a region's
+     * (173): it is the element's box, which the client paints at its own size.
      */
     private static boolean ownBox(Widget w) {
-        if(Column.stacks(w))
+        if(Column.stacks(w) || (w instanceof Region))
             return true;
         Owned o = Owned.of(w);
         if(o instanceof AddonWidget)
@@ -1017,6 +1019,23 @@ final class Layout {
             apply(w);
         else
             moved(w);
+    }
+
+    /**
+     * <b>Does an anchor name {@code w} as its target?</b> (173) — asked by a region whose place the client just
+     * moved ({@link AddonManager#regionMoved}), which queues it for the step's re-derive only when something
+     * follows it. One volatile-backed check for a client with nothing anchored.
+     */
+    static boolean followed(Widget w) {
+        synchronized(Layout.class) {
+            if(derived.isEmpty())
+                return false;
+            for(Anchor a : derived.values()) {
+                if((a.to == Anchor.WIDGET) && (a.target() == w))
+                    return true;
+            }
+            return false;
+        }
     }
 
     /** Is {@code w}'s own place derived from geometry that can change under it? One map read at rest. */

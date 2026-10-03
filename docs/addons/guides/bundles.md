@@ -5,7 +5,7 @@ A bundle is an addon that packs others: its manifest says `"bundle": true` and n
 ## The manifest
 
 ```json
-{ "id": "my-ui", "name": "My UI", "version": "1.0.0", "author": "you", "api_version": "1.4",
+{ "id": "my-ui", "name": "My UI", "version": "1.0.0", "author": "you", "api_version": "1.5",
   "files": ["main.lua"],
   "description": "The map and the chat, laid out to work together",
   "bundle": true,
