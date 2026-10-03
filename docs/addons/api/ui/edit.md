@@ -137,7 +137,7 @@ options_checkbox:value(not options_checkbox:value())    -- ticked, exactly as a 
 | A radio button | One of its group's row labels | Moves the whole group's selection to that row. |
 | A slider, a scrollbar | A number | Moves it there, clamped into the control's bounds. |
 | A text entry | A string | Replaces the line in the field. |
-| A list, a dropdown | A row of that list | Picks it. |
+| A list, a dropdown | A row of that list | Picks it. A list scrolls the row into view, by the least movement. |
 | A colour row (the kin colours) | A number, `0..254` | Picks that group, as clicking a square does. `widget:value()` reads the group it shows, `nil` for none. |
 
 | Rule | Detail |

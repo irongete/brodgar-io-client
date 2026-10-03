@@ -418,6 +418,16 @@ public final class AddonWidgets {
     }
 
     /**
+     * {@code widget:value(row)}'s scroll — {@code SListBox.display}, which brings the row into view by the least
+     * movement, on a list that scrolls. A dropdown's closed box shows its pick already and scrolls nothing.
+     */
+    @SuppressWarnings("unchecked")
+    public static void listDisplay(SListWidget<?, ?> list, Object item) {
+        if(list instanceof SListBox)
+            ((SListBox<Object, ?>)list).display(item);
+    }
+
+    /**
      * {@code ev:resend()}'s grid arm — {@code GridList.itemclick} on the selecting button, which is the whole
      * of what the {@code "Cell"} seam holds back (a {@code null} item is the click-away, and that method
      * routes it to {@code change(null)} itself). It lives here because {@code itemclick} is {@code protected}:

@@ -1113,7 +1113,12 @@ final class Controls {
                 throw new LuaError("widget:value(v) — that row is not in this list. A row is only ever the"
                     + " one this list handed you, and the client rebuilds its own rows on its own schedule,"
                     + " so one kept across a refill is a row this list no longer has.");
-            synchronized(mon) { haven.AddonWidgets.listChange(l, row); }
+            // The pick, then the scroll a listbox of the addon's own makes: a row driven from elsewhere (another
+            // list, a search of the addon's) is one the user may have nowhere on screen.
+            synchronized(mon) {
+                haven.AddonWidgets.listChange(l, row);
+                haven.AddonWidgets.listDisplay(l, row);
+            }
             return;
         }
         throw noValue(w);
