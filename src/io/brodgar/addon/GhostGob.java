@@ -15,6 +15,7 @@ import haven.MCache;
 import haven.MapMesh;
 import haven.Matrix4f;
 import haven.Moving;
+import haven.Utils;
 import haven.Waitable;
 import haven.render.BaseColor;
 import haven.render.BlendMode;
@@ -24,6 +25,7 @@ import haven.render.MixColor;
 import haven.render.Pipe;
 import haven.render.Rendered;
 import haven.render.States;
+import haven.render.Transform;
 
 /**
  * The {@link Gob} behind a client-only world ghost ({@code hafen.virtual():ghost()}, spec {@code 16-virtual-entities.md}) —
@@ -96,8 +98,8 @@ public final class GhostGob extends Gob {
     // ---- the ground it stands on, and a placement made again only when something it came from changed ----
 
     /**
-     * The ground under a ghost, looked up once and kept: a grid of the live map, or past it of the remembered
-     * ground, whose cut's mesh can be built from what that cache holds -- or neither. Immutable but for
+     * The ground under a ghost, looked up once and kept: a grid of the live map whose cut's mesh can be built,
+     * or past it a grid the remembered ground holds -- or neither. Immutable but for
      * {@link #at}, so any thread may read the one {@link #ground} holds.
      */
     private static final class Ground {
@@ -163,6 +165,11 @@ public final class GhostGob extends Gob {
      * VirtualApi#recallMap}). Past the live ground, asking the live map would ask the server for a grid the
      * character is nowhere near, and never draw. Over remembered ground found before, only the live map is
      * asked again -- the remembered grid is kept while it stands.
+     *
+     * <p>The remembered ground asks for the grid under the point alone, never for its cut's mesh: that mesh
+     * reads a tile past each side of the cut, so twelve of a grid's sixteen cuts need the grid beside it, and
+     * on the outer ring of what the remembered ground holds that grid is never coming. A ghost standing there
+     * waited for it for good. {@link RecallPlace} stands it on the grid's own heights instead.
      */
     private Ground look(Coord2d rc, Ground old) {
         Coord tc = rc.floor(MCache.tilesz);
@@ -179,7 +186,7 @@ public final class GhostGob extends Gob {
         }
         if((old != null) && (old.grid != null) && (old.map == rmap) && !old.grid.removed && old.gc.equals(gc) && old.cc.equals(cc))
             return new Ground(rc, gc, cc, rmap, old.grid, lseq, rmap, rseq);
-        if((rmap != null) && (AddonWidgets.cutmissing(rmap, gc, cc) == null)) {
+        if(rmap != null) {
             MCache.Grid g = AddonWidgets.loadedGrid(rmap, gc);
             if(g != null)
                 return new Ground(rc, gc, cc, rmap, g, lseq, rmap, rseq);
@@ -198,7 +205,34 @@ public final class GhostGob extends Gob {
             return new Nowhere(g);
         if(g.map == glob.map)
             return super.placer();
-        return g.map.mapplace;
+        return new RecallPlace(g.map);
+    }
+
+    /**
+     * Upright on the remembered ground's tile corners, as {@code MCache.getcz} interpolates them, reading only
+     * the grids that cache holds: a corner on the grid beside it that the cache lacks takes the height of the
+     * corner the point stands on, which is its own grid's. The cut's mesh is not read (see {@link #look}).
+     */
+    private static final class RecallPlace implements Placer {
+        final MCache map;
+        RecallPlace(MCache map) {this.map = map;}
+
+        private double z(Coord tc, Coord own) {
+            return(map.getfz(map.tileheld(tc) ? tc : own));
+        }
+
+        public Coord3f getc(Coord2d rc, double ra) {
+            double tw = MCache.tilesz.x, th = MCache.tilesz.y;
+            Coord ul = Coord.of(Utils.floordiv(rc.x, tw), Utils.floordiv(rc.y, th));
+            double sx = (rc.x - (ul.x * tw)) / tw, sy = (rc.y - (ul.y * th)) / th;
+            double z = ((1 - sy) * (((1 - sx) * z(ul, ul)) + (sx * z(ul.add(1, 0), ul)))) +
+                       (sy * (((1 - sx) * z(ul.add(0, 1), ul)) + (sx * z(ul.add(1, 1), ul))));
+            return(Coord3f.of((float)rc.x, (float)rc.y, (float)z));
+        }
+
+        public Matrix4f getr(Coord2d rc, double ra) {
+            return(Transform.makerot(new Matrix4f(), Coord3f.zu, -(float)ra));
+        }
     }
 
     /** The live tile's draw state (water and the like); over remembered ground or none, none. */
@@ -217,8 +251,8 @@ public final class GhostGob extends Gob {
     }
 
     /**
-     * No ground under a ghost yet. Waits for the grid its cut still lacks to arrive in the live map, or in the
-     * remembered ground -- the {@code LoadingMap} wait on each, whichever comes first -- so a scene add that
+     * No ground under a ghost yet. Waits for the grid its cut still lacks to arrive in the live map, or the grid
+     * under it in the remembered ground -- the {@code LoadingMap} wait on each, whichever comes first -- so a scene add that
      * stopped here ({@code VirtualApi.addToScene}) is tried again when there may be ground, and not before.
      */
     private static final class NoGround extends Loading {
@@ -238,7 +272,7 @@ public final class GhostGob extends Gob {
              * distance moved, a session switch), the old cache is never told of a grid again. */
             MCache rmap = VirtualApi.recallMap();
             Coord lmiss = AddonWidgets.cutmissing(live, g.gc, g.cc);
-            Coord rmiss = (rmap == null) ? null : AddonWidgets.cutmissing(rmap, g.gc, g.cc);
+            Coord rmiss = ((rmap == null) || (AddonWidgets.loadedGrid(rmap, g.gc) != null)) ? null : g.gc;
             if((lmiss == null) || ((rmap != null) && (rmiss == null))) {
                 gob.ground = null;                    // it arrived meanwhile: look again, and try again now
                 reg.accept(Waitable.Waiting.dummy);
@@ -258,8 +292,8 @@ public final class GhostGob extends Gob {
         final double a;
         final int attrs;
         final MCache.Grid grid;
-        final MapMesh cut;          // the mesh under it when made, or null when not built yet
-        final int lseq;             // the live map's chseq when made
+        final MapMesh cut;          // the live mesh under it when made, or null: not built yet, or remembered ground
+        final int lseq;             // the chseq of the cache it stood on when made
 
         Made(Coord2d rc, double a, int attrs, MCache.Grid grid, MapMesh cut, int lseq) {
             this.rc = rc; this.a = a; this.attrs = attrs; this.grid = grid; this.cut = cut; this.lseq = lseq;
@@ -299,9 +333,10 @@ public final class GhostGob extends Gob {
 
     /**
      * Whether its placement is to be made again this frame ({@code Gob.placestale}). Not while it stands where
-     * it stood, faces the same way, carries the same attributes, and the ground under it is the same grid with
-     * the same mesh -- and, over the live map, no grid has arrived there since (the resource's own placer may
-     * read beyond its own cut, and caches on that very sequence). Standing nowhere, what it has stays until
+     * it stood, faces the same way, carries the same attributes, and the ground under it is the same grid --
+     * with the same mesh, over the live map -- and no grid has arrived in that cache since (the resource's own
+     * placer may read beyond its own cut, and caches on that very sequence; a remembered grid read again is
+     * filled in place). Standing nowhere, what it has stays until
      * ground arrives. A placement that stopped at a {@link Loading} is tried again after a wait that doubles
      * each time, up to two seconds, unless something it came from changes first.
      */
@@ -319,15 +354,20 @@ public final class GhostGob extends Gob {
         Made p = this.parked;
         if((p != null) && p.same(rc, a, attrs, g.grid) && (haven.Utils.rtime() < retry))
             return(false);
-        MapMesh cut;
-        try {
-            cut = g.grid.getcut(g.cc);
-        } catch(Loading l) {
-            cut = null;
+        /* Over the live map, the mesh under it and the map's sequence; over the remembered ground, that cache's
+         * sequence alone, for RecallPlace reads heights and not the mesh -- and asking for a cut that cannot be
+         * built there would set the Defer pool building it again on every frame. */
+        MapMesh cut = null;
+        if(g.map == glob.map) {
+            try {
+                cut = g.grid.getcut(g.cc);
+            } catch(Loading l) {
+                cut = null;
+            }
         }
-        int lseq = glob.map.chseq;
+        int lseq = g.map.chseq;
         Made m = this.made;
-        if((m != null) && m.same(rc, a, attrs, g.grid) && (cut == m.cut) && ((g.map != glob.map) || (lseq == m.lseq)))
+        if((m != null) && m.same(rc, a, attrs, g.grid) && (cut == m.cut) && (lseq == m.lseq))
             return(false);
         making = new Made(rc, a, attrs, g.grid, cut, lseq);
         return(true);

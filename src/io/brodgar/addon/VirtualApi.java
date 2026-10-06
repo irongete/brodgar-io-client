@@ -960,7 +960,20 @@ final class VirtualApi {
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
         gh.streaming = true;                           // 075.3: a create is on its way — the scene pass leaves it alone
-        g.loader.defer(new Runnable() {
+        g.loader.defer(ghostCreate(gh, g, mv), null);
+        return gh;
+    }
+
+    /**
+     * The deferred body of a ghost's create: resolve the resource, build the gob and its drawable, publish it.
+     * Run on a {@code Glob.loader} thread, the loader that also applies the server's object deltas, so nothing
+     * but {@code Loading} may leave it: an exception out of a {@code defer(Runnable, ...)} task kills that loader
+     * thread, and every gob delta queued behind it waits for a new one. A resource whose own code refuses the
+     * state it is handed (a growing plant built without its stage byte) is a ghost that cannot be drawn, marked
+     * {@link LuaGhost#failed} like a name that does not resolve; a {@code :res(name, spawn_data)} tries again.
+     */
+    private static Runnable ghostCreate(final LuaGhost gh, final Glob g, final MapView mv) {
+        return new Runnable() {
             public void run() {
                 // Read the DESIRED res/sdt fresh each run so a :setRes that landed before we published is honoured
                 // (and so a Loading re-run picks up a swapped resource). Guarded by the ghost monitor.
@@ -995,7 +1008,29 @@ final class VirtualApi {
                 }
                 GhostGob gob = new GhostGob(g, rc0);      // V2/V3: a Gob subclass whose obstate adds the click surface + look
                 gob.a = a0;
-                gob.setattr(new ResDrawable(gob, res, (sdt == null) ? MessageBuf.nil : sdt));  // res cached now → no Loading here
+                ResDrawable dr;
+                try {
+                    dr = new ResDrawable(gob, res, (sdt == null) ? MessageBuf.nil : sdt);
+                } catch(Loading l) {
+                    gob.dispose();
+                    throw(l);                                // a dependency of the sprite: re-run when it lands
+                } catch(RuntimeException e) {
+                    gob.dispose();
+                    boolean again;
+                    synchronized(gh) {
+                        // a :res(name, spawn_data) that landed while this ran is a different visual: build that one
+                        again = !gh.dead && ((gh.res != res) || (gh.sdt != sdt));
+                        if(!again) { gh.failed = true; gh.streaming = false; }
+                    }
+                    if(again) {
+                        g.loader.defer(ghostCreate(gh, g, mv), null);
+                        return;
+                    }
+                    AddonManager.logAbout(gh.owner, "ghost resource '" + rnm + "' could not be built from the"
+                        + " spawn data it was given (" + e + ")");
+                    return;
+                }
+                gob.setattr(dr);
                 synchronized(gh) {
                     gh.streaming = false;                    // 075.3: whatever happens below, the create is done streaming
                     if(gh.dead) { gob.dispose(); return; }   // destroyed mid-build → discard (never added to scene)
@@ -1017,8 +1052,7 @@ final class VirtualApi {
                 // the free list, on the create and never again: the flag is what keeps this an event.
                 groundDirty = true;
             }
-        }, null);
-        return gh;
+        };
     }
 
     /**
@@ -3500,13 +3534,25 @@ final class VirtualApi {
     private static void setGhostRes(final LuaGhost gh, final String resName, final MessageBuf sdt) {
         final Glob g = glob();
         final Indir<Resource> rid = Resource.remote().load(resName);
-        boolean live;
+        boolean live, retry;
         synchronized(gh) {
             if(gh.dead)
                 return;
+            retry = gh.failed && !gh.streaming && (gh.gob == null);   // a create that gave up: this is a new try
             gh.res = rid; gh.resName = resName; gh.sdt = sdt;
             gh.failed = false;
             live = (gh.gob != null);
+            if(retry)
+                gh.streaming = true;
+        }
+        if(retry) {
+            MapView mv = screenView();
+            if((mv != null) && (g != null)) {
+                g.loader.defer(ghostCreate(gh, g, mv), null);
+            } else {
+                synchronized(gh) { gh.streaming = false; }
+            }
+            return;
         }
         if(!live || (g == null))
             return;                                    // no live gob yet → the pending create will use the new res
@@ -3531,7 +3577,16 @@ final class VirtualApi {
                         u.error(clampMsg("addon: ghost resource '" + nm + "' could not be loaded"));
                     return;                            // keep the old visual (non-fatal)
                 }
-                ResDrawable dr = new ResDrawable(gob, res, (sd == null) ? MessageBuf.nil : sd);  // built outside the lock
+                ResDrawable dr;
+                try {
+                    dr = new ResDrawable(gob, res, (sd == null) ? MessageBuf.nil : sd);  // built outside the lock
+                } catch(Loading l) {
+                    throw(l);
+                } catch(RuntimeException e) {
+                    AddonManager.logAbout(gh.owner, "ghost resource '" + nm + "' could not be built from the"
+                        + " spawn data it was given (" + e + ")");
+                    return;                            // keep the old visual (non-fatal), as a bad name does
+                }
                 synchronized(gh) {
                     if(gh.dead || (gh.gob != gob) || (gh.res != res)) { dr.dispose(); return; }
                     synchronized(gob) {
