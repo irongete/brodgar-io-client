@@ -33,6 +33,7 @@ end)
 | Rule | Detail |
 |---|---|
 | Runs on the [step](../threading.md) | After the widget arrived or went, holding no character's UI. The callback may build a window, write the widget it holds and reach any other login. |
+| Never seen before it | A widget an `Added` subscription or a layout rule names is not drawn and takes no pointer until the handlers ran. Hidden or moved there, it is never seen where the client put it, not for one frame. It may show one frame later than it would have. A layout rule reaches a widget the client builds for itself the same way, before its `Added`. |
 | One character's tree | The one `session` names. Two characters are two subscriptions. |
 | `Added` covers what is already open | Registering scans that tree once, so a reloaded addon sees an open window. A subscription on a character nobody is looking at fires for what that character has open. |
 | Search inside the widget you were handed | [`widget:match(sel)`](widget.md#searching-inside-one-widget), not from the root: two cupboards can be open. |

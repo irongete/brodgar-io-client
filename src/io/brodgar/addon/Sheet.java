@@ -1595,6 +1595,27 @@ final class Sheet {
     }
 
     /**
+     * Could an installed layout rule match {@code w} now or once its caption lands? Asked at the entry seam
+     * (174.1), under the tree's monitor, to hold a widget a rule places until the step has applied it — a late
+     * refiner counts on its structure alone, since holding one widget a frame too many costs nothing.
+     */
+    static boolean layoutCandidate(Widget w) {
+        if(!anyLayout || (w == null))
+            return false;
+        synchronized(Sheet.class) {
+            for(int i = 0; i < installed.size(); i++) {
+                List<Rule> rs = installed.get(i).tree;
+                for(int j = 0; j < rs.size(); j++) {
+                    Rule r = rs.get(j);
+                    if(r.layout() && (r.sel.late() ? r.sel.matchesStructure(w) : r.sel.matches(w)))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * Could an installed <b>layout</b> rule start matching {@code w} once its caption or its resource lands
      * (036.2)? Asked at the placement seam: {@code role}/{@code @Class} are fixed for a widget's life, so only a
      * rule whose structure already matches and whose refiner is a late one is worth re-checking — which is what

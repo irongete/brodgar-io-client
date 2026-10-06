@@ -69,6 +69,27 @@ public class Widget {
      * cost more than the whole probe. */
     public long[] prof = null;
 
+    /* addon: (174.1) HELD UNTIL ITS ADDED HAS RUN. The entry seam marks a widget an addon's Added
+     * subscription or layout rule names (UiApi.enqueueEntered, under the tree's monitor in add0), and the
+     * step clears it once those handlers have run (UiApi.dispatchEntered). Until then the draw and the pointer
+     * pass it by, so a widget the handler hides or moves is never seen where the client first put it. The
+     * value is the nanoTime it was held at: past HOLDMAX it draws anyway, so a pump that stops can never
+     * leave a widget invisible. Not `visible`: :visible() reads true inside the handler, and nothing the
+     * server or the client writes to visibility in that frame is lost. */
+    public volatile long addonheld = 0;
+    private static final long HOLDMAX = 250_000_000L;
+
+    /** addon: (174.1) is this widget still waiting for its Added handlers? */
+    public boolean addonheld() {
+	long at = addonheld;
+	if(at == 0)
+	    return(false);
+	if(System.nanoTime() - at < HOLDMAX)
+	    return(true);
+	addonheld = 0;
+	return(false);
+    }
+
     /** addon: slot indices into {@link #prof} (019.5). */
     public static final int PR_GEN = 0, PR_TICK = 1, PR_TICKCH = 2, PR_DRAW = 3, PR_DRAWCH = 4, PR_N = 5;
 
@@ -882,7 +903,7 @@ public class Widget {
 
 	for(Widget wdg = child; wdg != null; wdg = next) {
 	    next = wdg.next;
-	    if(!wdg.visible)
+	    if(!wdg.visible || wdg.addonheld())   // addon: (174.1) held until its Added has run
 		continue;
 	    long pt0 = pon ? System.nanoTime() : 0;   // addon:
 	    GOut g2;   // addon: (audit2 B14, pf-16) declared out here -- the overlay below draws after the bracket
@@ -1139,7 +1160,7 @@ public class Widget {
 
 	protected boolean propagation(Widget from) {
 	    for(Widget wdg = from.lchild; wdg != null; wdg = wdg.prev) {
-		if(!wdg.visible())
+		if(!wdg.visible() || wdg.addonheld())   // addon: (174.1)
 		    continue;
 		Coord cc = from.xlate(wdg.c, true);
 		if(c.isect(cc, wdg.sz)) {
@@ -1277,7 +1298,7 @@ public class Widget {
 	    for(Widget wdg = from.lchild; wdg != null; wdg = wdg.prev) {
 		Coord cc = from.xlate(wdg.c, true);
 		boolean inside = c.isect(cc, wdg.sz);
-		boolean ch = hovering && inside && wdg.visible();
+		boolean ch = hovering && inside && wdg.visible() && !wdg.addonheld();   // addon: (174.1)
 		if(derive(c.sub(cc)).hovering(ch).dispatch(wdg) && ch) {
 		    hovering = false;
 		    ret = true;

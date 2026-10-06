@@ -245,7 +245,38 @@ final class UiApi {
             return;
         if(!wdg.hasparent(u.root))
             return;                            // hung under something that is not up: announced with it, later
+        try {                                  // 174.1: held BEFORE it is queued, so the drain cannot clear it first
+            if(wantsHold(st, wdg))
+                wdg.addonheld = Math.max(System.nanoTime(), 1);
+        } catch(RuntimeException e) {
+            AddonManager.log("widget-hold error: " + e);   // drawn at once, as before 174.1, and still announced
+        }
         st.enteredWidgets.add(wdg);
+    }
+
+    /**
+     * Should {@code wdg} wait, undrawn, for the step (174.1)? Yes when an {@code Added} subscription or a layout
+     * rule names it or anything hung under it: the handler and the rule run on the step, and a widget drawn
+     * before them is seen for a frame where the client put it. Asked here, in {@code add0} under the tree's
+     * monitor, because that is the one moment before any draw can reach it; the walk is the one the drain makes
+     * anyway. A late selector counts on its structure, as a frame held too long is nothing.
+     */
+    private static boolean wantsHold(AddonManager.SessionState st, Widget wdg) {
+        if(st.selectorWatches.isEmpty() && !Sheet.anyLayout)
+            return false;
+        List<Widget> subtree = new ArrayList<Widget>();
+        collectSubtree(wdg, subtree);
+        for(Widget widget : subtree) {
+            if(Sheet.layoutCandidate(widget))
+                return true;
+            for(LuaSelectorWatch watch : st.selectorWatches) {
+                if(!watch.alive || (watch.event != LuaSelectorWatch.ADDED))
+                    continue;
+                if(watch.sel.late() ? watch.sel.matchesStructure(widget) : watch.sel.matches(widget))
+                    return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -274,6 +305,14 @@ final class UiApi {
      * every widget that enters, not only the ones the server places.
      */
     static void dispatchEntered(SessionState st, Widget wdg) {
+        try {
+            dispatchEntered0(st, wdg);
+        } finally {
+            wdg.addonheld = 0;                 // 174.1: drawn from the next frame, however the handlers went
+        }
+    }
+
+    private static void dispatchEntered0(SessionState st, Widget wdg) {
         UI u = wdg.ui;
         if((u == null) || (u.root == null))
             return;
@@ -284,6 +323,15 @@ final class UiApi {
             if(!wdg.hasparent(u.root))
                 return;                        // gone, or hung under something that is not up
             collectSubtree(wdg, entered);
+        }
+        // 174.1: a widget the client mints for itself never passes the placement seam, so a layout rule
+        // reached it only at the next sheet sweep. Here it is placed before its Added fires, so the handler
+        // has the last word and nothing is drawn in between.
+        if(Sheet.anyLayout) {
+            for(Widget w : entered) {
+                if(u.widgetid(w) < 0)
+                    Layout.placed(w, -1);
+            }
         }
         for(Widget w : entered) {
             offerEntered(st, u, w);
