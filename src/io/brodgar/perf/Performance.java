@@ -15,7 +15,7 @@ import io.brodgar.session.Sessions;
 
 /**
  * The whole state of {@code hafen.client():options():performance()} (spec 160-performance, task 160.1) —
- * thirteen {@code public static volatile} fields, each read from its own preference at class init and
+ * fourteen {@code public static volatile} fields, each read from its own preference at class init and
  * moved live by one setter that persists it in the same statement (the shape {@link haven.MapView#recallon}
  * and {@link io.brodgar.ui.ClientPanel} already write in), so a click on a panel and a write from Lua are
  * the same act. The <b>Performance</b> page shows all but the five weather switches, which stand on the
@@ -60,6 +60,9 @@ public final class Performance {
     public static volatile boolean wetGround = Utils.getprefb("perf-wetground", true);
     public static volatile boolean seasonTint = Utils.getprefb("perf-seasontint", true);
     public static volatile boolean flatTerrain = Utils.getprefb("perf-flatterrain", false);
+    /* With flatTerrain on, a cliff's wall stands at most one tile tall (Ridges.makeedge). Without it a
+     * cliff is the ground's own step. */
+    public static volatile boolean simpleCliffs = Utils.getprefb("perf-simplecliffs", false);
 
     /* The two generations a lazy cut rebuild compares its own stamp against (160.3, 160.4). Bumped only
      * when the value that feeds it actually changed, so a slider drag that repeats a value -- or a write
@@ -159,6 +162,17 @@ public final class Performance {
             groundGeneration++;
             flavorGeneration++;
             replace();
+        }
+    }
+
+    /* Only a flat ground's walls change, so only then is anything rebuilt; turning flatTerrain on
+     * later rebuilds them anyway. The lip moves with the wall, as for flatTerrain. */
+    public static void simpleCliffs(boolean on) {
+        boolean changed = on != simpleCliffs;
+        Utils.setprefb("perf-simplecliffs", simpleCliffs = on);
+        if(changed && flatTerrain) {
+            groundGeneration++;
+            flavorGeneration++;
         }
     }
 

@@ -28,7 +28,7 @@ public final class ApiVersion {
      * The API this client implements. <b>The one literal</b>: {@code tools/docverbs.py} reads it from this
      * line and holds the version the documentation states to it, so a bump is this constant and the page.
      */
-    public static final ApiVersion CURRENT = new ApiVersion(1, 5);
+    public static final ApiVersion CURRENT = new ApiVersion(1, 6);
 
     /** The declared form: a generation without a leading zero, a point, an edition that may be {@code 0}. */
     private static final Pattern FORM = Pattern.compile("^([1-9][0-9]*)\\.(0|[1-9][0-9]*)$");

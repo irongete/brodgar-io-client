@@ -56,6 +56,10 @@ public class Ridges implements MapMesh.ConsHooks {
      * plane has no low side to face. */
     private final boolean flat;
     private Map<Vertex[], Vertex[]> backs;
+    /* addon: flat terrain with Performance.simpleCliffs on, read with `flat`: every wall stands at most
+     * one tile (SIMPLEH) tall, the edges' columns and the complex tile's centre column alike. */
+    private final boolean simple;
+    private static final float SIMPLEH = tilesz.y;
 
     /* addon: 161.2 -- cliffs are detected from the STREAMED height, whatever the ground draws. With
      * the switch off getrealfz equals getfz. brokenp reads its MapSource (the record) and is untouched. */
@@ -227,17 +231,18 @@ public class Ridges implements MapMesh.ConsHooks {
 	    float z1 = (float)hz(gc.add(tccs[e])), z2 = (float)hz(gc.add(tccs[(e + 1) % 4]));
 	    lo = Math.min(z1, z2); hi = Math.max(z1, z2);
 	}
-	int nseg = Math.max((int)Math.round((hi - lo) / segh), 2) - 1;
+	float h = simple ? Math.min(hi - lo, SIMPLEH) : (hi - lo); /* addon: the wall's height, simplified or not */
+	int nseg = Math.max((int)Math.round(h / segh), 2) - 1;
 	Vertex[] ret = new Vertex[nseg + 1];
 	Coord3f base = new Coord3f(tc.add(tccs[e]).add(tc.add(tccs[(e + 1) % 4])).mul(tilesz).mul(1, -1)).div(2); base.z = flat ? 0 : lo; /* addon: 161.2 -- flat: the column stands on the plane */
-	float segi = (hi - lo) / nseg;
+	float segi = h / nseg;
 	Random rnd = m.grnd(m.ul.add(tc));
 	rnd.setSeed(rnd.nextInt() + e);
 	float bb = (rnd.nextFloat() - 0.5f) * 3.5f;
-	float cfac = -eds * Math.min((hi - lo) * (5.0f / 37.0f), 5.5f);
+	float cfac = -eds * Math.min(h * (5.0f / 37.0f), 5.5f);
 	for(int v = 0; v <= nseg; v++) {
 	    float z = v * segi;
-	    float zp = (z / (hi - lo));
+	    float zp = (z / h);
 	    float cd = (4 * zp * zp) - (4 * zp) + 0.5f;
 	    cd *= cfac;
 	    ret[v] = ms.new Vertex(base.add(dc(bb + ((rnd.nextFloat() - 0.5f) * 2.0f) + cd, e)).add(0, 0, z));
@@ -265,6 +270,7 @@ public class Ridges implements MapMesh.ConsHooks {
 	this.ms = m.data(MapMesh.gnd);
 	this.flat = io.brodgar.perf.Performance.flatTerrain; // addon: 161.2
 	this.backs = flat ? new IdentityHashMap<Vertex[], Vertex[]>() : null;
+	this.simple = flat && io.brodgar.perf.Performance.simpleCliffs; // addon
 	this.breaks = breaks();
 	this.edges = new Vertex[(m.sz.x + 1) * (m.sz.y + 1) * 2][];
 	this.edgec = new Vertex[(m.sz.x + 1) * (m.sz.y + 1) * 2][];
@@ -288,7 +294,7 @@ public class Ridges implements MapMesh.ConsHooks {
 	if(flat) { /* addon: 161.2 -- the complex tile's centre column stands on the plane too */
 	    float min = Math.min(Math.min(ret[0], ret[1]), Math.min(ret[2], ret[3]));
 	    for(int i = 0; i < 4; i++)
-		ret[i] -= min;
+		ret[i] = simple ? Math.min(ret[i] - min, SIMPLEH) : (ret[i] - min);
 	}
 	return(ret);
     }

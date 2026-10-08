@@ -5,7 +5,7 @@ What names an addon: the folder it lives in, the `manifest.json` that makes the 
 ```json
 {
   "id": "myaddon",
-  "api_version": "1.5",
+  "api_version": "1.6",
   "files": ["main.lua"],
   "name": "My Addon",
   "permissions": ["player.move"]
@@ -49,7 +49,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 |---|---|---|
 | `id` | `string` | Unique id. Equals the folder name. |
 | `files` | `string[]` | The `.lua` files to run, in this order. At least one, each inside your own folder. |
-| `api_version` | `string` | The API you wrote against, `"X.Y"`. This client implements API `1.5`. Absent, your addon is [out of date](#the-api-version). |
+| `api_version` | `string` | The API you wrote against, `"X.Y"`. This client implements API `1.6`. Absent, your addon is [out of date](#the-api-version). |
 | `name` | `string` | Display name in the [AddOns manager](panel.md). Defaults to `id`. |
 | `version` | `string` | Shown in the panel and in `:addons`. |
 | `author` | `string` | Shown in the panel. |
@@ -80,18 +80,19 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | What needs `1.2` | [`gob:outline(color, width)`](api/look.md#outline-unprotected), the ring round an object. |
 | What needs `1.3` | The fight in progress on [`session:fight()`](api/fight.md#the-fight-in-progress): its opponents and their numbers, its combat row and cooldowns, the manoeuvres used, its [openings](api/fight.md#an-opening), [the writes](api/fight.md#write-protected) that use an action, switch the target, pursue and give, and [the fight events](api/event/bus/fight.md). |
 | What needs `1.4` | The [saved schools](api/fight.md#schools) on `session:fight()`: `:school()`, its `:current()` and every School verb, among them [the writes](api/fight.md#write-protected) `school:load()` and `school:save()`. The deck's [`:get(n)`](api/fight.md#a-deck-card) and `card:empty()`. |
-| What needs `1.5` | The [regions](api/ui/regions.md): the `fight.*` and `hud.*` roles, in a selector, a sheet key and `hafen.ui():role()`. [`widget:raise()`, `widget:lower()` and `widget:z(n)`](api/ui/native.md#front-and-back-unprotected). [`widget:addon()`](api/ui/widget.md#read-methods) and its `:info().addon`. [`hafen.ui():root()`](api/ui/custom.md#your-windows-live-in-the-layer), the top of the addon layer. Everything else these pages describe is in `1.0`. |
+| What needs `1.5` | The [regions](api/ui/regions.md): the `fight.*` and `hud.*` roles, in a selector, a sheet key and `hafen.ui():role()`. [`widget:raise()`, `widget:lower()` and `widget:z(n)`](api/ui/native.md#front-and-back-unprotected). [`widget:addon()`](api/ui/widget.md#read-methods) and its `:info().addon`. [`hafen.ui():root()`](api/ui/custom.md#your-windows-live-in-the-layer), the top of the addon layer. |
+| What needs `1.6` | [`performance():simpleCliffs()`](api/client/README.md#performance), cliffs one tile tall on flat terrain. Everything else these pages describe is in `1.0`. |
 
 | You declare | On this client | Your addon |
 |---|---|---|
-| `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`, `"1.4"`, `"1.5"` | Its generation, an edition it has. | Loads. |
-| `"1.6"` | An edition it has not got. | Out of date: `too new: needs API 1.6 or newer, this client implements 1.5`. |
-| `"2.0"` | Another generation. | Out of date: `written for API 2.0, this client implements 1.5`. |
-| Nothing | | Out of date: `declares no api_version, this client implements 1.5`. |
+| `"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`, `"1.4"`, `"1.5"`, `"1.6"` | Its generation, an edition it has. | Loads. |
+| `"1.7"` | An edition it has not got. | Out of date: `too new: needs API 1.7 or newer, this client implements 1.6`. |
+| `"2.0"` | Another generation. | Out of date: `written for API 2.0, this client implements 1.6`. |
+| Nothing | | Out of date: `declares no api_version, this client implements 1.6`. |
 
 | Rule | Detail |
 |---|---|
-| Out of date is not an error | The client cannot tell it has what the addon was written against, so it does not run it. The [AddOns manager](panel.md) row reads `outdated (API 2.0, client 1.5)`, or `outdated (no api_version, client 1.5)`. Its tooltip opens with the sentence above. `:addons` lists it `[outdated]`. The enable checkbox keeps its value. A disabled addon is never read, so its row reads `disabled` and the tooltip still says why it would not load. |
+| Out of date is not an error | The client cannot tell it has what the addon was written against, so it does not run it. The [AddOns manager](panel.md) row reads `outdated (API 2.0, client 1.6)`, or `outdated (no api_version, client 1.6)`. Its tooltip opens with the sentence above. `:addons` lists it `[outdated]`. The enable checkbox keeps its value. A disabled addon is never read, so its row reads `disabled` and the tooltip still says why it would not load. |
 | Load out of date AddOns | A box on the [Installed tab](panel.md#installed). While ticked, the next reload runs every out-of-date addon as a current one. The log names each and why. |
 
 ---

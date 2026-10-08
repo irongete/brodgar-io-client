@@ -140,6 +140,14 @@ public final class PerformanceOptions {
                 Performance.flatTerrain(bool(value, "on", "whether the terrain is drawn flat"));
             }
         });
+        m.set("simpleCliffs", new OptionsMethod(owner, handle, "performance:simpleCliffs") {
+            protected LuaValue onRead() {
+                return LuaValue.valueOf(Performance.simpleCliffs);
+            }
+            protected void onWrite(LuaValue value) {
+                Performance.simpleCliffs(bool(value, "on", "whether a cliff on flat terrain stands one tile tall"));
+            }
+        });
 
         return m;
     }

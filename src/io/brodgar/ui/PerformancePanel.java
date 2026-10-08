@@ -247,6 +247,17 @@ public class PerformancePanel extends OptWnd.Panel {
                     + " on the plane at their real height; water keeps its depth. Not a performance setting: the same"
                     + " ground is drawn at another height. Applies live, cut by cut.", true);
 
+        prev = body.add(new CheckBox("Simplify cliffs height") {
+                {a = Performance.simpleCliffs;}
+                public void set(boolean val) {Performance.simpleCliffs(val); a = val;}
+                public void tick(double dt) {
+                    super.tick(dt);
+                    a = Performance.simpleCliffs;
+                }
+            }, prev.pos("bl").adds(0, 5));
+        prev.settip("With Flat terrain on, every cliff stands one tile tall instead of its real height. Off, or"
+                    + " without Flat terrain, cliffs keep their height. Applies live.", true);
+
         prev = body.add(new Label("Plants"), prev.pos("bl").adds(0, 15));
 
         Label cropLbl = body.add(new Label("Crop density"), prev.pos("bl").adds(5, 10));
