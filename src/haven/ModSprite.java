@@ -228,6 +228,14 @@ public class ModSprite extends Sprite implements Sprite.CUpd, EquipTarget {
     }
 
     private static final Map<Resource, ResData> rdcache = new WeakHashMap<>();
+    /* addon: an addon's layer write re-parses a held resource in place (Resource.Pool.reload), keeping
+     * its identity, so the entry cached under it would hand every sprite built afterwards the old
+     * layers. Taken under the lock resdata() builds under, so no build straddles the drop. */
+    public static void forget(Resource res) {
+	synchronized(rdcache) {
+	    rdcache.remove(res);
+	}
+    }
     protected ResData resdata(Resource res) {
 	synchronized(rdcache) {
 	    ResData dat = rdcache.get(res);

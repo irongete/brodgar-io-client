@@ -945,6 +945,26 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	updated();
     }
 
+    // addon: the follow of an addon's layer write (io.brodgar.addon.ResourceWrites): the write swaps the
+    //        layers of the very Resource object this drawable was built from, but a sprite reads them when
+    //        it is created, so the drawable is built again from the resource and state bytes it was built
+    //        from, as replant() does. Deferred for the same reasons, and checked again when it runs: the
+    //        server may have handed this gob another model in between.
+    public void reloaded(Resource res) {
+	Drawable d = getattr(Drawable.class);
+	if((d instanceof ResDrawable) && (((ResDrawable)d).rres == res))
+	    defer(() -> syncreloaded(res));
+    }
+
+    private void syncreloaded(Resource res) {
+	Drawable d = getattr(Drawable.class);
+	if(!(d instanceof ResDrawable) || (((ResDrawable)d).rres != res))
+	    return;
+	ResDrawable rd = (ResDrawable)d;
+	setattr(new ResDrawable(this, rd.res, rd.sdt.clone()));
+	updated();
+    }
+
     public void removed(RenderTree.Slot slot) {
 	slots.remove(slot);
     }

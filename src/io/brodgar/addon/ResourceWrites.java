@@ -1,9 +1,14 @@
 package io.brodgar.addon;
 
 import haven.Audio;
+import haven.Gob;
 import haven.MessageBuf;
+import haven.ModSprite;
+import haven.OCache;
 import haven.Resource;
 import haven.Tex;
+import haven.UI;
+import io.brodgar.session.Sessions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +47,8 @@ import org.luaj.vm2.LuaError;
  *
  * <p><b>Release</b> ({@link #release(Addon, String)}, {@link #teardown}) removes the owner's records and
  * re-parses every touched name still cached; every applied live write invalidates what caches a layer of
- * the name outside the resource: {@code Audio.resclips} and each addon's {@code g:resource} texture copy.
+ * the name outside the resource: {@code Audio.resclips}, each addon's {@code g:resource} texture copy,
+ * {@code ModSprite}'s per-resource data, and the drawable of every object and ghost built from it.
  */
 final class ResourceWrites {
     private ResourceWrites() {
@@ -209,9 +215,12 @@ final class ResourceWrites {
         invalidate(res);
     }
 
-    /** What caches a layer of {@code res} outside the resource: the combined clip, each addon's texture copy. */
+    /** What caches a layer of {@code res} outside the resource: the combined clip, each addon's texture copy,
+     *  ModSprite's per-resource data, and the drawable of every object built from it -- each session's
+     *  objects and every addon's ghosts, which stand outside OCache. */
     private static void invalidate(Resource res) {
         Audio.forget(res);
+        ModSprite.forget(res);
         for(Addon a : AddonManager.profOwners()) {
             Tex t = a.resTexCache.remove(res.name);
             if(t != null) {
@@ -221,6 +230,26 @@ final class ResourceWrites {
                     /* a texture already released is still one we are done with */
                 }
             }
+            for(LuaGhost gh : a.ghosts) {
+                Gob gob = gh.gob;
+                if(gob != null)
+                    gob.reloaded(res);
+            }
+        }
+        for(Sessions.Member m : Sessions.members()) {
+            UI ui = m.ui;
+            if((ui == null) || (ui.sess == null))
+                continue;
+            /* Copied under the cache's own monitor, the one its adds and removes take; each gob is asked
+             * outside it, and Gob.reloaded only queues its work. */
+            OCache oc = ui.sess.glob.oc;
+            List<Gob> gobs = new ArrayList<Gob>();
+            synchronized(oc) {
+                for(Gob gob : oc)
+                    gobs.add(gob);
+            }
+            for(Gob gob : gobs)
+                gob.reloaded(res);
         }
     }
 

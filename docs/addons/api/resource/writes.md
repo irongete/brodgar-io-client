@@ -95,10 +95,11 @@ A boolean, a colour, a map or anything else is refused naming those kinds.
 
 ## What is already built keeps its layers
 
-A write swaps the resource's layer list. What was built from the old list keeps it until the client builds it again. That is a sprite on screen, a texture the renderer uploaded, or a static the client read at start. The login screen's own sounds and the stock button art are statics. The doors that read the current layers on every use are:
+A write swaps the resource's layer list. What was built from the old list keeps it until the client builds it again. That is an overlay on an object, what a character's body and equipment are built from, a texture the renderer uploaded, or a static the client read at start. The login screen's own sounds and the stock button art are statics. The doors that follow the current layers are:
 
 | Door | Reads |
 |---|---|
+| An object in the world whose model is the resource, your [ghosts](../virtual/ghosts.md) included | the current layers: the client builds its model again at once, and an animation it was playing starts over |
 | [`hafen.sound():get(name):play()`](../sound.md) | the current `audio2` clip and its `volume` |
 | [`graphics:resource(name, x, y)`](../ui/drawing.md) | the current `image` |
 | [`widget:source(name)`](../ui/controls/display.md) | the current `image`, when the widget is built |
