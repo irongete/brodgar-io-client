@@ -106,6 +106,8 @@ public final class LuaItem {
     public final ItemInfo.SpriteOwner owner;
     /** The widget drawing it — what {@code :exists()} tests, and what retires this handle when it dies. */
     public final Widget icon;
+    /* Kept on the interned Item, not in a second widget map. The profile retains this Item in turn. */
+    private LuaValue curiosity;
 
     private LuaItem(ItemInfo.SpriteOwner owner, Widget icon) {
         this.owner = owner;
@@ -334,6 +336,18 @@ public final class LuaItem {
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.doubleValue());
             }
         });
+        m.set("curiosity", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                LuaItem item = handle(Args.only(args, 0, "item:curiosity"), "curiosity");
+                if(LuaCuriosity.profile(item.owner) == null)
+                    return LuaValue.NIL;
+                synchronized(item) {
+                    if(item.curiosity == null)
+                        item.curiosity = LuaCuriosity.of(args.arg1());
+                    return item.curiosity;
+                }
+            }
+        });
         // contents() — WHAT THIS ITEM HOLDS (064.1): a live Contents object, or nil for an item holding
         // nothing. One type for both insides — a stack and a creel carry real items, a bucket carries a line
         // its tooltip states — because the client cannot tell the two apart and a guess would be confident and
@@ -387,7 +401,39 @@ public final class LuaItem {
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").owner);
+                LuaItem item = handle(self, "info");
+                return snapshot(owner, item.owner, live(item) != null);
+            }
+        });
+        // note() reads this addon's additional native-tooltip lines; note(text) replaces only its own lines.
+        m.set("note", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Args.only(a, 1, "item:note");
+                LuaItem item = handle(a.arg1(), "note");
+                if(!Args.passed(a, 2)) {
+                    String note = ItemNotes.get(owner, item.owner);
+                    return (note == null) ? LuaValue.NIL : LuaValue.valueOf(note);
+                }
+                LuaValue value = a.arg(2);
+                String text = null;
+                if(!value.isnil())
+                    text = Args.str(value, "item:note", "text", "the additional tooltip lines").tojstring();
+                if(text != null && !text.isEmpty() && live(item) == null)
+                    throw new LuaError("item:note(text): cannot set a nonempty note on a stale item");
+                ItemNotes.set(owner, item.owner, text);
+                return a.arg1();
+            }
+        });
+        // ready() is a metadata-ready signal, not a proxy for a name or curiosity row being present.
+        m.set("ready", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                LuaItem item = handle(Args.only(args, 0, "item:ready"), "ready");
+                Widget live = live(item);
+                if(live == null)
+                    return LuaValue.FALSE;
+                if(item.owner instanceof GItem && !((GItem)item.owner).infoReceived())
+                    return LuaValue.FALSE;
+                return LuaValue.valueOf(info(item.owner) != null);
             }
         });
         // on(key, fn) — the item's own door (104). ONE key: `Changed`, "what this item says about itself is
@@ -936,10 +982,16 @@ public final class LuaItem {
      * {@code contents}. That falls out of the reads rather than being branched on — {@link #held} answers
      * {@code null} and each of them answers its own absence.
      */
-    static LuaValue snapshot(ItemInfo.SpriteOwner it) {
+    static LuaValue snapshot(Addon addon, ItemInfo.SpriteOwner it, boolean isLive) {
         if(it == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
+        String note = ItemNotes.get(addon, it);
+        if(note != null)
+            t.set("note", LuaValue.valueOf(note));
+        boolean ready = isLive && !((it instanceof GItem) && !((GItem)it).infoReceived())
+            && (info(it) != null);
+        t.set("ready", LuaValue.valueOf(ready));
         String res = CharApi.itemResOf(it);
         if(res != null)
             t.set("res", LuaValue.valueOf(res));
@@ -958,6 +1010,9 @@ public final class LuaItem {
         Double q = quality(it);
         if(q != null)
             t.set("quality", LuaValue.valueOf(q.doubleValue()));
+        LuaValue curiosity = LuaCuriosity.snapshot(LuaCuriosity.profile(it));
+        if(!curiosity.isnil())
+            t.set("curiosity", curiosity);
         GItem g = (it instanceof GItem) ? (GItem)it : null;
         // What it holds, as that Contents' OWN snapshot — and there is deliberately no `container` beside it:
         // a snapshot holds no live objects, and a snapshot naming the item it sits in would nest snapshots of

@@ -47,15 +47,17 @@ From [`slot:info()`](../study.md#a-slot). `session:study():curiosity()` and `Stu
 
 | Field | Type | Notes |
 |---|---|---|
-| `res` | `string` | The curiosity item's resource, its identity. Optional while loading. |
+| `res` | `string` | The study item's resource, its identity. Optional while loading. |
 | `name` | `string` | Display name. Optional. |
 | `lp` | `number` | Learning points. Optional. |
 | `attention` | `number` | Mental weight. Optional. |
 | `cost` | `number` | Experience cost. Optional. |
 | `time` | `number` | Total study time in seconds, no per-item countdown. Optional. |
-| `progress` | `number` | `0..1` study progress. Best-effort, optional. |
+| `progress` | `number` | `0..1` item meter: study progress for a curiosity, not for a non-curiosity. Best-effort, optional. |
 
-`StudySummary` is `{ lp, attention, cost }`, the totals across the window, from [`summary:info()`](../study.md#the-summary). `session:study():summary()` hands the live object.
+The collection includes non-curiosities such as Soil Bonds. `lp`, `attention`, `cost` and `time` are absent both for those items and while a curiosity's profile is loading.
+
+`StudySummary` is `{ lp, attention, cost }`, the totals across resolved curiosities in the window, from [`summary:info()`](../study.md#the-summary). `session:study():summary()` hands the live object.
 
 ## Speed
 
