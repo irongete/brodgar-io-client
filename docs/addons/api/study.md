@@ -1,11 +1,12 @@
-# session:study: Curiosities Being Studied
+# session:study: Study Items and Curiosity Totals
 
-One character's study window, read through its [session](session.md): the curiosities in it and the learning-point and attention totals across them. The rest of the sheet is [`session:char`](char.md).
+One character's study window, read through its [session](session.md): its items and the learning-point and attention totals across its curiosities. The rest of the sheet is [`session:char`](char.md).
 
 ```lua
 local session = hafen.session():current()                    -- the character on screen
 for _, slot in ipairs(session and session:study():curiosity():list() or {}) do
-  hafen.log():write((slot:name() or slot:res()) .. "  lp=" .. (slot:lp() or 0))
+  local lp = slot:lp()
+  if lp then hafen.log():write((slot:name() or slot:res() or "Curiosity") .. "  lp=" .. lp) end
 end
 ```
 
@@ -22,7 +23,7 @@ end
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `session:study():curiosity():list(filter)` | `StudySlot[]` | Unprotected | The curiosities in the window. |
+| `session:study():curiosity():list(filter)` | `StudySlot[]` | Unprotected | The items in the study window, including non-curiosities. |
 | `session:study():curiosity():count(filter)` | `number` | Unprotected | How many match. |
 | `session:study():curiosity():find(filter)` | `StudySlot \| nil` | Unprotected | The first that matches. |
 | `session:study():summary()` | `StudySummary \| nil` | Unprotected | The totals across the curiosities in the window. `nil` until the tab has built. Takes no arguments. |
@@ -30,33 +31,34 @@ end
 | Rule | Detail |
 |---|---|
 | `filter` | A string [filter](conventions.md#the-filter-argument) matches the resource name and the display name. |
+| Non-curiosities | The collection also includes items such as a Soil Bond. Their curiosity-specific numbers are `nil`, not zero. Include an item in LP calculations only when its `slot:lp()` is non-`nil`. |
 | No `:get` | A slot has no key: the same curiosity can sit in two slots, and the window has no index the server addresses. `session:study():curiosity():get("bar")` raises: `session:study():curiosity() has no verb 'get' — a slot has no key, since the same curiosity can sit in two of them: session:study():curiosity():find(needle) is the search and session:study():curiosity():list()[n] takes a position`. |
 
 ## A slot
 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
-| `slot:res()` | `string \| nil` | Unprotected | The curiosity's resource name, its identity. |
+| `slot:res()` | `string \| nil` | Unprotected | The item's resource name, its identity. |
 | `slot:name()` | `string \| nil` | Unprotected | The display name. |
 | `slot:lp()` | `number \| nil` | Unprotected | Learning points. |
 | `slot:attention()` | `number \| nil` | Unprotected | Mental weight. |
 | `slot:cost()` | `number \| nil` | Unprotected | Experience cost. |
 | `slot:time()` | `number \| nil` | Unprotected | Total study time in seconds: not what is left, not a [fraction](shapes.md#units). The client is sent no per-item countdown. |
-| `slot:progress()` | `number \| nil` | Unprotected | `0..1` study progress. Best-effort. |
-| `slot:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The widget that draws it: the crossing back into the tree. |
+| `slot:progress()` | `number \| nil` | Unprotected | `0..1` item meter. Study progress for a curiosity; a non-curiosity's meter has its own meaning. Best-effort. |
+| `slot:widget()` | [Widget](ui/widget.md) `\| nil` | Unprotected | The underlying item widget, not its visible icon: the crossing back into the tree. |
 | `slot:exists()` | `boolean` | Unprotected | Whether it is still in a study window. Always answers. |
 | `slot:info()` | [`StudySlot`](types/character.md#studyslot-and-studysummary) `\| nil` | Unprotected | A plain-table snapshot. |
 
 | Rule | Detail |
 |---|---|
-| Resource-only at first | The study profile arrives in a second server message, so `:lp()`, `:attention()`, `:cost()` and `:time()` answer `nil` together just after a curiosity appears. The moment they resolve is itself a `StudyChanged`. |
+| Missing profile | `:lp()`, `:attention()`, `:cost()` and `:time()` answer `nil` together while a curiosity's metadata loads, and for an item that is not a curiosity. A name or progress meter does not establish that the item is a curiosity. The moment a curiosity's profile resolves is itself a `StudyChanged`. |
 | Identity | Interned on the item in the window: `:list()[1] == :list()[1]` and `seen[slot] = true` work. |
 | A curiosity taken out keeps answering | `:exists()` is `false` while `:res()` and the numbers read what it had. The slot carries its own character, so `:exists()` is about the window it was taken from. |
 | Event | [`StudyChanged`](event/bus/character.md#character-and-status), whose payload is the array of slots. |
 
 ```lua
 hafen.event():on("StudyChanged", function(slots)
-  hafen.log():write(#slots .. " curiosit(ies) in study")
+  hafen.log():write(#slots .. " item(s) in study")
 end)
 ```
 
@@ -74,6 +76,7 @@ end)
 |---|---|
 | The attention cap | `summary:attention()` is the numerator the window draws. The cap is that character's Intelligence, [`session:char():attr():get("int"):composite()`](char.md#attributes). |
 | Read together | The totals are read together, so they add up against the same set of curiosities. |
+| Included items | Only resolved curiosity profiles contribute. Non-curiosities and items whose metadata is still loading contribute nothing. |
 | Identity | Interned on the study tab: `session:study():summary() == session:study():summary()` and `seen[summary] = true` work. A kept one reads the live totals. The same kind of object as [`session:fight():summary()`](fight.md#the-summary), `nil` rather than empty while there is no tab. |
 
 ---

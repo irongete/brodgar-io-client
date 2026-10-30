@@ -62,7 +62,7 @@ A set you can address into is reached by the singular kind name and hands back a
 |---|---|
 | `nil` | Every collection not named below. |
 | An object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `session:world():gob()`, `session:actionbar()`, `session:fight():action()`, `keybindings():binding()`, `hafen.client():addons()`. |
-| An error naming the keys there are | `hafen.asset()`, `hafen.font()`, `session:char():attr()`, `hafen.map():display()`. |
+| An error naming the keys there are | `hafen.asset()`, `hafen.font()`, `session:char():attr()`, `session:char():ability()`, `hafen.map():display()`. |
 
 A collection whose members have no key has no `:get` and says what to reach for. Two buffs can share a resource. A marker's only id is one this client mints. A timer is only the one you were handed. `hafen.timer():get(1)` raises: `hafen.timer() has no verb 'get' — a timer has no key: hafen.timer():after(s, fn) and hafen.timer():every(s, fn) hand you the timer they make, and hafen.timer():list() is every one of yours`.
 

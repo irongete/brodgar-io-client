@@ -1,6 +1,6 @@
 # Data Types: The Character Sheet
 
-The snapshot shapes off one character's sheet: attributes, food, learning, movement speed, quests, wounds and buffs. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
+The snapshot shapes off one character's sheet: attributes, abilities, food, learning, movement speed, quests, wounds and buffs. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
 
 ```lua
 local food = hafen.session():current():char():food()
@@ -13,6 +13,10 @@ if snapshot and snapshot.fep then hafen.log():write(("fep %d/%d"):format(snapsho
 ## Attr
 
 From [`attr:info()`](../char.md#attributes): `{ base = number, comp = number }`, the raw base value against the computed, buffed value. `session:char():attr()` hands live [`Attr` objects](../char.md#attributes), not this table. `nil` while the server has published nothing for that attribute. An attribute of exactly zero on both halves reads as the same `nil`. The client keeps no published flag, and builds a zero record for any name asked. A living character carries no attribute of zero.
+
+## Ability
+
+From [`ability:info()`](../char.md#abilities): `{ base = number, comp = number }`, the shape [`Attr`](#attr) has. `session:char():ability()` hands live [`Ability` objects](../char.md#abilities), not this table. `nil` until the server has sent the sheet. Every ability is at least 1 after that.
 
 ## Food
 
@@ -47,15 +51,17 @@ From [`slot:info()`](../study.md#a-slot). `session:study():curiosity()` and `Stu
 
 | Field | Type | Notes |
 |---|---|---|
-| `res` | `string` | The curiosity item's resource, its identity. Optional while loading. |
+| `res` | `string` | The study item's resource, its identity. Optional while loading. |
 | `name` | `string` | Display name. Optional. |
 | `lp` | `number` | Learning points. Optional. |
 | `attention` | `number` | Mental weight. Optional. |
 | `cost` | `number` | Experience cost. Optional. |
 | `time` | `number` | Total study time in seconds, no per-item countdown. Optional. |
-| `progress` | `number` | `0..1` study progress. Best-effort, optional. |
+| `progress` | `number` | `0..1` item meter: study progress for a curiosity, not for a non-curiosity. Best-effort, optional. |
 
-`StudySummary` is `{ lp, attention, cost }`, the totals across the window, from [`summary:info()`](../study.md#the-summary). `session:study():summary()` hands the live object.
+The collection includes non-curiosities such as Soil Bonds. `lp`, `attention`, `cost` and `time` are absent both for those items and while a curiosity's profile is loading.
+
+`StudySummary` is `{ lp, attention, cost }`, the totals across resolved curiosities in the window, from [`summary:info()`](../study.md#the-summary). `session:study():summary()` hands the live object.
 
 ## Speed
 

@@ -31,6 +31,7 @@ hafen.log():write(hafen.json():encode(snapshot))              -- what a live Gob
 
 | Shape | Page |
 |---|---|
+| `Ability` | [The character sheet](character.md#ability) |
 | `ActionbarSlot` | [The widget layer](ui.md#actionbarslot) |
 | `Addon` | [The client](client.md#addon) |
 | `Attr` | [The character sheet](character.md#attr) |

@@ -1,6 +1,6 @@
 # session:char: The Character Sheet
 
-One character's sheet, read through its [session](session.md): attributes, learning points, carried weight, food and hunger, skills, credos and lore. The curiosities it studies are [`session:study`](study.md).
+One character's sheet, read through its [session](session.md): attributes, abilities, learning points, carried weight, food and hunger, skills, credos and lore. The curiosities it studies are [`session:study`](study.md).
 
 ```lua
 local session = hafen.session():current()                  -- the character on screen
@@ -16,7 +16,7 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 | Rule | Detail |
 |---|---|
 | Streams in after login | The sheet lives in HUD widgets that build shortly after `SessionEnteredWorld`: an immediate read answers `nil` or an empty array. Read on a short timer. |
-| Events | `FepChanged` for food and hunger, `StudyChanged` for the curiosities, [both on the bus](event/bus/character.md#character-and-status). Attributes, learning points, weight, skills, credos and lore change only on an action of yours: read them on demand, after it. |
+| Events | `FepChanged` for food and hunger, `StudyChanged` for the curiosities, [both on the bus](event/bus/character.md#character-and-status). Attributes, abilities, learning points, weight, skills, credos and lore change only on an action of yours: read them on demand, after it. |
 | Whose sheet | `session:char()` is the sheet of the character that session plays: `hafen.session():get("alt"):char():lp()` answers for that character whether or not you look at it. |
 | One object | `session:char()` and each collection below are the same object every call, minted once per session, so a panel reading every frame allocates nothing. `session:char():skill():buyable(filter)` is a partition, [a view](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many): two calls are two objects, and the skills inside them are the identity. |
 | A session the client no longer holds | Answers `nil`-shaped, the shape before entering the world. [`session:exists()`](session.md#read) tells the two apart. |
@@ -27,6 +27,7 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 | Method | Returns | Permission | Description |
 |---|---|---|---|
 | `session:char():attr()` | collection | Unprotected | The base attributes. |
+| `session:char():ability()` | collection | Unprotected | The abilities. |
 | `session:char():skill()` | collection | Unprotected | The skills the character knows. |
 | `session:char():credo()` | collection | Unprotected | The Credos tab. |
 | `session:char():experience()` | collection | Unprotected | The Lore tab. |
@@ -49,9 +50,38 @@ if session and session:char():skill():find("Alchemy") then hafen.log():write("I 
 
 | Rule | Detail |
 |---|---|
-| Names | `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil`, `psy`. The set is closed: a name outside it raises listing them. A misspelt attribute is a typo, never something whose every read is `nil`. |
+| Names | `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil`, `psy`. The set is closed: a name outside it raises listing them. A misspelt attribute is a typo, never something whose every read is `nil`. An ability's name raises naming [`session:char():ability()`](#abilities). |
 | `:get(name)` always answers | `:base()` and `:composite()` are `nil` until the server has sent it. `:list()` holds only the published ones. |
 | Identity | Interned on session and name: `:get("str") == :get("str")` on one session, and `seen[attr] = true` works. The same name on two characters is two objects. |
+
+## Abilities
+
+The thirteen abilities on the sheet's Abilities tab, Smithing and Carpentry among them: the stats a recipe's quality draws on beside the base attributes. Not [the actions the server pushes](menugrid.md) into the menu and the action bar, which the reference also calls abilities.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `session:char():ability():get(name)` | `Ability` | Unprotected | One ability. Never `nil` for a real name. |
+| `session:char():ability():list(filter)` | `Ability[]` | Unprotected | Every ability the server has published, in the sheet's order. |
+| `session:char():ability():count(filter)` | `number` | Unprotected | How many match. |
+| `session:char():ability():find(filter)` | `Ability \| nil` | Unprotected | The first that matches. |
+| `ability:name()` | `string` | Unprotected | Which ability this is. |
+| `ability:base()` | `number \| nil` | Unprotected | The raw base value. |
+| `ability:composite()` | `number \| nil` | Unprotected | The computed value: base plus food, gear and buffs. |
+| `ability:info()` | [`Ability`](types/character.md#ability) `\| nil` | Unprotected | A plain-table snapshot. |
+
+| Rule | Detail |
+|---|---|
+| Names | `unarmed`, `melee`, `ranged`, `explore`, `stealth`, `sewing`, `smithing`, `masonry`, `carpentry`, `cooking`, `farming`, `survive`, `lore`, the sheet's order. The set is closed: a name outside it raises listing them, and a base attribute's name raises naming [`session:char():attr()`](#attributes). |
+| Every ability is at least 1 | `:base()` and `:composite()` are `nil` only until the server has sent the sheet. From then on `:list()` holds all thirteen. |
+| A type of its own | An `Ability` answers the four verbs an [`Attr`](#attributes) does, and prints as `Ability(smithing)`. No `Ability` is `==` an `Attr`. |
+| Identity | Interned on session and name: `:get("smithing") == :get("smithing")` on one session. The same name on two characters is two objects. |
+
+```lua
+local abilities = hafen.session():current():char():ability()
+for _, ability in ipairs(abilities:list()) do
+  hafen.log():write(ability:name() .. " " .. ability:composite())
+end
+```
 
 ## Skills
 
@@ -147,5 +177,5 @@ end)
 - [`session:study`](study.md) — the curiosities and their learning-point totals.
 - [`session:meter`](meter.md) — the HUD bars, fractions rather than numbers.
 - [`session:wound`](wound.md) — the other half of the Health and Wounds tab.
-- [The character sheet](types/character.md) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`.
+- [The character sheet](types/character.md) — `Attr`, `Ability`, `Food`, `Skill`, `Credo` and `Experience`.
 - [Events](event/bus/character.md#character-and-status) — `FepChanged`.

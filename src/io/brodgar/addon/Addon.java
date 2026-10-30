@@ -293,6 +293,7 @@ public final class Addon {
      * this addon was listening to, and after a {@code :reload} the addon that was listening no longer exists.
      */
     void teardownWidgetSubs() {
+        ItemNotes.clear(this);
         itemSubs.clear();
         AddonManager.recountItemSubs();   // audit2 B15: this addon has stopped watching items — see onItemInfo
         List<WidgetSubs> all = widgetSubs.values();
@@ -1023,7 +1024,7 @@ public final class Addon {
 
     /**
      * This addon's <b>character-sheet interning caches</b> (spec {@code 039-uniform-api} §4.1/§4.2):
-     * {@code hafen.char():attr()} keyed by attribute name, {@code :skill()} and {@code :credo()} by the
+     * {@code hafen.char():attr()} and {@code :ability()} keyed by name, one cache per kind, {@code :skill()} and {@code :credo()} by the
      * server's own token, {@code :experience()} by the lore resource name, {@code :food()} and
      * {@code hafen.study():slot()} by widget identity — each key chosen by what the engine keeps stable
      * (D-094), since the skill, credo and lore records are all rebuilt wholesale off-thread whenever the
@@ -1031,7 +1032,8 @@ public final class Addon {
      * boundary (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable, with
      * nothing to tear down (weak values, and a handle holds only its key).
      */
-    final LuaAttr.Cache attrs = new LuaAttr.Cache(this);
+    final LuaAttr.Cache attrs = new LuaAttr.Cache(this, LuaAttr.Kind.BASE);
+    final LuaAttr.Cache abilities = new LuaAttr.Cache(this, LuaAttr.Kind.ABILITY);
     final LuaSkill.Cache skills = new LuaSkill.Cache(this);
     final LuaCredo.Cache credos = new LuaCredo.Cache(this);
     final LuaExperience.Cache experiences = new LuaExperience.Cache(this);
@@ -1154,6 +1156,7 @@ public final class Addon {
     void dropItemSubs(ItemInfo.SpriteOwner it) {
         if(it == null)
             return;
+        ItemNotes.drop(this, it);
         Subs s = itemSubs.drop(it);
         if(s != null) {
             s.clear();

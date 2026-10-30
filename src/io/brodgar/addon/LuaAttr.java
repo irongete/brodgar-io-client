@@ -17,7 +17,11 @@ import java.util.Map;
 
 /**
  * An <b>Attr object</b> — one of the character's base attributes ({@code s:char():attr():get("str")}),
- * the OOP successor of the flat {@code {base, comp}} snapshot. Built on the mechanism {@link LuaGob},
+ * the OOP successor of the flat {@code {base, comp}} snapshot — and an <b>Ability object</b>, one of the
+ * thirteen abilities ({@code s:char():ability():get("smithing")}). The client keeps both as one record kind,
+ * {@link Glob.CAttr}, so one class serves both and {@link Kind} names the difference: the Lua type, the
+ * collection's spelling and the closed set of names. To Lua they are two types — an addon holding one knows
+ * which it holds, and no Ability is {@code ==} an Attr. Built on the mechanism {@link LuaGob},
  * {@link LuaKin} and {@link LuaBuff} established: userdata + a per-addon weak-valued intern cache, so
  * {@code ==} is the identity test and a stashed handle stays live.
  *
@@ -38,28 +42,89 @@ import java.util.Map;
  * reported as a {@code nil} attribute.
  */
 public final class LuaAttr {
-    /** The nine base character attributes (content-defined; not discoverable from {@link Glob}). */
-    static final String[] NAMES =
-        {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"};
+    /**
+     * The two kinds of character stat. Each carries its Lua type name, the verb its collection hangs on
+     * {@code session:char()} under, the noun its messages use, and its closed set of names. The names are
+     * content-defined and not discoverable from {@link Glob}; the abilities are in the order
+     * {@code SAttrWnd}'s constructor builds them, which is the sheet's and {@code :list()}'s.
+     */
+    enum Kind {
+        BASE("Attr", "attr", "base attribute", "a character attribute",
+             new String[] {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"}),
+        ABILITY("Ability", "ability", "ability", "a character ability",
+                new String[] {"unarmed", "melee", "ranged", "explore", "stealth", "sewing", "smithing",
+                              "masonry", "carpentry", "cooking", "farming", "survive", "lore"});
 
+        /** The Lua type: {@code __name} and the {@code tostring} prefix. */
+        final String type;
+        /** The collection's verb on {@code session:char()}, and the receiver its own messages name. */
+        final String verb;
+        /** What one member is called in a sentence. */
+        final String noun;
+        /** The blurb {@link Refusal#closedIndex} prints for an unknown verb. */
+        final String blurb;
+        final String[] names;
+
+        Kind(String type, String verb, String noun, String blurb, String[] names) {
+            this.type = type;
+            this.verb = verb;
+            this.noun = noun;
+            this.blurb = blurb;
+            this.names = names;
+        }
+
+        /** Is {@code name} one of this kind's? */
+        boolean known(String name) {
+            for(String nm : names) {
+                if(nm.equals(name))
+                    return true;
+            }
+            return false;
+        }
+
+        /** The names as one comma-separated list, for the refusal. */
+        String namesList() {
+            StringBuilder b = new StringBuilder();
+            for(int i = 0; i < names.length; i++)
+                b.append((i == 0) ? "" : ", ").append(names[i]);
+            return b.toString();
+        }
+
+        /** The other kind: where a name refused here belongs. */
+        Kind other() {
+            return (this == BASE) ? ABILITY : BASE;
+        }
+
+        /** {@code session:char():attr()} / {@code session:char():ability()}. */
+        String collection() {
+            return CharApi.C + ":" + verb + "()";
+        }
+    }
+
+    /** The nine base character attributes (content-defined; not discoverable from {@link Glob}). */
+    static final String[] NAMES = Kind.BASE.names;
+
+    /** Which of the two kinds this handle is. */
+    public final Kind kind;
     /** The account whose sheet this attribute is on — half the address. */
     public final String user;
     /** The attribute name this handle addresses. */
     public final String name;
 
-    private LuaAttr(String user, String name) {
+    private LuaAttr(Kind kind, String user, String name) {
+        this.kind = kind;
         this.user = user;
         this.name = name;
     }
 
-    /** {@code tostring(attr)}: {@code Attr(str)}. */
+    /** {@code tostring(attr)}: {@code Attr(str)}, {@code Ability(smithing)}. */
     public String toString() {
-        return "Attr(" + name + ")";
+        return kind.type + "(" + name + ")";
     }
 
-    /** An interned Attr object for {@code name} <b>on session {@code user}</b>, in {@code owner}'s env. */
-    static LuaValue of(Addon owner, String user, String name) {
-        return owner.attrs.of(user, name);
+    /** An interned object of {@code kind} for {@code name} <b>on session {@code user}</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, Kind kind, String user, String name) {
+        return ((kind == Kind.BASE) ? owner.attrs : owner.abilities).of(user, name);
     }
 
     /** The {@code LuaAttr} behind a Lua value, or {@code null} for anything that is not an Attr object. */
@@ -70,36 +135,22 @@ public final class LuaAttr {
         return (o instanceof LuaAttr) ? (LuaAttr)o : null;
     }
 
-    /** Is {@code name} one of the nine? */
-    static boolean known(String name) {
-        for(String nm : NAMES) {
-            if(nm.equals(name))
-                return true;
-        }
-        return false;
-    }
-
-    /** The nine names as one comma-separated list, for the refusal. */
-    static String namesList() {
-        StringBuilder b = new StringBuilder();
-        for(int i = 0; i < NAMES.length; i++)
-            b.append((i == 0) ? "" : ", ").append(NAMES[i]);
-        return b.toString();
-    }
-
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
     /**
-     * One addon's Attr interning cache and metatable (its {@link Addon#attrs}), keyed by the <b>account plus</b>
-     * the attribute name: {@code "str"} names a different number on each character, so the two must be two
-     * handles. Two levels of map, the {@link LuaGob} shape.
+     * One addon's interning cache and metatable for one {@link Kind} (its {@link Addon#attrs} and
+     * {@link Addon#abilities}), keyed by the <b>account plus</b> the name: {@code "str"} names a different
+     * number on each character, so the two must be two handles. Two levels of map, the {@link LuaGob} shape.
+     * One cache per kind is what keeps an Ability from ever being {@code ==} an Attr: two metatables.
      */
     static final class Cache {
+        private final Kind kind;
         private final Map<String, Map<String, Ref>> live = new HashMap<String, Map<String, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
-        Cache(Addon owner) {
+        Cache(Addon owner, Kind kind) {
+            this.kind = kind;
         }
 
         synchronized LuaValue of(String user, String nm) {
@@ -116,7 +167,7 @@ public final class LuaAttr {
                     return v;
                 byname.remove(nm);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaAttr(user, nm), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaAttr(kind, user, nm), meta());
             byname.put(nm, new Ref(v, user, nm, dead));
             return v;
         }
@@ -138,7 +189,7 @@ public final class LuaAttr {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(kind);
             return mt;
         }
     }
@@ -157,19 +208,26 @@ public final class LuaAttr {
 
     // ---- the Attr metatable -------------------------------------------------------------------------
 
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(final Kind kind) {
         LuaTable mt = new LuaTable();
         LuaTable m = methods();
         // Refusal.closedIndex, never the methods table itself: an unknown verb would otherwise read as plain
         // nil and fail one call later as "attempt to call a nil value", naming neither the verb nor what a
-        // character attribute does answer.
-        mt.set(LuaValue.INDEX, Refusal.closedIndex("attr", m,
-            "a character attribute"));
-        mt.set("__name", LuaValue.valueOf("Attr"));
+        // character attribute does answer. The entity is a LITERAL per kind, never kind.verb: the doc
+        // checkers (tools/docverbs.py, tools/refusalverbs.py) read the vocabulary's owner off that literal.
+        switch(kind) {
+        case ABILITY:
+            mt.set(LuaValue.INDEX, Refusal.closedIndex("ability", m, "a character ability"));
+            break;
+        default:
+            mt.set(LuaValue.INDEX, Refusal.closedIndex("attr", m, "a character attribute"));
+            break;
+        }
+        mt.set("__name", LuaValue.valueOf(kind.type));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaAttr h = resolve(self);
-                return LuaValue.valueOf((h == null) ? "Attr(?)" : h.toString());
+                return LuaValue.valueOf((h == null) ? (kind.type + "(?)") : h.toString());
             }
         });
         return mt;
@@ -177,7 +235,7 @@ public final class LuaAttr {
 
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
-        // name() — which attribute this is ("str"). Always answers: it is the handle's whole state.
+        // name() — which attribute or ability this is ("str", "smithing"). Always answers: it is the handle's whole state.
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(handle(self, "name").name);
@@ -213,8 +271,8 @@ public final class LuaAttr {
     private static LuaAttr handle(LuaValue self, String method) {
         LuaAttr h = resolve(self);
         if(h == null)
-            throw new LuaError("attr:" + method + "() — use a COLON call on an Attr object"
-                + " (" + CharApi.C + ":attr():get(name))");
+            throw new LuaError("attr:" + method + "() — use a COLON call on an Attr or Ability object"
+                + " (" + CharApi.C + ":attr():get(name), " + CharApi.C + ":ability():get(name))");
         return h;
     }
 
@@ -247,17 +305,19 @@ public final class LuaAttr {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code s:char():attr()} — the base attributes. {@code :list()} is every one the server has
-     * <b>populated</b>, in the client's own order; {@code :get(name)} is one of the nine and is never
-     * {@code nil}; a name outside the nine is refused naming them all.
+     * {@code s:char():attr()} — the base attributes — and {@code s:char():ability()} — the abilities.
+     * {@code :list()} is every one the server has <b>populated</b>, in the kind's own order; {@code :get(name)}
+     * is one of the kind's names and is never {@code nil}; a name of the other kind is refused naming the
+     * collection it belongs to, and any other name is refused listing the kind's.
      */
-    static LuaValue collection(final Addon owner, final String user) {
-        return LuaCollection.create(CharApi.C + ":attr()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user, final Kind kind) {
+        final String how = kind.collection();
+        return LuaCollection.create(how, new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : NAMES) {
+                for(String nm : kind.names) {
                     if(attr(user, nm) != null)
-                        out.add(of(owner, user, nm));
+                        out.add(of(owner, kind, user, nm));
                 }
                 return out;
             }
@@ -281,19 +341,31 @@ public final class LuaAttr {
                 // :get(3) through to the name test and report it as a missing ATTRIBUTE rather than as the
                 // wrong kind of key.
                 if(key.type() != LuaValue.TSTRING)
-                    throw new LuaError(CharApi.C + ":attr():get(name): expected an attribute name, got "
-                        + key.typename());
+                    throw new LuaError(how + ":get(name): expected " + (kind == Kind.BASE ? "an attribute" : "an ability")
+                        + " name, got " + key.typename());
                 String nm = key.tojstring();
-                return known(nm) ? of(owner, user, nm) : LuaValue.NIL;
+                if(kind.known(nm))
+                    return of(owner, kind, user, nm);
+                // A name of the other kind is not a typo but the wrong door: say which one is right.
+                Kind other = kind.other();
+                if(other.known(nm))
+                    throw new LuaError(how + ":get(\"" + nm + "\"): " + nm + " is " + (other == Kind.BASE ? "a " : "an ")
+                        + other.noun + ", not " + (kind == Kind.BASE ? "a " : "an ") + kind.noun + " — "
+                        + other.collection() + ":get(\"" + nm + "\")");
+                return LuaValue.NIL;
             }
 
-            /** The base attributes are a closed set, so a name outside it is a typo. */
+            /** Each kind is a closed set, so a name outside both is a typo. */
             public LuaCollection.Missing missing() {
                 return LuaCollection.Missing.RAISE;
             }
 
             public String keys() {
-                return "there is no such attribute. The base attributes are: " + namesList();
+                return (kind == Kind.BASE)
+                    ? "there is no such attribute. The base attributes are: " + kind.namesList()
+                        + " (the abilities are " + Kind.ABILITY.collection() + ")"
+                    : "there is no such ability. The abilities are: " + kind.namesList()
+                        + " (the base attributes are " + Kind.BASE.collection() + ")";
             }
 
             /** The key is the attribute's name. */
