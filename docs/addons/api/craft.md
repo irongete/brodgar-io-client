@@ -56,6 +56,24 @@ One slot of the open recipe: an ingredient, a product, a quality input or a tool
 | Never throws | Every read is unprotected. |
 | The unspecified count | The wire's `-1`. `spec:count()` answers `1` for it, the snapshot keeps the server's number. |
 | The slot's icon draws an item | `spec:res()` is what the recipe accepts. The slot on screen is an [item icon](ui/items.md), so [`widget:item()`](ui/widget.md#read-methods) on it answers the concrete item painted and `:res()` on that is the concrete resource. Quality inputs and tools have no icon (bare pictures), so `session:craft()` is the only read for them. |
+| A quality input names a stat | Its `spec:res()` is `gfx/hud/chr/<name>`, and `<name>` is a key of [`session:char():attr()`](char.md#attributes) or [`session:char():ability()`](char.md#abilities). The product's quality is soft-capped at the geometric mean of those stats' `:composite()`: [reading the cap](#reading-the-cap). |
+
+### Reading the cap
+
+Build one table of the character's stats by name, then look up each quality input in it.
+
+```lua
+local session = hafen.session():current()
+local stats = {}
+for _, attr in ipairs(session:char():attr():list()) do stats[attr:name()] = attr end
+for _, ability in ipairs(session:char():ability():list()) do stats[ability:name()] = ability end
+local product, count, missing = 1, 0, false
+for _, spec in ipairs(session:craft():qualityInputs():list()) do
+  local stat = stats[(spec:res() or ""):match("^gfx/hud/chr/(.+)$")]   -- nil while the slot loads
+  if stat then product, count = product * stat:composite(), count + 1 else missing = true end
+end
+if count > 0 and not missing then hafen.log():write(("softcap %d"):format(math.floor(product ^ (1 / count) + 1e-9))) end
+```
 
 ## Write (protected)
 
@@ -79,3 +97,4 @@ The client sends only shapes a player could compose.
 - [`Craft` and `CraftSpec`](types/ui.md#craft-and-craftspec) — the snapshot shapes.
 - [Items](ui/items.md#write-protected) — moving the ingredients into the window.
 - [`session:menugrid`](menugrid.md) — how a recipe window gets opened.
+- [`session:char`](char.md) — the attributes and abilities a quality input names.

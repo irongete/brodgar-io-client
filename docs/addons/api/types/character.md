@@ -1,6 +1,6 @@
 # Data Types: The Character Sheet
 
-The snapshot shapes off one character's sheet: attributes, food, learning, movement speed, quests, wounds and buffs. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
+The snapshot shapes off one character's sheet: attributes, abilities, food, learning, movement speed, quests, wounds and buffs. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
 
 ```lua
 local food = hafen.session():current():char():food()
@@ -13,6 +13,10 @@ if snapshot and snapshot.fep then hafen.log():write(("fep %d/%d"):format(snapsho
 ## Attr
 
 From [`attr:info()`](../char.md#attributes): `{ base = number, comp = number }`, the raw base value against the computed, buffed value. `session:char():attr()` hands live [`Attr` objects](../char.md#attributes), not this table. `nil` while the server has published nothing for that attribute. An attribute of exactly zero on both halves reads as the same `nil`. The client keeps no published flag, and builds a zero record for any name asked. A living character carries no attribute of zero.
+
+## Ability
+
+From [`ability:info()`](../char.md#abilities): `{ base = number, comp = number }`, the shape [`Attr`](#attr) has. `session:char():ability()` hands live [`Ability` objects](../char.md#abilities), not this table. `nil` until the server has sent the sheet. Every ability is at least 1 after that.
 
 ## Food
 

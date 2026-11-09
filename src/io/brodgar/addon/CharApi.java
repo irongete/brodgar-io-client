@@ -1598,14 +1598,15 @@ final class CharApi {
      * Build the char section object for {@code (owner, user)} — <b>one character's sheet</b>, reached as
      * {@code s:char()} (077.1). Called once per pair by {@link LuaSession}.
      *
-     * <p><b>Four collections and three scalars</b> (spec {@code 039-uniform-api} §2.3/§4.1). The flat
+     * <p><b>Five collections and three scalars</b> (spec {@code 039-uniform-api} §2.3/§4.1). The flat
      * singular/plural pairs — {@code attr}/{@code attrs}, {@code skills}/{@code skill},
      * {@code credos}, {@code experiences} — become the collections {@code :attr()}, {@code :skill()},
      * {@code :credo()} and {@code :experience()}: the noun names the kind and the verb says how many, so
      * {@code :attr():get("str")} is one and {@code :attr():list()} is all. {@code skillsAvailable()} was a
      * second accessor for a sub-list and is now {@code :skill():available()}, a verb on the collection it
      * belongs to. Each collection is minted <b>once</b> and handed back by identity, as the section object
-     * is — a panel that reads the sheet every frame must allocate nothing to do it.
+     * is — a panel that reads the sheet every frame must allocate nothing to do it. {@code :ability()} is the
+     * fifth (178.1): the thirteen abilities, the same {@link LuaAttr} under its {@code Ability} kind.
      *
      * <p><b>Every verb reads the session it hangs on.</b> {@code user} is the account, and each read
      * re-resolves that character's own {@code CharWnd} through {@link #charwnd(String)} — so a handle kept
@@ -1616,12 +1617,14 @@ final class CharApi {
      * until the base-attributes tab exists.
      */
     static LuaValue chr(final Addon owner, final String user) {
-        final LuaValue attrs = LuaAttr.collection(owner, user);
+        final LuaValue attrs = LuaAttr.collection(owner, user, LuaAttr.Kind.BASE);
+        final LuaValue abilities = LuaAttr.collection(owner, user, LuaAttr.Kind.ABILITY);
         final LuaValue skills = LuaSkill.collection(owner, user);
         final LuaValue credos = LuaCredo.collection(owner, user);
         final LuaValue exps = LuaExperience.collection(owner, user);
         LuaTable chr = new LuaTable();
         chr.set("attr", collection("char", C, "attr", attrs));
+        chr.set("ability", collection("char", C, "ability", abilities));
         chr.set("skill", collection("char", C, "skill", skills));
         chr.set("credo", collection("char", C, "credo", credos));
         chr.set("experience", collection("char", C, "experience", exps));

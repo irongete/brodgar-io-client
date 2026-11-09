@@ -1,0 +1,9 @@
+{
+  "name": "178.1 — the character's abilities",
+  "id": "178-character-abilities.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 178.1: session:char():ability() reads the thirteen abilities as Ability objects, refuses the wrong names, leaves attr() as it was, and a recipe's quality inputs resolve to them.",
+  "api_version": "1.8",
+  "files": ["main.lua"]
+}

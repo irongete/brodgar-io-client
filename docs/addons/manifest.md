@@ -83,7 +83,7 @@ A JSON object. `id` and `files` are required. Without `api_version` the client l
 | What needs `1.5` | The [regions](api/ui/regions.md): the `fight.*` and `hud.*` roles, in a selector, a sheet key and `hafen.ui():role()`. [`widget:raise()`, `widget:lower()` and `widget:z(n)`](api/ui/native.md#front-and-back-unprotected). [`widget:addon()`](api/ui/widget.md#read-methods) and its `:info().addon`. [`hafen.ui():root()`](api/ui/custom.md#your-windows-live-in-the-layer), the top of the addon layer. |
 | What needs `1.6` | [`performance():simpleCliffs()`](api/client/README.md#performance), cliffs one tile tall on flat terrain. |
 | What needs `1.7` | [`video():brightness()`](api/client/README.md#video), the world lit towards a sunny noon. |
-| What needs `1.8` | [`item:curiosity()`](api/ui/items.md#curiosities), the item's study profile. [`item:note()` and `item:ready()`](api/ui/items.md#notes-and-tooltip-readiness), your own lines in its native tooltip and whether its tooltip has arrived. |
+| What needs `1.8` | [`item:curiosity()`](api/ui/items.md#curiosities), the item's study profile. [`item:note()` and `item:ready()`](api/ui/items.md#notes-and-tooltip-readiness), your own lines in its native tooltip and whether its tooltip has arrived. [`session:char():ability()`](api/char.md#abilities), the character's abilities. |
 
 Everything else these pages describe is in `1.0`.
 
