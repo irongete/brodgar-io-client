@@ -146,7 +146,7 @@ final class LuaHand {
                 GItem it = held(handle(Args.only(a, 0, "hand:info"), "info").user);
                 LuaTable t = new LuaTable();
                 if(it != null)
-                    t.set("item", LuaItem.snapshot(it));
+                    t.set("item", LuaItem.snapshot(owner, it, LuaItem.live(it) != null));
                 return t;
             }
         });

@@ -293,6 +293,7 @@ public final class Addon {
      * this addon was listening to, and after a {@code :reload} the addon that was listening no longer exists.
      */
     void teardownWidgetSubs() {
+        ItemNotes.clear(this);
         itemSubs.clear();
         AddonManager.recountItemSubs();   // audit2 B15: this addon has stopped watching items — see onItemInfo
         List<WidgetSubs> all = widgetSubs.values();
@@ -1154,6 +1155,7 @@ public final class Addon {
     void dropItemSubs(ItemInfo.SpriteOwner it) {
         if(it == null)
             return;
+        ItemNotes.drop(this, it);
         Subs s = itemSubs.drop(it);
         if(s != null) {
             s.clear();

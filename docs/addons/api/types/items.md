@@ -1,6 +1,6 @@
 # Data Types: The Item and What Holds It
 
-The two snapshot shapes an item hands back: the item, and what a container states about its inside. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
+The snapshot shapes an item hands back, including the item, its study metadata and what a container states about its inside. Each is what `:info()` copies out of a live object. What *optional* means is on [the catalogue](README.md).
 
 ```lua
 local backpack = hafen.session():current():ui():inventory()
@@ -24,12 +24,26 @@ From [`item:info()`](../ui/items.md#the-item-object). The live reads hand an [`I
 | `progress` | `number` | `0..1`, the [arc](../ui/items.md#the-numbers-on-an-icon) painted over the icon. |
 | `durability` | `{cur, max}` | The [two counts](../ui/items.md#durability-the-counts-a-wear-row-prints) its wear row prints. |
 | `quality` | `number` | The quality the tooltip shows. |
+| `curiosity` | `table` | The optional [Curiosity](#curiosity) snapshot. |
+| `ready` | `boolean` | Whether tooltip metadata has arrived and the item info can be built; `true` for resolved non-curiosities too. |
+| `note` | `string` | This addon's optional additional tooltip text, absent when it has no note. |
 | `contents` | `table` | What it holds, as the [Contents](#contents) snapshot. |
 | `handle` | `number` | Its server widget id, the number it is addressed by on the wire. Absent once gone and on one the client only draws. |
 | `cell` | `{x, y}` | The 1-based grid cell it sits in (`item:cell()`). Absent for a worn or cursor item and one inside another item. |
 | `slots` | `string[]` | The equipment slots it fills, by name. Absent when not worn. |
 
 A snapshot holds no live objects. There is no `container` field, though [`item:container()`](../ui/contents.md) reads one. The `contents` snapshot carries no `items`, since a snapshot of a bag would otherwise nest without end.
+
+## Curiosity
+
+From [`curiosity:info()`](../ui/items.md#curiosities), or as the optional `curiosity` field of [`item:info()`](#item). Its fields are the curiosity metadata values in the current tooltip.
+
+| Field | Type | Notes |
+|---|---|---|
+| `lp` | `number` | Learning points. |
+| `attention` | `number` | Mental weight. |
+| `cost` | `number` | Experience cost. |
+| `time` | `number` | Total study time in seconds. |
 
 ## Contents
 

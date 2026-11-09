@@ -43,6 +43,10 @@ A container belongs to one character and is reached through that character's [se
 | `item:durability()` | `{cur, max} \| nil` | Unprotected | [The two counts its wear row prints](#durability-the-counts-a-wear-row-prints). |
 | `item:quality()` | `number \| nil` | Unprotected | The quality the tooltip shows. |
 | `item:contents()` | [`Contents`](contents.md) `\| nil` | Unprotected | What it holds. `nil` for an item holding nothing. |
+| `item:curiosity()` | [`Curiosity`](#curiosities) `\| nil` | Unprotected | Its study information, once the tooltip resolves, when the item is a curiosity. Works on items and depictions. |
+| `item:ready()` | `boolean` | Unprotected | Whether tooltip metadata has arrived and its info can be built. `false` while loading, unreceived or stale; `true` for resolved items, including non-curiosities and items with no name. |
+| `item:note()` | `string \| nil` | Unprotected | This addon's additional native tooltip lines, or `nil` when it has none. |
+| `item:note(text)` | `Item` | Unprotected | Set this addon's additional native tooltip lines; `nil` or `""` clears them. |
 | `item:container()` | `Item \| nil` | Unprotected | The item it sits inside. `nil` for one in a container widget. |
 | `item:cell()` | `{x, y} \| nil` | Unprotected | The 1-based grid cell it sits in — a place, where a grid control's [`:cellSize()`](widget.md#read-methods) is a size. |
 | `item:slots()` | `string[]` | Unprotected | The equipment slots it fills, by name. Empty for anything not worn. |
@@ -50,6 +54,37 @@ A container belongs to one character and is reached through that character's [se
 | `item:exists()` | `boolean` | Unprotected | Whether the icon drawing it is still in the tree. |
 | `item:info()` | `table` | Unprotected | The [snapshot](../types/items.md#item): every read above in one table. |
 | `item:on("Changed", fn)` | [`Sub`](../event/README.md#subscribe) | Unprotected | [What the item says about itself resolved or was revised](#an-item-arrives-before-it-can-be-described). |
+
+`item:info().curiosity` is an optional [`Curiosity` snapshot](../types/items.md#curiosity), present when the item has curiosity metadata.
+`item:info().ready` is the tooltip metadata readiness state, and `item:info().note` is this addon's note when set.
+
+### Notes and tooltip readiness
+
+`item:note()` reads only the calling addon's note; each addon has independent note text, and setting or clearing it never replaces vanilla tooltip facts or another addon's note. `item:note(text)` sets a note on the item and returns the same `Item`. Pass `nil` or an empty string to clear it. A stale item refuses a non-empty write, while clearing a stale item's note is allowed.
+
+| Rule | Detail |
+|---|---|
+| Native presentation | Notes appear below the original information, inside the same tooltip box and using its font. For carried and equipped items, the compact hover is unchanged; notes appear in the full tooltip. Recipe depictions include notes in their native item hover. |
+| Formatting | Plain strings support line breaks. Valid rich-text markup is rendered; malformed markup is displayed literally. |
+| Ownership | Setting or clearing a note changes only your addon's contribution. Other addons' notes and the original item information remain intact. |
+| Lifetime | Notes are removed when their item is destroyed or the addon is disabled or reloaded. |
+
+`item:ready()` reports tooltip metadata readiness, not whether the item is a curiosity. It is `true` only after the item's tooltip data has arrived and the client can build its metadata; a depiction has no server message to await. It remains `false` while the tooltip is loading or unreceived and for a stale item. Resolved non-curiosities are ready too, even when their name is absent. Use `item:on("Changed", fn)` to react when tooltip data resolves or changes.
+
+### Curiosities
+
+`item:curiosity()` returns one live, interned object while the item has curiosity metadata. It returns `nil` when the tooltip is unresolved or the item is not a curiosity. Identity stays stable across calls and metadata replacement; the handle keeps only a profile, not a copy of tooltip values. Subscribe to revisions with the owning `item:on("Changed", fn)`.
+
+| Method | Returns | Permission | Description |
+|---|---|---|---|
+| `curiosity:lp()` | `number \| nil` | Unprotected | Learning points from the current metadata. |
+| `curiosity:attention()` | `number \| nil` | Unprotected | Mental weight from the current metadata. |
+| `curiosity:cost()` | `number \| nil` | Unprotected | Experience cost from the current metadata. |
+| `curiosity:time()` | `number \| nil` | Unprotected | Total study time in seconds. |
+| `curiosity:exists()` | `boolean` | Unprotected | `true` only while the item is still drawn and curiosity metadata is available. |
+| `curiosity:info()` | `table \| nil` | Unprotected | Plain snapshot `{lp, attention, cost, time}`, or `nil` without curiosity metadata. |
+
+The live numeric reads reflect metadata revisions: a revision that drops the curiosity row makes them answer `nil`. A curiosity whose item went stale still reads the values its last tooltip stated, while `:exists()` is `false`.
 
 | Rule | Detail |
 |---|---|

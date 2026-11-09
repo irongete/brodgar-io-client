@@ -255,6 +255,7 @@ public abstract class UILoop implements Console.Directory {
     }
 
     private void drawtip(UI ui, GOut g, Object tooltip) {
+	io.brodgar.addon.ItemNotes.frame();   // addon: retire notes before borrowing this frame's textures
 	Indir<Tex> tt = null;
 	// addon: a "tooltip" font override moved (F3d, D-043) -> drop the cached render of the SAME tooltip object.
 	int fontgen = Fonts.gen();
@@ -305,7 +306,12 @@ public abstract class UILoop implements Console.Directory {
 	}
 	Tex tex = (tt == null) ? null : tt.get();
 	if(tex != null) {
-	    Coord sz = tex.sz();
+	    Coord basesz = tex.sz();
+	    // addon: append addon-owned lines inside the original native long item tooltip, without changing its tex.
+	    Tex extra = io.brodgar.addon.ItemNotes.extra(tooltip);
+	    int gap = (extra == null) ? 0 : UI.scale(4);
+	    Coord sz = (extra == null) ? basesz : new Coord(Math.max(basesz.x, extra.sz().x),
+		basesz.y + gap + extra.sz().y);
 	    Coord m = UI.scale(2, 2);
 	    // addon: (065.6) a tip's BOX is the "tooltip" rule's -- its padding widens the room around the text,
 	    // its bg and border paint what fills that box. With no rule the two rects below are what they always
@@ -341,6 +347,10 @@ public abstract class UILoop implements Console.Directory {
 		g.chcolor();
 	    }
 	    g.image(tex, pos);
+	    if(extra != null) {
+		// addon: notes follow the native texture inside the same tooltip box.
+		g.image(extra, pos.add(0, basesz.y + gap));
+	    }
 	}
 	ui.lasttip = tooltip;
     }

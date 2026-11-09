@@ -233,6 +233,11 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	return(this.info);
     }
 
+    // addon: distinguishes an unreceived tooltip from a successfully resolved empty/non-curiosity tooltip.
+    public boolean infoReceived() {
+	return(rawinfo != null);
+    }
+
     public Resource resource() {
 	return(res.get());
     }
