@@ -54,12 +54,12 @@ slot in the draw list before taking an off-screen one out — so adding a slot a
 object on the GPU without drawing it.
 
 **Gotcha — everything prepared since the last frame is uploaded before the next one, all of it.**
-`GLEnvironment.prepare(…)` appends to one `prep` render that `process(GL)` replays whole ahead of the frame's own
-commands, and nothing bounds how much it holds: a frame that adds a few megabytes of new meshes and textures
-spends 10–20 ms of the render thread on them, which is the frame rate going from 200 to 40. What is prepared is
-used in that same frame, so a bound cannot sit in the environment; it sits with whoever adds to the scene. Fork:
+`GLEnvironment.prepare(…)` appends to one `prep` render that the next render to run replays whole ahead of its
+own commands (`GLEnvironment.Submission.accept`), and nothing bounds how much it holds: a frame that adds a few
+megabytes of new meshes and textures spends 10–20 ms of the render thread on them, which is the frame rate
+going from 200 to 40. What is prepared is used in that same frame, so a bound cannot sit in the environment; it sits with whoever adds to the scene. Fork:
 `io.brodgar.perf.UploadBudget` — the render thread reports the time it spent replaying `prep`
-(`GLEnvironment.process` → `UploadBudget.rendered`), `UILoop.Frame.run` gives each frame its share, and the
+(`GLEnvironment.Submission.accept` → `UploadBudget.rendered`), `UILoop.Frame.run` gives each frame its share, and the
 remembered ground's merged grids, its click map and the far ground's new builds pay for what they upload out of
 it. ⚠️ The fill runs on the thread that compiles the slot — the UI thread for a `slot.add` — and so does a
 filler's conversion: `RUtils.CubeFill` converted the six faces of a cube texture in `fill`, the first frame the
@@ -108,11 +108,11 @@ objects behind them is not.
 
 **Gotcha — a program the driver refuses freezes the client, with no error on screen.** A compile or link
 failure throws `ShaderException`/`LinkException` from `ShaderOb.create`/`ProgOb.create` inside
-`GLEnvironment.process`, wrapped by `BufferBGL.run` as `BGLException`. The frame's renders are already off the
-queue and are neither run nor aborted, so their fences never fire; `JOGLPanel.redraw` (and `LWJGLPanel`'s) has
-no `try`, so the busy bit in `pstate` is never cleared and no display is scheduled again; and the UI thread's
-next `Frame.syncwait` waits on the lost fence with no timeout. The window shows its last frame and takes no
-input; the stack trace goes to stderr only. Nothing on the UI thread sees it either — `GLProgram.glid()` only
+`GLEnvironment.Submission.accept`, wrapped by `BufferBGL.run` as `BGLException`. That render is neither run
+nor aborted, so its fences never fire, and the UI thread's next `Frame.syncwait` waits on the lost fence with
+no timeout. On JOGL it goes further: `JOGLEnvironment.process(GL)` has already taken the rest of the batch off
+its queue, and `JOGLPanel.redraw` has no `try`, so the busy bit in `pstate` is never cleared and no display is
+scheduled again. The window shows its last frame and takes no input; the stack trace goes to stderr only. Nothing on the UI thread sees it either — `GLProgram.glid()` only
 queues the objects. The only protection is to ask the driver first: a `BGL.Request` submitted through a
 render of its own (`GLRender.submit(BGL.Request)`, the render from the window's environment as the next gotcha
 says) that compiles and links the two sources itself and reads `GL_COMPILE_STATUS` /
@@ -125,8 +125,8 @@ components (256 vec4).
 **Gotcha — on GLX and Cocoa every window shares one GL environment, and a render must name its window.**
 `GLXContext`'s `GLXEnvironment` and `CocoaContext`'s `CGLEnvironment` are one context for all of a toolkit's
 windows; a window's `env()` is that environment's `ProxyEnv`, a `GLProxy` holding the drawable (or `NSView`).
-`GLEnvironment.process` runs every GL call through `process(gl, ctx, cmd)`, which those two override to make the
-render's window current, reading it off `((ProxyEnv)ctx.env())` — so a render has to come from the proxy:
+`GLEnvironment.Submission.accept` runs every GL call through `process(gl, ctx, cmd)`, which those two override
+to make the render's window current, reading it off `((ProxyEnv)ctx.env())` — so a render has to come from the proxy:
 `GLProxy.render()` hands out a `ProxiedRender`, whose `env()` is the proxy (hence `GLRender.env()` returns an
 `Environment`). The shared environment's own `render()` throws (`raw render-buffers not available in shared
 environments`). Unwrapping an environment to reach GL stops at the first `GLProxy`; WGL, JOGL, NEWT and LWJGL hand

@@ -20,7 +20,7 @@
 | HUD placement switch (per type: inv/equ/chr/craft/…) | `GameUI.addchild` |
 | Window chrome / CPU-buffered base | `Window` · `SIWidget` |
 | 2D drawing context | `GOut` (image/text/rect/line/prect/chcolor) |
-| **Image overloads (each a different thing)** | `image(tex,c)` natural · `(tex,c,sz)` **scaled** · `(tex,c,ul,br)` natural + **clipped** · `(tex,c,ul,br,sz)` both · `rimage`/`rimagev`/`rimageh` **tile** |
+| **Image overloads (each a different thing)** | `image(tex,c)` natural · `(tex,c,sz)` **scaled** · `(tex,c,ul,br)` natural + **clipped** · `(tex,c,ul,br,sz)` both · `rimage`/`rimagev`/`rimageh` **tile** a size, `rimage2`/`rimagev2`/`rimageh2` up to an end coordinate, each clipped to the run |
 | **9-slice is a first-class engine concept** | `IBox` is an **interface** — `draw(g, tl, sz)` + six inset queries; `Images` takes eight `Tex`es in the order `(ctl, ctr, cbl, cbr, bl, br, bt, bb)` where **`bl`/`br` are the LEFT/RIGHT edge bars**, not the bottom corners; `Scaled` stretches the edges and **never paints the centre** |
 | **Sub-rect texture view** | `TexSI` — `(parent, ul, br)`, sharing the parent's GPU texture. `Tex` coords are in **pixels** (`Tex.crender`), so slicing an image costs eight small objects and **no** upload |
 | **Input: grabs, propagation, focus, point queries, popups, drops** | [widget-input.md](widget-input.md) — split out of this file |

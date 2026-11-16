@@ -303,18 +303,10 @@ public class Window extends Widget {
 
 	protected void drawbg(GOut g) {
 	    g.usestate(bgblend);
-	    Coord bgc = new Coord();
-	    for(bgc.y = ca.ul.y; bgc.y < ca.br.y; bgc.y += bg.sz().y) {
-		for(bgc.x = ca.ul.x; bgc.x < ca.br.x; bgc.x += bg.sz().x)
-		    g.image(bg, bgc, ca.ul, ca.br);
-	    }
+	    g.rimage2(bg, ca.ul, ca.br);
 	    g.defstate();
-	    bgc.x = ca.ul.x;
-	    for(bgc.y = ca.ul.y; bgc.y < ca.br.y; bgc.y += bgl.sz().y)
-		g.image(bgl, bgc, ca.ul, ca.br);
-	    bgc.x = ca.br.x - bgr.sz().x;
-	    for(bgc.y = ca.ul.y; bgc.y < ca.br.y; bgc.y += bgr.sz().y)
-		g.image(bgr, bgc, ca.ul, ca.br);
+	    g.rimagev(bgl, ca.ul, ca.br.y - ca.ul.y);
+	    g.rimagev(bgr, Coord.of(ca.br.x - bgr.sz().x, ca.ul.y), ca.br.y - ca.ul.y);
 	}
 
 	// addon: (035.1) EXTRACTED from drawframe unchanged, so a replacement deco that paints its own frame
@@ -369,13 +361,9 @@ public class Window extends Widget {
 	    checkcap();                // addon: (035.1) the caption state, extracted -- see checkcap
 	    if(dragsize)
 		drawsizer(g);          // addon: (065.4)
-	    Coord mdo, cbr;
 	    if(!drawplate(g)) {        // addon: (065.4) -- the block below IS the stock plate
 		g.image(cl, Coord.z);
-		mdo = Coord.of(cl.sz().x, 0);
-		cbr = mdo.add(cmw, cm.sz().y);
-		for(int x = 0; x < cmw; x += cm.sz().x)
-		    g.image(cm, mdo.add(x, 0), Coord.z, cbr);
+		g.rimageh(cm, Coord.of(cl.sz().x, 0), cmw);
 		g.image(cr, Coord.of(cl.sz().x + cmw, 0));
 	    }
 	    // addon: (115.1) a window may carry NO caption -- the game menu is one. checkcap already nulls its
@@ -384,31 +372,20 @@ public class Window extends Widget {
 	    // its first frame, from the draw pass, before anything it holds is ever seen.
 	    if(cap != null)
 		g.image(cap.tex(), capc());   // addon: (065.4) capc() -- the stock cpo unless a rule moved it
-	    mdo = Coord.of(cl.sz().x + cmw + cr.sz().x, 0);
-	    cbr = Coord.of(sz.x - tr.sz().x, tm.sz().y);
-	    for(; mdo.x < cbr.x; mdo.x += tm.sz().x)
-		g.image(tm, mdo, Coord.z, cbr);
+	    g.rimageh2(tm, Coord.of(cl.sz().x + cmw + cr.sz().x, 0), sz.x - tr.sz().x);
 	    g.image(tr, Coord.of(sz.x - tr.sz().x, 0));
 
-	    mdo = Coord.of(0, cl.sz().y);
-	    cbr = Coord.of(lm.sz().x, sz.y - bl.sz().y);
-	    if(cbr.y - mdo.y >= lb.sz().y) {
-		cbr.y -= lb.sz().y;
-		g.image(lb, Coord.of(0, cbr.y));
+	    if(sz.y >= bl.sz().y + cl.sz().y + lb.sz().y) {
+		g.image(lb, Coord.of(0, sz.y - bl.sz().y - lb.sz().y));
+		g.rimagev2(lm, Coord.of(0, cl.sz().y), sz.y - bl.sz().y - lb.sz().y);
+	    } else {
+		g.rimagev2(lm, Coord.of(0, cl.sz().y), sz.y - bl.sz().y);
 	    }
-	    for(; mdo.y < cbr.y; mdo.y += lm.sz().y)
-		g.image(lm, mdo, Coord.z, cbr);
 
-	    mdo = Coord.of(sz.x - rm.sz().x, tr.sz().y);
-	    cbr = Coord.of(sz.x, sz.y - br.sz().y);
-	    for(; mdo.y < cbr.y; mdo.y += rm.sz().y)
-		g.image(rm, mdo, Coord.z, cbr);
+	    g.rimagev2(rm, Coord.of(sz.x - rm.sz().x, tr.sz().y), sz.y - br.sz().y);
 
 	    g.image(bl, Coord.of(0, sz.y - bl.sz().y));
-	    mdo = Coord.of(bl.sz().x, sz.y - bm.sz().y);
-	    cbr = Coord.of(sz.x - br.sz().x, sz.y);
-	    for(; mdo.x < cbr.x; mdo.x += bm.sz().x)
-		g.image(bm, mdo, Coord.z, cbr);
+	    g.rimageh2(bm, Coord.of(bl.sz().x, sz.y - bm.sz().y), sz.x - br.sz().x);
 	    g.image(br, sz.sub(br.sz()));
 	}
 
@@ -496,17 +473,13 @@ public class Window extends Widget {
     }
 
     public Coord contentsz() {
-	Coord max = new Coord(0, 0);
+	Coord max = Coord.z;
 	for(Widget wdg = child; wdg != null; wdg = wdg.next) {
 	    if(wdg == deco)
 		continue;
 	    if(!wdg.visible)
 		continue;
-	    Coord br = wdg.c.add(wdg.sz);
-	    if(br.x > max.x)
-		max.x = br.x;
-	    if(br.y > max.y)
-		max.y = br.y;
+	    max = max.max(wdg.c.add(wdg.sz));
 	}
 	return(max);
     }

@@ -65,7 +65,7 @@ knowing before deciding a frame is one.
 
 | What | Where |
 |---|---|
-| The runs **repeat**, they do not stretch | `DefaultDeco.drawframe` — every edge is a `for` loop of `g.image(tex, mdo, Coord.z, cbr)`, one blit per tile with the run's own clip rectangle. `IBox.Scaled.draw` is the same geometry with `g.image(tex, c, sz)` instead, i.e. one scaled blit. The clip is what keeps the last tile from overrunning a corner |
+| The runs **repeat**, they do not stretch | `DefaultDeco.drawframe` — every edge is a `GOut.rimageh2`/`rimagev2` run (the caption's middle a `rimageh`), one `g.image(tex, c, ul, br)` blit per tile with the run's own clip rectangle. `IBox.Scaled.draw` is the same geometry with `g.image(tex, c, sz)` instead, i.e. one scaled blit. The clip is what keeps the last tile from overrunning a corner |
 | Its background is **three layers** | `DefaultDeco.drawbg` — `bg` tiled over `ca` under `bgblend`, then `bgl` down the left edge and `bgr` down the right, each tiled vertically and clipped to `ca` |
 | A piece pinned at the end of a run | `lb`, dropped at the **foot** of the left run before `lm` tiles the rest — the only such piece in the frame |
 | The caption plate is part of the frame art | `cl` / `cm` / `cr`, with `cm` tiled across `cmw`; `checkcap` computes `cmw` from `max(caption width, sz.x / 4)` and then **shortens it** by `cl.sz().x - cpo.x + UI.scale(5)`, so the run is `cl + cmw + cr` wide from `x = 0` |

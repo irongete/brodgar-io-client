@@ -788,7 +788,6 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 
 	public class GLXEnvironment extends FFIEnvironment {
 	    private XID current = null;
-	    private int qstate;
 
 	    public class ProxyEnv extends GLProxy {
 		public final XID drawable;
@@ -816,26 +815,13 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 		cmd.accept(gl);
 	    }
 
-	    private void process() {
-		synchronized(this) {
-		    qstate = 2;
-		}
-		process(gl);
-		synchronized(this) {
-		    if((qstate & 1) != 0)
-			xrun((Runnable)this::process);
-		    qstate &= ~2;
-		}
-	    }
-
 	    public void submit(Render cmd) {
-		super.submit(cmd);
-		synchronized(this) {
-		    if(glenv == this) {
-			if(qstate == 0)
-			    xrun((Runnable)this::process);
-			qstate |= 1;
-		    }
+		Submission task = submission(cmd);
+		synchronized(GLXToolkit.this) {
+		    if(glenv == this)
+			xrun(() -> task.accept(gl));
+		    else
+			task.abort();
 		}
 	    }
 	}
@@ -1894,6 +1880,13 @@ public class GLXContext implements Providers.Factory<Toolkit> {
 		    this.drop = drop;
 		});
 		return(this);
+	    }
+
+	    public void stats(Collection<String> buf) {
+		int i = 0;
+		for(Runnable task : xtasks) {
+		    buf.add("X-queue " + i++ + ": " + task);
+		}
 	    }
 	}
 

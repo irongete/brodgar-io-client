@@ -97,7 +97,7 @@ public class CocoaContext implements Providers.Factory<Toolkit> {
     public int priority() {
 	return(System.getProperty("os.name", "").startsWith("Mac OS") ? 100 : 0);
     }
-    public boolean experimental() {return(true);}
+    public boolean experimental() {return(false);}
 
     private NSApplication app = null;
     public NSApplication app() {
@@ -681,8 +681,6 @@ public class CocoaContext implements Providers.Factory<Toolkit> {
 	private final Supplier<Pasteboard> pb_general = lazymainrun(() -> new Pasteboard(ak.NSPasteboard_generalPasteboard()));
 
 	public class CGLEnvironment extends FFIEnvironment {
-	    private int qstate;
-
 	    public class ProxyEnv extends GLProxy {
 		public final NSView view;
 
@@ -705,26 +703,13 @@ public class CocoaContext implements Providers.Factory<Toolkit> {
 		cmd.accept(gl);
 	    }
 
-	    private void process() {
-		synchronized(this) {
-		    qstate = 2;
-		}
-		process(gl);
-		synchronized(this) {
-		    if((qstate & 1) != 0)
-			mainrun((Runnable)this::process);
-		    qstate &= ~2;
-		}
-	    }
-
 	    public void submit(Render cmd) {
-		super.submit(cmd);
-		synchronized(this) {
-		    if(glenv == this) {
-			if(qstate == 0)
-			    mainrun((Runnable)this::process);
-			qstate |= 1;
-		    }
+		Submission task = submission(cmd);
+		synchronized(CocoaToolkit.this) {
+		    if(glenv == this)
+			mainrun(() -> task.accept(gl));
+		    else
+			task.abort();
 		}
 	    }
 	}
@@ -1270,10 +1255,12 @@ public class CocoaContext implements Providers.Factory<Toolkit> {
 	    }
 
 	    public void dispose() {
-		synchronized(windows) {
-		    windows.remove(this);
-		}
-		nsw.close();
+		mainrun(() -> {
+		    synchronized(windows) {
+			windows.remove(this);
+		    }
+		    nsw.close();
+		});
 	    }
 	}
 

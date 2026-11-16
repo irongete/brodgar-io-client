@@ -49,6 +49,24 @@ public abstract class Win32 {
     public static final int ERROR_ACCESS_DENIED = 5;
     public static final int ERROR_MORE_DATA = 234;
 
+    public static final int FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x0100;
+    public static final int FORMAT_MESSAGE_IGNORE_INSERTS  = 0x0200;
+    public static final int FORMAT_MESSAGE_FROM_STRING     = 0x0400;
+    public static final int FORMAT_MESSAGE_FROM_HMODULE    = 0x0800;
+    public static final int FORMAT_MESSAGE_FROM_SYSTEM     = 0x1000;
+    public static final int FORMAT_MESSAGE_ARGUMENT_ARRAY  = 0x2000;
+
+    public static final int LANG_NEUTRAL   = 0x00;
+    public static final int LANG_ENGLISH   = 0x09;
+    public static final int LANG_INVARIANT = 0x7f;
+    public static final int SUBLANG_NEUTRAL            = 0x00;
+    public static final int SUBLANG_DEFAULT            = 0x01;
+    public static final int SUBLANG_SYS_DEFAULT        = 0x02;
+    public static final int SUBLANG_CUSTOM_DEFAULT     = 0x03;
+    public static final int SUBLANG_CUSTOM_UNSPECIFIED = 0x04;
+    public static final int SUBLANG_UI_CUSTOM_DEFAULT  = 0x05;
+    public static final int SUBLANG_ENGLISH_US         = 0x01;
+
     public static final int GMEM_FIXED    = 0x0000;
     public static final int GMEM_MOVEABLE = 0x0002;
     public static final int GMEM_ZEROINIT = 0x0040;
@@ -484,8 +502,9 @@ public abstract class Win32 {
 
     public abstract Charset C_WCHARSET();
 
-    public abstract int GetLastError();
     public abstract int GetCurrentThreadId();
+    public abstract int GetLastError();
+    abstract String FormatMessage(int flags, MemorySegment src, int msgid, int langid);
     public abstract Handle GetModuleHandle(String lpModuleName);
     public abstract int GetACP();
     public abstract Handle GlobalAlloc(int flags, int bytes);
@@ -554,6 +573,10 @@ public abstract class Win32 {
 
     public int SendMessage(Handle hWnd, int Msg, long wParam, Handle lParam) {return(SendMessage(hWnd, Msg, wParam, nhandle(lParam).address()));}
 
+    public int MAKELANGID(int p, int s) {
+	return((p & 0x3ff) | ((s & 0x3f) << 10));
+    }
+
     public RuntimeException lasterror() {
 	return(new StdError(GetLastError()));
     }
@@ -601,6 +624,8 @@ public abstract class Win32 {
 	static final MemoryLayout SHORT = C_SHORT;
 	static final MemoryLayout UINT = C_INT;
 	static final MemoryLayout LONG = C_LONG;
+	static final MemoryLayout INT32 = ValueLayout.JAVA_INT;
+	static final MemoryLayout UINT32 = ValueLayout.JAVA_INT;
 	static final MemoryLayout ULONG = C_LONG;
 	static final MemoryLayout WORD = C_SHORT;
 	static final MemoryLayout DWORD = C_LONG;
@@ -663,6 +688,23 @@ public abstract class Win32 {
 		return((int)GetLastError.invoke());
 	    } catch(Throwable e) {
 		throw(new InvocationException(e));
+	    }
+	}
+
+	private final MethodHandle FormatMessageW = ld.downcallHandle(kernel32.find("FormatMessageW").get(), FunctionDescriptor.of(DWORD, DWORD, ADDRESS, DWORD, DWORD, ADDRESS, DWORD, ADDRESS));
+	String FormatMessage(int flags, MemorySegment src, int msgid, int langid) {
+	    try(Arena st = Arena.ofConfined()) {
+		int max = 1024;
+		MemorySegment buf = st.allocate(max);
+		int rv;
+		try {
+		    rv = (int)FormatMessageW.invoke(flags, (src == null) ? MemorySegment.NULL : src, msgid, langid, buf, max, MemorySegment.NULL);
+		} catch(Throwable e) {
+		    throw(new InvocationException(e));
+		}
+		if(rv == 0)
+		    throw(lasterror());
+		return(C_WCHARSET.decode(buf.asByteBuffer().limit(rv * 2)).toString());
 	    }
 	}
 
