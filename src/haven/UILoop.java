@@ -703,6 +703,11 @@ public abstract class UILoop implements Console.Directory {
 	     * to read it (docs/client/multi-session.md's one lock direction). */
 	    UI layer = loop.layer;
 	    Coord sz = loop.wnd.size();
+	    /* addon: a minimised window reports 0x0, and resizing the trees to it makes the MapView build a
+	     * zero-sized framebuffer, which GLFrameBuffer refuses with an exception that ends this thread. Keep
+	     * the last real size until the window has one again. */
+	    if((sz.x <= 0) || (sz.y <= 0))
+		sz = ui.root.sz;
 	    /* addon: (074.1) the layer's half of the dispatch, BEFORE the session's and outside its monitor, in the
 	     * session's own phase: the session's half is loop.dispatch(ui) below, which is given what this leaves. */
 	    CPUProfile.phase(prof, "dsp");
